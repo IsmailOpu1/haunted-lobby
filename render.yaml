@@ -1,0 +1,14 @@
+# Render Blueprint for the game server (see docs/DEPLOY.md, section 3).
+services:
+  - type: web
+    name: haunted-lobby-server
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"

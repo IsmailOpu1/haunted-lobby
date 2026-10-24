@@ -31,24 +31,27 @@ Other commands:
 3. If it doesn't load, Windows Firewall is blocking it. Allow **Node.js** on private networks when Windows asks, or allow ports 5173 and 2567.
 4. Create a room on one computer and join with the code on the other.
 
-## 3. Put the game online: Railway (server) + Vercel (website)
+## 3. Put the game online: Render (server) + Vercel (website)
 
-This is the easiest way for friends on other networks to play. Both have free or cheap plans, and both give you secure `https://` / `wss://` addresses automatically. Vercel cannot run the game server itself (it does not keep connections open), which is why the server goes on Railway.
+This is the easiest way for friends on other networks to play. Both have free plans, and both give you secure `https://` / `wss://` addresses automatically. Vercel cannot run the game server itself (it does not keep connections open), which is why the server goes on Render.
 
 You create the accounts and approve the GitHub access yourself. Both sign in with your GitHub account.
 
-### 3.1 Game server on Railway
+(Railway was the first choice, but it had paused new sign-ups on 2026-10-24. `railway.json` is kept in the repo in case you use it later.)
 
-1. Go to https://railway.com and sign in with GitHub.
-2. **New Project → Deploy from GitHub repo →** pick `IsmailOpu1/haunted-lobby`.
-3. Open the service's **Settings**:
-   - **Build command:** `npm ci`
-   - **Start command:** `npm start`
-   - **Region:** the one closest to Bangladesh (for example Singapore / Southeast Asia).
-4. Under **Networking**, press **Generate Domain**. You get an address like `haunted-lobby-production.up.railway.app`.
+### 3.1 Game server on Render
+
+The repo contains `render.yaml`, which tells Render everything: Node 22, `npm ci`, `npm start`, the Singapore region, the free plan and the `/health` check.
+
+1. Go to https://render.com and sign in with GitHub.
+2. **New → Blueprint →** connect `IsmailOpu1/haunted-lobby`. Render reads `render.yaml` and shows one service, `haunted-lobby-server`.
+3. Press **Apply** / **Deploy Blueprint** and wait until the service shows **Live** (a few minutes the first time).
+4. Open the service. Its address is shown at the top, like `https://haunted-lobby-server.onrender.com`.
 5. Check it: open `https://<that-address>/health` in a browser. It should show `{"ok":true}`.
 
-Railway sets the `PORT` variable itself, and the server already reads it.
+Render sets the `PORT` variable itself, and the server already reads it.
+
+**Free plan note:** the server sleeps after 15 minutes without visitors. The next person to open the game waits about a minute while it wakes up. Rooms are lost when it sleeps. A paid plan keeps it awake.
 
 ### 3.2 Website on Vercel
 
@@ -57,7 +60,7 @@ Railway sets the `PORT` variable itself, and the server already reads it.
 3. Settings on the import screen:
    - **Root Directory:** `client`
    - **Framework Preset:** Vite (usually detected automatically)
-   - **Environment Variable:** `VITE_SERVER_URL` = `wss://<your-railway-address>` (the address from step 3.1, starting with `wss://`, no `/health`)
+   - **Environment Variable:** `VITE_SERVER_URL` = `wss://<your-render-address>` (the address from step 3.1 with `https://` replaced by `wss://`, no `/health`)
 4. Press **Deploy**. You get an address like `haunted-lobby.vercel.app`.
 5. Open it, create a room, and send the invite link to a friend. **This is the Phase 1 "Done when" test.**
 
@@ -65,7 +68,7 @@ Every `git push` to GitHub redeploys both automatically.
 
 ## 4. Alternative: the game server on your own VPS
 
-Use this instead of Railway if you want full control. A plain VPS needs extra setup for `wss://` (a domain and a certificate) before a Vercel website can connect to it. Until then, run the client from your own PC as in step 4.3.
+Use this instead of Render if you want full control or a server that never sleeps. A plain VPS needs extra setup for `wss://` (a domain and a certificate) before a Vercel website can connect to it. Until then, run the client from your own PC as in step 4.3.
 
 This lets friends anywhere join. You need a small Linux server (VPS). The PRD's default is **one VPS in Singapore or Mumbai** (closest to Bangladesh). Any provider works, for example DigitalOcean, Vultr, Linode/Akamai or Hetzner. The smallest plan (1 vCPU, 1 GB RAM) is enough for testing.
 
