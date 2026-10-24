@@ -351,8 +351,8 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 - `shared/config.ts` with every default from Appendix A
 - Three.js scene with a first-person camera and a grey floor
 - Colyseus room that two browser tabs can join by room code
-- Deploy the server to a VPS
-- **Done when:** two computers join the same room by code and see each other's join message.
+- ~~Deploy the server to a VPS~~ Moved to the end of Phase 1 (decided 2026-10-24: an online test is only useful once players can see each other move)
+- **Done when:** two players join the same room by code and see each other's join message. (Done 2026-10-24, tested in separate browser tabs.)
 
 **Phase 1: Grey-box movement (2 to 3 weeks)**
 - First-person controller: walk, run with stamina, crouch (GDD 6)
@@ -360,7 +360,8 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 - Grey-box Main Hall, Restaurant, Kitchen and one corridor
 - Flashlight, near-zero ambient light, fog
 - Server-authoritative movement with prediction and 100 ms interpolation
-- **Done when:** two friends join by link, walk around, and see each other's flashlights move smoothly.
+- Put the game online: the client as a website (for example Vercel) and the game server on a host that supports long-lived WebSocket connections with `wss://` (for example Railway, Render, or the VPS from Section 10.1). See `docs/DEPLOY.md`
+- **Done when:** two friends on different networks join by link, walk around, and see each other's flashlights move smoothly.
 
 **Phase 2: The ghost (about 3 weeks)**
 - Bake a navmesh from the grey-box level
@@ -433,7 +434,7 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 
 | Milestone | After phase | Proof |
 |---|---|---|
-| M0 Foundation | 0 | Two computers join one room |
+| M0 Foundation | 0 | Two players join one room by code |
 | M1 Playable fear | 3 | Friends whisper and feel tension in grey boxes at 60 FPS. Go / no-go for the project |
 | M2 Core loop | 5 | A full match without possessed can be won and lost |
 | M3 Social layer | 6 | The possessed can sabotage and be caught. Private alpha |

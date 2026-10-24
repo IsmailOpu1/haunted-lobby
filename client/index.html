@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Haunted Lobby</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <div id="menu" class="panel">
+      <h1>Haunted Lobby</h1>
+      <label>
+        Your name
+        <input id="name" maxlength="16" autocomplete="off" placeholder="e.g. Rafi" />
+      </label>
+      <button id="create">Create room</button>
+      <div class="divider">or join a friend</div>
+      <label>
+        Room code
+        <input id="code" maxlength="5" autocomplete="off" placeholder="KQXRT" />
+      </label>
+      <button id="join">Join room</button>
+      <p id="error" class="error" role="alert"></p>
+    </div>
+
+    <div id="lobby" class="panel hidden">
+      <div class="room-code">
+        <div class="label">Room code</div>
+        <strong id="room-code"></strong>
+      </div>
+      <div class="share-buttons">
+        <button id="copy-code" class="small">Copy code</button>
+        <button id="copy-link" class="small">Copy invite link</button>
+      </div>
+      <p class="hint">Send the code or the link to your friends so they can join.</p>
+      <h2>Players</h2>
+      <ul id="players"></ul>
+      <h2>Log</h2>
+      <ul id="log"></ul>
+      <p class="look-hint">Click anywhere outside this box to walk around.<br />Mouse to look, WASD to move, Esc to come back here.</p>
+    </div>
+
+    <div id="crosshair"></div>
+    <div id="esc-hint">Esc to show the room panel</div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -11,12 +11,22 @@ Friends are trapped in a haunted place for one night. They must finish tasks, fi
 - **Ouija board.** Dead players can't talk, but in each meeting they push the planchette at one person.
 - **Darkness hides identity.** In the dark you see only a shadow. Your flashlight reveals who it is.
 
-**Status:** design locked, build not started.
+**Status:** Phase 0 (foundations) built: create a room, share the code or link, and friends join the same room.
+
+## Run it
+
+```bash
+npm install
+npm run dev
+```
+
+Open http://localhost:5173. See [docs/DEPLOY.md](docs/DEPLOY.md) for testing with a second computer and putting the server on a VPS.
 
 ## Documents
 
 - [Game Design Document](docs/GDD.md): how the game works
 - [Product Requirements Document](docs/PRD.md): what to build and in what order
+- [Running and deploying](docs/DEPLOY.md)
 
 ## Planned stack
 

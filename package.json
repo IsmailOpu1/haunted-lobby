@@ -1,0 +1,23 @@
+{
+  "name": "haunted-lobby",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,client -c magenta,cyan \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w client",
+    "start": "npm run start -w server",
+    "test": "vitest run",
+    "typecheck": "tsc -p shared --noEmit && tsc -p server --noEmit && tsc -p client --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "concurrently": "10.0.6",
+    "typescript": "6.0.3",
+    "vitest": "5.0.5"
+  }
+}
