@@ -6,8 +6,9 @@ import {
   normalizeRoomCode,
   type ServerMessages,
 } from "@haunted/shared";
+import { defaultMap } from "@haunted/maps";
+import { Game } from "./game.ts";
 import { createRoom, joinRoom } from "./network.ts";
-import { startScene } from "./scene.ts";
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
@@ -26,9 +27,25 @@ const copyLinkBtn = el<HTMLButtonElement>("copy-link");
 const playerList = el("players");
 const log = el("log");
 
-const scene = startScene(el<HTMLCanvasElement>("scene"));
-// While the mouse is captured, hide the lobby panel so the 3D view is clear.
-scene.onLookChange((looking) => document.body.classList.toggle("looking", looking));
+const staminaBar = el("stamina");
+const staminaFill = el("stamina-fill");
+const prompt = el("prompt");
+
+const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
+  // While the mouse is captured, hide the lobby panel so the 3D view is clear.
+  setLooking: (looking) => document.body.classList.toggle("looking", looking),
+  setStamina: (fraction) => {
+    staminaBar.classList.toggle("hidden", fraction >= 1);
+    staminaFill.style.width = `${Math.round(fraction * 100)}%`;
+  },
+  setPrompt: (text) => {
+    prompt.classList.toggle("hidden", !text);
+    prompt.textContent = text ?? "";
+  },
+});
+
+// Development only: lets the browser console inspect the game (window.__game). Not in builds.
+if (import.meta.env.DEV) Object.assign(window, { __game: game });
 
 // An invite link looks like https://site/?room=KQXRT. Prefill the code from it.
 const linkCode = new URLSearchParams(location.search).get("room");
@@ -109,7 +126,7 @@ function addLogLine(text: string) {
 function enterLobby(room: Room) {
   menu.classList.add("hidden");
   lobby.classList.remove("hidden");
-  scene.enableLook();
+  game.attach(room);
   roomCodeText.textContent = room.roomId;
   history.replaceState(null, "", `?room=${room.roomId}`);
 

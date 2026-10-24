@@ -201,6 +201,51 @@ ul {
   border-radius: 4px;
 }
 
+.controls {
+  width: 100%;
+  font-size: 13px;
+  border-collapse: collapse;
+}
+
+.controls td {
+  padding: 2px 4px;
+}
+
+.controls td:first-child {
+  width: 40%;
+  color: var(--accent);
+}
+
+#prompt {
+  position: fixed;
+  top: 58%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  font-size: 14px;
+  background: var(--panel);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+#stamina {
+  position: fixed;
+  bottom: 56px;
+  left: 50%;
+  width: 160px;
+  height: 6px;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+#stamina-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
 body.looking .panel {
   display: none;
 }

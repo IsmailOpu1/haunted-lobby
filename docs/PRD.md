@@ -535,8 +535,8 @@ export const config = {
     overtimeSec: 30,
   },
   movement: {
-    walk: 3.5, run: 5.5, crouch: 1.8, crawl: 1.0,
-    staminaSec: 5, staminaRegenDelaySec: 2, staminaRefillSec: 5,
+    walk: 2.1, run: 3.3, crouch: 1.1, crawl: 0.6,
+    staminaSec: 5, staminaRegenDelaySec: 3, staminaRefillSec: 15,
     relicSlowPct: 15,
     hideEnterExitSec: 1, breathHoldSec: 6, breathCooldownSec: 12,
   },
@@ -567,9 +567,9 @@ export const config = {
     preHuntSilenceSec: 2,
     hidingChecks: 2, hidingCheckSec: 3,
     parts: {
-      calm:     { wander: 1.8, hunt: 3.2, betweenHuntsSec: 75, huntSec: 20 },
-      restless: { wander: 2.4, hunt: 3.6, betweenHuntsSec: 50, huntSec: 25 },
-      furious:  { wander: 3.0, hunt: 4.2, betweenHuntsSec: 30, huntSec: 30 },
+      calm:     { wander: 1.1, hunt: 1.9, betweenHuntsSec: 75, huntSec: 20 },
+      restless: { wander: 1.4, hunt: 2.2, betweenHuntsSec: 50, huntSec: 25 },
+      furious:  { wander: 1.8, hunt: 2.5, betweenHuntsSec: 30, huntSec: 30 },
     },
     difficulty: {
       easy:   { intervalMult: 1.25, speedMult: 0.9 },
@@ -604,7 +604,7 @@ export const config = {
     voteSec: 20, voteOptions: [15, 20, 30],
     revealRole: true, anonymousVoting: false,
   },
-  wisps: { speed: 5, canDoTasks: true, ouija: true },
+  wisps: { speed: 3, canDoTasks: true, ouija: true },
   identity: { nameLitRangeM: 10, nameAlwaysWithinM: 2 },
   disconnect: { holdSec: 60 },
   rotation: { weight: "1 / (1 + timesPossessed)" },

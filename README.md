@@ -11,7 +11,7 @@ Friends are trapped in a haunted place for one night. They must finish tasks, fi
 - **Ouija board.** Dead players can't talk, but in each meeting they push the planchette at one person.
 - **Darkness hides identity.** In the dark you see only a shadow. Your flashlight reveals who it is.
 
-**Status:** Phase 0 (foundations) built: create a room, share the code or link, and friends join the same room.
+**Status:** Phase 1 (grey-box movement) built: join by code or link, walk, run and crouch through dark grey-box rooms of the Marrow Hotel with a flashlight, open doors, and see other players and their flashlights move. Movement is server-authoritative with client-side prediction.
 
 ## Run it
 
@@ -20,7 +20,9 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173. See [docs/DEPLOY.md](docs/DEPLOY.md) for testing with a second computer and putting the server on a VPS.
+Open http://localhost:5173. See [docs/DEPLOY.md](docs/DEPLOY.md) for testing with a second computer and putting the game online.
+
+**Controls:** mouse to look, WASD to move, Shift to run, C to crouch, E to open doors, click or 1 for the flashlight, L for test lights, Esc for the room panel.
 
 ## Documents
 

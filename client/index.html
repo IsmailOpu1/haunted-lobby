@@ -39,11 +39,23 @@
       <ul id="players"></ul>
       <h2>Log</h2>
       <ul id="log"></ul>
-      <p class="look-hint">Click anywhere outside this box to walk around.<br />Mouse to look, WASD to move, Esc to come back here.</p>
+      <p class="look-hint">Click anywhere outside this box to play.</p>
+      <table class="controls">
+        <tr><td>Mouse</td><td>Look</td></tr>
+        <tr><td>W A S D</td><td>Move</td></tr>
+        <tr><td>Shift</td><td>Run (5 s of stamina)</td></tr>
+        <tr><td>C</td><td>Crouch (quiet and slow)</td></tr>
+        <tr><td>E</td><td>Open or close a door</td></tr>
+        <tr><td>Click or 1</td><td>Flashlight on / off</td></tr>
+        <tr><td>L</td><td>Test lights on / off</td></tr>
+        <tr><td>Esc</td><td>Back to this panel</td></tr>
+      </table>
     </div>
 
     <div id="crosshair"></div>
     <div id="esc-hint">Esc to show the room panel</div>
+    <div id="prompt" class="hidden"></div>
+    <div id="stamina" class="hidden"><div id="stamina-fill"></div></div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

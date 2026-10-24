@@ -9,12 +9,13 @@
   },
   "dependencies": {
     "@colyseus/schema": "5.0.42",
+    "@haunted/maps": "*",
     "@haunted/shared": "*",
-    "colyseus": "0.18.10"
+    "colyseus": "0.18.10",
+    "tsx": "4.23.15"
   },
   "devDependencies": {
     "@colyseus/sdk": "0.18.6",
-    "@types/express": "5.0.6",
-    "tsx": "4.23.15"
+    "@types/express": "5.0.6"
   }
 }

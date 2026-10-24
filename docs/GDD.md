@@ -120,9 +120,9 @@ All keys can be remapped.
 
 | Action | Key | Notes |
 |---|---|---|
-| Move | W A S D | Walk 3.5 m/s |
-| Run | Shift (hold) | 5.5 m/s. Stamina lasts 5 s, starts refilling 2 s after you stop, full again in 5 s |
-| Crouch | C (hold) | 1.8 m/s. Very quiet |
+| Move | W A S D | Walk 2.1 m/s |
+| Run | Shift (hold) | 3.3 m/s. Stamina lasts 5 s, starts refilling 3 s after you stop, full again 15 s later |
+| Crouch | C (hold) | 1.1 m/s. Very quiet |
 | Interact | E (hold) | Tasks, relics, revive, hide, ring the bell, report a body, cleanse |
 | Flashlight | 1 or left mouse | On / off |
 | Spirit Camera | 2, then left mouse | Raise camera, click to take the photo |
@@ -141,7 +141,7 @@ There are no pings or markers. Voice is how players communicate.
 
 ## 7. Health
 
-- **Downed:** if the ghost catches you, you fall. You can crawl (1 m/s) and talk, but you cannot use items, carry a relic or do tasks.
+- **Downed:** if the ghost catches you, you fall. You can crawl (0.6 m/s) and talk, but you cannot use items, carry a relic or do tasks.
 - **Revive:** a teammate holds E on you for **5 seconds**. Moving or being hit cancels it.
 - **Dead:** if nobody revives you within **30 seconds**, you die. Your body stays where you fell, and you become a **Wisp** (Section 17).
 - **Safe moment:** after being revived, the ghost cannot hit you for **3 seconds**.
@@ -292,11 +292,11 @@ The Ritual Room is in the **basement**. The basement door is locked and has **on
 
 | Part | Wander speed | Hunt speed | Time between hunts | Hunt length |
 |---|---|---|---|---|
-| Calm | 1.8 m/s | 3.2 m/s | 75 s | 20 s |
-| Restless | 2.4 m/s | 3.6 m/s | 50 s | 25 s |
-| Furious | 3.0 m/s | 4.2 m/s | 30 s | 30 s |
+| Calm | 1.1 m/s | 1.9 m/s | 75 s | 20 s |
+| Restless | 1.4 m/s | 2.2 m/s | 50 s | 25 s |
+| Furious | 1.8 m/s | 2.5 m/s | 30 s | 30 s |
 
-- Walking (3.5 m/s) is slower than a Furious hunt. Running (5.5 m/s) is always faster, but stamina runs out after 5 seconds. Nobody can escape forever. Hide or use salt.
+- Walking (2.1 m/s) is slower than a Restless or Furious hunt. Running (3.3 m/s) is always faster, but stamina runs out after 5 seconds. Nobody can escape forever. Hide or use salt.
 - **Ghost difficulty setting:** Easy = time between hunts ×1.25, speeds ×0.9. Hard = time between hunts ×0.8, speeds ×1.05.
 - **Player count:** time between hunts ×1.1 with 4 players, ×1.0 with 5 or 6, ×0.9 with 7 or 8.
 - **Blackout:** the ghost is 10% faster while the lights are out.
@@ -445,7 +445,7 @@ Everyone (living players) is pulled to the table in the Main Hall. The clock, th
 
 When you die or are voted out, you become a **Wisp**: a small floating light.
 
-- **Invisible to the living.** You fly through walls at 5 m/s.
+- **Invisible to the living.** You fly through walls at 3 m/s.
 - **You can still do tasks** (setting, default on). Your completed tasks fill the bar. You cannot touch relics, salt, doors or players.
 - **You cannot talk to the living.** You hear only other Wisps.
 - **You do not see roles.** You know only what you saw before you died. All roles are shown at the end.
@@ -710,3 +710,10 @@ Real-mic ghost hearing with mic calibration, the Spirit Camera, Wisps with the O
 | Final game name | Release | Keep "Haunted Lobby" |
 | Second map choice | After v1 release | Bengali Rajbari |
 | Character art style details | Content phase | Simple low-poly silhouettes |
+
+### 26.5 Changes after v2.0
+
+| Date | Change | Why |
+|---|---|---|
+| 2026-10-24 | All player and ghost speeds ×0.6: walk 3.5 → 2.1, run 5.5 → 3.3, crouch 1.8 → 1.1, crawl 1.0 → 0.6 m/s; ghost wander and hunt speeds scaled the same (Section 12.3); Wisps 5 → 3 m/s | Owner playtest (Phase 1): movement felt too fast, so a map felt small. Scaling the ghost by the same factor keeps every chase rule in Section 12.3 true |
+| 2026-10-24 | Stamina refills after 3 s (was 2 s) and takes 15 s to fill (was 5 s) | Owner playtest: running could be chained too easily |
