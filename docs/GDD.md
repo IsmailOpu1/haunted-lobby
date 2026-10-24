@@ -1,0 +1,712 @@
+# Haunted Lobby: Game Design Document
+
+**Version 2.0 (locked).** This replaces the old GDD v1.0 and the "Simplified Design" PDF.
+Working title: Haunted Lobby. Owner: Opu.
+
+**How to use this document**
+
+- This document says **how the game works**. The PRD (`docs/PRD.md`) says **what to build, in what order, and how we know it is done**.
+- Every number here is a default. Every number lives in one config file (`shared/config.ts`), never in game code. Many numbers are also lobby settings (Section 20).
+- If something is not covered, use the pillar test (Section 1) and write the answer into Section 26.
+
+---
+
+## 1. Vision and Pillars
+
+**One sentence:** Friends are trapped in a haunted place for one night. They must finish tasks, find relics and perform a ritual before dawn, while a ghost hunts them and one of them is secretly possessed and helping it.
+
+**Pitch:** *Among Us in haunted places, except the ghost hears your real voice, a spirit camera can catch the traitor, and the dead speak through a Ouija board.*
+
+**Pillars.** Every feature must serve at least one, and break none.
+
+1. **Trust is the horror.** The ghost is the pressure. The friend who is secretly helping it is the real fear.
+2. **Your voice is a weapon and a risk.** Talking helps the team, but the ghost hears your real voice.
+3. **Every sabotage leaves a clue.** The possessed never wins with something that cannot be noticed.
+4. **Learn it in one minute.** A new player understands their goal from the intro screen alone.
+5. **Short, tense nights.** One match is about 12 minutes. Rematches are instant.
+
+---
+
+## 2. What Makes This Game Different
+
+Familiar from Among Us (so players learn fast): hidden traitor, tasks, meetings, voting, the reveal.
+
+Unique to Haunted Lobby:
+
+| Hook | In one line | Section |
+|---|---|---|
+| **It hears you** | The ghost reacts to your real microphone volume. Whisper to survive. | 13 |
+| **Spirit Camera** | One photo. If you catch the possessed right after a sabotage, their face is a demon. | 15 |
+| **Ouija board** | Dead players cannot talk, but in each meeting they can push the planchette at one person. | 17 |
+| **Darkness hides identity** | In the dark you see only a shadow. Your flashlight reveals who it is. | 22 |
+| **Characters, not colors** | Players are the Priest, the Nurse, the Detective... | 22 |
+| **Many haunted places** | Each map has its own ghost with one special trick. Rules never change. | 21 |
+
+---
+
+## 3. Players and Roles
+
+- **4 to 8 players** per room.
+- **Investigators:** everyone who is not possessed. They win by completing the ritual.
+- **The possessed:** secret traitor(s). They win by stopping the ritual until dawn.
+- **The ghost:** controlled by the computer. It attacks everyone, possessed included. The possessed can secretly send it at people.
+
+| Players | Possessed (Auto) | Possessed (max) | Players needed in ritual circle |
+|---|---|---|---|
+| 4 | 1 | 1 | 2 |
+| 5 | 1 | 1 | 2 |
+| 6 | 1 | 2 | 2 |
+| 7 | 2 | 2 | 3 |
+| 8 | 2 | 2 | 3 |
+
+---
+
+## 4. A Match from Start to End
+
+### 4.1 The flow
+
+1. **Intro (10 s).** Each player privately sees their role.
+   - Investigators: "INVESTIGATOR. Do your tasks, find the relics, finish the ritual before dawn."
+   - Possessed: "YOU ARE POSSESSED. Stop the ritual. Do not get caught." (If *Possessed know each other* is on, they also see the other possessed names.)
+2. **Search.** Everyone spreads out, does tasks and looks for relics.
+3. **Open the basement.** Relics are placed in the basement door.
+4. **Fill the task bar.** When all tasks are done and the basement is open, the ritual can start.
+5. **The ritual.** Players stand in the circle at the altar for 45 seconds while the ghost attacks.
+6. **Dawn or victory.** The match ends. The end screen reveals all roles.
+
+Meetings can happen at any time (Section 16).
+
+### 4.2 The time limit
+
+- **Default match length: 12 minutes.** The match ends at **dawn**.
+- A **rising sun** at the top of the screen shows how much night is left.
+- **The clock stops during meetings.**
+- The night has 4 parts. Times below are for 12 minutes. For other lengths, Quiet is always the first 60 seconds, and the other parts split at one third and two thirds of the match.
+
+| Time (12 min) | Part | Ghost | Possessed |
+|---|---|---|---|
+| 0:00 to 1:00 | **Quiet** | Asleep. No hunts. | No powers yet. |
+| 1:00 to 4:00 | **Calm** | Wanders. Short, rare hunts. | Slam Door. Summon from 2:00. |
+| 4:00 to 8:00 | **Restless** | Hunts more often. | Blackout unlocks. |
+| 8:00 to 12:00 | **Furious** | Hunts almost all the time. | Everything. |
+
+- **Overtime:** if the ritual is running at dawn with enough players in the circle, the match continues for up to **30 seconds** to let it finish.
+
+**Target pacing:** basement opened by about 6:00, ritual started by about 8:30, and a typical investigator win between 9:30 and 11:30.
+
+---
+
+## 5. The Lobby
+
+1. A host opens the website and presses **Create Room**. They get a **5-letter room code** (letters A to Z, without O and I) and a **link**.
+2. Friends click the link (or type the code) and type a **display name**. No accounts, no downloads.
+3. Each player **picks a character** (Section 22). Each character can be taken by only one player.
+4. Each player does a **mic check**: they read one short sentence at normal speaking volume. This sets their personal "normal" level (Section 13). **A working microphone is required.** A player cannot press Ready until their mic check passes.
+5. The host picks a **preset** or changes **settings** (Section 20). Everyone sees the settings live.
+6. Everyone presses **Ready**. The host presses **Start**. A **5-second countdown** begins.
+
+**Lobby rules**
+
+- The host is the room creator. If the host leaves, the player who has waited longest becomes host.
+- Only the host can change settings and kick players, and only in the lobby.
+- Nobody can join after the countdown starts. Disconnected players can reconnect (Section 18).
+- The lobby shows a short **settings code**, for example `STD-12-P1` (preset, minutes, possessed).
+
+---
+
+## 6. Controls and Movement
+
+All keys can be remapped.
+
+| Action | Key | Notes |
+|---|---|---|
+| Move | W A S D | Walk 3.5 m/s |
+| Run | Shift (hold) | 5.5 m/s. Stamina lasts 5 s, starts refilling 2 s after you stop, full again in 5 s |
+| Crouch | C (hold) | 1.8 m/s. Very quiet |
+| Interact | E (hold) | Tasks, relics, revive, hide, ring the bell, report a body, cleanse |
+| Flashlight | 1 or left mouse | On / off |
+| Spirit Camera | 2, then left mouse | Raise camera, click to take the photo |
+| Salt | 3, then left mouse | Pour a salt line |
+| Drop relic | G | Makes a noise |
+| Hold breath | Shift while hiding | 6 s, then 12 s cooldown |
+| Possessed power wheel | R (hold) | Possessed only. Release on a power to use it |
+| Map and status | Tab | Your tasks, task bar, relic status. Never shows player positions |
+| Menu | Esc | Does not pause the match |
+
+There are no pings or markers. Voice is how players communicate.
+
+**Hiding spots:** wardrobes, under beds, behind curtains. Entering or leaving takes 1 second. While hidden the ghost cannot see you, but it can hear you. Moving inside a hiding spot makes noise.
+
+---
+
+## 7. Health
+
+- **Downed:** if the ghost catches you, you fall. You can crawl (1 m/s) and talk, but you cannot use items, carry a relic or do tasks.
+- **Revive:** a teammate holds E on you for **5 seconds**. Moving or being hit cancels it.
+- **Dead:** if nobody revives you within **30 seconds**, you die. Your body stays where you fell, and you become a **Wisp** (Section 17).
+- **Safe moment:** after being revived, the ghost cannot hit you for **3 seconds**.
+- There is no Wounded state. You can be downed and revived many times.
+
+---
+
+## 8. Items
+
+Everyone starts with the same three items.
+
+### 8.1 Flashlight
+
+- Lights a cone **12 m** ahead. Without it you see about **2 m** in the dark.
+- **No battery.** It never runs out.
+- **Flickers** when the ghost is within **15 m**. Goes dark for **2 seconds** when the ghost is within **5 m**.
+- A flashlight that is **on** lets the ghost see you from **20 m**. Off, only from **8 m**. Darkness is a hiding tool.
+- Shining it on another player shows their **name and character** (Section 22).
+
+### 8.2 Spirit Camera
+
+- **1 photo per player** by default (setting: 0 to 3).
+- Raise the camera (key 2) and click. The **flash** is bright and makes a sound.
+- How it catches the possessed is in Section 15.2.
+
+### 8.3 Salt
+
+- **2 handfuls per player** by default (setting: 1 to 4). You can carry at most **4**.
+- **Pour a line:** takes 1 second, makes a 2 m wide line on the floor in front of you.
+- If the ghost steps on a salt line, it is **frozen for 3 seconds** and the line disappears.
+- Lines stay until the ghost steps on them.
+- Salt is also used to **cleanse Taint** at the altar (Section 11).
+- **Salt jars** around the map give 1 handful each. There is one jar per player on the map.
+
+---
+
+## 9. Tasks and Minigames
+
+- Each investigator gets **3 tasks** (setting: 2 to 5) from the map's task list.
+- A player's tasks are always in **different areas**, so people must spread out.
+- Each task is a **tiny minigame of 10 to 20 seconds** that **matches the task**. Never a random puzzle.
+- Leaving a minigame (or getting hit) cancels it. You must restart that task.
+- A **team task bar** at the top of the screen fills as tasks are completed. Everyone sees it.
+- **The possessed gets a fake task list.** They can stand at a task and pretend, but the bar does not move.
+- **Visible tasks:** some tasks leave a change everyone can see (candles stay lit, shutters stay closed). The possessed cannot fake those. This is a clue.
+- **Noisy tasks:** some minigames make noise if done badly (the baby cradle cries, the piano plays a wrong note). The ghost can hear it.
+- If an investigator dies or is voted out, their unfinished tasks stay on the bar. Wisps can finish them (Section 17). If *Wisps can do tasks* is off, those unfinished tasks are removed from the bar instead.
+- Tasks are **never in the basement**.
+
+**Marrow Hotel task list (v1):**
+
+| Task | Room | Minigame | Visible? | Noisy? |
+|---|---|---|---|---|
+| Light the candelabra | Restaurant | Light 5 wicks with a match. Move too fast and the match goes out | Yes | No |
+| Turn the boiler valve | Laundry | Turn the mouse slowly until the pressure needle sits in the safe zone for 3 s | No | No |
+| Repair the switchboard | Reception | Connect 4 cables by matching symbols | No | No |
+| Burn the cursed letter | Library | Hold a match under the letter until it catches fire | Yes (fireplace) | No |
+| Wind the grandfather clock | Main Hall | Turn the key in rhythm with the ticks | Yes (pendulum) | No |
+| Clean the mirror | Bridal Suite | Wipe the fog away. Sometimes a face appears behind you (scare only) | No | No |
+| Seal the old trunk | Staff Quarters | Press the lid down and turn 3 latches | No | No |
+| Tune the piano | Ballroom | Press the keys shown by symbols, in order | No | Yes |
+| Turn off the stove | Kitchen | Turn 3 knobs to the off mark | No | No |
+| Fold the bedsheets | Guest Room | Drag the 4 corners together | No | No |
+| Rock the cradle | Nursery | Move the mouse gently in rhythm. Too fast and the baby cries | No | Yes |
+| Water the dead roses | Garden Courtyard | Pour until the line. Overflow and start again | No | No |
+| Hang the room keys | Guest Corridor | Drag each key to the hook with the same number | No | No |
+| Close the shutters | Upper Corridor | Drag 3 shutters closed against the wind | Yes | No |
+
+---
+
+## 10. Relics and the Basement Door
+
+The Ritual Room is in the **basement**. The basement door is locked and has **one slot for each relic**.
+
+- **3 relics** per match by default (setting: 2 to 5).
+- Each map has about **12 relic hiding spots**. Each match picks spots at random, at least **20 m apart**, never in the Main Hall and never in the basement.
+- A relic **whispers** when you are within **8 m**. Listening helps.
+- **Taking a relic** is a 10 to 15 second minigame that fits its hiding place (unlock a jewellery box, dig in soil, reach into a flooded drain).
+- **Anyone can carry a relic**, including the possessed. You can carry **one at a time**.
+- Carrying a relic makes you **15% slower**, and the ghost hears you from **25% farther**.
+- If you are **downed** while carrying a relic, you **drop it**. You can also drop it on purpose (G), which makes a noise.
+- **Relic status on Tab:** everyone can see each relic's state: *Hidden*, *Carried by [name]*, *Dropped (last carried by [name])*, or *Placed*. It never shows where a dropped relic is.
+- **Placing** a relic in the basement door takes **3 seconds**. Placed relics cannot be taken out.
+- When every slot is full, the **basement door opens** for the rest of the match.
+
+**Marrow Hotel relics:** the Founder's Ring, the Silver Bell, the Music Box, the Wedding Portrait, the Brass Key.
+
+---
+
+## 11. The Ritual
+
+**The ritual can start when both are true:** the basement is open, **and** the task bar is full.
+
+- Players go to the **altar** in the Ritual Room. Around it is a **circle** (4 m radius).
+- At least **2 players** (3 players in 7 or 8 player matches) must stand inside the circle. Any living, standing player counts, including the possessed. Downed players and Wisps do not count.
+- The ritual takes **45 seconds** (setting: 30, 45 or 60).
+- Each player above the minimum makes it **25% faster**, up to **50% faster**.
+- If the circle drops below the minimum, **progress slowly drains** (1% per second). It does not reset.
+- At **100%** the sun rises and the **investigators win**.
+- While the ritual runs, **the ghost always comes to the Ritual Room** and hunts with only short breaks (Section 12.4). The team should pour salt at the two doorways before starting.
+
+**Taint (possessed sabotage at the altar):**
+
+- The possessed must be **inside the circle**, and progress must be **20% or more**.
+- **Black flames** appear on the altar. Everyone sees them.
+- Anyone within 4 m of the altar can **hold E for 2 seconds and spend 1 salt** to put them out.
+- If the flames are not put out within **5 seconds**, ritual progress is **cut in half** (80% becomes 40%).
+- At most **2 Taints per match** for the whole possessed team, with **45 seconds** between them.
+
+---
+
+## 12. The Ghost
+
+### 12.1 What it does
+
+| State | Behavior |
+|---|---|
+| **Asleep** | First 60 seconds. Does nothing. |
+| **Wander** | Moves between random rooms, listening. |
+| **Investigate** | Goes to the last place it heard or saw something. |
+| **Hunt** | Chases one player. A hit downs that player and **ends the hunt**. |
+| **Retreat** | Vanishes for a while after a hunt, then returns to Wander. |
+
+- **Warning:** before a natural hunt, all game sound goes silent for **2 seconds**.
+- During a hunt, if it loses sight of its target, it checks up to **2 hiding spots** near where it last saw them, **3 seconds** each.
+- It never treats the possessed differently. It hunts them too.
+
+### 12.2 How it finds you
+
+| What you do | Ghost notices within |
+|---|---|
+| Run | 16 m |
+| Walk | 8 m |
+| Crouch | 3 m |
+| Open or slam a door | 12 m |
+| Camera flash | 10 m |
+| Noisy task done badly | 10 m |
+| Drop a relic | 8 m |
+| Breathing while hidden | 2 m (not while holding breath) |
+| Your voice | See Section 13 |
+| See you, flashlight on | 20 m (in front of it) |
+| See you, flashlight off | 8 m (in front of it) |
+
+- Walls block sight, not hearing.
+- Carrying a relic adds 25% to every hearing distance.
+
+### 12.3 It gets angrier through the night
+
+| Part | Wander speed | Hunt speed | Time between hunts | Hunt length |
+|---|---|---|---|---|
+| Calm | 1.8 m/s | 3.2 m/s | 75 s | 20 s |
+| Restless | 2.4 m/s | 3.6 m/s | 50 s | 25 s |
+| Furious | 3.0 m/s | 4.2 m/s | 30 s | 30 s |
+
+- Walking (3.5 m/s) is slower than a Furious hunt. Running (5.5 m/s) is always faster, but stamina runs out after 5 seconds. Nobody can escape forever. Hide or use salt.
+- **Ghost difficulty setting:** Easy = time between hunts ×1.25, speeds ×0.9. Hard = time between hunts ×0.8, speeds ×1.05.
+- **Player count:** time between hunts ×1.1 with 4 players, ×1.0 with 5 or 6, ×0.9 with 7 or 8.
+- **Blackout:** the ghost is 10% faster while the lights are out.
+
+### 12.4 Special rules
+
+- **During the ritual:** the ghost moves to the Ritual Room and hunts with **15 seconds** between hunts, whatever the part of the night.
+- **When every possessed player is gone** (voted out, dead or disconnected): the ghost becomes **Furious** for the rest of the match.
+- **After a meeting:** no hunts for **15 seconds**.
+- **Summoned hunts** (Section 14) reset the timer for the next natural hunt, so hunts cannot stack.
+
+### 12.5 Each map's ghost has one trick
+
+The rules above are the same on every map. Each map's ghost adds **one** special trick (Section 21). For v1, the Marrow Hotel ghost is **the Bellboy**: every 40 to 60 seconds it rings one of the hotel's service bells in the room it is in (players can learn where it is by listening), and while wandering it sometimes swings doors open on its own.
+
+---
+
+## 13. Your Voice
+
+The game hears your **real microphone volume**. This is the heart of the game.
+
+**Mic check:** in the lobby each player reads one sentence at normal volume. The game remembers that as **your normal**, so a loud mic and a quiet mic are treated fairly.
+
+| How you talk | Compared to your normal | Other players hear you from | Ghost hears you from |
+|---|---|---|---|
+| **Whisper** | 10 dB or more quieter | 3 m | Does not hear |
+| **Normal** | In between | 15 m | 6 m |
+| **Shout / scream** | 8 dB or more louder | 25 m | 20 m |
+
+- Volume fades with distance. A wall between two players halves the volume and muffles it.
+- **Meetings are safe.** Everyone hears everyone at full volume and the ghost is frozen.
+- **Downed players** can still talk (Section 7).
+- **Wisps** hear only other Wisps (Section 17).
+- **Every player must have a microphone.** There is no text chat and no playing without a mic.
+- **Open mic only during matches.** There is no push-to-talk and no muting your own mic, because otherwise players could scream in real life and the ghost would never hear it.
+- **Mic lost:** if a player's mic stops sending audio (unplugged, browser permission removed, muted in the browser) for more than 10 seconds, they see a warning, "Your mic is off. Turn it back on." Until it comes back, the ghost treats them as **talking at normal volume all the time** (6 m), so turning the mic off never makes you safer.
+- Every player can **mute** any other player for themselves.
+- The volume is measured by the **server**, not the player's computer, so nobody can cheat by hiding their own noise.
+
+---
+
+## 14. The Possessed
+
+### 14.1 Who they are
+
+- They look and play exactly like an investigator: same character choice, items, health, and they can carry relics and revive people.
+- They have a **fake task list**. Pretending to do tasks is their main way to blend in.
+- They **cannot hurt anyone directly**. Only the ghost can.
+- The ghost hunts them like anyone else. If they die, they become a Wisp (Section 17).
+- If *Possessed know each other* is on, they see each other's names at the intro. There is no private voice or text channel between them.
+
+### 14.2 The four powers
+
+Hold **R** to open the power wheel, release on a power. Each power has a **cooldown timer** shown only to the possessed. There is no energy meter.
+
+| Power | Unlocks (12 min) | Cooldown | What it does | Clue it leaves |
+|---|---|---|---|---|
+| **Slam Door** | 1:00 | 30 s | A door within **6 m** slams and locks for **15 s**. Two players pushing together for 2 s can break it open. | Loud (ghost hears it from 12 m). You had to be close to the door. |
+| **Summon** | 2:00 | 60 s | Pick a player you can see within **15 m**. The ghost appears **6 to 10 m** from them (behind them if possible) and hunts them. | **No 2-second silence** before it, a **whisper** sound within 5 m of you, and your eyes glow for 1 s if someone's light is on you. |
+| **Blackout** | 4:00 | **Once per match** | Every light on the map goes out until someone holds E on the **fuse box** (Service Room) for **5 s**, or **60 s** pass. Flashlights still work. Ghost is 10% faster in the dark. Cannot be used during the ritual. | Everyone asks "Where were you?" |
+| **Taint** | During the ritual | 45 s, max 2 per match (team) | Black flames on the altar (Section 11). Progress is cut in half if not put out in 5 s. | You must be **standing in the circle**. |
+
+**Every power also starts the 10-second curse glow** (Section 15.2).
+
+### 14.3 Power rules
+
+- No powers in the first 60 seconds, while downed, or during a meeting.
+- **Cooldown speed setting:** Slow = cooldowns ×1.25, Fast = cooldowns ×0.75.
+- **No targeting the same victim over and over:** a player cannot be Summoned on within 30 seconds of being hit, and cannot be trapped by Slam Door more than once per 60 seconds.
+- **No extra knowledge:** the possessed never see the ghost's position, relic locations or other players through walls.
+- With two possessed, each has their own cooldowns. The Taint limit is shared.
+
+---
+
+## 15. How to Catch the Possessed
+
+### 15.1 Nobody is told when a sabotage happens
+
+There are no notifications and no map markers. Every power is disguised as ghost activity:
+
+| Power | What players experience | Can they tell it was the possessed? |
+|---|---|---|
+| Slam Door | A door slams nearby | No. The ghost slams doors too. |
+| Summon | The ghost attacks someone | Only if they notice: no silence before it, and a whisper. |
+| Blackout | Every light dies | Suspicious, but it might be the ghost. |
+| Taint | Black flames on the altar | Yes, but anyone in the circle could have done it. |
+
+Ways to catch them:
+
+1. **Where people were.** Every power needs the possessed to be close: near the door, within sight of the victim, inside the circle.
+2. **Tasks.** "I did the candelabra." Then why are the candles not lit? Why did the bar not move?
+3. **Relic status.** "Dropped, last carried by the Nurse." Why did the Nurse drop it?
+4. **The Spirit Camera** (15.2).
+5. **The Ouija board** (Section 17).
+
+### 15.2 The Spirit Camera
+
+- After using **any** power, the possessed carries an invisible **curse glow for 10 seconds**.
+- A photo taken during those 10 seconds, with the possessed **in the frame**, **within 10 m** and **not behind a wall**, shows a **demon face** on them.
+- At any other time the possessed looks completely normal in photos.
+- **The photo develops slowly.** Nobody sees it until the **next meeting**, where it is shown to everyone with the photographer's name and the time it was taken.
+- The **flash** is visible to everyone within 15 m, so the possessed knows they were photographed and can prepare a story ("that was the ghost behind me!").
+- The flash makes noise (ghost notices within 10 m).
+- If the photographer dies, the photo still develops and is shown at the next meeting.
+- A photo of the ghost just shows the ghost (scary, but no information about roles).
+
+**Why it is not too easy:** one shot each, a 10-second window, you must guess *when* and *who*, and you have to tell a natural hunt (silence first) from a Summoned one (whisper, no silence).
+
+---
+
+## 16. Meetings
+
+### 16.1 Calling a meeting
+
+- **Report a body:** stand within 3 m of a dead body and hold E. Works anywhere on the map.
+- **Ring the bell:** the bell stands in the **Main Hall**. Hold E for 2 seconds. Each player can ring it **once per match** (setting: 0 to 3).
+- **A meeting cannot start:**
+  - in the first 60 seconds,
+  - **while the ghost is hunting** (the bell will not ring and the report button is greyed out until the hunt ends),
+  - during overtime,
+  - within **30 seconds** after the last meeting.
+- If a meeting is called during the ritual, ritual progress **freezes** (it does not drain).
+
+### 16.2 How a meeting runs
+
+Everyone (living players) is pulled to the table in the Main Hall. The clock, the ghost and all cooldowns freeze.
+
+| Step | Default time | Setting | What happens |
+|---|---|---|---|
+| **Evidence** | 30 s | 15, 30, 45, 60 | New photos are shown. Wisps push the Ouija planchette. |
+| **Discussion** | 60 s | 30, 60, 90, 120 | Everyone talks freely at full volume. |
+| **Vote** | 20 s | 15, 20, 30 | Each living player votes for a player or **Skip**. |
+
+### 16.3 The result
+
+- The player with the most votes is **removed** only if they have **more votes than Skip**. A tie means nobody is removed.
+- **Anonymous voting** (setting, default off): when off, everyone sees who voted for whom.
+- The removed player is dragged into the candles and **becomes a Wisp**, whatever their role.
+- **Reveal role** (setting, default on): the screen says **"THE NURSE WAS POSSESSED"** or **"THE NURSE WAS NOT POSSESSED."** When off, it only says "The Nurse is gone."
+- After the meeting, players return to where they were. No hunts for 15 seconds.
+- A body that was reported disappears.
+
+---
+
+## 17. Wisps and the Ouija Board
+
+When you die or are voted out, you become a **Wisp**: a small floating light.
+
+- **Invisible to the living.** You fly through walls at 5 m/s.
+- **You can still do tasks** (setting, default on). Your completed tasks fill the bar. You cannot touch relics, salt, doors or players.
+- **You cannot talk to the living.** You hear only other Wisps.
+- **You do not see roles.** You know only what you saw before you died. All roles are shown at the end.
+- **A possessed Wisp** is still on the possessed team. They do no real tasks, but they can use the Ouija board to mislead.
+- **Ouija board:** during the Evidence step of every meeting, each Wisp can push the planchette onto **one living character** or **"I don't know"**. Everyone sees where it moves.
+
+---
+
+## 18. Winning, Losing and Special Cases
+
+**Investigators win:** the ritual reaches 100%. A ritual that finishes at the exact moment of dawn counts as a win.
+
+**The possessed win if any of these happen:**
+
+- Dawn arrives (after any overtime) and the ritual is not complete.
+- The number of living possessed is **equal to or greater than** the number of living investigators.
+- Every investigator is dead.
+
+| Situation | Rule |
+|---|---|
+| Every possessed player is gone | The ghost becomes Furious. The investigators must still finish the ritual before dawn. |
+| A player disconnects | Their character freezes in place and the ghost can still hit it. Their slot is held for **60 seconds**. If they return, they continue. If not, they become a Wisp, any relic they held drops, and their unfinished tasks follow the normal rule. |
+| The host disconnects mid-match | The match continues (the server runs it). Host rights pass to the longest-connected player for the end screen. |
+| A possessed player disconnects for good | Treated like being removed. Their role is shown on the end screen. |
+| The server restarts | The match is lost. Players see a clear message and return to the home page. |
+
+---
+
+## 19. End Screen and Rematch
+
+- **Every role is revealed.**
+- **Timeline:** when each power was used, each meeting and its vote, each death.
+- **Best photos** of the match.
+- **Awards:** Best Liar (possessed who was never voted for), Sharp Eye (photo that caught a possessed), Hero (most revives), Relic Runner (most relics placed), Loudest Screamer (most time shouting), Ghost Bait (downed the most).
+- **Rematch** button: everyone returns to the lobby with the same settings and characters.
+- **Fair rotation:** the possessed are picked with weight 1 ÷ (1 + times already possessed this session). With one possessed, nobody is possessed twice before everyone has been possessed once.
+
+There is no points scoreboard in v1.
+
+---
+
+## 20. Settings and Presets
+
+### 20.1 Presets
+
+| Preset | Changes from Standard | For |
+|---|---|---|
+| **Standard** | None | Normal play. The only preset counted in balance statistics |
+| **Beginner** | 15 min, ghost Easy, 2 tasks each, 2 camera shots, 3 salt, discussion 90 s | First-time groups |
+| **Hardcore** | 10 min, ghost Hard, 4 tasks each, 1 salt, reveal role off, anonymous voting on | Experienced groups |
+| **Custom** | Anything | Any change to a preset turns it into Custom |
+
+### 20.2 Basic tab
+
+| Setting | Options | Default |
+|---|---|---|
+| Map | Available maps | Marrow Hotel |
+| Match length | 10, 12, 15, 20 min | 12 |
+| Number of possessed | Auto, 1, 2 (never above the Section 3 max) | Auto |
+| Ghost difficulty | Easy, Normal, Hard | Normal |
+
+### 20.3 Advanced tab
+
+| Group | Setting | Options | Default |
+|---|---|---|---|
+| Objectives | Relics | 2, 3, 4, 5 | 3 |
+| | Tasks per player | 2, 3, 4, 5 | 3 |
+| | Ritual length | 30, 45, 60 s | 45 |
+| | Players needed in circle | Auto, 2, 3 | Auto |
+| Possessed | Possessed know each other | On, Off | On |
+| | Power cooldown speed | Slow, Normal, Fast | Normal |
+| | Blackout | On, Off | On |
+| Items | Camera shots per player | 0, 1, 2, 3 | 1 |
+| | Salt per player | 1, 2, 3, 4 | 2 |
+| Meetings | Bell uses per player | 0, 1, 2, 3 | 1 |
+| | Evidence time | 15, 30, 45, 60 s | 30 |
+| | Discussion time | 30, 60, 90, 120 s | 60 |
+| | Voting time | 15, 20, 30 s | 20 |
+| | Reveal role when removed | On, Off | On |
+| | Anonymous voting | On, Off | Off |
+| Voice | Ghost hears real mic | On, Off | On |
+| The dead | Wisps can do tasks | On, Off | On |
+| | Ouija board | On, Off | On |
+
+Settings are visible to everyone, change live, and lock when the countdown starts.
+
+---
+
+## 21. Maps
+
+**Rule:** game rules are the same on every map. A map changes only three things: **the place**, **the ghost's one trick**, and **the task and relic names and minigames**.
+
+### 21.1 Size rules (every map)
+
+- **3 levels** (for example ground, upper and basement), about **20 rooms**.
+- About **45 to 60 seconds** to walk from one end to the other.
+- **At least 2 routes** between major areas so the ghost cannot block one corridor.
+- Every room has **at least 2 hiding spots**, every corridor segment has 1.
+- Corridors about 2.5 m wide. Rooms at least 4 m × 4 m.
+- The **Ritual Room** is in the locked area, reachable by **2 doorways** (so defending it is a team job).
+- About **12 relic hiding spots**, **14 tasks**, **1 bell**, **1 fuse box**, one **salt jar** spot per possible player (8).
+
+### 21.2 v1 map: the Marrow Hotel
+
+An abandoned 1920s hotel. Heavy fog, peeling wallpaper, slow-opening doors.
+
+| Level | Rooms |
+|---|---|
+| **Ground** | Main Hall (spawn, bell, meeting table, clock), Reception, Restaurant, Kitchen, Ballroom, Library, Service Room (fuse box), Garden Courtyard (outdoor, foggy) |
+| **Upper** | Guest Corridor, Guest Rooms (4), Bridal Suite, Laundry, Staff Quarters, Nursery, Upper Corridor |
+| **Basement** (locked by the relic door) | Stairwell, Wine Cellar, Storage, Ritual Room |
+
+The relic door is at the bottom of the main stairs to the basement.
+
+### 21.3 Future maps
+
+| Map | Ghost | Its trick |
+|---|---|---|
+| **Bengali Rajbari** (ruined landlord mansion, courtyard, pond, banyan tree) | The Nishi | Calls a random player's name in a whisper from a dark room. The legend: never answer the Nishi |
+| **Old Hospital** | The Nurse Ghost | Freezes while a flashlight is on her, moves fast in the dark |
+| **Village School** | The Student | Writes on chalkboards. The writing hints where it is going next |
+
+---
+
+## 22. Characters and Darkness
+
+### 22.1 Characters
+
+Each player picks one of 8 characters. **Looks only, no special abilities.** Each has a shape you can recognize from its silhouette.
+
+| Character | Recognized by |
+|---|---|
+| The Priest | Long robe, holds a cross |
+| The Journalist | Long coat, notebook |
+| The Nurse | Cap, medicine bag |
+| The Student | Backpack, school uniform |
+| The Detective | Hat, trench coat |
+| The Photographer | Big old camera on the chest |
+| The Mechanic | Overalls, toolbox |
+| The Caretaker | Hunched back, lantern |
+
+Cosmetics (outfits, hats, flashlight styles) can come later.
+
+### 22.2 Darkness hides who you are
+
+- In the dark, other players look like a **shadow** with no name.
+- When your flashlight shines on someone within **10 m**, their **character and name** appear above them.
+- Within **2 m** you can always see who it is, even in the dark.
+- In meetings, everyone's name is always shown.
+
+---
+
+## 23. Atmosphere, Audio and Accessibility
+
+**Look:** low-poly, PS1-style 3D. Heavy fog, almost no ambient light, film grain, slight camera sway. The flashlight is the main light.
+
+**Sound (most of the fear):**
+
+- Spatial 3D sound for everything.
+- Distant footsteps, creaks, and a low drone that gets deeper in each part of the night.
+- A heartbeat that speeds up as the ghost gets closer.
+- **Silence for 2 seconds before a natural hunt.**
+- Relics whisper. The map's ghost has its own sound (the Bellboy's bell).
+
+**Accessibility (required in v1):**
+
+- Remap every key. Mouse sensitivity and field of view (70 to 100) sliders.
+- **Photosensitivity mode:** flicker becomes slow dimming, no screen flashes (the camera flash becomes a soft fade). Warning on first launch.
+- **Subtitles and direction arrows** for important sounds: door slams, the ghost nearby, the relic whisper, the bell.
+- **Colorblind-safe:** no information by color alone. Minigames use symbols.
+- **Horror intensity:** jump-scare volume and screen shake sliders.
+- A **live mic meter** in the settings menu so players can check their mic at any time.
+
+---
+
+## 24. Fairness and Balance
+
+Both sides should win about half the time on the Standard preset. A win should come from good play, not luck.
+
+**Targets (Standard preset, 4 to 6 players):**
+
+| Measure | Target | Alarm |
+|---|---|---|
+| Investigator win rate | 45 to 55% | Below 40% or above 60% |
+| Average match length | 9 to 12 min | Below 7 or reaching dawn most matches |
+| Basement opened by 50% of match time | At least 60% of matches | Below 40% |
+| Ritual started before dawn | At least 70% of matches | Below 50% |
+| Votes that remove a possessed | 35 to 55% of removals | Below 20% or above 70% |
+| Matches where a camera photo caught a possessed | 20 to 40% | Above 60% |
+| Deaths per match | 1 to 2.5 on average | Above 3.5 |
+| Groups that rematch | Over 70% | Below 40% |
+
+**Time budget (12 minutes = 720 s):** the investigators need roughly 60 s (Quiet) + about 250 s of tasks and relic work spread across the team + about 75 s to gather and run the ritual. That leaves about **330 seconds of slack** that the ghost and the possessed must burn to win.
+
+**Tuning order:** change one thing, then play 10 more matches.
+
+| Problem | Change first | Then | Last |
+|---|---|---|---|
+| Investigators win too often | Power cooldowns −10% | Time between hunts −5 s (Restless, Furious) | Ritual +10 s |
+| Investigators lose too often | Salt +1 | Power cooldowns +10% | Ritual −10 s |
+| Camera catches too often | Curse glow 10 → 8 s | Camera range 10 → 8 m | Default shots 1 → 0 |
+| Relics take too long | Whisper range +2 m | Relic minigame shorter | Relics 3 → 2 |
+| Matches end too fast | Tasks per player +1 | Ritual +10 s | |
+
+---
+
+## 25. Example: a 5-Player Match (12 minutes)
+
+Players: Rafi (the Detective), Mim (the Nurse), Sam (the Mechanic), Nila (the Student) and Tuhin (the Priest). **Tuhin is secretly possessed.** One possessed, 3 relics, 3 tasks each (12 on the bar).
+
+- **0:00, intro.** The doors slam. Four players read "INVESTIGATOR". Tuhin reads "YOU ARE POSSESSED".
+- **0:00 to 1:00, quiet.** The ghost sleeps. Everyone splits. Tuhin goes upstairs with Nila and "folds bedsheets" (fake task).
+- **1:30.** Mim hears a whisper in the Library and finds the **Music Box** in a locked case. She unlocks it (minigame) and carries it slowly toward the basement stairs. Tab shows "Music Box: carried by Mim".
+- **2:40, the first hunt.** Sound goes silent for two seconds. The Bellboy's bell rings in the Ballroom. Sam runs, shouting, and the ghost hears him and downs him. Rafi revives him in 5 seconds.
+- **3:30, Summon.** Tuhin sees Nila alone at the cradle and uses **Summon**. There is no silence, just a whisper near Tuhin. The ghost appears behind Nila and downs her. Tuhin "rushes to help" and revives her, playing the hero.
+- **4:30.** Mim places the Music Box. Rafi places the **Brass Key**. One slot left.
+- **5:10, Blackout.** Every light dies. Sam heads to the fuse box. In the dark, Rafi sees a shadow near the stairs. He shines his light: it's Tuhin. Rafi thinks "the lights just went out, and Tuhin is here alone" and **takes his one photo**. The flash goes off. Tuhin saw it.
+- **5:40.** Sam fixes the fuse box. Nila, upstairs, is caught by the ghost in the dark, and nobody reaches her in 30 seconds. **Nila dies** and becomes a Wisp. She finishes her last task as a Wisp.
+- **6:20, meeting.** Mim finds Nila's body and reports it.
+  - **Evidence:** Rafi's photo appears. Tuhin's face is a **demon**. Nila's Wisp pushes the planchette to... the Mechanic (she wasn't sure).
+  - **Discussion:** Tuhin says "That was the ghost behind me in the dark!" Sam is confused by the Ouija.
+  - **Vote:** Rafi and Mim vote Tuhin. Sam votes Skip. Tuhin votes Sam. Tuhin gets 2, Skip 1, Sam 1. **Tuhin is removed. "THE PRIEST WAS POSSESSED."**
+- **6:40.** All possessed are gone, so the ghost becomes **Furious**. Sam finds the last relic, the **Silver Bell**, and places it. The basement opens.
+- **8:10.** The last task finishes. Rafi, Mim and Sam go down, pour salt at both doorways and start the ritual. With 3 players (one above the minimum of 2) it runs 25% faster.
+- **8:30.** The ghost hits a salt line and freezes, then attacks again. Mim is downed in the circle. Sam revives her while Rafi holds the circle.
+- **9:10.** The ritual reaches 100%. The sun rises. **The investigators win.**
+- **End screen:** all roles shown. Awards: Sharp Eye (Rafi), Hero (Sam), Loudest Screamer (Sam). Everyone presses **Rematch**, and someone new is possessed.
+
+---
+
+## 26. Locked Decisions and Change Log
+
+### 26.1 Locked decisions
+
+| Decision | Locked value | Change only if |
+|---|---|---|
+| Players | 4 to 8 | The server or the client cannot hold 60 FPS and 20 ticks per second with 8 players |
+| Match length | 12 min default (10, 12, 15, 20) | Fewer than 70% of groups want a rematch |
+| Engine | Browser 3D: Three.js client, Colyseus server, LiveKit voice | The grey-box slice cannot hold 60 FPS on an integrated-graphics laptop |
+| Art style | Low-poly PS1 style, heavy fog, dark | Never (it is a scope decision) |
+| Maps | Same rules on every map. v1 ships 1 map (Marrow Hotel) | Never for the rule; more maps after v1 |
+| Identity | Characters (no colors), names shown only when lit | Never in v1 |
+| Microphone | Required for every player. Open mic during matches, no push-to-talk | Never in v1 |
+| Ghost hears real mic | On by default, server-measured | Playtests show it is unfair or frustrating |
+| Role reveal | Every role revealed on the end screen | Never |
+| Possessed knowledge | No map knowledge, no relic locations, no ghost position | Never |
+| Accounts / matchmaking | None. Join by code or link | After release, if players ask |
+| Platforms | Desktop browsers, keyboard and mouse | Version 2 |
+
+### 26.2 Removed from the old design (v1.0)
+
+EMF reader, radio and location tags, charms, flashlight battery and battery pickups, lore notes, the Influence meter, the 10 old abilities, possession stages, the Wounded and Marked states, the seance "second" rule, the points scoreboard, the old 14 settings and 6 presets.
+
+### 26.3 Added in v2.0
+
+Real-mic ghost hearing with mic calibration, the Spirit Camera, Wisps with the Ouija board, characters instead of colors, darkness hides identity, task minigames, the relic door, the bell and body reports, the 4 new possessed powers, multiple maps with one ghost trick each, the bigger map size, awards on the end screen.
+
+### 26.4 Open decisions
+
+| Item | Needed by | Default if undecided |
+|---|---|---|
+| Final game name | Release | Keep "Haunted Lobby" |
+| Second map choice | After v1 release | Bengali Rajbari |
+| Character art style details | Content phase | Simple low-poly silhouettes |
