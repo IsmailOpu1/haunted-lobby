@@ -30,7 +30,7 @@ The GDD says **how the game works**. This PRD says **what must be built for vers
 1. Groups play more than one match per session if a match is about 12 minutes and roles rotate.
 2. The real-mic ghost creates memorable moments (people whispering in real life, screams getting people caught).
 3. The Spirit Camera and Ouija board make catching the possessed feel clever, not lucky.
-4. A browser build holds 60 FPS on integrated graphics with the PS1 art style.
+4. A browser build can look close to a detailed PC horror game (*Invokyr*-inspired) on High quality while staying smooth on ordinary laptops on Low quality.
 
 ---
 
@@ -55,7 +55,7 @@ The GDD says **how the game works**. This PRD says **what must be built for vers
 - **G2:** A match is tense and finishes in about 9 to 12 minutes.
 - **G3:** Both sides win about half the time on the Standard preset.
 - **G4:** Groups ask for a rematch.
-- **G5:** The game runs at 60 FPS on integrated graphics.
+- **G5:** The game looks detailed and atmospheric on High quality, and stays smooth on ordinary laptops on Low quality (Section 9).
 
 **Non-goals for version 1**
 
@@ -91,7 +91,8 @@ The GDD says **how the game works**. This PRD says **what must be built for vers
 | Rooms that play 2 or more matches | At least 60% | Server log |
 | Matches ending in a crash or forced disconnect | Under 5% | Server log |
 | Players who finish the tutorial | At least 80% | Client event |
-| Frame rate on a mid-range laptop | 60 FPS | Playtest measurement |
+| Frame rate on an ordinary laptop (Low quality) | At least 45 FPS, target 60 | Playtest measurement |
+| Frame rate on a gaming laptop or desktop (High quality) | 60 FPS | Playtest measurement |
 
 ---
 
@@ -254,8 +255,9 @@ The last column points to the GDD section with the detailed rules.
 
 | Area | Requirement |
 |---|---|
-| Performance | 60 FPS on an integrated-graphics laptop at 720p internal resolution. Under 150,000 visible triangles. Under 150 draw calls. Textures 256 × 256 per material, atlased |
-| Load time | Under 15 s on a normal connection |
+| Performance, Low quality | At least 45 FPS (target 60) on an ordinary integrated-graphics laptop at 720p internal resolution. Under 300,000 visible triangles, under 250 draw calls, 1K textures, no real-time shadows except your own flashlight |
+| Performance, High quality | 60 FPS on a gaming laptop or desktop with a dedicated graphics card at 1080p. Under 1,500,000 visible triangles, under 600 draw calls, 2K textures, bloom, ambient occlusion and flashlight shadows |
+| Load time | Under 30 s on a normal connection the first time (assets compressed: KTX2 textures, Draco or Meshopt meshes); under 10 s afterwards from the browser cache. The menu and lobby appear within 5 s while the map keeps loading |
 | Latency | Playable up to 200 ms round trip. Server runs at 20 ticks per second |
 | Capacity | One 2 vCPU server holds at least 5 rooms of 8 players |
 | Bandwidth | Under 25 KB/s per client at 8 players (game data, not voice) |
@@ -279,13 +281,13 @@ The last column points to the GDD section with the detailed rules.
 | Voice | LiveKit (cloud free tier for beta, self-host later) | WebRTC voice with server control over who hears whom, and server-side audio levels |
 | Physics and collision | Rapier (WASM) | Character controller and static colliders, same on client and server |
 | Ghost pathfinding | recast-navigation-js | Navmesh baked from the level, works in browser and Node |
-| Level art | Blender, exported as glTF | Low-poly models with baked lighting |
+| Level art | Blender, exported as glTF with KTX2 textures | Detailed PBR models with baked lightmaps; free licensed sources first (for example Poly Haven CC0 textures and models, Mixamo characters and animations), every license logged |
 | Audio | Web Audio API with positional audio | Spatial sound is most of the fear |
 | Hosting | One small VPS in Singapore or Mumbai | Closest to Bangladesh. One room uses little CPU |
 | Tests | Vitest | Fast unit tests for shared rules and server systems |
 
 Check each library's current version and API when its phase starts, and pin versions in `package.json`.
-**Engine fallback:** if the grey-box slice (Phase 3) cannot hold 60 FPS on an integrated-graphics laptop, port the client to Godot 4 or Unity. The server protocol and the GDD rules stay the same.
+**Engine plan:** the browser version is finished first. A downloadable version (Unity or Unreal) may follow after release for an even closer match to the *Invokyr*-style look; the server protocol and the GDD rules stay the same, only the client is rebuilt. If the Low quality setting cannot stay smooth on an ordinary laptop, cut effects and detail on Low before considering an earlier port.
 
 ### 10.2 Repository layout
 
@@ -376,7 +378,7 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 - Mic calibration and whisper / normal / shout levels on the server (PRD 10.5)
 - Ghost hearing from voice
 - Local mute of other players, the mic-lost rule, mic check required before Ready
-- **Done when:** three or four friends play in grey boxes, whisper to stay safe, and feel real tension. The client holds 60 FPS. **If this is not fun, fix it before adding anything else. If FPS fails, apply the engine fallback (10.1).**
+- **Done when:** three or four friends play in grey boxes, whisper to stay safe, and feel real tension. The client holds 60 FPS. **If this is not fun, fix it before adding anything else.**
 
 **Phase 4: Items, tasks and relics (about 3 weeks)**
 - Spirit Camera (shots, flash, photo capture; curse-glow check can be stubbed until Phase 6), salt and salt jars
@@ -408,8 +410,13 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 - **Done when:** 8 players can start, finish, rematch and change settings without restarting anything.
 
 **Phase 8: Content and polish (about 6 weeks)**
-- Final hotel art with baked lighting, 8 character models
-- PS1-style post-processing, fog, grain
+- Detailed hotel art in the *Invokyr*-inspired style (GDD 23): PBR materials, furnished rooms, baked lightmaps, warm practical lights and coloured accent glows
+- First-person hand holding the flashlight, with walk sway
+- 8 detailed, rigged and animated character models (walk, run, crouch, crawl, downed)
+- Post-processing: bloom, ambient occlusion, fog, film grain, vignette
+- Low and High quality settings meeting the targets in Section 9
+- Asset compression (KTX2 textures, compressed meshes) and a loading screen
+- Start with one fully dressed room as a look test before dressing the whole map
 - Audio pass: ambience, footsteps, heartbeat, pre-hunt silence, relic whispers, the Bellboy's bell
 - Names shown only when lit (GDD 22.2)
 - Accessibility options (GDD 23)
@@ -462,7 +469,7 @@ Version 1.0 ships only when all of these are true:
 - 20 consecutive Standard matches with no crash and no stuck ghost
 - All balance targets in Section 5 are inside their ranges
 - A first-time player finishes the tutorial and a match without asking for help
-- 60 FPS confirmed on a low-end laptop, playable at 200 ms latency
+- Section 9 frame-rate targets confirmed for Low (ordinary laptop) and High (gaming PC), playable at 200 ms latency
 - Mute and kick work
 - Photosensitivity mode and warning are in
 - Every third-party asset has a recorded license
@@ -475,11 +482,12 @@ Version 1.0 ships only when all of these are true:
 |---|---|---|---|
 | Scope: solo 3D multiplayer is large | High | High | Hard go/no-go at M1. Cut P1 items before slipping P0 |
 | Real-mic hearing feels unfair (different mics, rooms) | Medium | High | Per-player calibration, relative levels, a setting to turn it off, tested early in Phase 3 |
-| Browser cannot hold 60 FPS | Medium | High | Performance budget from day one. Engine fallback rule |
+| Detailed art is too slow on ordinary laptops | Medium | High | Separate Low and High budgets (Section 9); test Low on a low-end laptop after every art step |
+| Detailed art takes too long for one person | High | High | Free licensed asset packs first, one look-test room before the full map, reuse props across rooms |
 | Voice cost or complexity | Medium | High | Build voice in Phase 3. Check LiveKit free-tier limits before beta |
 | Required mic keeps some players out | Medium | Medium | Clear "a mic is required" message on the home page and in the lobby. The target audience already uses voice chat |
 | Camera or Summon makes one side too strong | Medium | Medium | All numbers in config, match log, tuning order in GDD 24 |
-| Bigger map is too much art for one person | High | Medium | Full map in grey boxes first (Phase 5). Simple low-poly kit pieces reused across rooms |
+| Bigger map is too much art for one person | High | Medium | Full map in grey boxes first (Phase 5). Modular wall, floor and furniture pieces reused across rooms |
 | Cheating through the client | Medium | Medium | Server authority, private messages, interest management, server-side voice levels |
 | The core is not fun | Medium | High | M1 test with real friends before adding content |
 | Asset licensing problems | Low | Medium | Make or use clearly licensed assets. Log every license |
@@ -493,7 +501,7 @@ Version 1.0 ships only when all of these are true:
 |---|---|---|
 | Hosting provider and region | Phase 0 | One VPS in Singapore or Mumbai |
 | LiveKit plan and limits | Phase 3 | LiveKit Cloud free tier for the beta |
-| Asset plan | Phase 8 | Simple low-poly models made in Blender, free licensed audio |
+| Asset plan | Phase 8 | Free licensed detailed assets (Poly Haven, Mixamo and similar) adjusted in Blender to the GDD 23 look, free licensed audio; buy asset packs only if needed |
 | Final game name and domain | Phase 10 | Keep "Haunted Lobby" |
 
 ---

@@ -600,7 +600,16 @@ Cosmetics (outfits, hats, flashlight styles) can come later.
 
 ## 23. Atmosphere, Audio and Accessibility
 
-**Look:** low-poly, PS1-style 3D. Heavy fog, almost no ambient light, film grain, slight camera sway. The flashlight is the main light.
+**Look:** detailed, stylized-realistic 3D inspired by *Invokyr* (Ludogram, 2026): dark, warm, lived-in interiors where lighting carries the mood. We match the feel with our own or licensed assets only, never copied ones.
+
+- **First person with a visible hand holding the flashlight.** The beam and the hand sway slightly as you walk.
+- **Materials:** physically based textures (aged wood panelling, patterned wallpaper, worn carpet, stone, brass) instead of flat colours.
+- **Lighting:** mostly darkness. Warm practical lights (table lamps, candles, fireplaces) and the flashlight, with coloured accent glows for the supernatural (sickly green, ember orange). Lighting is baked in Blender where possible; flashlights are real-time.
+- **Furnished rooms:** bookshelves, tables, paintings, rugs, clutter. Each room tells a small story.
+- **Characters:** stylized, detailed people with readable 1970s-flavoured outfits, one look per character (Section 22).
+- **Effects:** soft bloom on lights, ambient occlusion, light fog, subtle film grain and vignette.
+- **Quality settings:** Low and High. Low keeps the game smooth on ordinary laptops (fewer lights, simpler effects, lower resolution); High is for gaming laptops and desktops.
+- **Future:** a downloadable version (Unity or Unreal) may follow after the browser version ships, using the same rules and server.
 
 **Sound (most of the fear):**
 
@@ -684,8 +693,8 @@ Players: Rafi (the Detective), Mim (the Nurse), Sam (the Mechanic), Nila (the St
 |---|---|---|
 | Players | 4 to 8 | The server or the client cannot hold 60 FPS and 20 ticks per second with 8 players |
 | Match length | 12 min default (10, 12, 15, 20) | Fewer than 70% of groups want a rematch |
-| Engine | Browser 3D: Three.js client, Colyseus server, LiveKit voice | The grey-box slice cannot hold 60 FPS on an integrated-graphics laptop |
-| Art style | Low-poly PS1 style, heavy fog, dark | Never (it is a scope decision) |
+| Engine | Browser 3D: Three.js client, Colyseus server, LiveKit voice. A downloadable version (Unity or Unreal) may come after the browser version ships | The Low quality setting cannot stay smooth on an ordinary laptop |
+| Art style | Detailed, stylized-realistic, inspired by *Invokyr*; own or licensed assets only; Low and High quality settings (Section 23) | Never in the browser version |
 | Maps | Same rules on every map. v1 ships 1 map (Marrow Hotel) | Never for the rule; more maps after v1 |
 | Identity | Characters (no colors), names shown only when lit | Never in v1 |
 | Microphone | Required for every player. Open mic during matches, no push-to-talk | Never in v1 |
@@ -709,7 +718,7 @@ Real-mic ghost hearing with mic calibration, the Spirit Camera, Wisps with the O
 |---|---|---|
 | Final game name | Release | Keep "Haunted Lobby" |
 | Second map choice | After v1 release | Bengali Rajbari |
-| Character art style details | Content phase | Simple low-poly silhouettes |
+| Character art style details | Content phase | Stylized, detailed characters (Section 23), recognizable by outfit and silhouette |
 
 ### 26.5 Changes after v2.0
 
@@ -717,3 +726,5 @@ Real-mic ghost hearing with mic calibration, the Spirit Camera, Wisps with the O
 |---|---|---|
 | 2026-10-24 | All player and ghost speeds ×0.6: walk 3.5 → 2.1, run 5.5 → 3.3, crouch 1.8 → 1.1, crawl 1.0 → 0.6 m/s; ghost wander and hunt speeds scaled the same (Section 12.3); Wisps 5 → 3 m/s | Owner playtest (Phase 1): movement felt too fast, so a map felt small. Scaling the ghost by the same factor keeps every chase rule in Section 12.3 true |
 | 2026-10-24 | Stamina refills after 3 s (was 2 s) and takes 15 s to fill (was 5 s) | Owner playtest: running could be chained too easily |
+| 2026-10-25 | Art style changed from low-poly PS1 to a detailed, stylized-realistic look inspired by *Invokyr*, with Low and High quality settings (Sections 23 and 26.1) | Owner decision: the game should look as close to *Invokyr* as possible, accepting more art time and higher hardware needs on High |
+| 2026-10-25 | Finish the browser version first; a downloadable version (Unity or Unreal) may follow | Owner decision: keep join-by-link now, consider a native release later |
