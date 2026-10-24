@@ -37,20 +37,26 @@ export function initialMoveState(x: number, z: number): MoveState {
   return { x, z, stamina: config.movement.staminaSec, regenWait: 0, crouching: false };
 }
 
-export function stepMovement(state: MoveState, input: MoveInput, dt: number, collide: CollideFn): MoveState {
-  const m = config.movement;
-  const moving = input.forward !== 0 || input.right !== 0;
-  const crouching = input.crouch;
-  const running = moving && input.run && !crouching && state.stamina > 0;
+/**
+ * normal: walk, run and crouch. crawl: downed (GDD Section 7), slow and no running.
+ * frozen: hidden or dead, no movement (stamina still recovers).
+ */
+export type MoveMode = "normal" | "crawl" | "frozen";
 
-  const speed = crouching ? m.crouch : running ? m.run : m.walk;
+export function stepMovement(state: MoveState, input: MoveInput, dt: number, collide: CollideFn, mode: MoveMode = "normal"): MoveState {
+  const m = config.movement;
+  const moving = mode !== "frozen" && (input.forward !== 0 || input.right !== 0);
+  const crouching = mode === "normal" && input.crouch;
+  const running = mode === "normal" && moving && input.run && !crouching && state.stamina > 0;
+
+  const speed = mode === "crawl" ? m.crawl : crouching ? m.crouch : running ? m.run : m.walk;
 
   // Forward is where the camera looks (yaw 0 = -z). Right is 90 degrees clockwise from it.
   const sin = Math.sin(input.yaw);
   const cos = Math.cos(input.yaw);
   let dx = input.forward * -sin + input.right * cos;
   let dz = input.forward * -cos + input.right * -sin;
-  const len = Math.hypot(dx, dz);
+  const len = moving ? Math.hypot(dx, dz) : 0;
   if (len > 0) {
     dx = (dx / len) * speed * dt;
     dz = (dz / len) * speed * dt;

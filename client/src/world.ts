@@ -1,10 +1,11 @@
 import * as THREE from "three";
-import { doorBox, wallBox, type DoorDef, type MapData } from "@haunted/shared";
+import { doorBox, HIDING_SPOT_HEIGHT_M, hidingSpotBox, wallBox, type DoorDef, type MapData } from "@haunted/shared";
 
 const WALL_COLOR = 0x8a8a8a;
 const FLOOR_COLOR = 0x6f6f6f;
 const CEILING_COLOR = 0x4a4a4a;
 const DOOR_COLOR = 0x6b5a45;
+const CURTAIN_COLOR = 0x4a1f24;
 const DOOR_THICKNESS = 0.08;
 const DOOR_SWING_PER_SEC = 4; // radians per second for the open/close animation
 
@@ -71,6 +72,15 @@ export function buildWorld(scene: THREE.Scene, map: MapData): Map<string, DoorVi
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.set(cx, h, cz);
     scene.add(ceiling);
+  }
+
+  // Hiding furniture: wardrobes and cupboards are wood boxes, curtains are dark cloth.
+  for (const spot of map.hidingSpots) {
+    const box = hidingSpotBox(spot);
+    const color = spot.kind === "curtain" ? CURTAIN_COLOR : DOOR_COLOR;
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(box.sizeX, HIDING_SPOT_HEIGHT_M, box.sizeZ), new THREE.MeshLambertMaterial({ color }));
+    mesh.position.set(box.x, HIDING_SPOT_HEIGHT_M / 2, box.z);
+    scene.add(mesh);
   }
 
   const doors = new Map<string, DoorView>();

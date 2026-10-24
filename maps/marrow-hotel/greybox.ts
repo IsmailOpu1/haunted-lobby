@@ -55,6 +55,16 @@ export const marrowHotelGreybox: MapData = {
     { name: "Restaurant", minX: -13, maxX: -1.25, minZ: -14, maxZ: -4 },
     { name: "Kitchen", minX: 1.25, maxX: 9.25, minZ: -14, maxZ: -6 },
   ],
+  // At least 2 per room and 1 per corridor segment (GDD Section 21.1). Placed against walls.
+  hidingSpots: [
+    { id: "hall-wardrobe-west", kind: "wardrobe", x: -7.6, z: 3, sizeX: 0.6, sizeZ: 1.2, exit: { x: -6.7, z: 3 } },
+    { id: "hall-wardrobe-east", kind: "wardrobe", x: 7.6, z: 10, sizeX: 0.6, sizeZ: 1.2, exit: { x: 6.7, z: 10 } },
+    { id: "corridor-curtain", kind: "curtain", x: 0.95, z: -4, sizeX: 0.4, sizeZ: 1.0, exit: { x: 0.1, z: -4 } },
+    { id: "restaurant-cupboard", kind: "cupboard", x: -12.6, z: -12, sizeX: 0.6, sizeZ: 1.2, exit: { x: -11.7, z: -12 } },
+    { id: "restaurant-curtain", kind: "curtain", x: -7, z: -4.3, sizeX: 1.2, sizeZ: 0.4, exit: { x: -7, z: -5.2 } },
+    { id: "kitchen-pantry", kind: "cupboard", x: 8.85, z: -12, sizeX: 0.6, sizeZ: 1.2, exit: { x: 7.95, z: -12 } },
+    { id: "kitchen-cupboard", kind: "cupboard", x: 5, z: -13.6, sizeX: 1.2, sizeZ: 0.6, exit: { x: 5, z: -12.7 } },
+  ],
   spawns: [
     { x: -3, z: 6 },
     { x: 3, z: 6 },

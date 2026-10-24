@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { config } from "@haunted/shared";
 import { createFlashlight } from "./flashlight.ts";
+import { Flicker } from "./flicker.ts";
 
 /** What the server said about another player at one moment. */
 interface Snapshot {
@@ -11,10 +12,13 @@ interface Snapshot {
   pitch: number;
   crouching: boolean;
   flashlightOn: boolean;
+  health: string;
+  hidden: boolean;
 }
 
 const MAX_SNAPSHOTS = 30;
 const BODY_COLOR = 0x3a3a40;
+const DEAD_COLOR = 0x1a1a1c;
 const CROUCH_SCALE = config.movement.crouchEyeHeightM / config.movement.eyeHeightM;
 
 function lerpAngle(a: number, b: number, t: number): number {
@@ -30,13 +34,13 @@ class RemotePlayer {
   private head = new THREE.Group();
   private light: THREE.SpotLight;
   private lens: THREE.Mesh;
+  private bodyMaterial = new THREE.MeshLambertMaterial({ color: BODY_COLOR });
+  private flicker = new Flicker();
+  private baseIntensity: number;
 
   constructor(private scene: THREE.Scene) {
     const { radiusM, heightM } = config.body;
-    this.body = new THREE.Mesh(
-      new THREE.CapsuleGeometry(radiusM, heightM - radiusM * 2, 4, 12),
-      new THREE.MeshLambertMaterial({ color: BODY_COLOR }),
-    );
+    this.body = new THREE.Mesh(new THREE.CapsuleGeometry(radiusM, heightM - radiusM * 2, 4, 12), this.bodyMaterial);
     this.body.position.y = heightM / 2;
     this.root.add(this.body);
 
@@ -45,6 +49,7 @@ class RemotePlayer {
 
     const { light, target } = createFlashlight();
     this.light = light;
+    this.baseIntensity = light.intensity;
     light.position.set(0.2, -0.25, -0.2);
     this.head.add(light, target);
 
@@ -81,13 +86,34 @@ class RemotePlayer {
     this.root.rotation.y = lerpAngle(a.yaw, b.yaw, t);
     this.head.rotation.x = a.pitch + (b.pitch - a.pitch) * t;
 
-    const crouching = b.crouching;
-    this.body.scale.y = crouching ? CROUCH_SCALE : 1;
-    this.body.position.y = (config.body.heightM / 2) * this.body.scale.y;
-    this.head.position.y = crouching ? config.movement.crouchEyeHeightM : config.movement.eyeHeightM;
+    // Hidden players are inside the furniture.
+    this.root.visible = !b.hidden;
+
+    const lying = b.health !== "alive";
+    if (lying) {
+      // Downed or dead: lying on the floor.
+      this.body.rotation.x = Math.PI / 2;
+      this.body.scale.y = 1;
+      this.body.position.y = config.body.radiusM;
+      this.head.position.y = config.body.radiusM;
+    } else {
+      const crouching = b.crouching;
+      this.body.rotation.x = 0;
+      this.body.scale.y = crouching ? CROUCH_SCALE : 1;
+      this.body.position.y = (config.body.heightM / 2) * this.body.scale.y;
+      this.head.position.y = crouching ? config.movement.crouchEyeHeightM : config.movement.eyeHeightM;
+    }
+    this.bodyMaterial.color.setHex(b.health === "dead" ? DEAD_COLOR : BODY_COLOR);
 
     this.light.visible = b.flashlightOn;
     this.lens.visible = b.flashlightOn;
+  }
+
+  /** Flicker this player's flashlight when the ghost is near them. */
+  applyFlicker(dt: number, ghostDistanceFrom: (x: number, z: number) => number) {
+    const level = this.flicker.update(dt, ghostDistanceFrom(this.root.position.x, this.root.position.z));
+    this.light.intensity = this.baseIntensity * level;
+    (this.lens.material as THREE.MeshBasicMaterial).color.setScalar(level > 0.5 ? 1 : 0.2);
   }
 
   dispose() {
@@ -118,8 +144,11 @@ export class RemotePlayers {
     }
   }
 
-  render(now: number) {
+  render(now: number, dt: number, ghostDistanceFrom: (x: number, z: number) => number) {
     const renderTime = now - config.net.interpolationMs;
-    for (const p of this.players.values()) p.render(renderTime);
+    for (const p of this.players.values()) {
+      p.render(renderTime);
+      p.applyFlicker(dt, ghostDistanceFrom);
+    }
   }
 }

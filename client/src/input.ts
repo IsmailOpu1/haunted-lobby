@@ -6,9 +6,12 @@ const MAX_PITCH = Math.PI / 2 - 0.05;
 
 export interface InputActions {
   onFlashlight(): void;
-  onInteract(): void;
+  /** E pressed (true) or released (false). */
+  onUse(down: boolean): void;
   onToggleDebugLights(): void;
   onLookChange(looking: boolean): void;
+  /** Any click or key press (browsers only start sound after one). */
+  onUserGesture(): void;
 }
 
 export class PlayerInput {
@@ -19,23 +22,34 @@ export class PlayerInput {
 
   constructor(private canvas: HTMLCanvasElement, private actions: InputActions) {
     window.addEventListener("keydown", (e) => {
+      actions.onUserGesture();
       this.keys.add(e.code);
       if (!this.looking || e.repeat) return;
-      if (e.code === "KeyE") actions.onInteract();
+      if (e.code === "KeyE") actions.onUse(true);
       if (e.code === "Digit1") actions.onFlashlight();
       if (e.code === "KeyL") actions.onToggleDebugLights();
     });
-    window.addEventListener("keyup", (e) => this.keys.delete(e.code));
-    window.addEventListener("blur", () => this.keys.clear());
+    window.addEventListener("keyup", (e) => {
+      this.keys.delete(e.code);
+      if (e.code === "KeyE") actions.onUse(false);
+    });
+    window.addEventListener("blur", () => {
+      this.keys.clear();
+      actions.onUse(false);
+    });
 
     canvas.addEventListener("mousedown", (e) => {
+      actions.onUserGesture();
       if (!this.enabled || e.button !== 0) return;
       if (this.looking) actions.onFlashlight();
       else canvas.requestPointerLock();
     });
 
     document.addEventListener("pointerlockchange", () => {
-      if (!this.looking) this.keys.clear();
+      if (!this.looking) {
+        this.keys.clear();
+        actions.onUse(false);
+      }
       actions.onLookChange(this.looking);
     });
 

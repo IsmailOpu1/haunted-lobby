@@ -1,6 +1,6 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import { config } from "../config.ts";
-import { doorBox, wallBox, type FloorBox, type MapData } from "../map.ts";
+import { doorBox, HIDING_SPOT_HEIGHT_M, hidingSpotBox, wallBox, type FloorBox, type MapData } from "../map.ts";
 import type { CollideFn } from "./movement.ts";
 
 let ready: Promise<void> | undefined;
@@ -30,6 +30,7 @@ export class PhysicsWorld {
     const h = map.wallHeightM;
     for (const segment of map.walls) this.addBox(wallBox(segment, map.wallThicknessM), h);
     for (const door of map.doors) this.doors.set(door.id, this.addBox(doorBox(door, map.wallThicknessM), h));
+    for (const spot of map.hidingSpots) this.addBox(hidingSpotBox(spot), HIDING_SPOT_HEIGHT_M);
 
     this.controller = this.world.createCharacterController(0.01);
     this.controller.setSlideEnabled(true);
@@ -68,6 +69,20 @@ export class PhysicsWorld {
       this.world.removeCollider(collider, false);
     };
     return { collide, remove };
+  }
+
+  /**
+   * True if nothing solid (walls, closed doors, furniture) is between two points at the given
+   * height. Player bodies never block sight.
+   */
+  lineOfSight(from: { x: number; z: number }, to: { x: number; z: number }, height: number): boolean {
+    const dx = to.x - from.x;
+    const dz = to.z - from.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 1e-6) return true;
+    const ray = new RAPIER.Ray({ x: from.x, y: height, z: from.z }, { x: dx / dist, y: 0, z: dz / dist });
+    const hit = this.world.castRay(ray, dist, true, undefined, undefined, undefined, undefined, (c) => !this.bodyHandles.has(c.handle));
+    return hit === null;
   }
 
   /** An open door stops blocking movement. */

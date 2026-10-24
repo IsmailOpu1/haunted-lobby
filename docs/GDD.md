@@ -728,3 +728,20 @@ Real-mic ghost hearing with mic calibration, the Spirit Camera, Wisps with the O
 | 2026-10-24 | Stamina refills after 3 s (was 2 s) and takes 15 s to fill (was 5 s) | Owner playtest: running could be chained too easily |
 | 2026-10-25 | Art style changed from low-poly PS1 to a detailed, stylized-realistic look inspired by *Invokyr*, with Low and High quality settings (Sections 23 and 26.1) | Owner decision: the game should look as close to *Invokyr* as possible, accepting more art time and higher hardware needs on High |
 | 2026-10-25 | Finish the browser version first; a downloadable version (Unity or Unreal) may follow | Owner decision: keep join-by-link now, consider a native release later |
+
+### 26.6 Phase 2 build choices (awaiting owner confirmation)
+
+Rules the GDD did not specify, chosen while building the ghost. Numbers live in `shared/config.ts` and are easy to tune.
+
+| Choice | Value | Why |
+|---|---|---|
+| When the ghost can be seen | Only while it hunts. Outside hunts it is invisible, but flashlights still flicker near it and the heartbeat still plays | Keeps hunts as the big scare; the flicker and heartbeat warn that it is near |
+| Doors and the ghost | Closed doors never stop the ghost; it swings open any closed door it reaches | Matches the Bellboy opening doors (12.5) and Slam Door trapping players (14.2); a closed door is not a safe room |
+| Catch distance | 0.8 m | Close enough to feel like a grab |
+| Ghost field of view | 140° in front of it | "In front of it" in 12.2 |
+| After investigating a spot | Looks around 3 s, then ignores new clues within 4 m of that spot for 8 s | Without it, the ghost stood on top of a noisy player outside hunts |
+| Retreat after a hunt | Vanishes for 8 s, then reappears at least 12 m from every player; the next hunt is counted from the end of the last one | "Vanishes for a while" in 12.1 |
+| Hiding spot search | Checks up to 2 spots within 6 m of where it last saw its target, 3 s each | 12.2 says "up to 2 hiding spots near the last place it saw its target" |
+| Range for ghost position updates | A player's game learns where the ghost is only within 25 m | Anti-cheat (PRD 10.3); covers sight (20 m) and flicker (15 m) |
+| When the night starts | When the first player joins the room | Until the lobby Start button exists (Phase 7) |
+| Dead players | Watch the room, cannot move or act | Until Wisps exist (Phase 6) |

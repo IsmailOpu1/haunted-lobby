@@ -5,19 +5,26 @@ import {
   generateRoomCode,
   initialMoveState,
   initPhysics,
+  nightPart,
   PhysicsWorld,
   sanitizeInput,
   SIM_DT,
   stepMovement,
   type CollideFn,
+  type GhostView,
+  type Health,
   type JoinOptions,
   type MapData,
   type MoveInput,
+  type MoveMode,
   type MoveState,
+  type PlayerAction,
   type RosterEntry,
   type ServerMessages,
 } from "@haunted/shared";
 import { defaultMap } from "@haunted/maps";
+import { Ghost, type GhostTarget, type GhostWorld } from "./sim/ghost.ts";
+import { NavMap } from "./sim/navmap.ts";
 import { Door, GameState, Player } from "./state.ts";
 
 // Codes in use by rooms on this server process. One process is enough for v1
@@ -31,6 +38,15 @@ function uniqueRoomCode(): string {
   return code;
 }
 
+/** Test-only shortcuts (skip time, get downed). Enabled only when the server is started with HAUNTED_DEBUG=1. */
+const DEBUG = process.env.HAUNTED_DEBUG === "1";
+
+/** A timed action a player is holding E for (GDD Sections 6 and 7). */
+type Action =
+  | { kind: "revive"; targetId: string; elapsed: number }
+  | { kind: "hide"; spotId: string; elapsed: number }
+  | { kind: "unhide"; elapsed: number };
+
 /** Server-only data for one connected player. */
 interface PlayerSim {
   move: MoveState;
@@ -39,7 +55,20 @@ interface PlayerSim {
   inputs: MoveInput[];
   /** Seconds of input this player may still apply (anti speed-hack, see tick()). */
   budget: number;
+  /** How far this player's noise carried this tick (GDD Section 12.2). */
+  noiseM: number;
+  /** Seconds the ghost cannot hit this player after a revive. */
+  immuneLeft: number;
+  action: Action | null;
+  breathLeft: number;
+  flashlightBeforeDowned: boolean;
 }
+
+const ACTION_SECONDS: Record<Action["kind"], number> = {
+  revive: config.health.reviveSec,
+  hide: config.movement.hideEnterExitSec,
+  unhide: config.movement.hideEnterExitSec,
+};
 
 export class HauntedRoom extends Room<{ state: GameState }> {
   maxClients = config.players.max;
@@ -48,8 +77,14 @@ export class HauntedRoom extends Room<{ state: GameState }> {
 
   private map: MapData = defaultMap;
   private physics!: PhysicsWorld;
+  private ghost!: Ghost;
   private sims = new Map<string, PlayerSim>();
   private spawnIndex = 0;
+  private nightStarted = false;
+  private dawnSent = false;
+  private noises: { x: number; z: number; radiusM: number }[] = [];
+  /** Clients that currently know where the ghost is (so they get one "gone" message). */
+  private seesGhost = new Set<string>();
 
   async onCreate() {
     // The 5-letter room code is the Colyseus room id, so friends join with joinById(code).
@@ -58,6 +93,14 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     await initPhysics();
     this.physics = new PhysicsWorld(this.map);
     for (const door of this.map.doors) this.state.doors.set(door.id, new Door({ open: false }));
+    this.state.nightLength = config.match.lengthMin * 60;
+    this.state.nightTime = 0;
+    this.state.part = "quiet";
+
+    const nav = await NavMap.create(this.map);
+    // The ghost starts asleep in the room farthest from the spawn, the Kitchen in the grey box.
+    const lastRoom = this.map.rooms[this.map.rooms.length - 1]!;
+    this.ghost = new Ghost(nav, this.ghostWorld(), { x: (lastRoom.minX + lastRoom.maxX) / 2, z: (lastRoom.minZ + lastRoom.maxZ) / 2 });
 
     this.onMessage("input", (client, raw: unknown) => {
       const sim = this.sims.get(client.sessionId);
@@ -70,10 +113,25 @@ export class HauntedRoom extends Room<{ state: GameState }> {
 
     this.onMessage("flashlight", (client) => {
       const player = this.state.players.get(client.sessionId);
-      if (player) player.flashlightOn = !player.flashlightOn;
+      // Downed and dead players cannot use items (GDD Section 7).
+      if (player && player.health === "alive") player.flashlightOn = !player.flashlightOn;
     });
 
-    this.onMessage("interact", (client) => this.toggleNearestDoor(client.sessionId));
+    this.onMessage("use", (client, msg: unknown) => {
+      const down = typeof msg === "object" && msg !== null && (msg as { down?: unknown }).down === true;
+      if (down) this.startUse(client.sessionId);
+      else this.cancelAction(client.sessionId);
+    });
+
+    if (DEBUG) {
+      this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number }) => {
+        if (typeof msg?.nightTime === "number") this.state.nightTime = msg.nightTime;
+        if (typeof msg?.huntIn === "number") this.ghost.debugHuntIn(msg.huntIn);
+        if (msg?.down) this.downPlayer(client.sessionId);
+        const player = this.state.players.get(client.sessionId);
+        if (player && typeof msg?.bleedLeft === "number") player.bleedLeft = msg.bleedLeft;
+      });
+    }
 
     this.setSimulationInterval((deltaMs) => this.tick(deltaMs / 1000), 1000 / config.net.tickRate);
   }
@@ -85,7 +143,18 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const spawn = this.map.spawns[this.spawnIndex++ % this.map.spawns.length]!;
     const body = this.physics.addBody();
     const move = initialMoveState(spawn.x, spawn.z);
-    this.sims.set(client.sessionId, { move, collide: body.collide, removeBody: body.remove, inputs: [], budget: 0 });
+    this.sims.set(client.sessionId, {
+      move,
+      collide: body.collide,
+      removeBody: body.remove,
+      inputs: [],
+      budget: 0,
+      noiseM: 0,
+      immuneLeft: 0,
+      action: null,
+      breathLeft: 0,
+      flashlightBeforeDowned: true,
+    });
 
     this.state.players.set(
       client.sessionId,
@@ -100,14 +169,24 @@ export class HauntedRoom extends Room<{ state: GameState }> {
         stamina: move.stamina,
         regenWait: 0,
         lastSeq: 0,
+        health: "alive",
+        bleedLeft: 0,
+        hidingSpot: "",
+        holdingBreath: false,
+        breathCooldown: 0,
+        action: "",
+        actionProgress: 0,
       }),
     );
+    // The night starts when the first player arrives. The lobby and Start button come in Phase 7.
+    this.nightStarted = true;
     this.announce("join", name, `${name} joined the room`);
   }
 
   onLeave(client: Client) {
     this.sims.get(client.sessionId)?.removeBody();
     this.sims.delete(client.sessionId);
+    this.seesGhost.delete(client.sessionId);
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
     this.state.players.delete(client.sessionId);
@@ -118,48 +197,336 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     activeCodes.delete(this.roomId);
   }
 
+  private tick(elapsedSec: number) {
+    for (const [sessionId, sim] of this.sims) {
+      const player = this.state.players.get(sessionId);
+      if (player) this.tickPlayer(sim, player, elapsedSec);
+    }
+
+    if (this.nightStarted) {
+      this.state.nightTime = Math.min(this.state.nightTime + elapsedSec, this.state.nightLength);
+      const part = nightPart(this.state.nightTime, this.state.nightLength);
+      this.state.part = part;
+      this.ghost.update(elapsedSec, part, this.state.players.size);
+      if (part === "dawn" && !this.dawnSent) {
+        this.dawnSent = true;
+        const dawn: ServerMessages["dawn"] = {};
+        this.broadcast("dawn", dawn);
+      }
+    }
+    this.noises.length = 0;
+    this.sendGhostPositions();
+  }
+
   /**
    * Applies queued movement inputs. Each player earns input time equal to the real time that
    * passed (server timers often fire late, so counting ticks would fall behind the client),
    * and may bank at most maxInputAheadSec, so a hacked client sending extra inputs
-   * cannot move faster than the rules allow.
+   * cannot move faster than the rules allow. Then runs health, breath and actions.
    */
-  private tick(elapsedSec: number) {
-    for (const [sessionId, sim] of this.sims) {
-      sim.budget = Math.min(sim.budget + elapsedSec, config.net.maxInputAheadSec);
-      const player = this.state.players.get(sessionId);
-      if (!player) continue;
+  private tickPlayer(sim: PlayerSim, player: Player, elapsedSec: number) {
+    sim.budget = Math.min(sim.budget + elapsedSec, config.net.maxInputAheadSec);
+    sim.noiseM = 0;
+    const startX = sim.move.x;
+    const startZ = sim.move.z;
+    const mode = this.moveMode(player);
+    let lastInput: MoveInput | null = null;
 
-      while (sim.inputs.length > 0 && sim.budget >= SIM_DT - 1e-9) {
-        const input = sim.inputs.shift()!;
-        if (input.seq <= player.lastSeq) continue; // duplicate or old
-        sim.move = stepMovement(sim.move, input, SIM_DT, sim.collide);
-        sim.budget -= SIM_DT;
-        player.lastSeq = input.seq;
-        player.yaw = input.yaw;
-        player.pitch = input.pitch;
+    while (sim.inputs.length > 0 && sim.budget >= SIM_DT - 1e-9) {
+      const input = sim.inputs.shift()!;
+      if (input.seq <= player.lastSeq) continue; // duplicate or old
+      const before = sim.move;
+      sim.move = stepMovement(sim.move, input, SIM_DT, sim.collide, mode);
+      sim.budget -= SIM_DT;
+      player.lastSeq = input.seq;
+      player.yaw = input.yaw;
+      player.pitch = input.pitch;
+      lastInput = input;
+      if (sim.move.x !== before.x || sim.move.z !== before.z) {
+        sim.noiseM = Math.max(sim.noiseM, this.movementNoise(input, mode, before, sim.move));
       }
+    }
 
-      player.x = sim.move.x;
-      player.z = sim.move.z;
-      player.crouching = sim.move.crouching;
-      player.stamina = sim.move.stamina;
-      player.regenWait = sim.move.regenWait;
+    player.x = sim.move.x;
+    player.z = sim.move.z;
+    player.crouching = sim.move.crouching;
+    player.stamina = sim.move.stamina;
+    player.regenWait = sim.move.regenWait;
+
+    const moved = Math.hypot(sim.move.x - startX, sim.move.z - startZ) > 1e-3;
+    this.tickHealth(sim, player, elapsedSec);
+    this.tickBreath(sim, player, lastInput, elapsedSec);
+    this.tickAction(sim, player, moved, elapsedSec);
+  }
+
+  private moveMode(player: Player): MoveMode {
+    if (player.health === "downed") return "crawl";
+    if (player.health === "dead" || player.hidingSpot) return "frozen";
+    return "normal";
+  }
+
+  /** How far a step of movement can be heard (GDD Section 12.2). */
+  private movementNoise(input: MoveInput, mode: MoveMode, before: MoveState, after: MoveState): number {
+    const h = config.ghost.hearingM;
+    if (mode === "crawl" || after.crouching) return h.crouch;
+    // Same rule as stepMovement: running needs stamina left at the start of the step.
+    return input.run && before.stamina > 0 ? h.run : h.walk;
+  }
+
+  // ---------- Health (GDD Section 7) ----------
+
+  private tickHealth(sim: PlayerSim, player: Player, dt: number) {
+    if (sim.immuneLeft > 0) sim.immuneLeft = Math.max(0, sim.immuneLeft - dt);
+    if (player.health !== "downed") return;
+    player.bleedLeft = Math.max(0, player.bleedLeft - dt);
+    if (player.bleedLeft <= 0) {
+      player.health = "dead";
+      player.flashlightOn = false;
     }
   }
 
-  private toggleNearestDoor(sessionId: string) {
+  /** The ghost caught this player. */
+  private downPlayer(sessionId: string) {
+    const player = this.state.players.get(sessionId);
     const sim = this.sims.get(sessionId);
-    if (!sim) return;
+    if (!player || !sim || player.health !== "alive") return;
+    if (player.hidingSpot) {
+      // Pulled out of the hiding spot.
+      const spot = this.map.hidingSpots.find((s) => s.id === player.hidingSpot);
+      if (spot) sim.move = { ...sim.move, x: spot.exit.x, z: spot.exit.z };
+      player.hidingSpot = "";
+    }
+    player.health = "downed" satisfies Health;
+    player.bleedLeft = config.health.bleedOutSec;
+    sim.flashlightBeforeDowned = player.flashlightOn;
+    player.flashlightOn = false;
+    player.holdingBreath = false;
+    this.clearAction(sim, player);
+  }
+
+  // ---------- Hold breath while hiding (GDD Section 6) ----------
+
+  private tickBreath(sim: PlayerSim, player: Player, input: MoveInput | null, dt: number) {
+    const wantsHold = !!player.hidingSpot && player.health === "alive" && (input?.run ?? player.holdingBreath);
+    if (player.holdingBreath) {
+      sim.breathLeft -= dt;
+      if (!wantsHold || sim.breathLeft <= 0) {
+        player.holdingBreath = false;
+        player.breathCooldown = config.movement.breathCooldownSec;
+      }
+    } else {
+      player.breathCooldown = Math.max(0, player.breathCooldown - dt);
+      if (wantsHold && player.breathCooldown <= 0) {
+        player.holdingBreath = true;
+        sim.breathLeft = config.movement.breathHoldSec;
+      }
+    }
+    if (player.hidingSpot) sim.noiseM = player.holdingBreath ? 0 : config.ghost.hearingM.hiddenBreath;
+  }
+
+  // ---------- Holding E (GDD Sections 6 and 7) ----------
+
+  /** E pressed: pick the action for where this player is standing. */
+  private startUse(sessionId: string) {
+    const sim = this.sims.get(sessionId);
+    const player = this.state.players.get(sessionId);
+    if (!sim || !player || player.health !== "alive" || sim.action) return;
+    const here = { x: sim.move.x, z: sim.move.z };
+
+    if (player.hidingSpot) {
+      this.setAction(sim, player, { kind: "unhide", elapsed: 0 });
+      return;
+    }
+
+    let reviveId: string | null = null;
+    let best: number = config.interact.reviveRangeM;
+    this.state.players.forEach((p, id) => {
+      const d = Math.hypot(p.x - here.x, p.z - here.z);
+      if (id !== sessionId && p.health === "downed" && d <= best) {
+        best = d;
+        reviveId = id;
+      }
+    });
+    if (reviveId) {
+      this.setAction(sim, player, { kind: "revive", targetId: reviveId, elapsed: 0 });
+      return;
+    }
+
+    const spot = this.nearestFreeHidingSpot(here.x, here.z);
+    if (spot) {
+      this.setAction(sim, player, { kind: "hide", spotId: spot.id, elapsed: 0 });
+      return;
+    }
+
+    this.toggleNearestDoor(here.x, here.z);
+  }
+
+  private nearestFreeHidingSpot(x: number, z: number) {
+    let found: (typeof this.map.hidingSpots)[number] | undefined;
+    let best: number = config.interact.hideRangeM;
+    for (const spot of this.map.hidingSpots) {
+      const d = Math.hypot(spot.exit.x - x, spot.exit.z - z);
+      if (d > best) continue;
+      let taken = false;
+      this.state.players.forEach((p) => {
+        if (p.hidingSpot === spot.id) taken = true;
+      });
+      if (!taken) {
+        best = d;
+        found = spot;
+      }
+    }
+    return found;
+  }
+
+  private setAction(sim: PlayerSim, player: Player, action: Action) {
+    sim.action = action;
+    player.action = action.kind satisfies PlayerAction;
+    player.actionProgress = 0;
+  }
+
+  private clearAction(sim: PlayerSim, player: Player) {
+    sim.action = null;
+    player.action = "";
+    player.actionProgress = 0;
+  }
+
+  /** E released. */
+  private cancelAction(sessionId: string) {
+    const sim = this.sims.get(sessionId);
+    const player = this.state.players.get(sessionId);
+    if (sim && player) this.clearAction(sim, player);
+  }
+
+  private tickAction(sim: PlayerSim, player: Player, moved: boolean, dt: number) {
+    const action = sim.action;
+    if (!action) return;
+    // Moving or being downed cancels any timed action (GDD Section 7).
+    if (moved || player.health !== "alive") return this.clearAction(sim, player);
+
+    if (action.kind === "revive") {
+      const target = this.state.players.get(action.targetId);
+      const near = target && Math.hypot(target.x - sim.move.x, target.z - sim.move.z) <= config.interact.reviveRangeM;
+      if (!target || target.health !== "downed" || !near) return this.clearAction(sim, player);
+    }
+
+    action.elapsed += dt;
+    const duration = ACTION_SECONDS[action.kind];
+    player.actionProgress = Math.min(1, action.elapsed / duration);
+    if (action.elapsed < duration) return;
+
+    this.clearAction(sim, player);
+    if (action.kind === "revive") this.revive(action.targetId);
+    else if (action.kind === "hide") this.hide(sim, player, action.spotId);
+    else this.unhide(sim, player);
+  }
+
+  private revive(targetId: string) {
+    const target = this.state.players.get(targetId);
+    const sim = this.sims.get(targetId);
+    if (!target || !sim || target.health !== "downed") return;
+    target.health = "alive";
+    target.bleedLeft = 0;
+    target.flashlightOn = sim.flashlightBeforeDowned;
+    sim.immuneLeft = config.health.postReviveImmunitySec;
+  }
+
+  private hide(sim: PlayerSim, player: Player, spotId: string) {
+    const spot = this.map.hidingSpots.find((s) => s.id === spotId);
+    if (!spot) return;
+    let taken = false;
+    this.state.players.forEach((p) => {
+      if (p.hidingSpot === spotId) taken = true;
+    });
+    if (taken) return;
+    player.hidingSpot = spotId;
+    sim.move = { ...sim.move, x: spot.x, z: spot.z };
+    player.x = spot.x;
+    player.z = spot.z;
+  }
+
+  private unhide(sim: PlayerSim, player: Player) {
+    const spot = this.map.hidingSpots.find((s) => s.id === player.hidingSpot);
+    player.hidingSpot = "";
+    player.holdingBreath = false;
+    if (!spot) return;
+    sim.move = { ...sim.move, x: spot.exit.x, z: spot.exit.z };
+    player.x = spot.exit.x;
+    player.z = spot.exit.z;
+  }
+
+  private toggleNearestDoor(x: number, z: number) {
     let nearest: { id: string; dist: number } | undefined;
     for (const door of this.map.doors) {
-      const dist = Math.hypot(door.x - sim.move.x, door.z - sim.move.z);
+      const dist = Math.hypot(door.x - x, door.z - z);
       if (dist <= config.interact.rangeM && (!nearest || dist < nearest.dist)) nearest = { id: door.id, dist };
     }
     if (!nearest) return;
-    const state = this.state.doors.get(nearest.id)!;
-    state.open = !state.open;
-    this.physics.setDoorOpen(nearest.id, state.open);
+    const door = this.map.doors.find((d) => d.id === nearest!.id)!;
+    this.setDoor(door.id, !this.state.doors.get(door.id)!.open);
+    // Opening or closing a door can be heard (GDD Section 12.2).
+    this.noises.push({ x: door.x, z: door.z, radiusM: config.ghost.hearingM.door });
+  }
+
+  private setDoor(id: string, open: boolean) {
+    const state = this.state.doors.get(id);
+    if (!state || state.open === open) return;
+    state.open = open;
+    this.physics.setDoorOpen(id, open);
+  }
+
+  // ---------- Ghost ----------
+
+  private ghostWorld(): GhostWorld {
+    return {
+      players: () => {
+        const list: GhostTarget[] = [];
+        this.state.players.forEach((p, id) => {
+          const sim = this.sims.get(id);
+          if (!sim) return;
+          list.push({
+            id,
+            x: p.x,
+            z: p.z,
+            health: p.health as Health,
+            hidingSpot: p.hidingSpot || null,
+            flashlightOn: p.flashlightOn,
+            noiseM: sim.noiseM,
+            immune: sim.immuneLeft > 0,
+          });
+        });
+        return list;
+      },
+      lineOfSight: (a, b, h) => this.physics.lineOfSight(a, b, h),
+      doors: this.map.doors,
+      isDoorOpen: (id) => this.state.doors.get(id)?.open ?? true,
+      openDoor: (id) => this.setDoor(id, true),
+      hidingSpots: this.map.hidingSpots,
+      takeNoises: () => this.noises.slice(),
+      hit: (id) => this.downPlayer(id),
+      huntEvent: (phase) => {
+        const msg: ServerMessages["hunt"] = { phase };
+        this.broadcast("hunt", msg);
+      },
+    };
+  }
+
+  /** Each client learns where the ghost is only while it is within interestRangeM (PRD 10.3). */
+  private sendGhostPositions() {
+    const g = this.ghost;
+    const present = g.state !== "asleep" && g.state !== "gone" && g.state !== "retreat";
+    const view: GhostView = { x: g.x, z: g.z, yaw: g.yaw, visible: g.visible };
+    for (const client of this.clients) {
+      const p = this.state.players.get(client.sessionId);
+      const inRange = present && !!p && Math.hypot(p.x - g.x, p.z - g.z) <= config.ghost.interestRangeM;
+      if (inRange) {
+        client.send("ghost", view);
+        this.seesGhost.add(client.sessionId);
+      } else if (this.seesGhost.has(client.sessionId)) {
+        client.send("ghost", null);
+        this.seesGhost.delete(client.sessionId);
+      }
+    }
   }
 
   private announce(kind: ServerMessages["system"]["kind"], name: string, text: string) {

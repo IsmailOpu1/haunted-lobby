@@ -44,8 +44,9 @@ body {
   gap: 10px;
 }
 
+/* !important so element rules like #action { display: flex } cannot override it. */
 .hidden {
-  display: none;
+  display: none !important;
 }
 
 h1 {
@@ -244,6 +245,116 @@ ul {
 #stamina-fill {
   height: 100%;
   background: var(--accent);
+}
+
+#night {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+#night-part {
+  min-width: 64px;
+  text-align: right;
+  color: var(--text);
+}
+
+#night-bar {
+  width: 220px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+/* The bar fills from night (dark blue) toward dawn (warm orange). */
+#night-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1d2b55, #c9773b);
+}
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: none;
+  text-align: center;
+}
+
+#overlay-title {
+  font-size: 34px;
+  letter-spacing: 2px;
+}
+
+#overlay-text {
+  font-size: 15px;
+  color: var(--text);
+}
+
+body[data-status="downed"] #overlay {
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(120, 0, 0, 0.65) 100%);
+}
+
+body[data-status="dead"] #overlay {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+/* Inside a wardrobe: dark edges and slats to peek through. */
+body[data-status="hidden"] #overlay {
+  justify-content: flex-end;
+  padding-bottom: 90px;
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.85) 0 26px, transparent 26px 40px),
+    radial-gradient(ellipse at center, transparent 20%, rgba(0, 0, 0, 0.9) 75%);
+}
+
+#action {
+  position: fixed;
+  top: 64%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+#action-bar {
+  width: 180px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+#action-fill {
+  height: 100%;
+  background: var(--text);
+}
+
+#banner {
+  position: fixed;
+  top: 30%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  font-size: 24px;
+  background: var(--panel);
+  border-radius: 6px;
+  pointer-events: none;
 }
 
 body.looking .panel {

@@ -2,6 +2,7 @@ import { schema, t, type SchemaType } from "@colyseus/schema";
 
 // Shared state that every client in the room receives.
 // Private data (roles, cooldowns, curse glow) must never be added here (PRD Section 10.3).
+// The ghost is not here either: its position goes only to nearby players as a message.
 
 export const Player = schema({
   name: t.string(),
@@ -15,6 +16,16 @@ export const Player = schema({
   stamina: t.float32(),
   regenWait: t.float32(),
   lastSeq: t.uint32(),
+  // Health (GDD Section 7): "alive", "downed" or "dead".
+  health: t.string(),
+  bleedLeft: t.float32(),
+  // Hiding (GDD Section 6): the hiding spot id, or "" when not hidden.
+  hidingSpot: t.string(),
+  holdingBreath: t.boolean(),
+  breathCooldown: t.float32(),
+  // The timed action being held (PlayerAction) and its progress from 0 to 1.
+  action: t.string(),
+  actionProgress: t.float32(),
 }, "Player");
 export type Player = SchemaType<typeof Player>;
 
@@ -26,5 +37,9 @@ export type Door = SchemaType<typeof Door>;
 export const GameState = schema({
   players: t.map(Player),
   doors: t.map(Door),
+  // Night clock (GDD Section 4.2).
+  nightTime: t.float32(),
+  nightLength: t.float32(),
+  part: t.string(),
 }, "GameState");
 export type GameState = SchemaType<typeof GameState>;

@@ -30,6 +30,25 @@ const log = el("log");
 const staminaBar = el("stamina");
 const staminaFill = el("stamina-fill");
 const prompt = el("prompt");
+const night = el("night");
+const nightPartText = el("night-part");
+const nightFill = el("night-fill");
+const overlay = el("overlay");
+const overlayTitle = el("overlay-title");
+const overlayText = el("overlay-text");
+const actionBox = el("action");
+const actionLabel = el("action-label");
+const actionFill = el("action-fill");
+const banner = el("banner");
+let bannerTimer: ReturnType<typeof setTimeout> | undefined;
+
+const NIGHT_PART_NAMES: Record<string, string> = {
+  quiet: "Quiet",
+  calm: "Calm",
+  restless: "Restless",
+  furious: "Furious",
+  dawn: "Dawn",
+};
 
 const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
   // While the mouse is captured, hide the lobby panel so the 3D view is clear.
@@ -41,6 +60,40 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
   setPrompt: (text) => {
     prompt.classList.toggle("hidden", !text);
     prompt.textContent = text ?? "";
+  },
+  setNight: (part, fractionLeft) => {
+    night.classList.remove("hidden");
+    nightPartText.textContent = NIGHT_PART_NAMES[part] ?? part;
+    nightFill.style.width = `${Math.round((1 - fractionLeft) * 100)}%`;
+  },
+  setStatus: (status) => {
+    document.body.dataset.status = status.kind;
+    overlay.classList.toggle("hidden", status.kind === "alive");
+    if (status.kind === "downed") {
+      overlayTitle.textContent = "You are down";
+      overlayText.textContent = `A friend must hold E on you within ${Math.ceil(status.bleedLeft)} s. You can crawl.`;
+    } else if (status.kind === "dead") {
+      overlayTitle.textContent = "You died";
+      overlayText.textContent = "Dead players will become Wisps in a later update.";
+    } else if (status.kind === "hidden") {
+      overlayTitle.textContent = "";
+      overlayText.textContent = status.holdingBreath
+        ? "Holding your breath"
+        : status.breathCooldown > 0
+          ? `Catching your breath (${Math.ceil(status.breathCooldown)} s)`
+          : "Hidden. Hold Shift to hold your breath, hold E to step out.";
+    }
+  },
+  setAction: (label, progress) => {
+    actionBox.classList.toggle("hidden", !label);
+    actionLabel.textContent = label ?? "";
+    actionFill.style.width = `${Math.round(progress * 100)}%`;
+  },
+  showBanner: (text, seconds) => {
+    banner.textContent = text;
+    banner.classList.remove("hidden");
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(() => banner.classList.add("hidden"), seconds * 1000);
   },
 });
 

@@ -32,9 +32,10 @@ export const config = {
     breathCooldownSec: 12,
     eyeHeightM: 1.7,
     crouchEyeHeightM: 1.0,
+    downedEyeHeightM: 0.4,
   },
   body: { radiusM: 0.3, heightM: 1.8 },
-  interact: { rangeM: 2 },
+  interact: { rangeM: 2, reviveRangeM: 1.5, hideRangeM: 1.5 },
   health: { reviveSec: 5, bleedOutSec: 30, postReviveImmunitySec: 3 },
   flashlight: { coneM: 12, darkVisionM: 2, flickerGhostM: 15, deadGhostM: 5, deadSec: 2 },
   camera: {
@@ -104,6 +105,23 @@ export const config = {
     ritualBetweenHuntsSec: 15,
     postMeetingGraceSec: 15,
     blackoutSpeedMult: 1.1,
+    // Body and behaviour details not set in the GDD (chosen in Phase 2, tune in playtests).
+    radiusM: 0.3,
+    heightM: 2.1,
+    catchRangeM: 0.8,
+    sightFovDeg: 140,
+    investigateLookSec: 3,
+    // After investigating a spot, clues near it are ignored for a while so the ghost moves on.
+    investigateCooldownSec: 8,
+    investigateIgnoreRadiusM: 4,
+    retreatSec: 8,
+    reappearMinDistM: 12,
+    repathSec: 0.25,
+    stuckSec: 4,
+    hidingCheckRadiusM: 6,
+    doorOpenRangeM: 1.0,
+    // Clients receive the ghost's position only within this range (anti wall-hack, PRD 10.3).
+    interestRangeM: 25,
   },
   voice: {
     whisperBelowNormalDb: 10,

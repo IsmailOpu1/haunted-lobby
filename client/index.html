@@ -46,16 +46,32 @@
         <tr><td>Shift</td><td>Run (5 s of stamina)</td></tr>
         <tr><td>C</td><td>Crouch (quiet and slow)</td></tr>
         <tr><td>E</td><td>Open or close a door</td></tr>
+        <tr><td>Hold E</td><td>Revive a downed friend (5 s), hide in a wardrobe or curtain, step out</td></tr>
+        <tr><td>Shift (hidden)</td><td>Hold your breath (6 s)</td></tr>
         <tr><td>Click or 1</td><td>Flashlight on / off</td></tr>
         <tr><td>L</td><td>Test lights on / off</td></tr>
         <tr><td>Esc</td><td>Back to this panel</td></tr>
       </table>
     </div>
 
+    <div id="night" class="hidden">
+      <span id="night-part"></span>
+      <div id="night-bar"><div id="night-fill"></div></div>
+      <span class="night-end">Dawn</span>
+    </div>
+    <div id="overlay" class="hidden">
+      <div id="overlay-title"></div>
+      <div id="overlay-text"></div>
+    </div>
     <div id="crosshair"></div>
     <div id="esc-hint">Esc to show the room panel</div>
     <div id="prompt" class="hidden"></div>
+    <div id="action" class="hidden">
+      <span id="action-label"></span>
+      <div id="action-bar"><div id="action-fill"></div></div>
+    </div>
     <div id="stamina" class="hidden"><div id="stamina-fill"></div></div>
+    <div id="banner" class="hidden"></div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

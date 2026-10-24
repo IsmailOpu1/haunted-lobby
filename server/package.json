@@ -11,6 +11,8 @@
     "@colyseus/schema": "5.0.42",
     "@haunted/maps": "*",
     "@haunted/shared": "*",
+    "@recast-navigation/core": "0.43.1",
+    "@recast-navigation/generators": "0.43.1",
     "colyseus": "0.18.10",
     "tsx": "4.23.15"
   },

@@ -97,6 +97,7 @@ describe("collision with walls and doors", () => {
     ],
     doors: [{ id: "d", x: 0, z: -2, width: 1.5, axis: "x" }],
     rooms: [],
+    hidingSpots: [],
     spawns: [],
   };
 

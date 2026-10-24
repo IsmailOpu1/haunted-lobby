@@ -22,6 +22,22 @@ function collect<K extends keyof ServerMessages>(room: Room, type: K): ServerMes
   return received;
 }
 
+/** Walks a player to a point by sending real movement inputs. Returns the last input seq used. */
+async function walkTo(room: Room, target: { x: number; z: number }, startSeq = 0): Promise<number> {
+  let seq = startSeq;
+  const me = () => room.state.players.get(room.sessionId);
+  for (let i = 0; i < 400; i++) {
+    const dx = target.x - me().x;
+    const dz = target.z - me().z;
+    if (Math.hypot(dx, dz) < 0.15) break;
+    room.send("input", { seq: ++seq, forward: 1, right: 0, run: false, crouch: false, yaw: Math.atan2(-dx, -dz), pitch: 0 });
+    await new Promise((r) => setTimeout(r, 1000 / config.net.tickRate));
+  }
+  // Let the server apply the last inputs.
+  await new Promise((r) => setTimeout(r, 200));
+  return seq;
+}
+
 async function waitFor(check: () => boolean, timeoutMs = 2000) {
   const start = Date.now();
   while (!check()) {
@@ -137,10 +153,96 @@ describe("HauntedRoom", () => {
     }
     const door = () => room.state.doors.get("hall-corridor");
     expect(door().open).toBe(false);
-    room.send("interact");
+    room.send("use", { down: true });
+    room.send("use", { down: false });
     await waitFor(() => door().open === true);
-    room.send("interact");
+    room.send("use", { down: true });
+    room.send("use", { down: false });
     await waitFor(() => door().open === false);
+    await room.leave();
+  });
+
+  it("downs a player, who bleeds out and dies unless revived", async () => {
+    const room = await new Client(endpoint).create(ROOM_NAME, { name: "Victim" });
+    room.onMessage("*", () => {});
+    await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+    const me = () => room.state.players.get(room.sessionId);
+
+    room.send("debug", { down: true });
+    await waitFor(() => me().health === "downed");
+    expect(me().flashlightOn).toBe(false);
+    expect(me().bleedLeft).toBeGreaterThan(config.health.bleedOutSec - 1);
+    room.send("flashlight"); // items cannot be used while downed
+    room.send("debug", { bleedLeft: 0.2 });
+    await waitFor(() => me().health === "dead");
+    expect(me().flashlightOn).toBe(false);
+    await room.leave();
+  });
+
+  it("lets a teammate revive a downed player by holding E for 5 seconds", async () => {
+    const helper = await new Client(endpoint).create(ROOM_NAME, { name: "Helper" });
+    helper.onMessage("*", () => {});
+    const victim = await new Client(endpoint).joinById(helper.roomId, { name: "Hurt" });
+    victim.onMessage("*", () => {});
+    await waitFor(() => helper.state.players?.size === 2);
+    const hurt = () => helper.state.players.get(victim.sessionId);
+
+    // Spawns are at (-3, 6) and (3, 6). The helper walks east until next to the victim.
+    await walkTo(helper, { x: 2, z: 6 });
+    victim.send("debug", { down: true });
+    await waitFor(() => hurt().health === "downed");
+
+    helper.send("use", { down: true });
+    await waitFor(() => helper.state.players.get(helper.sessionId).action === "revive");
+    await new Promise((r) => setTimeout(r, (config.health.reviveSec - 1) * 1000));
+    expect(hurt().health).toBe("downed");
+    await waitFor(() => hurt().health === "alive", 3000);
+    expect(hurt().flashlightOn).toBe(true);
+    await Promise.all([helper.leave(), victim.leave()]);
+  }, 20000);
+
+  it("hides in a wardrobe, holds breath, and steps out again", async () => {
+    const room = await new Client(endpoint).create(ROOM_NAME, { name: "Hider" });
+    room.onMessage("*", () => {});
+    await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+    const me = () => room.state.players.get(room.sessionId);
+
+    // The west wardrobe in the Main Hall: exit point (-6.7, 3).
+    const seq = await walkTo(room, { x: -6.7, z: 3 });
+    room.send("use", { down: true });
+    await waitFor(() => me().hidingSpot === "hall-wardrobe-west", 3000);
+    room.send("use", { down: false });
+    expect(me().x).toBeCloseTo(-7.6, 1);
+
+    // Moving does nothing while hidden; Shift holds breath.
+    let s = seq;
+    for (let i = 0; i < 10; i++) room.send("input", { seq: ++s, forward: 1, right: 0, run: true, crouch: false, yaw: 0, pitch: 0 });
+    await waitFor(() => me().holdingBreath === true);
+    expect(me().x).toBeCloseTo(-7.6, 1);
+
+    room.send("use", { down: true });
+    await waitFor(() => me().hidingSpot === "", 3000);
+    expect(me().x).toBeCloseTo(-6.7, 1);
+    expect(me().holdingBreath).toBe(false);
+    await room.leave();
+  }, 20000);
+
+  it("starts the night, wakes the ghost after the quiet part, and tells only nearby players where it is", async () => {
+    const room = await new Client(endpoint).create(ROOM_NAME, { name: "Watcher" });
+    const ghostMsgs: unknown[] = [];
+    room.onMessage("*", () => {});
+    room.onMessage("ghost", (m: unknown) => ghostMsgs.push(m));
+    await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+
+    await new Promise((r) => setTimeout(r, 300));
+    expect(room.state.part).toBe("quiet");
+    expect(ghostMsgs).toEqual([]); // asleep
+
+    room.send("debug", { nightTime: config.match.quietSec + 1 });
+    await waitFor(() => room.state.part === "calm");
+    // The ghost wakes in the Kitchen, within interest range of the Main Hall spawn.
+    await waitFor(() => ghostMsgs.length > 0);
+    expect(ghostMsgs.at(-1)).toMatchObject({ visible: false });
     await room.leave();
   });
 

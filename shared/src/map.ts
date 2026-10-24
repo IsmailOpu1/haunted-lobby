@@ -23,6 +23,19 @@ export interface RoomDef {
   maxZ: number;
 }
 
+/** A wardrobe, cupboard or curtain a player can hide in (GDD Section 6). It is also solid furniture. */
+export interface HidingSpotDef {
+  id: string;
+  kind: "wardrobe" | "cupboard" | "curtain";
+  /** Center of the furniture; a hidden player sits here. */
+  x: number;
+  z: number;
+  sizeX: number;
+  sizeZ: number;
+  /** Where a player stands when they step out. */
+  exit: { x: number; z: number };
+}
+
 export interface MapData {
   id: string;
   name: string;
@@ -31,7 +44,14 @@ export interface MapData {
   walls: WallSegment[];
   doors: DoorDef[];
   rooms: RoomDef[];
+  hidingSpots: HidingSpotDef[];
   spawns: { x: number; z: number }[];
+}
+
+export const HIDING_SPOT_HEIGHT_M = 2;
+
+export function hidingSpotBox(spot: HidingSpotDef): FloorBox {
+  return { x: spot.x, z: spot.z, sizeX: spot.sizeX, sizeZ: spot.sizeZ };
 }
 
 /** An axis-aligned box on the floor: center and full size. */
