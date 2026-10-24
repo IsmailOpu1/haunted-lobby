@@ -42,7 +42,8 @@ export class PlayerInput {
       actions.onUserGesture();
       if (!this.enabled || e.button !== 0) return;
       if (this.looking) actions.onFlashlight();
-      else canvas.requestPointerLock();
+      // Browsers can refuse (for example right after Esc); the player just clicks again.
+      else Promise.resolve(canvas.requestPointerLock()).catch(() => {});
     });
 
     document.addEventListener("pointerlockchange", () => {

@@ -37,6 +37,7 @@ class RemotePlayer {
   private bodyMaterial = new THREE.MeshLambertMaterial({ color: BODY_COLOR });
   private flicker = new Flicker();
   private baseIntensity: number;
+  private latest: Snapshot | null = null;
 
   constructor(private scene: THREE.Scene) {
     const { radiusM, heightM } = config.body;
@@ -86,6 +87,7 @@ class RemotePlayer {
     this.root.rotation.y = lerpAngle(a.yaw, b.yaw, t);
     this.head.rotation.x = a.pitch + (b.pitch - a.pitch) * t;
 
+    this.latest = b;
     // Hidden players are inside the furniture.
     this.root.visible = !b.hidden;
 
@@ -107,6 +109,13 @@ class RemotePlayer {
 
     this.light.visible = b.flashlightOn;
     this.lens.visible = b.flashlightOn;
+  }
+
+  /** Where this player is drawn right now and what they are doing (for footstep sounds). */
+  view(): { x: number; z: number; crouching: boolean; health: string; hidden: boolean } | null {
+    if (!this.latest) return null;
+    const { crouching, health, hidden } = this.latest;
+    return { x: this.root.position.x, z: this.root.position.z, crouching, health, hidden };
   }
 
   /** Flicker this player's flashlight when the ghost is near them. */
@@ -142,6 +151,16 @@ export class RemotePlayers {
         this.players.delete(id);
       }
     }
+  }
+
+  /** Every other player as currently drawn. */
+  views(): Map<string, NonNullable<ReturnType<RemotePlayer["view"]>>> {
+    const out = new Map();
+    for (const [id, p] of this.players) {
+      const v = p.view();
+      if (v) out.set(id, v);
+    }
+    return out;
   }
 
   render(now: number, dt: number, ghostDistanceFrom: (x: number, z: number) => number) {

@@ -16,6 +16,7 @@ import {
 import { SoundScape } from "./audio.ts";
 import { createFlashlight } from "./flashlight.ts";
 import { Flicker } from "./flicker.ts";
+import { playerStepKind, StepTracker } from "./footsteps.ts";
 import { GhostView } from "./ghostView.ts";
 import { PlayerInput } from "./input.ts";
 import { RemotePlayers } from "./remotePlayers.ts";
@@ -104,6 +105,9 @@ export class Game {
   private eyeHeight: number = config.movement.eyeHeightM;
   private correctionX = 0;
   private correctionZ = 0;
+  private myStepTracker = new StepTracker();
+  private stepTrackers = new Map<string, StepTracker>();
+  private ghostStepTracker = new StepTracker();
 
   private constructor(canvas: HTMLCanvasElement, private map: MapData, private hud: GameHud) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
@@ -151,6 +155,11 @@ export class Game {
   static async create(canvas: HTMLCanvasElement, map: MapData, hud: GameHud): Promise<Game> {
     await initPhysics();
     return new Game(canvas, map, hud);
+  }
+
+  /** Sound volume from 0 to 1. */
+  setVolume(volume: number) {
+    this.sound.setVolume(volume);
   }
 
   /** Starts playing in a joined room. */
@@ -263,8 +272,46 @@ export class Game {
 
     const ghostDistance = this.ghost.distanceTo(this.camera.position.x, this.camera.position.z);
     this.flashlight.light.intensity = this.flashlightIntensity * this.flicker.update(dt, ghostDistance);
+    this.playFootsteps(dt);
     this.sound.update(ghostDistance);
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /** Footsteps are the game's background sound: yours, your friends' in 3D, and the hunting ghost's. */
+  private playFootsteps(dt: number) {
+    const cam = this.camera.position;
+    this.sound.setListener(cam.x, cam.y, cam.z, this.input.yaw);
+
+    const me = this.me;
+    if (me && this.predicted && me.health !== "dead" && !me.hidingSpot) {
+      const kind = playerStepKind(this.myStepTracker.speed, this.predicted.crouching, me.health === "downed");
+      if (this.myStepTracker.update(cam.x, cam.z, dt, kind)) this.sound.step(kind);
+    } else {
+      this.myStepTracker.reset();
+    }
+
+    const views = this.remotes.views();
+    for (const [id, v] of views) {
+      let tracker = this.stepTrackers.get(id);
+      if (!tracker) {
+        tracker = new StepTracker();
+        this.stepTrackers.set(id, tracker);
+      }
+      if (v.hidden || v.health === "dead") {
+        tracker.reset();
+        continue;
+      }
+      const kind = playerStepKind(tracker.speed, v.crouching, v.health === "downed");
+      if (tracker.update(v.x, v.z, dt, kind)) this.sound.step(kind, v);
+    }
+    for (const id of this.stepTrackers.keys()) if (!views.has(id)) this.stepTrackers.delete(id);
+
+    const ghostAt = this.ghost.huntingAt();
+    if (ghostAt) {
+      if (this.ghostStepTracker.update(ghostAt.x, ghostAt.z, dt, "ghost")) this.sound.step("ghost", ghostAt);
+    } else {
+      this.ghostStepTracker.reset();
+    }
   }
 
   /** One fixed step: read the keys, move locally, and send the same input to the server. */

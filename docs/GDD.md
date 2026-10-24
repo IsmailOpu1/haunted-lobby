@@ -614,7 +614,8 @@ Cosmetics (outfits, hats, flashlight styles) can come later.
 **Sound (most of the fear):**
 
 - Spatial 3D sound for everything.
-- Distant footsteps, creaks, and a low drone that gets deeper in each part of the night.
+- **No background music: footsteps are the background.** Your own steps (quieter when crouching, quicker when running, a drag when crawling), your friends' steps from where they are, the ghost's heavy steps during hunts, and every 30 to 60 seconds a few distant steps that belong to no one. Creaks come with the audio pass.
+- A sound volume slider in the room panel.
 - A heartbeat that speeds up as the ghost gets closer.
 - **Silence for 2 seconds before a natural hunt.**
 - Relics whisper. The map's ghost has its own sound (the Bellboy's bell).
@@ -728,6 +729,7 @@ Real-mic ghost hearing with mic calibration, the Spirit Camera, Wisps with the O
 | 2026-10-24 | Stamina refills after 3 s (was 2 s) and takes 15 s to fill (was 5 s) | Owner playtest: running could be chained too easily |
 | 2026-10-25 | Art style changed from low-poly PS1 to a detailed, stylized-realistic look inspired by *Invokyr*, with Low and High quality settings (Sections 23 and 26.1) | Owner decision: the game should look as close to *Invokyr* as possible, accepting more art time and higher hardware needs on High |
 | 2026-10-25 | Finish the browser version first; a downloadable version (Unity or Unreal) may follow | Owner decision: keep join-by-link now, consider a native release later |
+| 2026-10-25 | No background music or drone; footsteps are the background sound (Section 23). Volume slider added | Owner playtest: the drone caused headaches over a night; footsteps suit the game better |
 
 ### 26.6 Phase 2 build choices (awaiting owner confirmation)
 

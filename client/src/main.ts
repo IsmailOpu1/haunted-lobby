@@ -97,6 +97,28 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
   },
 });
 
+// Sound volume, remembered between visits (default 70%).
+const DEFAULT_VOLUME = 70;
+const volumeInput = el<HTMLInputElement>("volume");
+let savedVolume = DEFAULT_VOLUME;
+try {
+  const stored = Number(localStorage.getItem("volume"));
+  if (localStorage.getItem("volume") !== null && Number.isFinite(stored)) savedVolume = stored;
+} catch {
+  // Storage blocked: use the default.
+}
+volumeInput.value = String(savedVolume);
+game.setVolume(savedVolume / 100);
+volumeInput.addEventListener("input", () => {
+  const value = Number(volumeInput.value);
+  game.setVolume(value / 100);
+  try {
+    localStorage.setItem("volume", String(value));
+  } catch {
+    // Storage blocked: the setting lasts for this visit only.
+  }
+});
+
 // Development only: lets the browser console inspect the game (window.__game). Not in builds.
 if (import.meta.env.DEV) Object.assign(window, { __game: game });
 

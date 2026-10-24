@@ -74,6 +74,11 @@ export class GhostView {
     this.root.visible = b.visible;
   }
 
+  /** Where the ghost is drawn while it hunts (its footsteps are heard then), else null. */
+  huntingAt(): { x: number; z: number } | null {
+    return this.root.visible ? { x: this.root.position.x, z: this.root.position.z } : null;
+  }
+
   distanceTo(x: number, z: number): number {
     return this.known ? Math.hypot(this.known.x - x, this.known.z - z) : Infinity;
   }
