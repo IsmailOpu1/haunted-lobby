@@ -205,10 +205,8 @@ export class Game {
     this.room = room;
     room.onStateChange((state) => this.onServerState(state));
     let voiceAnswered = false;
-    setTimeout(() => {
-      if (!voiceAnswered) this.input.enable(); // a server without voice support: play anyway
-    }, VOICE_ANSWER_TIMEOUT_MS);
     room.onMessage("voice", (msg: ServerMessages["voice"]) => {
+      if (voiceAnswered) return; // a retry was answered twice
       voiceAnswered = true;
       if ("disabled" in msg) {
         // No voice on this server: play without it.
@@ -236,6 +234,19 @@ export class Game {
       else this.sound.huntEnd();
     });
     room.onMessage("dawn", () => this.hud.showBanner("Dawn. The night is over.", 6));
+
+    // Every handler is registered, so now ask for the voice pass; the answer cannot be missed.
+    // Ask again once if the server is slow; if it still does not answer, say so and play.
+    this.hud.setVoice({ kind: "connecting" });
+    room.send("voiceRequest");
+    setTimeout(() => {
+      if (!voiceAnswered) room.send("voiceRequest");
+    }, VOICE_ANSWER_TIMEOUT_MS);
+    setTimeout(() => {
+      if (voiceAnswered) return;
+      this.hud.setVoice({ kind: "failed" });
+      this.input.enable();
+    }, VOICE_ANSWER_TIMEOUT_MS * 2);
   }
 
   private resize() {

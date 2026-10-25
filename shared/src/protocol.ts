@@ -62,6 +62,11 @@ export interface ClientMessages {
   use: { down: boolean };
   /** Start the mic check: the server listens for micCheckSec to learn your normal volume. */
   micCheck: undefined;
+  /**
+   * Ask for your voice pass (answered with a "voice" message). The client sends this once its
+   * message handlers are ready, so the answer can never arrive before it is listening.
+   */
+  voiceRequest: undefined;
 }
 
 /** Player health (GDD Section 7). */

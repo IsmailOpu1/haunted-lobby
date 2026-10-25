@@ -73,6 +73,10 @@ describe("voice in a room", () => {
     const a = await new Client(endpoint).create(ROOM_NAME, { name: "Ana" });
     const passes = collect(a, "voice");
     a.onMessage("*", () => {});
+    // The pass is sent only when asked, so it can never arrive before the client listens.
+    await new Promise((r) => setTimeout(r, 300));
+    expect(passes).toEqual([]);
+    a.send("voiceRequest");
     await waitFor(() => passes.length > 0);
     expect(passes[0]).toEqual({ url: "wss://fake.livekit", token: `token-for-${a.sessionId}` });
     await a.leave();

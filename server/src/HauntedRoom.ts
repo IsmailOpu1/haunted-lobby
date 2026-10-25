@@ -163,6 +163,11 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       else this.cancelAction(client.sessionId);
     });
 
+    this.onMessage("voiceRequest", (client) => {
+      const player = this.state.players.get(client.sessionId);
+      if (player) void this.sendVoiceJoin(client, player.name);
+    });
+
     this.onMessage("micCheck", (client) => {
       const sim = this.sims.get(client.sessionId);
       if (sim) sim.micCheck = { samples: [], elapsed: 0 };
@@ -233,7 +238,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     // The night starts when the first player arrives. The lobby and Start button come in Phase 7.
     this.nightStarted = true;
     this.announce("join", name, `${name} joined the room`);
-    void this.sendVoiceJoin(client, name);
+    // The voice pass is sent when the client asks ("voiceRequest"), not here: a message sent
+    // during the join can reach the client before it has started listening, and be lost.
   }
 
   /** Gives the player their voice pass, or tells them voice is off on this server. */
