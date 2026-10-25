@@ -35,6 +35,7 @@ import { NavMap } from "./sim/navmap.ts";
 import { Door, GameState, Player } from "./state.ts";
 import { NoVoice, type VoiceBackend } from "./voice/backend.ts";
 import { liveKitFromEnv } from "./voice/livekit.ts";
+import { recordVoiceStart } from "./voice/status.ts";
 
 // Codes in use by rooms on this server process. One process is enough for v1
 // (PRD Section 9: one 2 vCPU server holds 5 rooms).
@@ -123,8 +124,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     try {
       await voice.start();
       this.voice = voice;
+      if (voice.enabled) recordVoiceStart();
     } catch (err) {
       console.error("Voice could not start; this room runs without voice.", err);
+      recordVoiceStart(err);
     }
 
     await initPhysics();
