@@ -12,3 +12,11 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
+      # LiveKit voice. The URL is not secret. The key and secret are never stored here:
+      # "sync: false" makes Render ask for them and keep the values you type in its dashboard.
+      - key: LIVEKIT_URL
+        value: wss://my-game-2b2nwtn2.livekit.cloud
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
