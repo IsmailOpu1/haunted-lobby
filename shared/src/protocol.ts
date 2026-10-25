@@ -26,6 +26,17 @@ export interface ServerMessages {
   hunt: { phase: "warning" | "start" | "end" };
   /** The night is over. */
   dawn: Record<string, never>;
+  /** How to join the voice room, or disabled when this server has no voice keys. */
+  voice: { url: string; token: string } | { disabled: true };
+  /**
+   * How loud you hear each speaker right now: [volume 0..1, muffled 1 if through a wall,
+   * boost for a quiet mic]. Sent 4 times a second. Speakers not listed are out of range.
+   */
+  voiceMix: Record<string, [number, number, number]>;
+  /** Result of your mic check: your normal level, or why it failed. */
+  micCheck: { ok: true; normalDbfs: number } | { ok: false; reason: string };
+  /** Your microphone stopped (or came back). While lost, the ghost hears you as talking normally. */
+  micLost: { lost: boolean };
 }
 
 export interface GhostView {
@@ -49,6 +60,8 @@ export interface ClientMessages {
    * leave a hiding spot, revive a downed teammate, hide, or open/close a door.
    */
   use: { down: boolean };
+  /** Start the mic check: the server listens for micCheckSec to learn your normal volume. */
+  micCheck: undefined;
 }
 
 /** Player health (GDD Section 7). */

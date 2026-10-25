@@ -10,9 +10,10 @@
   },
   "dependencies": {
     "@colyseus/sdk": "0.18.6",
+    "@haunted/maps": "*",
     "@haunted/shared": "*",
-    "three": "0.186.1",
-    "@haunted/maps": "*"
+    "livekit-client": "2.23.0",
+    "three": "0.186.1"
   },
   "devDependencies": {
     "@types/three": "0.186.0",

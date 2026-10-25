@@ -747,3 +747,20 @@ Rules the GDD did not specify, chosen while building the ghost. Numbers live in 
 | Range for ghost position updates | A player's game learns where the ghost is only within 25 m | Anti-cheat (PRD 10.3); covers sight (20 m) and flicker (15 m) |
 | When the night starts | When the first player joins the room | Until the lobby Start button exists (Phase 7) |
 | Dead players | Watch the room, cannot move or act | Until Wisps exist (Phase 6) |
+
+### 26.7 Phase 3 build choices (awaiting owner confirmation)
+
+| Choice | Value | Why |
+|---|---|---|
+| Mic check | Read one sentence for 4 s; at least 1 s must be talking; your "normal" is the middle value of what was heard | One loud word or a pause does not throw it off |
+| Before the mic check | Playing is blocked (GDD 5: a working mic is required). A server without voice keys skips the mic check | Until the Ready button exists (Phase 7) |
+| Voice volume curve | Full volume up to 3 m (1.5 m for a whisper), then fades evenly to silence at the edge of the range (3 / 15 / 25 m); a wall halves it and muffles it | GDD 13 ranges |
+| Pre-hunt silence | Silences game sounds only, not voices | Friends can still warn each other |
+| Pauses between words | Your talking level is kept for 1.5 s after you go quiet (the ghost still uses your loudness right now) | Owner playtest: the start of sentences was cut off |
+| Quiet microphones | Boosted for others toward a common level, up to 4×, based on the mic check; whispers stay quieter than talk | Owner playtest: voices did not sound full |
+| Heartbeat | Deep, soft and muffled, within 12 m of the ghost; footsteps are crisp wooden taps | Owner playtest: the two blurred into one annoying sound |
+| Mic processing | Echo cancellation on; noise suppression and automatic gain off; steady stream with no gaps in quiet moments | Owner playtest: voices sounded broken and whispers disappeared |
+| Voice direction | Simple left/right panning with smooth movement, not the full 3D (HRTF) effect | The 3D effect made speech sound crackly while people moved |
+| Whisper volume | Full volume up to 2 m, fading to silence at 3 m | Owner playtest: whispers were hard to hear even up close |
+| Dead players | Hear only other dead players | Early version of the Wisp channel (GDD 17) |
+| Known limit | The server decides who hears whom, but a modified, cheating game could ask LiveKit for voices out of range. Normal players cannot | Fully blocking it needs more work on LiveKit permissions; revisit before public release |

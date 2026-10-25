@@ -39,11 +39,21 @@
       <ul id="players"></ul>
       <h2>Log</h2>
       <ul id="log"></ul>
+      <div id="mic" class="mic hidden">
+        <h2>Microphone</h2>
+        <div id="mic-meter"><div id="mic-fill"></div></div>
+        <p id="mic-status"></p>
+        <p id="mic-sentence" class="hint hidden">
+          Read this out loud at your normal speaking volume:<br />
+          <em>"The old hotel is quiet tonight, but someone is still walking upstairs."</em>
+        </p>
+        <button id="mic-check" class="small hidden">Start mic check</button>
+      </div>
       <label class="volume">
         Sound volume
         <input id="volume" type="range" min="0" max="100" step="5" />
       </label>
-      <p class="look-hint">Click anywhere outside this box to play.</p>
+      <p id="look-hint" class="look-hint">Click anywhere outside this box to play.</p>
       <table class="controls">
         <tr><td>Mouse</td><td>Look</td></tr>
         <tr><td>W A S D</td><td>Move</td></tr>
@@ -76,6 +86,7 @@
     </div>
     <div id="stamina" class="hidden"><div id="stamina-fill"></div></div>
     <div id="banner" class="hidden"></div>
+    <div id="mic-lost" class="hidden">Your mic is off. Turn it back on. Until then the ghost hears you as if you were talking.</div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

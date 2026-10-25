@@ -165,6 +165,42 @@ ul {
   color: var(--muted);
 }
 
+.mic p {
+  margin: 0;
+  font-size: 13px;
+}
+
+#mic-meter {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+#mic-fill {
+  width: 0;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.08s linear;
+}
+
+#mic-status.error {
+  color: var(--error);
+}
+
+#mic-lost {
+  position: fixed;
+  top: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  font-size: 14px;
+  color: #fff;
+  background: rgba(150, 30, 30, 0.9);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
 .volume input {
   padding: 0;
   accent-color: var(--accent);

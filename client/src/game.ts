@@ -20,6 +20,7 @@ import { playerStepKind, StepTracker } from "./footsteps.ts";
 import { GhostView } from "./ghostView.ts";
 import { PlayerInput } from "./input.ts";
 import { RemotePlayers } from "./remotePlayers.ts";
+import { VoiceChat } from "./voice.ts";
 import { buildWorld, type DoorView } from "./world.ts";
 
 // Near-zero ambient light (GDD Section 23). Press L while testing to light everything up.
@@ -31,6 +32,7 @@ const CROUCH_LERP_PER_SEC = 10;
 // How fast a server correction to your own position fades out, and when to jump instead.
 const CORRECTION_FADE_PER_SEC = 20;
 const SNAP_DISTANCE = 2;
+const VOICE_ANSWER_TIMEOUT_MS = 5000;
 
 /** What the HUD should show about you. */
 export type PlayerStatus =
@@ -48,7 +50,21 @@ export interface GameHud {
   setStatus(status: PlayerStatus): void;
   setAction(label: string | null, progress: number): void;
   showBanner(text: string, seconds: number): void;
+  setVoice(state: VoiceUiState): void;
+  /** Your microphone's loudness, 0 to 1, for the meter. */
+  setMicLevel(level: number): void;
+  setMicLost(lost: boolean): void;
 }
+
+/** What the microphone part of the room panel shows. */
+export type VoiceUiState =
+  | { kind: "off" }
+  | { kind: "connecting" }
+  | { kind: "no-mic" }
+  | { kind: "failed" }
+  | { kind: "needs-check"; error?: string }
+  | { kind: "checking" }
+  | { kind: "ready" };
 
 const ACTION_LABELS: Record<string, string> = { revive: "Reviving", hide: "Hiding", unhide: "Stepping out" };
 
@@ -105,6 +121,9 @@ export class Game {
   private eyeHeight: number = config.movement.eyeHeightM;
   private correctionX = 0;
   private correctionZ = 0;
+  private voice: VoiceChat;
+  /** False until the mic check passes when voice is on (GDD 5: a working mic is required). */
+  private micChecked = false;
   private myStepTracker = new StepTracker();
   private stepTrackers = new Map<string, StepTracker>();
   private ghostStepTracker = new StepTracker();
@@ -142,6 +161,14 @@ export class Game {
       onUserGesture: () => this.sound.unlock(),
     });
 
+    this.voice = new VoiceChat(
+      () => this.sound.voiceOutput(),
+      (status) => {
+        if (status === "on") hud.setVoice(this.micChecked ? { kind: "ready" } : { kind: "needs-check" });
+        else hud.setVoice({ kind: status === "off" ? "off" : status });
+      },
+    );
+
     window.addEventListener("resize", () => this.resize());
     this.resize();
 
@@ -162,11 +189,46 @@ export class Game {
     this.sound.setVolume(volume);
   }
 
+  /** Sound can only start from a click or key press; the Create and Join buttons count. */
+  unlockSound() {
+    this.sound.unlock();
+  }
+
+  /** Ask the server to listen for a few seconds and learn your normal speaking volume. */
+  startMicCheck() {
+    this.room?.send("micCheck");
+    this.hud.setVoice({ kind: "checking" });
+  }
+
   /** Starts playing in a joined room. */
   attach(room: Room) {
     this.room = room;
-    this.input.enable();
     room.onStateChange((state) => this.onServerState(state));
+    let voiceAnswered = false;
+    setTimeout(() => {
+      if (!voiceAnswered) this.input.enable(); // a server without voice support: play anyway
+    }, VOICE_ANSWER_TIMEOUT_MS);
+    room.onMessage("voice", (msg: ServerMessages["voice"]) => {
+      voiceAnswered = true;
+      if ("disabled" in msg) {
+        // No voice on this server: play without it.
+        this.hud.setVoice({ kind: "off" });
+        this.input.enable();
+      } else {
+        void this.voice.connect(msg.url, msg.token);
+      }
+    });
+    room.onMessage("voiceMix", (mix: ServerMessages["voiceMix"]) => this.voice.setMix(mix));
+    room.onMessage("micCheck", (result: ServerMessages["micCheck"]) => {
+      if (result.ok) {
+        this.micChecked = true;
+        this.hud.setVoice({ kind: "ready" });
+        this.input.enable();
+      } else {
+        this.hud.setVoice({ kind: "needs-check", error: result.reason });
+      }
+    });
+    room.onMessage("micLost", (msg: ServerMessages["micLost"]) => this.hud.setMicLost(msg.lost));
     room.onMessage("ghost", (msg: ServerMessages["ghost"]) => this.ghost.push(msg, performance.now()));
     room.onMessage("hunt", (msg: ServerMessages["hunt"]) => {
       if (msg.phase === "warning") this.sound.huntWarning(config.ghost.preHuntSilenceSec);
@@ -273,6 +335,9 @@ export class Game {
     const ghostDistance = this.ghost.distanceTo(this.camera.position.x, this.camera.position.z);
     this.flashlight.light.intensity = this.flashlightIntensity * this.flicker.update(dt, ghostDistance);
     this.playFootsteps(dt);
+    const views = this.remotes.views();
+    this.voice.update((id) => views.get(id) ?? null);
+    if (this.voice.status === "on") this.hud.setMicLevel(this.voice.micLevel());
     this.sound.update(ghostDistance);
     this.renderer.render(this.scene, this.camera);
   }

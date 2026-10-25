@@ -4,18 +4,26 @@
 // distant steps that belong to no one. Plus a heartbeat that speeds up as the ghost gets
 // close, 2 seconds of total silence before a hunt, and a hunt sting with a soft low pulse.
 
-const HEARTBEAT_RANGE_M = 15;
+// The heartbeat is deep, soft and muffled (felt more than heard); footsteps are crisp
+// wooden taps. Keeping them in different pitch ranges stops them blurring together.
+const HEARTBEAT_RANGE_M = 12;
+const HEARTBEAT_LOWPASS_HZ = 110;
 const MASTER_LEVEL = 0.8;
+const LISTENER_SMOOTHING_SEC = 0.03;
 
 export type StepKind = "walk" | "run" | "crouch" | "crawl" | "ghost";
 
-/** How each kind of step sounds: loudness, the pitch of the thud, and how long it lasts. */
-const STEP_SOUNDS: Record<StepKind, { gain: number; thudHz: number; noiseHz: number; seconds: number }> = {
-  walk: { gain: 0.28, thudHz: 85, noiseHz: 320, seconds: 0.09 },
-  run: { gain: 0.4, thudHz: 95, noiseHz: 380, seconds: 0.08 },
-  crouch: { gain: 0.08, thudHz: 80, noiseHz: 300, seconds: 0.07 },
-  crawl: { gain: 0.14, thudHz: 60, noiseHz: 700, seconds: 0.28 }, // a drag, not a step
-  ghost: { gain: 0.9, thudHz: 48, noiseHz: 150, seconds: 0.22 },
+/**
+ * How each kind of step sounds. thudMix is how much of the step is the low body (the rest is
+ * the bright tap of a shoe on wood, set by noiseHz). Player steps are mostly tap, so they sit
+ * well above the heartbeat; the ghost's steps are heavy stomps.
+ */
+const STEP_SOUNDS: Record<StepKind, { gain: number; thudHz: number; thudMix: number; noiseHz: number; q: number; seconds: number }> = {
+  walk: { gain: 0.3, thudHz: 130, thudMix: 0.25, noiseHz: 1100, q: 1.4, seconds: 0.06 },
+  run: { gain: 0.4, thudHz: 140, thudMix: 0.3, noiseHz: 1300, q: 1.2, seconds: 0.05 },
+  crouch: { gain: 0.08, thudHz: 120, thudMix: 0.2, noiseHz: 1000, q: 1.4, seconds: 0.05 },
+  crawl: { gain: 0.14, thudHz: 90, thudMix: 0.1, noiseHz: 600, q: 0.7, seconds: 0.28 }, // a drag, not a step
+  ghost: { gain: 0.9, thudHz: 45, thudMix: 0.6, noiseHz: 260, q: 0.9, seconds: 0.22 },
 };
 
 // Phantom footsteps: a few distant steps from a random direction (GDD 23 "distant footsteps").
@@ -93,6 +101,14 @@ export class SoundScape {
     rumble.start();
   }
 
+  /**
+   * Where voices are played: after the volume slider, but not through the pre-hunt silence,
+   * so friends can still talk during it. Null until sound is unlocked.
+   */
+  voiceOutput(): { ctx: AudioContext; out: AudioNode } | null {
+    return this.ctx ? { ctx: this.ctx, out: this.volumeNode } : null;
+  }
+
   /** Player volume from 0 (off) to 1. Works before and after sound is unlocked. */
   setVolume(volume: number) {
     this.volume = Math.max(0, Math.min(1, volume));
@@ -107,15 +123,15 @@ export class SoundScape {
     const fx = -Math.sin(yaw);
     const fz = -Math.cos(yaw);
     if (l.positionX) {
-      l.positionX.value = x;
-      l.positionY.value = y;
-      l.positionZ.value = z;
-      l.forwardX.value = fx;
-      l.forwardY.value = 0;
-      l.forwardZ.value = fz;
-      l.upX.value = 0;
+      // Glide to the new position and direction; jumping every frame makes voices crackle.
+      const t = this.ctx!.currentTime;
+      l.positionX.setTargetAtTime(x, t, LISTENER_SMOOTHING_SEC);
+      l.positionY.setTargetAtTime(y, t, LISTENER_SMOOTHING_SEC);
+      l.positionZ.setTargetAtTime(z, t, LISTENER_SMOOTHING_SEC);
+      l.forwardX.setTargetAtTime(fx, t, LISTENER_SMOOTHING_SEC);
+      l.forwardY.setTargetAtTime(0, t, LISTENER_SMOOTHING_SEC);
+      l.forwardZ.setTargetAtTime(fz, t, LISTENER_SMOOTHING_SEC);
       l.upY.value = 1;
-      l.upZ.value = 0;
     } else {
       // Older browsers (Firefox) only have the setter methods.
       l.setPosition(x, y, z);
@@ -149,28 +165,29 @@ export class SoundScape {
       out = panner;
     }
 
-    // The thud: a short low sine that drops in pitch.
+    // The body: a short sine that drops in pitch.
     const thud = ctx.createOscillator();
     thud.frequency.setValueAtTime(s.thudHz * vary, t);
     thud.frequency.exponentialRampToValueAtTime(s.thudHz * 0.6, t + s.seconds);
     const thudGain = ctx.createGain();
     thudGain.gain.setValueAtTime(0.0001, t);
-    thudGain.gain.exponentialRampToValueAtTime(s.gain * vary, t + 0.008);
+    thudGain.gain.exponentialRampToValueAtTime(s.gain * s.thudMix * vary, t + 0.006);
     thudGain.gain.exponentialRampToValueAtTime(0.0001, t + s.seconds * 1.6);
     thud.connect(thudGain).connect(out);
     thud.start(t);
     thud.stop(t + s.seconds * 2);
 
-    // The texture: filtered noise, like a shoe on old wooden boards.
+    // The tap: filtered noise, like a shoe on old wooden boards.
     const scuff = ctx.createBufferSource();
     scuff.buffer = this.noise;
     const filter = ctx.createBiquadFilter();
     filter.type = "bandpass";
     filter.frequency.value = s.noiseHz * vary;
-    filter.Q.value = 1.2;
+    filter.Q.value = s.q;
     const scuffGain = ctx.createGain();
     scuffGain.gain.setValueAtTime(0.0001, t);
-    scuffGain.gain.exponentialRampToValueAtTime(s.gain * 0.6 * vary, t + 0.01);
+    // A band-pass keeps only part of the noise's energy, so the tap is driven harder.
+    scuffGain.gain.exponentialRampToValueAtTime(s.gain * (1 - s.thudMix) * 1.6 * vary, t + 0.004);
     scuffGain.gain.exponentialRampToValueAtTime(0.0001, t + s.seconds);
     scuff.connect(filter).connect(scuffGain).connect(out);
     scuff.start(t, Math.random() * 0.2);
@@ -218,8 +235,9 @@ export class SoundScape {
     const closeness = 1 - ghostDistance / HEARTBEAT_RANGE_M;
     const interval = 1 / (1 + closeness * 1.5) + (this.hunting ? -0.1 : 0);
     if (now >= this.nextBeatAt) {
-      this.beat(now, 0.35 + closeness * 0.5);
-      this.beat(now + 0.18, 0.25 + closeness * 0.4);
+      // "Lub-dub": a stronger beat, then a softer one.
+      this.beat(now, 0.25 + closeness * 0.35);
+      this.beat(now + 0.2, 0.15 + closeness * 0.25);
       this.nextBeatAt = now + interval;
     }
   }
@@ -242,19 +260,23 @@ export class SoundScape {
     }
   }
 
+  /** One heartbeat: very low, with a soft attack and muffled, unlike the crisp footsteps. */
   private beat(at: number, volume: number) {
     const ctx = this.ctx!;
     const osc = ctx.createOscillator();
     osc.type = "sine";
-    osc.frequency.setValueAtTime(70, at);
-    osc.frequency.exponentialRampToValueAtTime(40, at + 0.12);
+    osc.frequency.setValueAtTime(52, at);
+    osc.frequency.exponentialRampToValueAtTime(34, at + 0.2);
+    const muffle = ctx.createBiquadFilter();
+    muffle.type = "lowpass";
+    muffle.frequency.value = HEARTBEAT_LOWPASS_HZ;
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.0001, at);
-    gain.gain.exponentialRampToValueAtTime(volume, at + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.15);
-    osc.connect(gain).connect(this.master);
+    gain.gain.exponentialRampToValueAtTime(volume, at + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.25);
+    osc.connect(muffle).connect(gain).connect(this.master);
     osc.start(at);
-    osc.stop(at + 0.2);
+    osc.stop(at + 0.3);
   }
 
   private sting() {

@@ -41,6 +41,13 @@ const actionLabel = el("action-label");
 const actionFill = el("action-fill");
 const banner = el("banner");
 let bannerTimer: ReturnType<typeof setTimeout> | undefined;
+const micBox = el("mic");
+const micFill = el("mic-fill");
+const micStatus = el("mic-status");
+const micSentence = el("mic-sentence");
+const micCheckBtn = el<HTMLButtonElement>("mic-check");
+const micLost = el("mic-lost");
+const lookHint = el("look-hint");
 
 const NIGHT_PART_NAMES: Record<string, string> = {
   quiet: "Quiet",
@@ -95,7 +102,48 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     clearTimeout(bannerTimer);
     bannerTimer = setTimeout(() => banner.classList.add("hidden"), seconds * 1000);
   },
+  setVoice: (state) => {
+    micBox.classList.toggle("hidden", state.kind === "off");
+    micStatus.classList.remove("error");
+    micCheckBtn.classList.add("hidden");
+    micSentence.classList.add("hidden");
+    let canPlay = state.kind === "off" || state.kind === "ready";
+    switch (state.kind) {
+      case "connecting":
+        micStatus.textContent = "Connecting voice chat...";
+        break;
+      case "no-mic":
+        micStatus.textContent = "A microphone is required. Allow microphone access for this site, then reload the page.";
+        micStatus.classList.add("error");
+        break;
+      case "failed":
+        micStatus.textContent = "Voice chat could not connect. You can still play without voice.";
+        micStatus.classList.add("error");
+        canPlay = true;
+        break;
+      case "needs-check":
+        micStatus.textContent = state.error ?? "Mic check: press the button and read the sentence below.";
+        if (state.error) micStatus.classList.add("error");
+        micSentence.classList.remove("hidden");
+        micCheckBtn.classList.remove("hidden");
+        break;
+      case "checking":
+        micStatus.textContent = "Listening... keep reading at your normal volume.";
+        micSentence.classList.remove("hidden");
+        break;
+      case "ready":
+        micStatus.textContent = "Mic check done. Remember: whisper to hide from the ghost.";
+        break;
+    }
+    lookHint.textContent = canPlay ? "Click anywhere outside this box to play." : "Do the mic check before you play.";
+  },
+  setMicLevel: (level) => {
+    micFill.style.width = `${Math.round(level * 100)}%`;
+  },
+  setMicLost: (lost) => micLost.classList.toggle("hidden", !lost),
 });
+
+micCheckBtn.addEventListener("click", () => game.startMicCheck());
 
 // Sound volume, remembered between visits (default 70%).
 const DEFAULT_VOLUME = 70;
@@ -164,11 +212,13 @@ async function enter(connect: () => Promise<Room>) {
 }
 
 createBtn.addEventListener("click", () => {
+  game.unlockSound(); // a button click lets the browser start sound and voice
   const name = readName();
   if (name) enter(() => createRoom({ name }));
 });
 
 joinBtn.addEventListener("click", () => {
+  game.unlockSound();
   const name = readName();
   if (!name) return;
   const code = normalizeRoomCode(codeInput.value);
@@ -209,13 +259,25 @@ function enterLobby(room: Room) {
   copyCodeBtn.onclick = () => copyToButton(copyCodeBtn, room.roomId, "Code copied");
   copyLinkBtn.onclick = () => copyToButton(copyLinkBtn, link, "Link copied");
 
-  room.onMessage("system", (msg: ServerMessages["system"]) => addLogLine(msg.text));
+  // Your own join message can arrive before this listener exists, so say it here.
+  addLogLine("You joined the room");
+  room.onMessage("system", (msg: ServerMessages["system"]) => {
+    if (msg.kind === "join" && msg.name === nameInput.value.trim() && log.childElementCount <= 1) return;
+    addLogLine(msg.text);
+  });
 
-  room.onMessage("roster", (msg: ServerMessages["roster"]) => {
+  // The player list comes from the room state, which always arrives, rather than a message.
+  let rosterKey = "";
+  room.onStateChange((state: { players?: { forEach(cb: (p: { name: string }, id: string) => void): void } }) => {
+    const players: { id: string; name: string }[] = [];
+    state.players?.forEach((p, id) => players.push({ id, name: p.name }));
+    const key = players.map((p) => p.id).join(",");
+    if (key === rosterKey) return;
+    rosterKey = key;
     playerList.replaceChildren(
-      ...msg.players.map((p) => {
+      ...players.map((p) => {
         const li = document.createElement("li");
-        li.textContent = p.sessionId === room.sessionId ? `${p.name} (you)` : p.name;
+        li.textContent = p.id === room.sessionId ? `${p.name} (you)` : p.name;
         return li;
       }),
     );

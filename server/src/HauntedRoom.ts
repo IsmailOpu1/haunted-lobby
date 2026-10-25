@@ -1,8 +1,15 @@
 import { Room, type Client } from "colyseus";
 import {
+  calibrateNormal,
+  classifyVoice,
   cleanPlayerName,
   config,
   generateRoomCode,
+  ghostHearRangeM,
+  playbackBoost,
+  speakingLevel,
+  voiceVolume,
+  type VoiceLevel,
   initialMoveState,
   initPhysics,
   nightPart,
@@ -26,6 +33,8 @@ import { defaultMap } from "@haunted/maps";
 import { Ghost, type GhostTarget, type GhostWorld } from "./sim/ghost.ts";
 import { NavMap } from "./sim/navmap.ts";
 import { Door, GameState, Player } from "./state.ts";
+import { NoVoice, type VoiceBackend } from "./voice/backend.ts";
+import { liveKitFromEnv } from "./voice/livekit.ts";
 
 // Codes in use by rooms on this server process. One process is enough for v1
 // (PRD Section 9: one 2 vCPU server holds 5 rooms).
@@ -62,7 +71,21 @@ interface PlayerSim {
   action: Action | null;
   breathLeft: number;
   flashlightBeforeDowned: boolean;
+  // Voice (GDD Section 13).
+  /** This player's normal speaking level from the mic check, or null before it. */
+  normalDbfs: number | null;
+  voiceLevel: VoiceLevel;
+  /** Levels from the last levelHoldSec, so pauses between words do not cut the voice. */
+  recentLevels: VoiceLevel[];
+  /** How far the ghost hears this player's voice, refreshed with each voice update. */
+  voiceNoiseM: number;
+  micDeadSec: number;
+  micLost: boolean;
+  micCheck: { samples: number[]; elapsed: number } | null;
 }
+
+/** Ear height for walls between two players' voices. */
+const VOICE_SIGHT_HEIGHT_M = 1.6;
 
 const ACTION_SECONDS: Record<Action["kind"], number> = {
   revive: config.health.reviveSec,
@@ -71,6 +94,9 @@ const ACTION_SECONDS: Record<Action["kind"], number> = {
 };
 
 export class HauntedRoom extends Room<{ state: GameState }> {
+  /** Creates the voice service for a room. Tests replace this with a fake. */
+  static voiceFactory: (voiceRoomName: string) => VoiceBackend = (name) => liveKitFromEnv(name) ?? new NoVoice();
+
   maxClients = config.players.max;
   state = new GameState();
   patchRate = 1000 / config.net.tickRate;
@@ -85,10 +111,21 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private noises: { x: number; z: number; radiusM: number }[] = [];
   /** Clients that currently know where the ghost is (so they get one "gone" message). */
   private seesGhost = new Set<string>();
+  private voice: VoiceBackend = new NoVoice();
+  private voiceTimer = 0;
 
   async onCreate() {
     // The 5-letter room code is the Colyseus room id, so friends join with joinById(code).
     this.roomId = uniqueRoomCode();
+
+    // Voice room names are unique even if a room code is reused after a restart.
+    const voice = HauntedRoom.voiceFactory(`${this.roomId}-${Date.now()}`);
+    try {
+      await voice.start();
+      this.voice = voice;
+    } catch (err) {
+      console.error("Voice could not start; this room runs without voice.", err);
+    }
 
     await initPhysics();
     this.physics = new PhysicsWorld(this.map);
@@ -123,6 +160,11 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       else this.cancelAction(client.sessionId);
     });
 
+    this.onMessage("micCheck", (client) => {
+      const sim = this.sims.get(client.sessionId);
+      if (sim) sim.micCheck = { samples: [], elapsed: 0 };
+    });
+
     if (DEBUG) {
       this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number }) => {
         if (typeof msg?.nightTime === "number") this.state.nightTime = msg.nightTime;
@@ -154,6 +196,13 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       action: null,
       breathLeft: 0,
       flashlightBeforeDowned: true,
+      normalDbfs: null,
+      voiceLevel: "silent",
+      recentLevels: [],
+      voiceNoiseM: 0,
+      micDeadSec: 0,
+      micLost: false,
+      micCheck: null,
     });
 
     this.state.players.set(
@@ -181,26 +230,46 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     // The night starts when the first player arrives. The lobby and Start button come in Phase 7.
     this.nightStarted = true;
     this.announce("join", name, `${name} joined the room`);
+    void this.sendVoiceJoin(client, name);
+  }
+
+  /** Gives the player their voice pass, or tells them voice is off on this server. */
+  private async sendVoiceJoin(client: Client, name: string) {
+    let msg: ServerMessages["voice"] = { disabled: true };
+    try {
+      msg = (await this.voice.join(client.sessionId, name)) ?? { disabled: true };
+    } catch (err) {
+      console.error("Voice token failed", err);
+    }
+    client.send("voice", msg);
   }
 
   onLeave(client: Client) {
     this.sims.get(client.sessionId)?.removeBody();
     this.sims.delete(client.sessionId);
     this.seesGhost.delete(client.sessionId);
+    this.voice.remove(client.sessionId);
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
     this.state.players.delete(client.sessionId);
     this.announce("leave", player.name, `${player.name} left the room`);
   }
 
-  onDispose() {
+  async onDispose() {
     activeCodes.delete(this.roomId);
+    await this.voice.dispose();
   }
 
   private tick(elapsedSec: number) {
     for (const [sessionId, sim] of this.sims) {
       const player = this.state.players.get(sessionId);
       if (player) this.tickPlayer(sim, player, elapsedSec);
+    }
+
+    this.voiceTimer += elapsedSec;
+    if (this.voiceTimer * 1000 >= config.voice.subscriptionRefreshMs) {
+      this.tickVoice(this.voiceTimer);
+      this.voiceTimer = 0;
     }
 
     if (this.nightStarted) {
@@ -271,6 +340,102 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     if (mode === "crawl" || after.crouching) return h.crouch;
     // Same rule as stepMovement: running needs stamina left at the start of the step.
     return input.run && before.stamina > 0 ? h.run : h.walk;
+  }
+
+  // ---------- Voice (GDD Section 13, PRD Section 10.5) ----------
+
+  /**
+   * Every subscriptionRefreshMs: read each player's real loudness, run mic checks, track lost
+   * mics, let the ghost hear voices, and decide who hears whom and how loud.
+   */
+  private tickVoice(dt: number) {
+    if (!this.voice.enabled) return;
+    const v = config.voice;
+
+    for (const [id, sim] of this.sims) {
+      const player = this.state.players.get(id);
+      if (!player) continue;
+      const db = this.voice.levelDbfs(id);
+      sim.voiceLevel = classifyVoice(db, sim.normalDbfs ?? v.defaultNormalDbfs);
+      sim.recentLevels.push(sim.voiceLevel);
+      const keep = Math.max(1, Math.round((v.levelHoldSec * 1000) / v.subscriptionRefreshMs));
+      while (sim.recentLevels.length > keep) sim.recentLevels.shift();
+
+      if (sim.micCheck) {
+        sim.micCheck.samples.push(db);
+        sim.micCheck.elapsed += dt;
+        if (sim.micCheck.elapsed >= v.micCheckSec) this.finishMicCheck(id, sim);
+      }
+
+      if (this.voice.micLive(id)) {
+        sim.micDeadSec = 0;
+        if (sim.micLost) this.setMicLost(id, sim, false);
+      } else {
+        sim.micDeadSec += dt;
+        if (!sim.micLost && sim.micDeadSec >= v.micLostAfterSec) this.setMicLost(id, sim, true);
+      }
+
+      // A lost mic counts as talking normally, so turning it off never hides you (GDD 13).
+      const level: VoiceLevel = sim.micLost ? (v.micLostCountsAs as VoiceLevel) : sim.voiceLevel;
+      sim.voiceNoiseM = player.health === "dead" ? 0 : ghostHearRangeM(level);
+    }
+
+    for (const client of this.clients) this.routeVoices(client);
+  }
+
+  private finishMicCheck(id: string, sim: PlayerSim) {
+    const samples = sim.micCheck!.samples;
+    sim.micCheck = null;
+    const normal = calibrateNormal(samples, config.voice.subscriptionRefreshMs / 1000);
+    const client = this.clients.find((c) => c.sessionId === id);
+    let result: ServerMessages["micCheck"];
+    if (normal === null) {
+      result = { ok: false, reason: "We could not hear you. Check your microphone and read the sentence out loud." };
+    } else {
+      sim.normalDbfs = normal;
+      result = { ok: true, normalDbfs: normal };
+    }
+    client?.send("micCheck", result);
+  }
+
+  private setMicLost(id: string, sim: PlayerSim, lost: boolean) {
+    sim.micLost = lost;
+    const msg: ServerMessages["micLost"] = { lost };
+    this.clients.find((c) => c.sessionId === id)?.send("micLost", msg);
+  }
+
+  /**
+   * Who this listener hears and how loud. The living hear the living within routeRangeM
+   * (the volume curve does the rest); the dead hear only the dead, at full volume.
+   */
+  private routeVoices(client: Client) {
+    const listener = this.state.players.get(client.sessionId);
+    if (!listener) return;
+    const listenerDead = listener.health === "dead";
+    const speakers = new Set<string>();
+    const mix: ServerMessages["voiceMix"] = {};
+
+    for (const [id, sim] of this.sims) {
+      if (id === client.sessionId) continue;
+      const speaker = this.state.players.get(id);
+      if (!speaker) continue;
+      const speakerDead = speaker.health === "dead";
+      if (speakerDead !== listenerDead) continue;
+      const boost = playbackBoost(sim.normalDbfs);
+      if (listenerDead) {
+        speakers.add(id);
+        mix[id] = [1, 0, boost];
+        continue;
+      }
+      const dist = Math.hypot(speaker.x - listener.x, speaker.z - listener.z);
+      if (dist > config.voice.routeRangeM) continue;
+      speakers.add(id);
+      const wall = !this.physics.lineOfSight(listener, speaker, VOICE_SIGHT_HEIGHT_M);
+      mix[id] = [voiceVolume(dist, speakingLevel(sim.recentLevels), wall), wall ? 1 : 0, boost];
+    }
+
+    this.voice.route(client.sessionId, speakers);
+    client.send("voiceMix", mix);
   }
 
   // ---------- Health (GDD Section 7) ----------
@@ -491,7 +656,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
             health: p.health as Health,
             hidingSpot: p.hidingSpot || null,
             flashlightOn: p.flashlightOn,
-            noiseM: sim.noiseM,
+            // Footsteps and breathing this tick, or the voice, whichever carries farther.
+            noiseM: Math.max(sim.noiseM, sim.voiceNoiseM),
             immune: sim.immuneLeft > 0,
           });
         });

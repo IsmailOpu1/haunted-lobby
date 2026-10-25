@@ -135,6 +135,19 @@ export const config = {
     openMicOnly: true,
     micLostAfterSec: 10,
     micLostCountsAs: "normal",
+    // Loudness measurement (server side, from the real audio). dBFS: 0 is the loudest possible.
+    silenceDbfs: -50, // quieter than this counts as not talking
+    micCheckSec: 4, // how long the mic check listens to "your normal"
+    micCheckMinVoicedSec: 1, // how much of that must be actual talking
+    defaultNormalDbfs: -30, // used until a player has done the mic check
+    // Voices are delivered (routed) within the loudest range; the volume curve does the rest.
+    routeRangeM: 25,
+    // How long your talking level is kept after you go quiet, so pauses between words do not
+    // cut the start of the next word. The ghost still uses your loudness right now.
+    levelHoldSec: 1.5,
+    // Quiet mics are boosted toward this level when played to others (whispers stay quieter).
+    playbackTargetDbfs: -20,
+    maxPlaybackBoost: 4,
   },
   powers: {
     slamDoor: { unlockSec: 60, cooldownSec: 30, rangeM: 6, lockSec: 15, breakPushers: 2, breakSec: 2, ghostHearM: 12, sameVictimSec: 60 },
