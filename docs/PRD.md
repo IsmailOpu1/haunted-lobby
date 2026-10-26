@@ -386,6 +386,7 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 - Task system, team task bar, the first 4 minigames, then the rest
 - Relics: spawning, whisper, extraction minigame, carry, drop, Tab status
 - **Done when:** every item and task matches the GDD numbers in a test scene.
+- **Passed 2026-10-26:** every item, task and relic matches the GDD numbers in tests (196 passing) and in the owner's online test. Owner verdict on the minigames: they work but are flat and not fun, so tasks and relic taking get reworked as interactions in the 3D world after Phase 5 (GDD 26.5). The 2D minigames stay as placeholders until then.
 
 **Phase 5: Objective and the full map in grey boxes (about 3 weeks)**
 - Full Marrow Hotel layout in grey boxes (3 levels, about 20 rooms, GDD 21.2)
