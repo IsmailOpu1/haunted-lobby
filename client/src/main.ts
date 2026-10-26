@@ -278,6 +278,18 @@ function enterLobby(room: Room) {
       ...players.map((p) => {
         const li = document.createElement("li");
         li.textContent = p.id === room.sessionId ? `${p.name} (you)` : p.name;
+        if (p.id !== room.sessionId) {
+          // Mute only changes what you hear (PRD FR-V6).
+          const mute = document.createElement("button");
+          mute.className = "mute";
+          const label = () => (mute.textContent = game.isMuted(p.id) ? "Unmute" : "Mute");
+          label();
+          mute.onclick = () => {
+            game.toggleMute(p.id);
+            label();
+          };
+          li.append(" ", mute);
+        }
         return li;
       }),
     );

@@ -165,6 +165,14 @@ ul {
   color: var(--muted);
 }
 
+button.mute {
+  margin-left: 6px;
+  padding: 1px 8px;
+  font-size: 12px;
+  color: var(--text);
+  background: #2a2822;
+}
+
 .mic p {
   margin: 0;
   font-size: 13px;

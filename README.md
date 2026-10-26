@@ -11,7 +11,7 @@ Friends are trapped in a haunted place for one night. They must finish tasks, fi
 - **Ouija board.** Dead players can't talk, but in each meeting they push the planchette at one person.
 - **Darkness hides identity.** In the dark you see only a shadow. Your flashlight reveals who it is.
 
-**Status:** Phase 2 (the ghost) built. Join by code or link and survive a 12-minute night in the grey-box Marrow Hotel: the ghost sleeps for the first minute, then wanders, hears your footsteps and sees your flashlight, and hunts more often as the night goes on. Hide in wardrobes and curtains and hold your breath, get downed, crawl, and revive friends. Movement is server-authoritative with client-side prediction.
+**Status:** Phase 3 (proximity voice) done and friend-tested; Phase 4 (items, tasks, relics) next. Voice: the ghost hears your real microphone; whisper to stay hidden. Phase 2 (the ghost) built. Join by code or link and survive a 12-minute night in the grey-box Marrow Hotel: the ghost sleeps for the first minute, then wanders, hears your footsteps and sees your flashlight, and hunts more often as the night goes on. Hide in wardrobes and curtains and hold your breath, get downed, crawl, and revive friends. Movement is server-authoritative with client-side prediction.
 
 ## Run it
 

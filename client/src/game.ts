@@ -184,6 +184,15 @@ export class Game {
     return new Game(canvas, map, hud);
   }
 
+  /** Mute or unmute another player's voice, only for you. Returns whether they are now muted. */
+  toggleMute(sessionId: string): boolean {
+    return this.voice.toggleMute(sessionId);
+  }
+
+  isMuted(sessionId: string): boolean {
+    return this.voice.isMuted(sessionId);
+  }
+
   /** Sound volume from 0 to 1. */
   setVolume(volume: number) {
     this.sound.setVolume(volume);

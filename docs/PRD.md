@@ -379,6 +379,7 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 - Ghost hearing from voice
 - Local mute of other players, the mic-lost rule, mic check required before Ready
 - **Done when:** three or four friends play in grey boxes, whisper to stay safe, and feel real tension. The client holds 60 FPS. **If this is not fun, fix it before adding anything else.**
+- **Passed 2026-10-26** (M1 go): owner's friend test online. Whispers sound low and distant talk fades, as designed; voice clear. Voice quality can be tuned later from `shared/config.ts` (git tag `phase-3-voice` marks this state).
 
 **Phase 4: Items, tasks and relics (about 3 weeks)**
 - Spirit Camera (shots, flash, photo capture; curse-glow check can be stubbed until Phase 6), salt and salt jars
@@ -442,7 +443,7 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 | Milestone | After phase | Proof |
 |---|---|---|
 | M0 Foundation | 0 | Two players join one room by code |
-| M1 Playable fear | 3 | Friends whisper and feel tension in grey boxes at 60 FPS. Go / no-go for the project |
+| M1 Playable fear | 3 | Friends whisper and feel tension in grey boxes at 60 FPS. Go / no-go for the project. **Passed 2026-10-26: go** |
 | M2 Core loop | 5 | A full match without possessed can be won and lost |
 | M3 Social layer | 6 | The possessed can sabotage and be caught. Private alpha |
 | M4 Beta ready | 7 | Lobby, settings and rematch work for 8 players. Private beta |

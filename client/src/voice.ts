@@ -30,6 +30,8 @@ export class VoiceChat {
   private mix: Record<string, [number, number, number]> = {};
   private micAnalyser: AnalyserNode | null = null;
   private micSamples = new Float32Array(1024);
+  /** Players you muted for yourself (PRD FR-V6). Lasts for this visit. */
+  private muted = new Set<string>();
 
   constructor(
     private audio: () => AudioOut | null,
@@ -85,7 +87,8 @@ export class VoiceChat {
     for (const [id, voice] of this.voices) {
       if (!voice.nodes) voice.nodes = this.buildNodes(audio, voice.stream);
       const { gain, filter, panner } = voice.nodes;
-      const [volume, muffled, boost] = this.mix[id] ?? [0, 0, 1];
+      const [mixVolume, muffled, boost] = this.mix[id] ?? [0, 0, 1];
+      const volume = this.muted.has(id) ? 0 : mixVolume;
       const t = audio.ctx.currentTime;
       gain.gain.setTargetAtTime(volume * boost, t, GAIN_SMOOTHING_SEC);
       filter.frequency.setTargetAtTime(muffled ? MUFFLED_HZ : CLEAR_HZ, t, GAIN_SMOOTHING_SEC);
@@ -96,6 +99,17 @@ export class VoiceChat {
         panner.positionZ.setTargetAtTime(pos.z, t, POSITION_SMOOTHING_SEC);
       }
     }
+  }
+
+  /** Mute or unmute one player, only for you. Returns whether they are now muted. */
+  toggleMute(id: string): boolean {
+    if (this.muted.has(id)) this.muted.delete(id);
+    else this.muted.add(id);
+    return this.muted.has(id);
+  }
+
+  isMuted(id: string): boolean {
+    return this.muted.has(id);
   }
 
   /** How loud your own microphone is right now, 0 to 1 (for the mic meter). */
