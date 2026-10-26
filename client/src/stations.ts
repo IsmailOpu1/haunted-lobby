@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { MapData, RelicMinigame, TaskMinigame } from "@haunted/shared";
+import { liftToFloor } from "./place.ts";
 
 // Placeholder task station models until the Phase 8 art pass. Visible tasks (GDD 9) show
 // their result to everyone: the candelabra stays lit, the clock's pendulum swings, the
@@ -315,6 +316,7 @@ export class StationsView {
     for (const def of map.tasks) {
       const view = MODELS[def.minigame]();
       view.group.position.set(def.x, 0, def.z);
+      liftToFloor(map, view.group);
       view.group.rotation.y = facingYaw(map, def);
       scene.add(view.group);
       // Only visible tasks change for everyone; the rest never show a result.
@@ -323,6 +325,7 @@ export class StationsView {
     for (const spot of map.relicSpots) {
       const prop = RELIC_SPOTS[spot.minigame]();
       prop.position.set(spot.x, 0, spot.z);
+      liftToFloor(map, prop);
       prop.rotation.y = facingYaw(map, spot);
       scene.add(prop);
     }

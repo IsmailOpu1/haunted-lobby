@@ -14,6 +14,9 @@ import {
   type RelicNear,
   type ServerMessages,
   type TaskEntry,
+  toWorld,
+  worldDistance,
+  type WorldPoint,
 } from "@haunted/shared";
 import { SoundScape } from "./audio.ts";
 import { createFlashlight } from "./flashlight.ts";
@@ -165,7 +168,9 @@ export class Game {
   private previous?: MoveState;
   private accumulator = 0;
   private eyeHeight: number = config.movement.eyeHeightM;
+  // Server corrections, in real 3D space (so they stay small across a flight of stairs).
   private correctionX = 0;
+  private correctionY = 0;
   private correctionZ = 0;
   private voice: VoiceChat;
   /** False until the mic check passes when voice is on (GDD 5: a working mic is required). */
@@ -191,11 +196,12 @@ export class Game {
     this.scene.add(this.ambient);
 
     this.doors = buildWorld(this.scene, map);
-    this.remotes = new RemotePlayers(this.scene);
-    this.ghost = new GhostView(this.scene);
+    const place = (x: number, z: number) => toWorld(map, x, z);
+    this.remotes = new RemotePlayers(this.scene, place);
+    this.ghost = new GhostView(this.scene, place);
     this.items = new ItemsView(this.scene, map);
     this.stations = new StationsView(this.scene, map);
-    this.relicsView = new RelicsView(this.scene);
+    this.relicsView = new RelicsView(this.scene, map);
     this.overlay = new MinigameOverlay(overlay.root, overlay.canvas, overlay.title, overlay.hint, overlay.leave, (kind, pitch) => this.sound.taskSound(kind, pitch), {
       onFinish: () => this.endTask("finished", { stationId: this.openStation }),
       onLeave: () => this.endTask("left"),
@@ -211,7 +217,8 @@ export class Game {
     this.camera.add(this.flashlight.light, this.flashlight.target);
     this.scene.add(this.camera);
     const spawn = map.spawns[0] ?? { x: 0, z: 0 };
-    this.camera.position.set(spawn.x, config.movement.eyeHeightM, spawn.z);
+    const start = toWorld(map, spawn.x, spawn.z);
+    this.camera.position.set(start.x, start.y + config.movement.eyeHeightM, start.z);
 
     this.input = new PlayerInput(canvas, {
       onFlashlight: () => this.room?.send("flashlight"),
@@ -327,7 +334,7 @@ export class Game {
     room.onMessage("flash", (msg: ServerMessages["flash"]) => {
       if (msg.by === room.sessionId) this.hud.flashScreen();
       else this.items.flashAt(msg.x, msg.z);
-      this.sound.shutter(msg.by === room.sessionId ? undefined : msg);
+      this.sound.shutter(msg.by === room.sessionId ? undefined : this.place(msg));
     });
     room.onMessage("photoTaken", (msg: ServerMessages["photoTaken"]) => {
       this.hud.showBanner(`Photo taken. It develops by the next meeting. Shots left: ${msg.shotsLeft}`, 4);
@@ -359,13 +366,13 @@ export class Game {
       this.taskState = "none";
     });
     room.onMessage("taskNoise", (msg: ServerMessages["taskNoise"]) => {
-      this.sound.taskSound(msg.minigame === "cradle" ? "cry" : "badNote", undefined, msg);
+      this.sound.taskSound(msg.minigame === "cradle" ? "cry" : "badNote", undefined, this.place(msg));
     });
     room.onMessage("relicsNear", (msg: ServerMessages["relicsNear"]) => {
       this.relicsNear = msg.list;
       this.relicsView.setDropped(msg.list);
     });
-    room.onMessage("relicDrop", (msg: ServerMessages["relicDrop"]) => this.sound.taskSound("thud", 0, msg));
+    room.onMessage("relicDrop", (msg: ServerMessages["relicDrop"]) => this.sound.taskSound("thud", 0, this.place(msg)));
     room.send("tasksRequest");
 
     // Every handler is registered, so now ask for the voice pass; the answer cannot be missed.
@@ -464,12 +471,16 @@ export class Game {
       this.previous = s;
     } else {
       // Keep the camera where it was and glide away the difference (see updateCamera).
-      const errX = this.predicted.x - s.x;
-      const errZ = this.predicted.z - s.z;
-      if (Math.hypot(errX, errZ) > SNAP_DISTANCE) {
-        this.correctionX = this.correctionZ = 0;
+      const was = this.place(this.predicted);
+      const now = this.place(s);
+      const errX = was.x - now.x;
+      const errY = was.y - now.y;
+      const errZ = was.z - now.z;
+      if (Math.hypot(errX, errY, errZ) > SNAP_DISTANCE) {
+        this.correctionX = this.correctionY = this.correctionZ = 0;
       } else {
         this.correctionX += errX;
+        this.correctionY += errY;
         this.correctionZ += errZ;
       }
     }
@@ -491,9 +502,10 @@ export class Game {
     this.relicsView.render(now / 1000);
     this.sound.relicWhisper(this.nearestHiddenRelic());
     this.ghost.render(now);
-    this.remotes.render(now, dt, (x, z) => this.ghost.distanceTo(x, z));
+    this.remotes.render(now, dt, (at) => this.ghost.distanceTo(at));
 
-    const ghostDistance = this.ghost.distanceTo(this.camera.position.x, this.camera.position.z);
+    const cam = this.camera.position;
+    const ghostDistance = this.ghost.distanceTo({ x: cam.x, y: cam.y - this.eyeHeight, z: cam.z });
     this.flashlight.light.intensity = this.flashlightIntensity * this.flicker.update(dt, ghostDistance);
     this.playFootsteps(dt);
     const views = this.remotes.views();
@@ -558,20 +570,25 @@ export class Game {
     // Server corrections fade out over ~0.1 s instead of making the view jump.
     const fade = Math.exp(-CORRECTION_FADE_PER_SEC * dt);
     this.correctionX *= fade;
+    this.correctionY *= fade;
     this.correctionZ *= fade;
-    const x = prev.x + (curr.x - prev.x) * alpha + this.correctionX;
-    const z = prev.z + (curr.z - prev.z) * alpha + this.correctionZ;
+    // Blend in real 3D space: on the stairs' middle step the simulation jumps between floor areas.
+    const a = this.place(prev);
+    const b = this.place(curr);
+    const x = a.x + (b.x - a.x) * alpha + this.correctionX;
+    const y = a.y + (b.y - a.y) * alpha + this.correctionY;
+    const z = a.z + (b.z - a.z) * alpha + this.correctionZ;
 
     const m = config.movement;
     const downed = this.me?.health === "downed" || this.me?.health === "dead";
     const targetEye = downed ? m.downedEyeHeightM : curr.crouching ? m.crouchEyeHeightM : m.eyeHeightM;
     this.eyeHeight += (targetEye - this.eyeHeight) * Math.min(1, CROUCH_LERP_PER_SEC * dt);
 
-    this.camera.position.set(x, this.eyeHeight, z);
+    this.camera.position.set(x, y + this.eyeHeight, z);
     this.camera.rotation.set(this.input.pitch, this.input.yaw, 0);
 
     this.hud.setStamina(curr.stamina / m.staminaSec);
-    this.hud.setPrompt(this.promptAt(x, z));
+    this.hud.setPrompt(this.promptAt(curr.x, curr.z));
   }
 
   /** The E prompt for where you stand. Mirrors the server's choice in HauntedRoom.startUse. */
@@ -622,18 +639,24 @@ export class Game {
   }
 
   /** The closest hidden relic within whisper range, for the whisper sound. */
-  private nearestHiddenRelic(): { x: number; z: number } | null {
-    const cam = this.camera.position;
+  private nearestHiddenRelic(): WorldPoint | null {
+    const me = this.predicted;
+    if (!me) return null;
     let best: RelicNear | null = null;
     let bestDist: number = config.relics.whisperM;
     for (const r of this.relicsNear) {
-      const d = Math.hypot(r.x - cam.x, r.z - cam.z);
+      const d = worldDistance(this.map, r, me);
       if (r.hidden && d <= bestDist) {
         best = r;
         bestDist = d;
       }
     }
-    return best;
+    return best && this.place(best);
+  }
+
+  /** The real 3D place of a simulation position. */
+  private place(p: { x: number; z: number }): WorldPoint {
+    return toWorld(this.map, p.x, p.z);
   }
 }
 

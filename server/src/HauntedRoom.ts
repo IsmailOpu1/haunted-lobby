@@ -18,6 +18,7 @@ import {
   initPhysics,
   nightPart,
   pickRelicSpots,
+  worldDistance,
   PhysicsWorld,
   sanitizeInput,
   SIM_DT,
@@ -527,7 +528,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
         mix[id] = [1, 0, boost];
         continue;
       }
-      const dist = Math.hypot(speaker.x - listener.x, speaker.z - listener.z);
+      const dist = this.hearingDistance(speaker, listener);
       if (dist > config.voice.routeRangeM) continue;
       speakers.add(id);
       const wall = !this.physics.lineOfSight(listener, speaker, VOICE_SIGHT_HEIGHT_M);
@@ -802,7 +803,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const msg: ServerMessages["taskNoise"] = { x: def.x, z: def.z, minigame: def.minigame };
     for (const client of this.clients) {
       const p = this.state.players.get(client.sessionId);
-      if (client.sessionId !== sessionId && p && Math.hypot(p.x - def.x, p.z - def.z) <= radiusM) client.send("taskNoise", msg);
+      if (client.sessionId !== sessionId && p && this.hearingDistance(p, def) <= radiusM) client.send("taskNoise", msg);
     }
   }
 
@@ -879,7 +880,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const msg: ServerMessages["relicDrop"] = { x: relic.x, z: relic.z };
     for (const client of this.clients) {
       const p = this.state.players.get(client.sessionId);
-      if (p && Math.hypot(p.x - relic.x, p.z - relic.z) <= radiusM) client.send("relicDrop", msg);
+      if (p && this.hearingDistance(p, relic) <= radiusM) client.send("relicDrop", msg);
     }
   }
 
@@ -890,7 +891,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       if (!p) continue;
       const list: RelicNear[] = [];
       for (const r of this.relics) {
-        const d = Math.hypot(r.x - p.x, r.z - p.z);
+        const d = this.hearingDistance(r, p);
         if (r.status === "hidden" && d <= config.relics.whisperM) list.push({ id: r.id, x: r.x, z: r.z, hidden: true, spotId: r.spotId });
         else if (r.status === "dropped" && d <= config.relics.seeDroppedM) list.push({ id: r.id, x: r.x, z: r.z, hidden: false, spotId: "" });
       }
@@ -969,7 +970,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const flash: ServerMessages["flash"] = { x: player.x, z: player.z, by: sessionId };
     for (const client of this.clients) {
       const other = this.state.players.get(client.sessionId);
-      if (other && Math.hypot(other.x - player.x, other.z - player.z) <= c.flashVisibleM) client.send("flash", flash);
+      if (other && this.hearingDistance(other, player) <= c.flashVisibleM) client.send("flash", flash);
     }
     this.noises.push({ x: player.x, z: player.z, radiusM: c.flashGhostHearM });
     const taken: ServerMessages["photoTaken"] = { shotsLeft: player.cameraShots };
@@ -998,8 +999,14 @@ export class HauntedRoom extends Room<{ state: GameState }> {
 
   // ---------- Ghost ----------
 
+  /** Real distance between two places, for sound and sight: through floors when they are on different ones (levels.ts). */
+  private hearingDistance(a: { x: number; z: number }, b: { x: number; z: number }): number {
+    return worldDistance(this.map, a, b);
+  }
+
   private ghostWorld(): GhostWorld {
     return {
+      distance: (a, b) => this.hearingDistance(a, b),
       players: () => {
         const list: GhostTarget[] = [];
         this.state.players.forEach((p, id) => {
@@ -1049,7 +1056,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const view: GhostView = { x: g.x, z: g.z, yaw: g.yaw, visible: g.visible };
     for (const client of this.clients) {
       const p = this.state.players.get(client.sessionId);
-      const inRange = present && !!p && Math.hypot(p.x - g.x, p.z - g.z) <= config.ghost.interestRangeM;
+      const inRange = present && !!p && this.hearingDistance(p, g) <= config.ghost.interestRangeM;
       if (inRange) {
         client.send("ghost", view);
         this.seesGhost.add(client.sessionId);

@@ -1,5 +1,6 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import { config } from "../config.ts";
+import { crossStairs, levelOf, stairWalls } from "../levels.ts";
 import { doorBox, HIDING_SPOT_HEIGHT_M, hidingSpotBox, wallBox, type FloorBox, type MapData } from "../map.ts";
 import type { CollideFn } from "./movement.ts";
 
@@ -16,8 +17,9 @@ const CAPSULE_HALF_HEIGHT = heightM / 2 - radiusM;
 const BODY_CENTER_Y = heightM / 2;
 
 /**
- * Walls, doors and player bodies for one map. Movement is flat for now (ground floor only);
- * stairs and levels come with the full map in Phase 5.
+ * Walls, doors and player bodies for one map. Movement is flat: each floor has its own area of
+ * the plane, and walking past the middle of a flight of stairs moves you to the next floor's
+ * area (see levels.ts).
  */
 export class PhysicsWorld {
   private world: RAPIER.World;
@@ -25,10 +27,10 @@ export class PhysicsWorld {
   private doors = new Map<string, RAPIER.Collider>();
   private bodyHandles = new Set<number>();
 
-  constructor(map: MapData) {
+  constructor(private map: MapData) {
     this.world = new RAPIER.World({ x: 0, y: 0, z: 0 });
     const h = map.wallHeightM;
-    for (const segment of map.walls) this.addBox(wallBox(segment, map.wallThicknessM), h);
+    for (const segment of [...map.walls, ...stairWalls(map)]) this.addBox(wallBox(segment, map.wallThicknessM), h);
     for (const door of map.doors) this.doors.set(door.id, this.addBox(doorBox(door, map.wallThicknessM), h));
     for (const spot of map.hidingSpots) this.addBox(hidingSpotBox(spot), HIDING_SPOT_HEIGHT_M);
 
@@ -62,7 +64,7 @@ export class PhysicsWorld {
       collider.setTranslation({ x: from.x, y: BODY_CENTER_Y, z: from.z });
       this.controller.computeColliderMovement(collider, { x: delta.x, y: 0, z: delta.z }, undefined, undefined, ignoreBodies);
       const moved = this.controller.computedMovement();
-      return { x: from.x + moved.x, z: from.z + moved.z };
+      return crossStairs(this.map, from, { x: from.x + moved.x, z: from.z + moved.z });
     };
     const remove = () => {
       this.bodyHandles.delete(collider.handle);
@@ -76,6 +78,8 @@ export class PhysicsWorld {
    * height. Player bodies never block sight.
    */
   lineOfSight(from: { x: number; z: number }, to: { x: number; z: number }, height: number): boolean {
+    // Floors block sight between floors.
+    if (levelOf(this.map, from.x, from.z) !== levelOf(this.map, to.x, to.z)) return false;
     const dx = to.x - from.x;
     const dz = to.z - from.z;
     const dist = Math.hypot(dx, dz);

@@ -7,5 +7,6 @@ export * from "./voice.ts";
 export * from "./items.ts";
 export * from "./tasks.ts";
 export * from "./relics.ts";
+export * from "./levels.ts";
 export * from "./sim/movement.ts";
 export * from "./sim/physics.ts";

@@ -1,10 +1,12 @@
 import { init, NavMeshQuery } from "@recast-navigation/core";
 import { generateSoloNavMesh } from "@recast-navigation/generators";
-import { config, HIDING_SPOT_HEIGHT_M, hidingSpotBox, wallBox, type FloorBox, type MapData } from "@haunted/shared";
+import { config, HIDING_SPOT_HEIGHT_M, hidingSpotBox, levelOf, stairFloors, stairRoute, stairWalls, wallBox, type FloorBox, type MapData } from "@haunted/shared";
 
 export interface Point {
   x: number;
   z: number;
+  /** A route point on another floor: the walker steps straight there (it is the same real place, see levels.ts). */
+  jump?: boolean;
 }
 
 let ready: Promise<void> | undefined;
@@ -18,7 +20,10 @@ const CELL_HEIGHT = 0.1;
  * Door panels are left out, so doorways are always walkable: the ghost opens doors it passes.
  */
 export class NavMap {
-  private constructor(private query: NavMeshQuery) {}
+  private constructor(
+    private query: NavMeshQuery,
+    private map: MapData,
+  ) {}
 
   static async create(map: MapData): Promise<NavMap> {
     ready ??= init();
@@ -46,7 +51,8 @@ export class NavMap {
       const pad = map.wallThicknessM;
       quad([r.minX - pad, 0, r.minZ - pad], [r.maxX + pad, 0, r.minZ - pad], [r.maxX + pad, 0, r.maxZ + pad], [r.minX - pad, 0, r.maxZ + pad]);
     }
-    for (const segment of map.walls) box(wallBox(segment, map.wallThicknessM), map.wallHeightM);
+    for (const f of stairFloors(map)) quad([f.minX, 0, f.minZ], [f.maxX, 0, f.minZ], [f.maxX, 0, f.maxZ], [f.minX, 0, f.maxZ]);
+    for (const segment of [...map.walls, ...stairWalls(map)]) box(wallBox(segment, map.wallThicknessM), map.wallHeightM);
     for (const spot of map.hidingSpots) box(hidingSpotBox(spot), HIDING_SPOT_HEIGHT_M);
 
     const result = generateSoloNavMesh(positions, indices, {
@@ -57,11 +63,31 @@ export class NavMap {
       walkableClimb: 2,
     });
     if (!result.success) throw new Error(`Navmesh bake failed for map ${map.id}`);
-    return new NavMap(new NavMeshQuery(result.navMesh));
+    return new NavMap(new NavMeshQuery(result.navMesh), map);
   }
 
-  /** A path from a to b as corner points (the start point excluded). Empty if unreachable. */
+  /**
+   * A path from a to b as corner points (the start point excluded). Empty if unreachable.
+   * Between floors it walks to the middle of each flight of stairs and jumps to the same place
+   * in the next floor's area.
+   */
   path(a: Point, b: Point): Point[] {
+    const route = stairRoute(this.map, levelOf(this.map, a.x, a.z).id, levelOf(this.map, b.x, b.z).id);
+    if (route.length === 0) return this.pathOnFloor(a, b);
+    const points: Point[] = [];
+    let from = a;
+    for (const step of route) {
+      const leg = this.pathOnFloor(from, step.before);
+      if (leg.length === 0 && Math.hypot(step.before.x - from.x, step.before.z - from.z) > 0.05) return [];
+      points.push(...leg, { ...step.after, jump: true });
+      from = step.after;
+    }
+    const last = this.pathOnFloor(from, b);
+    if (last.length === 0 && Math.hypot(b.x - from.x, b.z - from.z) > 0.05) return [];
+    return [...points, ...last];
+  }
+
+  private pathOnFloor(a: Point, b: Point): Point[] {
     const r = this.query.computePath({ x: a.x, y: 0, z: a.z }, { x: b.x, y: 0, z: b.z });
     if (!r.success) return [];
     const points = r.path.map((p) => ({ x: p.x, z: p.z }));

@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { RelicNear } from "@haunted/shared";
+import { toWorld, type MapData, type RelicNear } from "@haunted/shared";
 
 // Dropped relics on the floor (GDD 10). The server only says where one is when you are close
 // enough to see it, so this shows exactly the ones in the latest relicsNear message.
@@ -16,7 +16,10 @@ export class RelicsView {
   private geo = new THREE.BoxGeometry(RELIC_SIZE_M, RELIC_SIZE_M, RELIC_SIZE_M);
   private mat = new THREE.MeshBasicMaterial({ color: 0xe0b24a });
 
-  constructor(private scene: THREE.Scene) {}
+  /** Floor height under each relic, for the bob. */
+  private floorY = new Map<string, number>();
+
+  constructor(private scene: THREE.Scene, private map: MapData) {}
 
   setDropped(list: RelicNear[]) {
     const seen = new Set<string>();
@@ -32,19 +35,22 @@ export class RelicsView {
         this.scene.add(group);
         this.relics.set(r.id, group);
       }
-      group.position.x = r.x;
-      group.position.z = r.z;
+      const at = toWorld(this.map, r.x, r.z);
+      group.position.x = at.x;
+      group.position.z = at.z;
+      this.floorY.set(r.id, at.y);
     }
     for (const [id, group] of this.relics) {
       if (seen.has(id)) continue;
       this.scene.remove(group);
       this.relics.delete(id);
+      this.floorY.delete(id);
     }
   }
 
   render(time: number) {
-    for (const group of this.relics.values()) {
-      group.position.y = RELIC_HEIGHT_M + Math.sin(time * BOB_PER_SEC) * BOB_M;
+    for (const [id, group] of this.relics) {
+      group.position.y = (this.floorY.get(id) ?? 0) + RELIC_HEIGHT_M + Math.sin(time * BOB_PER_SEC) * BOB_M;
       group.rotation.y = time * 0.8;
     }
   }

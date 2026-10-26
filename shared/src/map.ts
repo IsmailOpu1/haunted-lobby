@@ -83,11 +83,52 @@ export interface RelicSpotDef {
   z: number;
 }
 
+/**
+ * One floor of the map (GDD 21.1: every map has 3). The simulation is flat, so each floor's
+ * rooms are laid out in their own area of the plane, side by side with the other floors.
+ * The game draws each floor at its real place: simulation x, z plus the shift, at height y.
+ */
+export interface LevelDef {
+  id: string;
+  name: string;
+  /** This floor's area in the simulation plane. Floors must not overlap. */
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  /** Height of the floor surface, in meters (the ground floor is 0, the basement below 0). */
+  y: number;
+  /** Added to simulation x and z to get where this floor really is. */
+  shiftX: number;
+  shiftZ: number;
+}
+
+/**
+ * A straight flight of stairs between two floors. Walking up past the middle step moves you
+ * from the lower floor's area of the plane to the upper floor's; on screen it is one flight.
+ * The stairwell's side walls and end walls come from this definition, so leave the stairwell
+ * itself free of map walls.
+ */
+export interface StairDef {
+  id: string;
+  lower: string;
+  upper: string;
+  /** Middle of the bottom step, in the lower floor's simulation coordinates. */
+  x: number;
+  z: number;
+  /** The way you face walking up. */
+  dir: "+x" | "-x" | "+z" | "-z";
+  lengthM: number;
+  widthM: number;
+}
+
 export interface MapData {
   id: string;
   name: string;
   wallHeightM: number;
   wallThicknessM: number;
+  levels: LevelDef[];
+  stairs: StairDef[];
   walls: WallSegment[];
   doors: DoorDef[];
   rooms: RoomDef[];

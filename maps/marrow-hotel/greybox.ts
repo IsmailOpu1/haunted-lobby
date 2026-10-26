@@ -22,6 +22,9 @@ export const marrowHotelGreybox: MapData = {
   name: "Marrow Hotel (grey box)",
   wallHeightM: 3,
   wallThicknessM: 0.2,
+  // One floor until the full 3-level hotel (Phase 5).
+  levels: [{ id: "ground", name: "Ground floor", minX: -20, maxX: 20, minZ: -20, maxZ: 20, y: 0, shiftX: 0, shiftZ: 0 }],
+  stairs: [],
   walls: [
     // Main Hall: x -8..8, z 0..12. Doorway to the corridor at x -0.75..0.75.
     [-8, 12, 8, 12],

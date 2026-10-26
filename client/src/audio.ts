@@ -6,6 +6,7 @@
 
 // The heartbeat is deep, soft and muffled (felt more than heard); footsteps are crisp
 // wooden taps. Keeping them in different pitch ranges stops them blurring together.
+import type { WorldPoint } from "@haunted/shared";
 import type { TaskSoundKind } from "./minigames/types.ts";
 
 const HEARTBEAT_RANGE_M = 12;
@@ -70,7 +71,7 @@ export class SoundScape {
   private nextBeatAt = 0;
   private silentUntil = 0;
   private hunting = false;
-  private listener = { x: 0, z: 0 };
+  private listener = { x: 0, y: 0, z: 0 };
   private nextPhantomAt = 0;
   private whisper: { level: GainNode; panner: PannerNode } | null = null;
 
@@ -126,7 +127,7 @@ export class SoundScape {
 
   /** Where your ears are and which way you face (yaw 0 faces -z), for 3D footsteps. */
   setListener(x: number, y: number, z: number, yaw: number) {
-    this.listener = { x, z };
+    this.listener = { x, y, z };
     const l = this.ctx?.listener;
     if (!l) return;
     const fx = -Math.sin(yaw);
@@ -152,7 +153,7 @@ export class SoundScape {
    * One footstep. With a position, it comes from that place in 3D and gets quieter with
    * distance; without one, it is your own step.
    */
-  step(kind: StepKind, at?: { x: number; z: number }, when?: number) {
+  step(kind: StepKind, at?: WorldPoint, when?: number) {
     const ctx = this.ctx;
     if (!ctx) return;
     const s = STEP_SOUNDS[kind];
@@ -168,7 +169,7 @@ export class SoundScape {
       panner.maxDistance = 30;
       panner.rolloffFactor = 1.3;
       panner.positionX.value = at.x;
-      panner.positionY.value = kind === "crawl" ? 0.2 : 0;
+      panner.positionY.value = at.y + (kind === "crawl" ? 0.2 : 0);
       panner.positionZ.value = at.z;
       panner.connect(this.master);
       out = panner;
@@ -208,7 +209,7 @@ export class SoundScape {
    * move, a piano note (pitch = key number), a wrong chord, a crying baby. With a position the
    * sound comes from there (someone else's noisy fail); without, it is yours.
    */
-  taskSound(kind: TaskSoundKind, pitch = 0, at?: { x: number; z: number }) {
+  taskSound(kind: TaskSoundKind, pitch = 0, at?: WorldPoint) {
     const ctx = this.ctx;
     if (!ctx) return;
     const t = ctx.currentTime;
@@ -218,7 +219,7 @@ export class SoundScape {
       panner.distanceModel = "inverse";
       panner.refDistance = 2;
       panner.positionX.value = at.x;
-      panner.positionY.value = 1;
+      panner.positionY.value = at.y + 1;
       panner.positionZ.value = at.z;
       panner.connect(this.master);
       out = panner;
@@ -335,7 +336,7 @@ export class SoundScape {
    * A hidden relic whispering (GDD 10): breathy noise that swells and fades, from where the
    * nearest hidden relic is. null fades it out.
    */
-  relicWhisper(at: { x: number; z: number } | null) {
+  relicWhisper(at: WorldPoint | null) {
     const ctx = this.ctx;
     if (!ctx) return;
     if (!this.whisper) {
@@ -368,12 +369,12 @@ export class SoundScape {
     this.whisper.level.gain.setTargetAtTime(at ? WHISPER_LEVEL : 0, t, 0.4);
     if (!at) return;
     this.whisper.panner.positionX.setTargetAtTime(at.x, t, 0.05);
-    this.whisper.panner.positionY.setTargetAtTime(0.8, t, 0.05);
+    this.whisper.panner.positionY.setTargetAtTime(at.y + 0.8, t, 0.05);
     this.whisper.panner.positionZ.setTargetAtTime(at.z, t, 0.05);
   }
 
   /** A camera shutter and flash whine. With a position it comes from there; without, it is yours. */
-  shutter(at?: { x: number; z: number }) {
+  shutter(at?: WorldPoint) {
     const ctx = this.ctx;
     if (!ctx) return;
     const t = ctx.currentTime;
@@ -383,7 +384,7 @@ export class SoundScape {
       panner.distanceModel = "inverse";
       panner.refDistance = 2;
       panner.positionX.value = at.x;
-      panner.positionY.value = 1.6;
+      panner.positionY.value = at.y + 1.6;
       panner.positionZ.value = at.z;
       panner.connect(this.master);
       out = panner;
@@ -473,7 +474,8 @@ export class SoundScape {
     const heading = Math.random() * Math.PI * 2;
     const count = 3 + Math.floor(Math.random() * 4);
     for (let i = 0; i < count; i++) {
-      this.step("walk", { x, z }, now + i * 0.55);
+      // At about the listener's floor: the listener is at ear height.
+      this.step("walk", { x, y: this.listener.y - 1.6, z }, now + i * 0.55);
       x += Math.cos(heading) * 0.7;
       z += Math.sin(heading) * 0.7;
     }

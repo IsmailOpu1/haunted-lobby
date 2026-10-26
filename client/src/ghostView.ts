@@ -1,8 +1,10 @@
 import * as THREE from "three";
-import { config, type GhostView as GhostMsg } from "@haunted/shared";
+import { config, type GhostView as GhostMsg, type WorldPoint } from "@haunted/shared";
 
+/** A server update, at the ghost's real place (with floor height). */
 interface Snapshot extends GhostMsg {
   t: number;
+  y: number;
 }
 
 const MAX_SNAPSHOTS = 30;
@@ -33,9 +35,10 @@ export class GhostView {
   });
   private aura = new THREE.PointLight(0x9fb4ff, AURA_INTENSITY, AURA_RANGE_M, 2);
   /** Latest known position (for flicker and heartbeat), or null when the ghost is far or gone. */
-  known: { x: number; z: number } | null = null;
+  known: WorldPoint | null = null;
 
-  constructor(scene: THREE.Scene) {
+  /** `toWorld` turns a simulation position into its real place (shared/levels.ts). */
+  constructor(scene: THREE.Scene, private toWorld: (x: number, z: number) => WorldPoint) {
     const { radiusM, heightM } = config.ghost;
     // A pale, faintly glowing figure: visible in the dark on its own, brighter in a flashlight,
     // so it can be seen even when your flashlight cuts out next to it (GDD Section 8).
@@ -72,9 +75,10 @@ export class GhostView {
       this.root.visible = false;
       return;
     }
-    this.snapshots.push({ ...msg, t: now });
+    const at = this.toWorld(msg.x, msg.z);
+    this.snapshots.push({ ...msg, ...at, t: now });
     if (this.snapshots.length > MAX_SNAPSHOTS) this.snapshots.shift();
-    this.known = { x: msg.x, z: msg.z };
+    this.known = at;
   }
 
   render(now: number) {
@@ -92,7 +96,7 @@ export class GhostView {
     }
     const span = b.t - a.t;
     const t = span > 0 ? Math.min(1, (renderTime - a.t) / span) : 1;
-    this.root.position.set(a.x + (b.x - a.x) * t, 0, a.z + (b.z - a.z) * t);
+    this.root.position.set(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t);
     this.root.rotation.y = lerpAngle(a.yaw, b.yaw, t);
     this.root.visible = b.visible;
     // A slow shimmer, so it never looks quite solid.
@@ -102,11 +106,13 @@ export class GhostView {
   }
 
   /** Where the ghost is drawn while it hunts (its footsteps are heard then), else null. */
-  huntingAt(): { x: number; z: number } | null {
-    return this.root.visible ? { x: this.root.position.x, z: this.root.position.z } : null;
+  huntingAt(): WorldPoint | null {
+    if (!this.root.visible) return null;
+    const { x, y, z } = this.root.position;
+    return { x, y, z };
   }
 
-  distanceTo(x: number, z: number): number {
-    return this.known ? Math.hypot(this.known.x - x, this.known.z - z) : Infinity;
+  distanceTo(at: WorldPoint): number {
+    return this.known ? Math.hypot(this.known.x - at.x, this.known.y - at.y, this.known.z - at.z) : Infinity;
   }
 }

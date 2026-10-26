@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { doorBox, HIDING_SPOT_HEIGHT_M, hidingSpotBox, wallBox, type DoorDef, type MapData } from "@haunted/shared";
+import { doorBox, HIDING_SPOT_HEIGHT_M, hidingSpotBox, toWorld, wallBox, type DoorDef, type MapData, type StairDef } from "@haunted/shared";
+import { liftToFloor } from "./place.ts";
 
 const WALL_COLOR = 0x8a8a8a;
 const FLOOR_COLOR = 0x6f6f6f;
@@ -8,13 +9,15 @@ const DOOR_COLOR = 0x6b5a45;
 const CURTAIN_COLOR = 0x4a1f24;
 const DOOR_THICKNESS = 0.08;
 const DOOR_SWING_PER_SEC = 4; // radians per second for the open/close animation
+const STAIR_COLOR = 0x5e5850;
+const STEP_RISE_M = 0.2;
 
 /** A door mesh that swings around its hinge. */
 export class DoorView {
   private pivot = new THREE.Group();
   private targetAngle = 0;
 
-  constructor(scene: THREE.Scene, private def: DoorDef, height: number) {
+  constructor(scene: THREE.Scene, map: MapData, private def: DoorDef, height: number) {
     const box = doorBox(def, DOOR_THICKNESS);
     const mesh = new THREE.Mesh(
       new THREE.BoxGeometry(box.sizeX, height * 0.9, box.sizeZ),
@@ -30,6 +33,7 @@ export class DoorView {
       mesh.position.set(0, (height * 0.9) / 2, half);
     }
     this.pivot.add(mesh);
+    liftToFloor(map, this.pivot, def.x, def.z);
     scene.add(this.pivot);
   }
 
@@ -44,7 +48,7 @@ export class DoorView {
   }
 }
 
-/** Builds the grey-box rooms: floors, ceilings, walls and doors. */
+/** Builds the grey-box rooms: floors, ceilings, walls, stairs and doors, each on its own floor. */
 export function buildWorld(scene: THREE.Scene, map: MapData): Map<string, DoorView> {
   const h = map.wallHeightM;
   const wallMat = new THREE.MeshLambertMaterial({ color: WALL_COLOR });
@@ -52,7 +56,7 @@ export function buildWorld(scene: THREE.Scene, map: MapData): Map<string, DoorVi
     const box = wallBox(segment, map.wallThicknessM);
     const wall = new THREE.Mesh(new THREE.BoxGeometry(box.sizeX, h, box.sizeZ), wallMat);
     wall.position.set(box.x, h / 2, box.z);
-    scene.add(wall);
+    scene.add(liftToFloor(map, wall));
   }
 
   const floorMat = new THREE.MeshLambertMaterial({ color: FLOOR_COLOR });
@@ -66,12 +70,12 @@ export function buildWorld(scene: THREE.Scene, map: MapData): Map<string, DoorVi
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, d), floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(cx, 0, cz);
-    scene.add(floor);
+    scene.add(liftToFloor(map, floor));
 
     const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(w, d), ceilingMat);
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.set(cx, h, cz);
-    scene.add(ceiling);
+    scene.add(liftToFloor(map, ceiling));
   }
 
   // Hiding furniture: wardrobes and cupboards are wood boxes, curtains are dark cloth.
@@ -80,10 +84,50 @@ export function buildWorld(scene: THREE.Scene, map: MapData): Map<string, DoorVi
     const color = spot.kind === "curtain" ? CURTAIN_COLOR : DOOR_COLOR;
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(box.sizeX, HIDING_SPOT_HEIGHT_M, box.sizeZ), new THREE.MeshLambertMaterial({ color }));
     mesh.position.set(box.x, HIDING_SPOT_HEIGHT_M / 2, box.z);
-    scene.add(mesh);
+    scene.add(liftToFloor(map, mesh));
   }
 
+  for (const stair of map.stairs) buildStairs(scene, map, stair, wallMat, ceilingMat);
+
   const doors = new Map<string, DoorView>();
-  for (const def of map.doors) doors.set(def.id, new DoorView(scene, def, h));
+  for (const def of map.doors) doors.set(def.id, new DoorView(scene, map, def, h));
   return doors;
+}
+
+/**
+ * A flight of steps between its two side walls, which rise from the lower floor to the top of
+ * the upper one. The walls the simulation adds across the flight's ends (levels.ts stairWalls)
+ * are not drawn: they only stop walkers in the half of the flight that belongs to the other floor.
+ */
+function buildStairs(scene: THREE.Scene, map: MapData, stair: StairDef, wallMat: THREE.Material, ceilingMat: THREE.Material) {
+  const bottom = toWorld(map, stair.x, stair.z);
+  const along = stair.dir === "+x" ? { x: 1, z: 0 } : stair.dir === "-x" ? { x: -1, z: 0 } : stair.dir === "+z" ? { x: 0, z: 1 } : { x: 0, z: -1 };
+  const top = toWorld(map, stair.x + along.x * stair.lengthM, stair.z + along.z * stair.lengthM);
+  const rise = top.y - bottom.y;
+  const group = new THREE.Group();
+  group.position.set(bottom.x, bottom.y, bottom.z);
+  // Built going toward -z, then turned to face the flight's direction.
+  group.rotation.y = Math.atan2(-along.x, -along.z);
+  scene.add(group);
+
+  const count = Math.max(1, Math.round(rise / STEP_RISE_M));
+  const depth = stair.lengthM / count;
+  const stepMat = new THREE.MeshLambertMaterial({ color: STAIR_COLOR });
+  for (let i = 0; i < count; i++) {
+    const height = (rise * (i + 1)) / count;
+    const step = new THREE.Mesh(new THREE.BoxGeometry(stair.widthM, height, depth), stepMat);
+    step.position.set(0, height / 2, -(i + 0.5) * depth);
+    group.add(step);
+  }
+
+  const wallHeight = rise + map.wallHeightM;
+  for (const side of [-1, 1]) {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(map.wallThicknessM, wallHeight, stair.lengthM), wallMat);
+    wall.position.set((side * stair.widthM) / 2, wallHeight / 2, -stair.lengthM / 2);
+    group.add(wall);
+  }
+  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(stair.widthM, stair.lengthM), ceilingMat);
+  ceiling.rotation.x = Math.PI / 2;
+  ceiling.position.set(0, wallHeight, -stair.lengthM / 2);
+  group.add(ceiling);
 }

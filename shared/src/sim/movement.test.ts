@@ -91,6 +91,8 @@ describe("collision with walls and doors", () => {
     name: "test",
     wallHeightM: 3,
     wallThicknessM: 0.2,
+    levels: [],
+    stairs: [],
     walls: [
       [-10, -2, -0.75, -2],
       [0.75, -2, 10, -2],

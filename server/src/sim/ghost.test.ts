@@ -10,6 +10,7 @@ import {
   PhysicsWorld,
   SIM_DT,
   stepMovement,
+  worldDistance,
   type MoveInput,
   type NightPart,
 } from "@haunted/shared";
@@ -42,6 +43,7 @@ function makeWorld(players: GhostTarget[]) {
   const world: GhostWorld = {
     players: () => players,
     lineOfSight: (a, b, h) => physics.lineOfSight(a, b, h),
+    distance: (a, b) => worldDistance(map, a, b),
     doors: map.doors,
     isDoorOpen: (id) => open.has(id),
     openDoor: (id) => open.add(id),

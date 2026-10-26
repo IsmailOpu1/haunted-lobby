@@ -22,6 +22,8 @@ export interface GhostTarget {
 export interface GhostWorld {
   players(): GhostTarget[];
   lineOfSight(a: Point, b: Point, height: number): boolean;
+  /** Real distance between two places, through floors when they are on different ones. */
+  distance(a: Point, b: Point): number;
   doors: DoorDef[];
   isDoorOpen(id: string): boolean;
   openDoor(id: string): void;
@@ -163,7 +165,7 @@ export class Ghost {
     const halfFov = ((config.ghost.sightFovDeg / 2) * Math.PI) / 180;
     for (const p of this.world.players()) {
       if (p.health !== "alive") continue;
-      const dist = Math.hypot(p.x - this.x, p.z - this.z);
+      const dist = this.world.distance(p, this);
       if (dist <= p.noiseM) {
         found.push(p);
         continue;
@@ -182,7 +184,7 @@ export class Ghost {
     let nearest: Point | null = null;
     let best = Infinity;
     for (const n of this.world.takeNoises()) {
-      const d = Math.hypot(n.x - this.x, n.z - this.z);
+      const d = this.world.distance(n, this);
       if (d <= n.radiusM && d < best) {
         best = d;
         nearest = { x: n.x, z: n.z };
@@ -276,7 +278,7 @@ export class Ghost {
     // Catch: a perceived, standing, not-immune target within reach (GDD Section 7).
     const target = players.find((p) => p.id === this.targetId);
     if (target && target.health === "alive" && !target.hidingSpot && !target.immune) {
-      if (Math.hypot(target.x - this.x, target.z - this.z) <= config.ghost.catchRangeM) {
+      if (this.world.distance(target, this) <= config.ghost.catchRangeM) {
         this.world.hit(target.id);
         this.endHunt();
         return;
@@ -346,7 +348,7 @@ export class Ghost {
     const players = this.world.players().filter((p) => p.health !== "dead");
     let spot = this.nav.randomPoint();
     for (let i = 0; i < 20; i++) {
-      const far = players.every((p) => Math.hypot(p.x - spot.x, p.z - spot.z) >= config.ghost.reappearMinDistM);
+      const far = players.every((p) => this.world.distance(p, spot) >= config.ghost.reappearMinDistM);
       if (far) break;
       spot = this.nav.randomPoint();
     }
@@ -377,6 +379,14 @@ export class Ghost {
     let budget = speed * dt;
     while (budget > 0 && this.path.length > 0) {
       const next = this.path[0]!;
+      if (next.jump) {
+        // The same real place on the next floor: no walking needed.
+        this.x = next.x;
+        this.z = next.z;
+        this.path.shift();
+        this.progressAnchor = { x: this.x, z: this.z };
+        continue;
+      }
       const dx = next.x - this.x;
       const dz = next.z - this.z;
       const d = Math.hypot(dx, dz);

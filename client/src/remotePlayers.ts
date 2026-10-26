@@ -1,12 +1,13 @@
 import * as THREE from "three";
-import { config } from "@haunted/shared";
+import { config, type WorldPoint } from "@haunted/shared";
 import { createFlashlight } from "./flashlight.ts";
 import { Flicker } from "./flicker.ts";
 
-/** What the server said about another player at one moment. */
+/** What the server said about another player at one moment, at their real place (with floor height). */
 interface Snapshot {
   t: number;
   x: number;
+  y: number;
   z: number;
   yaw: number;
   pitch: number;
@@ -83,7 +84,7 @@ class RemotePlayer {
     const span = b.t - a.t;
     const t = span > 0 ? Math.min(1, (renderTime - a.t) / span) : 1;
 
-    this.root.position.set(a.x + (b.x - a.x) * t, 0, a.z + (b.z - a.z) * t);
+    this.root.position.set(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t);
     this.root.rotation.y = lerpAngle(a.yaw, b.yaw, t);
     this.head.rotation.x = a.pitch + (b.pitch - a.pitch) * t;
 
@@ -112,15 +113,16 @@ class RemotePlayer {
   }
 
   /** Where this player is drawn right now and what they are doing (for footstep sounds). */
-  view(): { x: number; z: number; crouching: boolean; health: string; hidden: boolean } | null {
+  view(): { x: number; y: number; z: number; crouching: boolean; health: string; hidden: boolean } | null {
     if (!this.latest) return null;
     const { crouching, health, hidden } = this.latest;
-    return { x: this.root.position.x, z: this.root.position.z, crouching, health, hidden };
+    const { x, y, z } = this.root.position;
+    return { x, y, z, crouching, health, hidden };
   }
 
   /** Flicker this player's flashlight when the ghost is near them. */
-  applyFlicker(dt: number, ghostDistanceFrom: (x: number, z: number) => number) {
-    const level = this.flicker.update(dt, ghostDistanceFrom(this.root.position.x, this.root.position.z));
+  applyFlicker(dt: number, ghostDistanceFrom: (at: WorldPoint) => number) {
+    const level = this.flicker.update(dt, ghostDistanceFrom(this.root.position));
     this.light.intensity = this.baseIntensity * level;
     (this.lens.material as THREE.MeshBasicMaterial).color.setScalar(level > 0.5 ? 1 : 0.2);
   }
@@ -133,17 +135,18 @@ class RemotePlayer {
 export class RemotePlayers {
   private players = new Map<string, RemotePlayer>();
 
-  constructor(private scene: THREE.Scene) {}
+  /** `toWorld` turns a simulation position into its real place (shared/levels.ts). */
+  constructor(private scene: THREE.Scene, private toWorld: (x: number, z: number) => WorldPoint) {}
 
   /** Records the latest server state for every other player, and removes players who left. */
-  update(states: Map<string, Omit<Snapshot, "t">>, now: number) {
+  update(states: Map<string, Omit<Snapshot, "t" | "y">>, now: number) {
     for (const [id, s] of states) {
       let p = this.players.get(id);
       if (!p) {
         p = new RemotePlayer(this.scene);
         this.players.set(id, p);
       }
-      p.push({ ...s, t: now });
+      p.push({ ...s, ...this.toWorld(s.x, s.z), t: now });
     }
     for (const [id, p] of this.players) {
       if (!states.has(id)) {
@@ -163,7 +166,7 @@ export class RemotePlayers {
     return out;
   }
 
-  render(now: number, dt: number, ghostDistanceFrom: (x: number, z: number) => number) {
+  render(now: number, dt: number, ghostDistanceFrom: (at: WorldPoint) => number) {
     const renderTime = now - config.net.interpolationMs;
     for (const p of this.players.values()) {
       p.render(renderTime);

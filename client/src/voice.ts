@@ -81,7 +81,7 @@ export class VoiceChat {
   }
 
   /** Call every frame: places each voice where its player is and applies the server's volumes. */
-  update(positionOf: (id: string) => { x: number; z: number } | null) {
+  update(positionOf: (id: string) => { x: number; y: number; z: number } | null) {
     const audio = this.audio();
     if (!audio) return;
     for (const [id, voice] of this.voices) {
@@ -95,7 +95,7 @@ export class VoiceChat {
       const pos = positionOf(id);
       if (pos) {
         panner.positionX.setTargetAtTime(pos.x, t, POSITION_SMOOTHING_SEC);
-        panner.positionY.setTargetAtTime(1.6, t, POSITION_SMOOTHING_SEC);
+        panner.positionY.setTargetAtTime(pos.y + 1.6, t, POSITION_SMOOTHING_SEC);
         panner.positionZ.setTargetAtTime(pos.z, t, POSITION_SMOOTHING_SEC);
       }
     }
