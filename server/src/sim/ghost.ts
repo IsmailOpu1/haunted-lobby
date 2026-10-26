@@ -32,6 +32,8 @@ export interface GhostWorld {
   hit(playerId: string): void;
   /** Hunt warning (2 s of silence), hunt start and hunt end. */
   huntEvent(phase: "warning" | "start" | "end"): void;
+  /** If a salt line is under the ghost, removes it and returns true (GDD 8.3). */
+  takeSaltAt(x: number, z: number): boolean;
 }
 
 const ARRIVE_M = 0.15;
@@ -58,6 +60,7 @@ export class Ghost {
   private inspecting: { spot: HidingSpotDef; timeLeft: number } | null = null;
   /** A hiding spot the ghost is walking to so it can look inside. */
   private pendingInspect: HidingSpotDef | null = null;
+  private frozenLeft = 0;
   private lastInvestigated: Point | null = null;
   private ignoreTimer = 0;
   /** Time between hunts for the current part of the night, set every update. */
@@ -102,6 +105,16 @@ export class Ghost {
       this.huntTimer -= dt;
     }
 
+    // Frozen on salt: no moving and no catching, but the hunt clock keeps running (GDD 8.3).
+    if (this.frozenLeft > 0) {
+      this.frozenLeft -= dt;
+      if (this.state === "hunt") {
+        this.stateTimer -= dt;
+        if (this.stateTimer <= 0) this.endHunt();
+      }
+      return;
+    }
+
     switch (this.state) {
       case "wander":
       case "investigate":
@@ -127,6 +140,14 @@ export class Ghost {
         break;
     }
     this.openNearbyDoors();
+    if (this.state !== "retreat" && this.world.takeSaltAt(this.x, this.z)) {
+      this.frozenLeft = config.salt.ghostFreezeSec;
+    }
+  }
+
+  /** True while frozen by salt. */
+  get frozen(): boolean {
+    return this.frozenLeft > 0;
   }
 
   /** Test shortcut (HAUNTED_DEBUG only): start the hunt countdown from this many seconds. */

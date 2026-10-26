@@ -65,6 +65,17 @@ export const marrowHotelGreybox: MapData = {
     { id: "kitchen-pantry", kind: "cupboard", x: 8.85, z: -12, sizeX: 0.6, sizeZ: 1.2, exit: { x: 7.95, z: -12 } },
     { id: "kitchen-cupboard", kind: "cupboard", x: 5, z: -13.6, sizeX: 1.2, sizeZ: 0.6, exit: { x: 5, z: -12.7 } },
   ],
+  // 8 salt jars (one per possible player), spread over every room of the grey box.
+  saltJars: [
+    { id: "jar-hall-1", x: -6.5, z: 11 },
+    { id: "jar-hall-2", x: 6.5, z: 1.5 },
+    { id: "jar-hall-3", x: 0, z: 11.2 },
+    { id: "jar-corridor", x: -0.8, z: -13 },
+    { id: "jar-restaurant-1", x: -12, z: -5 },
+    { id: "jar-restaurant-2", x: -3, z: -13 },
+    { id: "jar-kitchen-1", x: 8.5, z: -7 },
+    { id: "jar-kitchen-2", x: 2.5, z: -13 },
+  ],
   spawns: [
     { x: -3, z: 6 },
     { x: 3, z: 6 },

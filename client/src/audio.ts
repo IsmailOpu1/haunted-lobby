@@ -194,6 +194,47 @@ export class SoundScape {
     scuff.stop(t + s.seconds + 0.05);
   }
 
+  /** A camera shutter and flash whine. With a position it comes from there; without, it is yours. */
+  shutter(at?: { x: number; z: number }) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    let out: AudioNode = this.master;
+    if (at) {
+      const panner = ctx.createPanner();
+      panner.distanceModel = "inverse";
+      panner.refDistance = 2;
+      panner.positionX.value = at.x;
+      panner.positionY.value = 1.6;
+      panner.positionZ.value = at.z;
+      panner.connect(this.master);
+      out = panner;
+    }
+    // Click: a very short burst of bright noise.
+    const click = ctx.createBufferSource();
+    click.buffer = this.noise;
+    const hp = ctx.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 2500;
+    const clickGain = ctx.createGain();
+    clickGain.gain.setValueAtTime(0.35, t);
+    clickGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+    click.connect(hp).connect(clickGain).connect(out);
+    click.start(t);
+    click.stop(t + 0.05);
+    // Old flash bulbs whine as they recharge.
+    const whine = ctx.createOscillator();
+    whine.frequency.setValueAtTime(2200, t + 0.05);
+    whine.frequency.exponentialRampToValueAtTime(5200, t + 0.7);
+    const whineGain = ctx.createGain();
+    whineGain.gain.setValueAtTime(0.0001, t + 0.05);
+    whineGain.gain.exponentialRampToValueAtTime(0.03, t + 0.15);
+    whineGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.75);
+    whine.connect(whineGain).connect(out);
+    whine.start(t + 0.05);
+    whine.stop(t + 0.8);
+  }
+
   /** The 2 seconds before a hunt: every sound drops out (GDD Section 12.1). */
   huntWarning(seconds: number) {
     if (!this.ctx) return;

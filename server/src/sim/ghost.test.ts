@@ -1,7 +1,10 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import {
   config,
+  ghostOnSalt,
   initPhysics,
+  saltLineInFront,
+  type SaltLineDef,
   initialMoveState,
   nightPart,
   PhysicsWorld,
@@ -30,7 +33,12 @@ function player(over: Partial<GhostTarget> & { id: string; x: number; z: number 
 /** A test world: fixed players, real walls for line of sight, doors that start closed. */
 function makeWorld(players: GhostTarget[]) {
   const open = new Set<string>();
-  const log = { hits: [] as string[], events: [] as string[], noises: [] as { x: number; z: number; radiusM: number }[] };
+  const log = {
+    hits: [] as string[],
+    events: [] as string[],
+    noises: [] as { x: number; z: number; radiusM: number }[],
+    salt: [] as SaltLineDef[],
+  };
   const world: GhostWorld = {
     players: () => players,
     lineOfSight: (a, b, h) => physics.lineOfSight(a, b, h),
@@ -45,6 +53,12 @@ function makeWorld(players: GhostTarget[]) {
       if (p) p.health = "downed";
     },
     huntEvent: (phase) => log.events.push(phase),
+    takeSaltAt: (x, z) => {
+      const i = log.salt.findIndex((line) => ghostOnSalt(x, z, line));
+      if (i < 0) return false;
+      log.salt.splice(i, 1);
+      return true;
+    },
   };
   return { world, log, open };
 }
@@ -163,6 +177,29 @@ describe("ghost", () => {
     (ghost as unknown as { state: string }).state = "investigate";
     run(ghost, 6, "calm");
     expect(open.has("hall-corridor")).toBe(true);
+  });
+
+  it("freezes for 3 s when it walks onto a salt line, and the line is used up", () => {
+    const { world, log } = makeWorld([]);
+    const ghost = new Ghost(nav, world, { x: 0, z: 9 });
+    run(ghost, 0.05, "calm");
+    // A line across the hall between the ghost and its goal at z 3.
+    log.salt.push(saltLineInFront(0, 7, 0));
+    (ghost as unknown as { setGoal(p: { x: number; z: number }): void }).setGoal({ x: 0, z: 3 });
+    (ghost as unknown as { state: string }).state = "investigate";
+    let t = 0;
+    while (!ghost.frozen && t < 5) {
+      ghost.update(SIM_DT, "calm", 4);
+      t += SIM_DT;
+    }
+    expect(ghost.frozen).toBe(true);
+    expect(log.salt).toHaveLength(0);
+    const stuckAt = ghost.z;
+    run(ghost, config.salt.ghostFreezeSec - 0.2, "calm");
+    expect(ghost.z).toBeCloseTo(stuckAt, 5);
+    run(ghost, 1, "calm");
+    expect(ghost.frozen).toBe(false);
+    expect(ghost.z).toBeLessThan(stuckAt - 0.3); // walking on again
   });
 
   it("is gone at dawn", () => {

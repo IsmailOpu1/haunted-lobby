@@ -26,6 +26,9 @@ export const Player = schema({
   // The timed action being held (PlayerAction) and its progress from 0 to 1.
   action: t.string(),
   actionProgress: t.float32(),
+  // Items (GDD Section 8).
+  salt: t.uint8(),
+  cameraShots: t.uint8(),
 }, "Player");
 export type Player = SchemaType<typeof Player>;
 
@@ -34,9 +37,23 @@ export const Door = schema({
 }, "Door");
 export type Door = SchemaType<typeof Door>;
 
+export const SaltLine = schema({
+  x: t.float32(),
+  z: t.float32(),
+  yaw: t.float32(),
+}, "SaltLine");
+export type SaltLine = SchemaType<typeof SaltLine>;
+
+export const SaltJar = schema({
+  taken: t.boolean(),
+}, "SaltJar");
+export type SaltJar = SchemaType<typeof SaltJar>;
+
 export const GameState = schema({
   players: t.map(Player),
   doors: t.map(Door),
+  saltLines: t.map(SaltLine),
+  saltJars: t.map(SaltJar),
   // Night clock (GDD Section 4.2).
   nightTime: t.float32(),
   nightLength: t.float32(),

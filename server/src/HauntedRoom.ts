@@ -1,6 +1,9 @@
 import { Room, type Client } from "colyseus";
 import {
   calibrateNormal,
+  ghostOnSalt,
+  normalizeAngle,
+  saltLineInFront,
   classifyVoice,
   cleanPlayerName,
   config,
@@ -32,7 +35,7 @@ import {
 import { defaultMap } from "@haunted/maps";
 import { Ghost, type GhostTarget, type GhostWorld } from "./sim/ghost.ts";
 import { NavMap } from "./sim/navmap.ts";
-import { Door, GameState, Player } from "./state.ts";
+import { Door, GameState, Player, SaltJar, SaltLine } from "./state.ts";
 import { NoVoice, type VoiceBackend } from "./voice/backend.ts";
 import { liveKitFromEnv } from "./voice/livekit.ts";
 import { recordVoiceStart } from "./voice/status.ts";
@@ -55,7 +58,8 @@ const DEBUG = process.env.HAUNTED_DEBUG === "1";
 type Action =
   | { kind: "revive"; targetId: string; elapsed: number }
   | { kind: "hide"; spotId: string; elapsed: number }
-  | { kind: "unhide"; elapsed: number };
+  | { kind: "unhide"; elapsed: number }
+  | { kind: "salt"; elapsed: number };
 
 /** Server-only data for one connected player. */
 interface PlayerSim {
@@ -85,13 +89,22 @@ interface PlayerSim {
   micCheck: { samples: number[]; elapsed: number } | null;
 }
 
-/** Ear height for walls between two players' voices. */
+/** Ear height for walls between two players' voices (also used for camera line of sight). */
 const VOICE_SIGHT_HEIGHT_M = 1.6;
+
+/** A Spirit Camera photo: who was in the frame and whether each shows as cursed. */
+interface PhotoRecord {
+  by: string;
+  nightTime: number;
+  subjects: { id: string; cursed: boolean }[];
+  ghostInFrame: boolean;
+}
 
 const ACTION_SECONDS: Record<Action["kind"], number> = {
   revive: config.health.reviveSec,
   hide: config.movement.hideEnterExitSec,
   unhide: config.movement.hideEnterExitSec,
+  salt: config.salt.placeSec,
 };
 
 export class HauntedRoom extends Room<{ state: GameState }> {
@@ -114,6 +127,9 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private seesGhost = new Set<string>();
   private voice: VoiceBackend = new NoVoice();
   private voiceTimer = 0;
+  private saltCounter = 0;
+  /** Spirit Camera photos, kept on the server until the next meeting shows them (Phase 6). */
+  private photos: PhotoRecord[] = [];
 
   async onCreate() {
     // The 5-letter room code is the Colyseus room id, so friends join with joinById(code).
@@ -133,6 +149,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     await initPhysics();
     this.physics = new PhysicsWorld(this.map);
     for (const door of this.map.doors) this.state.doors.set(door.id, new Door({ open: false }));
+    // Every jar spot is stocked until the lobby decides the player count (Phase 7).
+    for (const jar of this.map.saltJars) this.state.saltJars.set(jar.id, new SaltJar({ taken: false }));
     this.state.nightLength = config.match.lengthMin * 60;
     this.state.nightTime = 0;
     this.state.part = "quiet";
@@ -162,6 +180,16 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       if (down) this.startUse(client.sessionId);
       else this.cancelAction(client.sessionId);
     });
+
+    this.onMessage("pourSalt", (client) => {
+      const sim = this.sims.get(client.sessionId);
+      const player = this.state.players.get(client.sessionId);
+      if (!sim || !player || sim.action) return;
+      if (player.health !== "alive" || player.hidingSpot || player.salt <= 0) return;
+      this.setAction(sim, player, { kind: "salt", elapsed: 0 });
+    });
+
+    this.onMessage("photo", (client) => this.takePhoto(client.sessionId));
 
     this.onMessage("voiceRequest", (client) => {
       const player = this.state.players.get(client.sessionId);
@@ -233,6 +261,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
         breathCooldown: 0,
         action: "",
         actionProgress: 0,
+        salt: config.salt.perPlayer,
+        cameraShots: config.camera.shotsPerPlayer,
       }),
     );
     // The night starts when the first player arrives. The lobby and Start button come in Phase 7.
@@ -526,6 +556,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       return;
     }
 
+    if (this.pickUpSalt(player, here.x, here.z)) return;
+
     const spot = this.nearestFreeHidingSpot(here.x, here.z);
     if (spot) {
       this.setAction(sim, player, { kind: "hide", spotId: spot.id, elapsed: 0 });
@@ -592,6 +624,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.clearAction(sim, player);
     if (action.kind === "revive") this.revive(action.targetId);
     else if (action.kind === "hide") this.hide(sim, player, action.spotId);
+    else if (action.kind === "salt") this.pourSalt(player);
     else this.unhide(sim, player);
   }
 
@@ -627,6 +660,70 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     sim.move = { ...sim.move, x: spot.exit.x, z: spot.exit.z };
     player.x = spot.exit.x;
     player.z = spot.exit.z;
+  }
+
+  // ---------- Items (GDD Section 8) ----------
+
+  /** E near an untouched jar: +1 salt, up to carryMax. Returns true if a jar was taken. */
+  private pickUpSalt(player: Player, x: number, z: number): boolean {
+    if (player.salt >= config.salt.carryMax) return false;
+    for (const jar of this.map.saltJars) {
+      const state = this.state.saltJars.get(jar.id);
+      if (!state || state.taken || Math.hypot(jar.x - x, jar.z - z) > config.salt.jarRangeM) continue;
+      state.taken = true;
+      player.salt += 1;
+      return true;
+    }
+    return false;
+  }
+
+  /** The 1 s pour finished: the line lands in front of the player, across where they face. */
+  private pourSalt(player: Player) {
+    if (player.salt <= 0) return;
+    player.salt -= 1;
+    const def = saltLineInFront(player.x, player.z, player.yaw);
+    this.state.saltLines.set(`salt-${++this.saltCounter}`, new SaltLine(def));
+  }
+
+  /**
+   * Spirit Camera (GDD 8.2 / 15.2): uses a shot, flashes (seen within 15 m, heard by the ghost
+   * within 10 m), and records who was in the frame. Photos are shown at the next meeting
+   * (Phase 6), which is also when the curse glow decides whether a face shows as a demon.
+   */
+  private takePhoto(sessionId: string) {
+    const player = this.state.players.get(sessionId);
+    if (!player || player.health !== "alive" || player.cameraShots <= 0) return;
+    player.cameraShots -= 1;
+    const c = config.camera;
+    const halfFov = ((c.photoFovDeg / 2) * Math.PI) / 180;
+    const inFrame = (x: number, z: number) => {
+      const dist = Math.hypot(x - player.x, z - player.z);
+      if (dist > c.captureRangeM || dist < 1e-6) return false;
+      const angleTo = Math.atan2(-(x - player.x), -(z - player.z));
+      if (Math.abs(normalizeAngle(angleTo - player.yaw)) > halfFov) return false;
+      return this.physics.lineOfSight(player, { x, z }, VOICE_SIGHT_HEIGHT_M);
+    };
+
+    const subjects: PhotoRecord["subjects"] = [];
+    this.state.players.forEach((p, id) => {
+      if (id !== sessionId && !p.hidingSpot && inFrame(p.x, p.z)) subjects.push({ id, cursed: false });
+    });
+    const ghostPresent = this.ghost.state !== "asleep" && this.ghost.state !== "gone" && this.ghost.state !== "retreat";
+    this.photos.push({
+      by: sessionId,
+      nightTime: this.state.nightTime,
+      subjects,
+      ghostInFrame: ghostPresent && this.ghost.visible && inFrame(this.ghost.x, this.ghost.z),
+    });
+
+    const flash: ServerMessages["flash"] = { x: player.x, z: player.z, by: sessionId };
+    for (const client of this.clients) {
+      const other = this.state.players.get(client.sessionId);
+      if (other && Math.hypot(other.x - player.x, other.z - player.z) <= c.flashVisibleM) client.send("flash", flash);
+    }
+    this.noises.push({ x: player.x, z: player.z, radiusM: c.flashGhostHearM });
+    const taken: ServerMessages["photoTaken"] = { shotsLeft: player.cameraShots };
+    this.clients.find((cl) => cl.sessionId === sessionId)?.send("photoTaken", taken);
   }
 
   private toggleNearestDoor(x: number, z: number) {
@@ -678,6 +775,14 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       openDoor: (id) => this.setDoor(id, true),
       hidingSpots: this.map.hidingSpots,
       takeNoises: () => this.noises.slice(),
+      takeSaltAt: (x, z) => {
+        let hit: string | null = null;
+        this.state.saltLines.forEach((line, id) => {
+          if (!hit && ghostOnSalt(x, z, line)) hit = id;
+        });
+        if (hit) this.state.saltLines.delete(hit);
+        return hit !== null;
+      },
       hit: (id) => this.downPlayer(id),
       huntEvent: (phase) => {
         const msg: ServerMessages["hunt"] = { phase };

@@ -37,6 +37,10 @@ export interface ServerMessages {
   micCheck: { ok: true; normalDbfs: number } | { ok: false; reason: string };
   /** Your microphone stopped (or came back). While lost, the ghost hears you as talking normally. */
   micLost: { lost: boolean };
+  /** A camera flash went off near you (GDD 15.2: visible within 15 m). */
+  flash: { x: number; z: number; by: string };
+  /** Your photo was taken. It develops by the next meeting; nobody sees it before then. */
+  photoTaken: { shotsLeft: number };
 }
 
 export interface GhostView {
@@ -67,10 +71,14 @@ export interface ClientMessages {
    * message handlers are ready, so the answer can never arrive before it is listening.
    */
   voiceRequest: undefined;
+  /** Pour a salt line in front of you (1 s, standing still). */
+  pourSalt: undefined;
+  /** Take a Spirit Camera photo in the direction you are looking. */
+  photo: undefined;
 }
 
 /** Player health (GDD Section 7). */
 export type Health = "alive" | "downed" | "dead";
 
-/** A timed action a player is holding E for. */
-export type PlayerAction = "" | "revive" | "hide" | "unhide";
+/** A timed action a player is doing (holding E, or pouring salt). */
+export type PlayerAction = "" | "revive" | "hide" | "unhide" | "salt";

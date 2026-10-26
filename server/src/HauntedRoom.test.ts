@@ -22,6 +22,12 @@ function collect<K extends keyof ServerMessages>(room: Room, type: K): ServerMes
   return received;
 }
 
+function collectMsgs<K extends keyof ServerMessages>(room: Room, type: K): ServerMessages[K][] {
+  const out: ServerMessages[K][] = [];
+  room.onMessage(type, (m: ServerMessages[K]) => out.push(m));
+  return out;
+}
+
 /** Walks a player to a point by sending real movement inputs. Returns the last input seq used. */
 async function walkTo(room: Room, target: { x: number; z: number }, startSeq = 0): Promise<number> {
   let seq = startSeq;
@@ -254,6 +260,53 @@ describe("HauntedRoom", () => {
     room.send("flashlight");
     await waitFor(() => me().flashlightOn === false);
     await room.leave();
+  });
+
+  it("pours salt in front of you (1 s, uses a handful) and refills from a jar", async () => {
+    const room = await new Client(endpoint).create(ROOM_NAME, { name: "Salter" });
+    room.onMessage("*", () => {});
+    await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+    const me = () => room.state.players.get(room.sessionId);
+    expect(me().salt).toBe(config.salt.perPlayer);
+
+    room.send("pourSalt");
+    await waitFor(() => me().action === "salt");
+    await waitFor(() => room.state.saltLines.size === 1, 3000);
+    expect(me().salt).toBe(config.salt.perPlayer - 1);
+    let line: { x: number; z: number } | undefined;
+    room.state.saltLines.forEach((l: { x: number; z: number }) => (line = l));
+    // Spawn 0 is (-3, 6) facing north: the line lands 1 m ahead.
+    expect(line!.x).toBeCloseTo(-3, 1);
+    expect(line!.z).toBeCloseTo(6 - config.salt.placeAheadM, 1);
+
+    // The jar at (-6.5, 11) gives one handful back, once.
+    await walkTo(room, { x: -6.5, z: 10.2 });
+    room.send("use", { down: true });
+    room.send("use", { down: false });
+    await waitFor(() => me().salt === config.salt.perPlayer);
+    expect(room.state.saltJars.get("jar-hall-1").taken).toBe(true);
+    await room.leave();
+  }, 20000);
+
+  it("uses a camera shot, flashes for players nearby, and has no shots after the last one", async () => {
+    const a = await new Client(endpoint).create(ROOM_NAME, { name: "Snap" });
+    a.onMessage("*", () => {});
+    const taken = collectMsgs(a, "photoTaken");
+    const b = await new Client(endpoint).joinById(a.roomId, { name: "Model" });
+    b.onMessage("*", () => {});
+    const flashes = collectMsgs(b, "flash");
+    await waitFor(() => a.state.players?.size === 2);
+
+    a.send("photo");
+    await waitFor(() => taken.length === 1);
+    expect(taken[0]).toEqual({ shotsLeft: config.camera.shotsPerPlayer - 1 });
+    await waitFor(() => flashes.length === 1); // 6 m away, within 15 m
+    await waitFor(() => a.state.players.get(a.sessionId).cameraShots === 0);
+
+    a.send("photo"); // no film left: nothing happens
+    await new Promise((r) => setTimeout(r, 300));
+    expect(taken).toHaveLength(1);
+    await Promise.all([a.leave(), b.leave()]);
   });
 
   it("refuses players beyond the room limit", async () => {

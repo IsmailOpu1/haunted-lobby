@@ -48,6 +48,9 @@ const micSentence = el("mic-sentence");
 const micCheckBtn = el<HTMLButtonElement>("mic-check");
 const micLost = el("mic-lost");
 const lookHint = el("look-hint");
+const itemsBox = el("items");
+const viewfinder = el("viewfinder");
+const screenFlash = el("screen-flash");
 
 const NIGHT_PART_NAMES: Record<string, string> = {
   quiet: "Quiet",
@@ -141,6 +144,16 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     micFill.style.width = `${Math.round(level * 100)}%`;
   },
   setMicLost: (lost) => micLost.classList.toggle("hidden", !lost),
+  setItems: (salt, shots) => {
+    const text = `Salt <strong>&times;${salt}</strong> (3) &nbsp; Camera <strong>&times;${shots}</strong> (2)`;
+    if (itemsBox.innerHTML !== text) itemsBox.innerHTML = text;
+  },
+  setCameraRaised: (raised) => viewfinder.classList.toggle("hidden", !raised),
+  flashScreen: () => {
+    // Restart the fade: show white instantly, then let the transition fade it out.
+    screenFlash.classList.add("on");
+    requestAnimationFrame(() => requestAnimationFrame(() => screenFlash.classList.remove("on")));
+  },
 });
 
 micCheckBtn.addEventListener("click", () => game.startMicCheck());

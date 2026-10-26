@@ -6,6 +6,12 @@ const MAX_PITCH = Math.PI / 2 - 0.05;
 
 export interface InputActions {
   onFlashlight(): void;
+  /** Key 2: raise or lower the Spirit Camera. */
+  onCameraToggle(raised: boolean): void;
+  /** Click while the camera is raised. */
+  onPhoto(): void;
+  /** Key 3: pour a salt line. */
+  onPourSalt(): void;
   /** E pressed (true) or released (false). */
   onUse(down: boolean): void;
   onToggleDebugLights(): void;
@@ -19,6 +25,7 @@ export class PlayerInput {
   pitch = 0;
   private keys = new Set<string>();
   private enabled = false;
+  private cameraRaised = false;
 
   constructor(private canvas: HTMLCanvasElement, private actions: InputActions) {
     window.addEventListener("keydown", (e) => {
@@ -27,6 +34,11 @@ export class PlayerInput {
       if (!this.looking || e.repeat) return;
       if (e.code === "KeyE") actions.onUse(true);
       if (e.code === "Digit1") actions.onFlashlight();
+      if (e.code === "Digit2") {
+        this.cameraRaised = !this.cameraRaised;
+        actions.onCameraToggle(this.cameraRaised);
+      }
+      if (e.code === "Digit3") actions.onPourSalt();
       if (e.code === "KeyL") actions.onToggleDebugLights();
     });
     window.addEventListener("keyup", (e) => {
@@ -41,15 +53,29 @@ export class PlayerInput {
     canvas.addEventListener("mousedown", (e) => {
       actions.onUserGesture();
       if (!this.enabled || e.button !== 0) return;
-      if (this.looking) actions.onFlashlight();
-      // Browsers can refuse (for example right after Esc); the player just clicks again.
-      else Promise.resolve(canvas.requestPointerLock()).catch(() => {});
+      if (this.looking) {
+        // With the camera raised, a click takes the photo; otherwise it toggles the flashlight.
+        if (this.cameraRaised) {
+          actions.onPhoto();
+          this.cameraRaised = false;
+          actions.onCameraToggle(false);
+        } else {
+          actions.onFlashlight();
+        }
+      } else {
+        // Browsers can refuse (for example right after Esc); the player just clicks again.
+        Promise.resolve(canvas.requestPointerLock()).catch(() => {});
+      }
     });
 
     document.addEventListener("pointerlockchange", () => {
       if (!this.looking) {
         this.keys.clear();
         actions.onUse(false);
+        if (this.cameraRaised) {
+          this.cameraRaised = false;
+          actions.onCameraToggle(false);
+        }
       }
       actions.onLookChange(this.looking);
     });

@@ -18,6 +18,7 @@ import { createFlashlight } from "./flashlight.ts";
 import { Flicker } from "./flicker.ts";
 import { playerStepKind, StepTracker } from "./footsteps.ts";
 import { GhostView } from "./ghostView.ts";
+import { ItemsView } from "./items.ts";
 import { PlayerInput } from "./input.ts";
 import { RemotePlayers } from "./remotePlayers.ts";
 import { VoiceChat } from "./voice.ts";
@@ -54,6 +55,11 @@ export interface GameHud {
   /** Your microphone's loudness, 0 to 1, for the meter. */
   setMicLevel(level: number): void;
   setMicLost(lost: boolean): void;
+  setItems(salt: number, cameraShots: number): void;
+  /** The Spirit Camera viewfinder is up (key 2). */
+  setCameraRaised(raised: boolean): void;
+  /** Your own camera flash: a brief white screen. */
+  flashScreen(): void;
 }
 
 /** What the microphone part of the room panel shows. */
@@ -66,7 +72,7 @@ export type VoiceUiState =
   | { kind: "checking" }
   | { kind: "ready" };
 
-const ACTION_LABELS: Record<string, string> = { revive: "Reviving", hide: "Hiding", unhide: "Stepping out" };
+const ACTION_LABELS: Record<string, string> = { revive: "Reviving", hide: "Hiding", unhide: "Stepping out", salt: "Pouring salt" };
 
 /** The parts of a player's server state this client reads. */
 interface PlayerData {
@@ -87,6 +93,8 @@ interface PlayerData {
   breathCooldown: number;
   action: string;
   actionProgress: number;
+  salt: number;
+  cameraShots: number;
 }
 
 /**
@@ -107,6 +115,7 @@ export class Game {
   private doors: Map<string, DoorView>;
   private remotes: RemotePlayers;
   private ghost: GhostView;
+  private items: ItemsView;
   private physics: PhysicsWorld;
   private collide: CollideFn;
 
@@ -124,6 +133,7 @@ export class Game {
   private voice: VoiceChat;
   /** False until the mic check passes when voice is on (GDD 5: a working mic is required). */
   private micChecked = false;
+  private saltJarsTaken = new Set<string>();
   private myStepTracker = new StepTracker();
   private stepTrackers = new Map<string, StepTracker>();
   private ghostStepTracker = new StepTracker();
@@ -139,6 +149,7 @@ export class Game {
     this.doors = buildWorld(this.scene, map);
     this.remotes = new RemotePlayers(this.scene);
     this.ghost = new GhostView(this.scene);
+    this.items = new ItemsView(this.scene, map);
     this.physics = new PhysicsWorld(map);
     this.collide = this.physics.addBody().collide;
 
@@ -153,6 +164,11 @@ export class Game {
 
     this.input = new PlayerInput(canvas, {
       onFlashlight: () => this.room?.send("flashlight"),
+      onCameraToggle: (raised) => hud.setCameraRaised(raised && (this.me?.cameraShots ?? 0) > 0),
+      onPhoto: () => {
+        if ((this.me?.cameraShots ?? 0) > 0) this.room?.send("photo");
+      },
+      onPourSalt: () => this.room?.send("pourSalt"),
       onUse: (down) => this.room?.send("use", { down }),
       onToggleDebugLights: () => {
         this.ambient.intensity = this.ambient.intensity === DARK_AMBIENT ? DEBUG_AMBIENT : DARK_AMBIENT;
@@ -243,6 +259,14 @@ export class Game {
       else this.sound.huntEnd();
     });
     room.onMessage("dawn", () => this.hud.showBanner("Dawn. The night is over.", 6));
+    room.onMessage("flash", (msg: ServerMessages["flash"]) => {
+      if (msg.by === room.sessionId) this.hud.flashScreen();
+      else this.items.flashAt(msg.x, msg.z);
+      this.sound.shutter(msg.by === room.sessionId ? undefined : msg);
+    });
+    room.onMessage("photoTaken", (msg: ServerMessages["photoTaken"]) => {
+      this.hud.showBanner(`Photo taken. It develops by the next meeting. Shots left: ${msg.shotsLeft}`, 4);
+    });
 
     // Every handler is registered, so now ask for the voice pass; the answer cannot be missed.
     // Ask again once if the server is slow; if it still does not answer, say so and play.
@@ -273,6 +297,11 @@ export class Game {
     state.doors?.forEach((door: { open: boolean }, id: string) => {
       this.doors.get(id)?.setOpen(door.open);
       this.physics.setDoorOpen(id, door.open);
+    });
+    this.items.update(state);
+    this.saltJarsTaken = new Set();
+    state.saltJars?.forEach((jar: { taken: boolean }, id: string) => {
+      if (jar.taken) this.saltJarsTaken.add(id);
     });
 
     if (typeof state.nightLength === "number" && state.nightLength > 0) {
@@ -442,6 +471,11 @@ export class Game {
     for (const p of this.others.values()) {
       if (p.health === "downed" && Math.hypot(p.x - x, p.z - z) <= config.interact.reviveRangeM) return `Hold E  Revive ${p.name}`;
     }
+    if (me.salt < config.salt.carryMax) {
+      for (const jar of this.map.saltJars) {
+        if (!this.saltJarsTaken.has(jar.id) && Math.hypot(jar.x - x, jar.z - z) <= config.salt.jarRangeM) return "E  Pick up salt";
+      }
+    }
     const taken = new Set([...this.others.values()].map((p) => p.hidingSpot).filter(Boolean));
     for (const spot of this.map.hidingSpots) {
       if (!taken.has(spot.id) && Math.hypot(spot.exit.x - x, spot.exit.z - z) <= config.interact.hideRangeM) return "Hold E  Hide";
@@ -456,5 +490,6 @@ export class Game {
     else if (me.hidingSpot) this.hud.setStatus({ kind: "hidden", holdingBreath: me.holdingBreath, breathCooldown: me.breathCooldown });
     else this.hud.setStatus({ kind: "alive" });
     this.hud.setAction(me.action ? (ACTION_LABELS[me.action] ?? null) : null, me.actionProgress);
+    this.hud.setItems(me.salt, me.cameraShots);
   }
 }

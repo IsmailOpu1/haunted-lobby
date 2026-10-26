@@ -45,6 +45,7 @@ export const config = {
     captureRangeM: 10,
     flashVisibleM: 15,
     flashGhostHearM: 10,
+    photoFovDeg: 60, // what counts as "in the frame"
   },
   salt: {
     perPlayer: 2,
@@ -54,6 +55,10 @@ export const config = {
     lineWidthM: 2,
     ghostFreezeSec: 3,
     jarsPerPlayerSlot: 1,
+    // Chosen in Phase 4: where the line lands and how close the ghost must come to trigger it.
+    placeAheadM: 1.0,
+    triggerRadiusM: 0.35,
+    jarRangeM: 1.5,
   },
   tasks: { perPlayer: 3, options: [2, 3, 4, 5], minSec: 10, maxSec: 20, noisyFailGhostHearM: 10 },
   relics: {

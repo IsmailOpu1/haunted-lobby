@@ -45,6 +45,8 @@ export interface MapData {
   doors: DoorDef[];
   rooms: RoomDef[];
   hidingSpots: HidingSpotDef[];
+  /** Salt jar spots, one per possible player (GDD 8.3 / 21.1). Each refills 1 handful once. */
+  saltJars: { id: string; x: number; z: number }[];
   spawns: { x: number; z: number }[];
 }
 
