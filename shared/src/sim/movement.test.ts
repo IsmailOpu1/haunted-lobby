@@ -99,6 +99,7 @@ describe("collision with walls and doors", () => {
     rooms: [],
     hidingSpots: [],
     saltJars: [],
+    tasks: [],
     spawns: [],
   };
 

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Client, type Room } from "@colyseus/sdk";
 import { config, isValidRoomCode, ROOM_NAME, type ServerMessages } from "@haunted/shared";
 import { createGameServer } from "./app.ts";
+import { marrowHotelGreybox } from "@haunted/maps";
 
 const PORT = 2599;
 const server = createGameServer();
@@ -50,6 +51,20 @@ async function waitFor(check: () => boolean, timeoutMs = 2000) {
     if (Date.now() - start > timeoutMs) throw new Error("Timed out waiting for condition");
     await new Promise((r) => setTimeout(r, 20));
   }
+}
+
+/** Creates rooms until the player is given a task matching `want` (tasks are random). */
+async function createWithTask(want: (stationId: string) => boolean) {
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const room = await new Client(endpoint).create(ROOM_NAME, { name: "Worker" });
+    room.onMessage("*", () => {});
+    const tasks = collectMsgs(room, "tasks");
+    room.send("tasksRequest");
+    await waitFor(() => tasks.length > 0);
+    if (tasks[0]!.list.some((t) => want(t.stationId))) return { room, tasks };
+    await room.leave();
+  }
+  throw new Error("The wanted task was never assigned");
 }
 
 describe("HauntedRoom", () => {
@@ -308,6 +323,76 @@ describe("HauntedRoom", () => {
     expect(taken).toHaveLength(1);
     await Promise.all([a.leave(), b.leave()]);
   });
+
+  it("gives 3 tasks in different rooms, refuses a too-fast finish, and counts a real one", async () => {
+    // Use the clock, in the Main Hall where players start (no doors to open).
+    const { room, tasks } = await createWithTask((id) => id === "task-clock");
+    const list = tasks[0]!.list;
+    expect(list).toHaveLength(config.tasks.perPlayer);
+    expect(new Set(list.map((t) => t.room)).size).toBe(list.length);
+    await waitFor(() => room.state.tasksTotal === config.tasks.perPlayer);
+
+    const opened = collectMsgs(room, "taskOpen");
+    const closed = collectMsgs(room, "taskClosed");
+    let seq = await walkTo(room, { x: 0, z: 10.4 });
+    room.send("use", { down: true });
+    room.send("use", { down: false });
+    await waitFor(() => opened.length === 1);
+    expect(opened[0]).toEqual({ stationId: "task-clock", minigame: "clock" });
+
+    // Claiming it done straight away is refused: the minigame takes longer than that.
+    room.send("taskDone", { stationId: "task-clock" });
+    await waitFor(() => closed.length === 1);
+    expect(closed[0]!.reason).toBe("cancelled");
+    expect(room.state.tasksDone).toBe(0);
+
+    // Walking away from the station closes it.
+    room.send("use", { down: true });
+    room.send("use", { down: false });
+    await waitFor(() => opened.length === 2);
+    seq = await walkTo(room, { x: 0, z: 8.5 }, seq);
+    await waitFor(() => closed.length === 2);
+    expect(closed[1]!.reason).toBe("cancelled");
+    await walkTo(room, { x: 0, z: 10.4 }, seq);
+
+    room.send("use", { down: true });
+    room.send("use", { down: false });
+    await waitFor(() => opened.length === 3);
+    await new Promise((r) => setTimeout(r, (config.tasks.serverMinSec + 0.5) * 1000));
+    room.send("taskDone", { stationId: "task-clock" });
+    await waitFor(() => closed.length === 3);
+    expect(closed[2]!.reason).toBe("done");
+    await waitFor(() => room.state.tasksDone === 1);
+    expect(room.state.stations.get("task-clock").done).toBe(true); // visible task: the clock swings
+    await waitFor(() => tasks.at(-1)!.list.find((t) => t.stationId === "task-clock")!.done);
+    await room.leave();
+  }, 40000);
+
+  it("lets players nearby hear a botched noisy task, at most once a second", async () => {
+    const { room, tasks } = await createWithTask((id) => id === "task-piano" || id === "task-cradle");
+    const id = tasks[0]!.list.find((t) => t.stationId === "task-piano" || t.stationId === "task-cradle")!.stationId;
+    const station = marrowHotelGreybox.tasks.find((t) => t.id === id)!;
+    const friend = await new Client(endpoint).joinById(room.roomId, { name: "Listener" });
+    friend.onMessage("*", () => {});
+    const heard = collectMsgs(friend, "taskNoise");
+    await waitFor(() => room.state.players.size === 2);
+    // The friend stands a few metres away, well inside the 10 m the noise carries.
+    await walkTo(friend, { x: station.x / 2, z: 7 });
+
+    const opened = collectMsgs(room, "taskOpen");
+    await walkTo(room, { x: station.x - Math.sign(station.x), z: station.z });
+    room.send("use", { down: true });
+    room.send("use", { down: false });
+    await waitFor(() => opened.length === 1);
+
+    room.send("taskNoise");
+    room.send("taskNoise"); // too soon after the first: ignored
+    await waitFor(() => heard.length === 1);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(heard).toHaveLength(1);
+    expect(heard[0]).toEqual({ x: station.x, z: station.z, minigame: station.minigame });
+    await Promise.all([room.leave(), friend.leave()]);
+  }, 40000);
 
   it("refuses players beyond the room limit", async () => {
     const rooms: Room[] = [await new Client(endpoint).create(ROOM_NAME, { name: "P1" })];

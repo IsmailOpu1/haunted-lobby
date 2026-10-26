@@ -41,6 +41,14 @@ export interface ServerMessages {
   flash: { x: number; z: number; by: string };
   /** Your photo was taken. It develops by the next meeting; nobody sees it before then. */
   photoTaken: { shotsLeft: number };
+  /** Your task list (private). Sent on request and whenever it changes. */
+  tasks: { list: TaskEntry[] };
+  /** Open this task's minigame (you pressed E at its station). */
+  taskOpen: { stationId: string; minigame: import("./map.ts").MinigameKind };
+  /** Close the minigame: finished, or cancelled (you moved, were downed, or quit). */
+  taskClosed: { stationId: string; reason: "done" | "cancelled" };
+  /** Someone near you botched a noisy task: the baby cried or a wrong note rang out. */
+  taskNoise: { x: number; z: number; minigame: import("./map.ts").MinigameKind };
 }
 
 export interface GhostView {
@@ -73,6 +81,14 @@ export interface ClientMessages {
   voiceRequest: undefined;
   /** Pour a salt line in front of you (1 s, standing still). */
   pourSalt: undefined;
+  /** Send me my task list (answered with "tasks"). Sent once the client is listening. */
+  tasksRequest: undefined;
+  /** I finished the minigame of the task I started with E. */
+  taskDone: { stationId: string };
+  /** I closed the minigame without finishing. */
+  taskCancel: undefined;
+  /** My noisy minigame went wrong (the baby cried, a wrong note). The ghost may hear it. */
+  taskNoise: undefined;
   /** Take a Spirit Camera photo in the direction you are looking. */
   photo: undefined;
 }
@@ -80,5 +96,13 @@ export interface ClientMessages {
 /** Player health (GDD Section 7). */
 export type Health = "alive" | "downed" | "dead";
 
-/** A timed action a player is doing (holding E, or pouring salt). */
-export type PlayerAction = "" | "revive" | "hide" | "unhide" | "salt";
+/** A timed action a player is doing (holding E, pouring salt, or a task minigame). */
+export type PlayerAction = "" | "revive" | "hide" | "unhide" | "salt" | "task";
+
+/** One of your tasks, as only you see it (the possessed get a fake list in Phase 6). */
+export interface TaskEntry {
+  stationId: string;
+  name: string;
+  room: string;
+  done: boolean;
+}

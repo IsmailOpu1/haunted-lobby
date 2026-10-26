@@ -467,3 +467,127 @@ body.looking #esc-hint {
   font-size: 12px;
   color: var(--muted);
 }
+
+/* Team task bar (GDD 9), just under the night bar. */
+#team-tasks {
+  position: fixed;
+  top: 34px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+#team-tasks > span:first-child {
+  min-width: 64px;
+  text-align: right;
+  color: var(--text);
+}
+
+#team-bar {
+  width: 220px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+#team-fill {
+  height: 100%;
+  background: #6fae6a;
+  transition: width 0.4s;
+}
+
+/* Your own tasks, top left. */
+#task-list {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  margin: 0;
+  padding: 8px 12px;
+  list-style: none;
+  font-size: 13px;
+  background: rgba(12, 12, 16, 0.6);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+#task-list li {
+  margin: 2px 0;
+}
+
+#task-list li .room {
+  color: var(--muted);
+}
+
+#task-list li.done {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+/* The minigame window. */
+#task-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.task-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid #2a2822;
+  border-radius: 6px;
+  max-width: calc(100vw - 32px);
+}
+
+.task-box h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+#task-canvas {
+  width: min(640px, calc(100vw - 64px));
+  aspect-ratio: 640 / 400;
+  border-radius: 4px;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+#task-hint {
+  max-width: 600px;
+  text-align: center;
+}
+
+/* While a task is open or just closed, the room panel stays out of the way. */
+body.in-task .panel,
+body.resume .panel {
+  display: none;
+}
+
+#resume-hint {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 10px 18px;
+  font-size: 18px;
+  background: var(--panel);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+body.resume:not(.looking) #resume-hint {
+  display: block;
+}

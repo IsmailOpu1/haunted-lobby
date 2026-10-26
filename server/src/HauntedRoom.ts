@@ -1,5 +1,6 @@
 import { Room, type Client } from "colyseus";
 import {
+  assignTasks,
   calibrateNormal,
   ghostOnSalt,
   normalizeAngle,
@@ -31,11 +32,12 @@ import {
   type PlayerAction,
   type RosterEntry,
   type ServerMessages,
+  type TaskEntry,
 } from "@haunted/shared";
 import { defaultMap } from "@haunted/maps";
 import { Ghost, type GhostTarget, type GhostWorld } from "./sim/ghost.ts";
 import { NavMap } from "./sim/navmap.ts";
-import { Door, GameState, Player, SaltJar, SaltLine } from "./state.ts";
+import { Door, GameState, Player, SaltJar, SaltLine, TaskStation } from "./state.ts";
 import { NoVoice, type VoiceBackend } from "./voice/backend.ts";
 import { liveKitFromEnv } from "./voice/livekit.ts";
 import { recordVoiceStart } from "./voice/status.ts";
@@ -87,6 +89,10 @@ interface PlayerSim {
   micDeadSec: number;
   micLost: boolean;
   micCheck: { samples: number[]; elapsed: number } | null;
+  // Tasks (GDD Section 9).
+  tasks: { stationId: string; done: boolean }[];
+  /** The task minigame open right now, and for how long. */
+  task: { stationId: string; elapsed: number; noiseAt: number } | null;
 }
 
 /** Ear height for walls between two players' voices (also used for camera line of sight). */
@@ -151,6 +157,9 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     for (const door of this.map.doors) this.state.doors.set(door.id, new Door({ open: false }));
     // Every jar spot is stocked until the lobby decides the player count (Phase 7).
     for (const jar of this.map.saltJars) this.state.saltJars.set(jar.id, new SaltJar({ taken: false }));
+    for (const station of this.map.tasks) this.state.stations.set(station.id, new TaskStation({ done: false }));
+    this.state.tasksDone = 0;
+    this.state.tasksTotal = 0;
     this.state.nightLength = config.match.lengthMin * 60;
     this.state.nightTime = 0;
     this.state.part = "quiet";
@@ -190,6 +199,14 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     });
 
     this.onMessage("photo", (client) => this.takePhoto(client.sessionId));
+
+    this.onMessage("tasksRequest", (client) => this.sendTasks(client.sessionId));
+    this.onMessage("taskDone", (client, msg: unknown) => {
+      const id = typeof msg === "object" && msg !== null ? (msg as { stationId?: unknown }).stationId : undefined;
+      if (typeof id === "string") this.finishTask(client.sessionId, id);
+    });
+    this.onMessage("taskCancel", (client) => this.closeTask(client.sessionId, "cancelled"));
+    this.onMessage("taskNoise", (client) => this.taskNoise(client.sessionId));
 
     this.onMessage("voiceRequest", (client) => {
       const player = this.state.players.get(client.sessionId);
@@ -232,6 +249,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       action: null,
       breathLeft: 0,
       flashlightBeforeDowned: true,
+      tasks: assignTasks(this.map.tasks, config.tasks.perPlayer).map((t) => ({ stationId: t.id, done: false })),
+      task: null,
       normalDbfs: null,
       voiceLevel: "silent",
       recentLevels: [],
@@ -265,6 +284,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
         cameraShots: config.camera.shotsPerPlayer,
       }),
     );
+    this.state.tasksTotal += this.sims.get(client.sessionId)!.tasks.length;
     // The night starts when the first player arrives. The lobby and Start button come in Phase 7.
     this.nightStarted = true;
     this.announce("join", name, `${name} joined the room`);
@@ -284,7 +304,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   }
 
   onLeave(client: Client) {
-    this.sims.get(client.sessionId)?.removeBody();
+    const leaving = this.sims.get(client.sessionId);
+    // A player who leaves takes their unfinished tasks off the bar; finished ones still count.
+    if (leaving) this.state.tasksTotal -= leaving.tasks.filter((t) => !t.done).length;
+    leaving?.removeBody();
     this.sims.delete(client.sessionId);
     this.seesGhost.delete(client.sessionId);
     this.voice.remove(client.sessionId);
@@ -365,6 +388,14 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.tickHealth(sim, player, elapsedSec);
     this.tickBreath(sim, player, lastInput, elapsedSec);
     this.tickAction(sim, player, moved, elapsedSec);
+    if (sim.task) {
+      sim.task.elapsed += elapsedSec;
+      // Walking away or being downed closes the minigame; the task must be restarted (GDD 9).
+      // A small drift (steps still on the way when E was pressed) does not count.
+      const def = this.map.tasks.find((d) => d.id === sim.task!.stationId);
+      const away = !def || Math.hypot(def.x - sim.move.x, def.z - sim.move.z) > config.tasks.useRangeM;
+      if (away || player.health !== "alive") this.closeTask(this.sessionOf(sim), "cancelled");
+    }
   }
 
   private moveMode(player: Player): MoveMode {
@@ -557,6 +588,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     }
 
     if (this.pickUpSalt(player, here.x, here.z)) return;
+    if (this.openTask(sessionId, sim, player, here.x, here.z)) return;
 
     const spot = this.nearestFreeHidingSpot(here.x, here.z);
     if (spot) {
@@ -601,7 +633,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private cancelAction(sessionId: string) {
     const sim = this.sims.get(sessionId);
     const player = this.state.players.get(sessionId);
-    if (sim && player) this.clearAction(sim, player);
+    if (sim && player && sim.action) this.clearAction(sim, player);
   }
 
   private tickAction(sim: PlayerSim, player: Player, moved: boolean, dt: number) {
@@ -660,6 +692,93 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     sim.move = { ...sim.move, x: spot.exit.x, z: spot.exit.z };
     player.x = spot.exit.x;
     player.z = spot.exit.z;
+  }
+
+  // ---------- Tasks (GDD Section 9) ----------
+
+  private sessionOf(sim: PlayerSim): string {
+    for (const [id, s] of this.sims) if (s === sim) return id;
+    return "";
+  }
+
+  private sendTasks(sessionId: string) {
+    const sim = this.sims.get(sessionId);
+    if (!sim) return;
+    const list: TaskEntry[] = sim.tasks.map((t) => {
+      const def = this.map.tasks.find((d) => d.id === t.stationId)!;
+      return { stationId: t.stationId, name: def.name, room: def.room, done: t.done };
+    });
+    const msg: ServerMessages["tasks"] = { list };
+    this.clients.find((c) => c.sessionId === sessionId)?.send("tasks", msg);
+  }
+
+  /** E at a station where you have an unfinished task: open its minigame. */
+  private openTask(sessionId: string, sim: PlayerSim, player: Player, x: number, z: number): boolean {
+    if (sim.task) return false;
+    for (const task of sim.tasks) {
+      if (task.done) continue;
+      const def = this.map.tasks.find((d) => d.id === task.stationId);
+      if (!def || Math.hypot(def.x - x, def.z - z) > config.tasks.useRangeM) continue;
+      sim.task = { stationId: def.id, elapsed: 0, noiseAt: -Infinity };
+      player.action = "task";
+      player.actionProgress = 0;
+      const msg: ServerMessages["taskOpen"] = { stationId: def.id, minigame: def.minigame };
+      this.clients.find((c) => c.sessionId === sessionId)?.send("taskOpen", msg);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * The client says the minigame is finished. The server only accepts it if that task is open,
+   * enough time has passed for the minigame, and the player is still at the station.
+   */
+  private finishTask(sessionId: string, stationId: string) {
+    const sim = this.sims.get(sessionId);
+    const player = this.state.players.get(sessionId);
+    const def = this.map.tasks.find((d) => d.id === stationId);
+    if (!sim || !player || !def || sim.task?.stationId !== stationId) return;
+    const tooFast = sim.task.elapsed < config.tasks.serverMinSec;
+    const tooFar = Math.hypot(def.x - player.x, def.z - player.z) > config.tasks.useRangeM;
+    if (tooFast || tooFar || player.health !== "alive") return this.closeTask(sessionId, "cancelled");
+
+    const task = sim.tasks.find((t) => t.stationId === stationId);
+    if (task && !task.done) {
+      task.done = true;
+      this.state.tasksDone += 1;
+      if (def.visible) this.state.stations.get(stationId)!.done = true;
+    }
+    this.closeTask(sessionId, "done");
+    this.sendTasks(sessionId);
+  }
+
+  /** A noisy minigame went wrong (GDD 9): the ghost may hear it, and so do players nearby. */
+  private taskNoise(sessionId: string) {
+    const sim = this.sims.get(sessionId);
+    const def = sim?.task && this.map.tasks.find((d) => d.id === sim.task!.stationId);
+    if (!sim?.task || !def?.noisy) return;
+    if (sim.task.elapsed - sim.task.noiseAt < config.tasks.noiseCooldownSec) return;
+    sim.task.noiseAt = sim.task.elapsed;
+    const radiusM = config.tasks.noisyFailGhostHearM;
+    this.noises.push({ x: def.x, z: def.z, radiusM });
+    const msg: ServerMessages["taskNoise"] = { x: def.x, z: def.z, minigame: def.minigame };
+    for (const client of this.clients) {
+      const p = this.state.players.get(client.sessionId);
+      if (client.sessionId !== sessionId && p && Math.hypot(p.x - def.x, p.z - def.z) <= radiusM) client.send("taskNoise", msg);
+    }
+  }
+
+  private closeTask(sessionId: string, reason: "done" | "cancelled") {
+    const sim = this.sims.get(sessionId);
+    const player = this.state.players.get(sessionId);
+    if (!sim?.task) return;
+    const msg: ServerMessages["taskClosed"] = { stationId: sim.task.stationId, reason };
+    sim.task = null;
+    if (player && player.action === "task") {
+      player.action = "";
+      player.actionProgress = 0;
+    }
+    this.clients.find((c) => c.sessionId === sessionId)?.send("taskClosed", msg);
   }
 
   // ---------- Items (GDD Section 8) ----------

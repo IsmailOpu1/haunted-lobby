@@ -49,11 +49,21 @@ export const SaltJar = schema({
 }, "SaltJar");
 export type SaltJar = SchemaType<typeof SaltJar>;
 
+/** A task station's visible result (GDD 9: lit candles stay lit). */
+export const TaskStation = schema({
+  done: t.boolean(),
+}, "TaskStation");
+export type TaskStation = SchemaType<typeof TaskStation>;
+
 export const GameState = schema({
   players: t.map(Player),
   doors: t.map(Door),
   saltLines: t.map(SaltLine),
   saltJars: t.map(SaltJar),
+  stations: t.map(TaskStation),
+  // The team task bar (GDD 9). Only real tasks count.
+  tasksDone: t.uint16(),
+  tasksTotal: t.uint16(),
   // Night clock (GDD Section 4.2).
   nightTime: t.float32(),
   nightLength: t.float32(),

@@ -59,7 +59,7 @@
         <tr><td>W A S D</td><td>Move</td></tr>
         <tr><td>Shift</td><td>Run (5 s of stamina)</td></tr>
         <tr><td>C</td><td>Crouch (quiet and slow)</td></tr>
-        <tr><td>E</td><td>Open or close a door</td></tr>
+        <tr><td>E</td><td>Open or close a door, pick up salt, start a task (stand still while you do it)</td></tr>
         <tr><td>Hold E</td><td>Revive a downed friend (5 s), hide in a wardrobe or curtain, step out</td></tr>
         <tr><td>Shift (hidden)</td><td>Hold your breath (6 s)</td></tr>
         <tr><td>Click or 1</td><td>Flashlight on / off</td></tr>
@@ -75,6 +75,21 @@
       <div id="night-bar"><div id="night-fill"></div></div>
       <span class="night-end">Dawn</span>
     </div>
+    <div id="team-tasks" class="hidden">
+      <span>Tasks</span>
+      <div id="team-bar"><div id="team-fill"></div></div>
+      <span id="team-count"></span>
+    </div>
+    <ul id="task-list" class="hidden"></ul>
+    <div id="task-overlay" class="hidden">
+      <div class="task-box">
+        <h2 id="task-title"></h2>
+        <canvas id="task-canvas"></canvas>
+        <p id="task-hint" class="hint"></p>
+        <button id="task-leave" class="small">Leave (Esc)</button>
+      </div>
+    </div>
+    <div id="resume-hint">Click to keep playing</div>
     <div id="overlay" class="hidden">
       <div id="overlay-title"></div>
       <div id="overlay-text"></div>

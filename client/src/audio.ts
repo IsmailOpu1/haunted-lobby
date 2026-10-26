@@ -6,10 +6,14 @@
 
 // The heartbeat is deep, soft and muffled (felt more than heard); footsteps are crisp
 // wooden taps. Keeping them in different pitch ranges stops them blurring together.
+import type { TaskSoundKind } from "./minigames/types.ts";
+
 const HEARTBEAT_RANGE_M = 12;
 const HEARTBEAT_LOWPASS_HZ = 110;
 const MASTER_LEVEL = 0.8;
 const LISTENER_SMOOTHING_SEC = 0.03;
+const PIANO_BASE_HZ = 220;
+const PIANO_SCALE = [0, 2, 3, 5, 7, 8, 10, 12];
 
 export type StepKind = "walk" | "run" | "crouch" | "crawl" | "ghost";
 
@@ -192,6 +196,103 @@ export class SoundScape {
     scuff.connect(filter).connect(scuffGain).connect(out);
     scuff.start(t, Math.random() * 0.2);
     scuff.stop(t + s.seconds + 0.05);
+  }
+
+  /**
+   * Sounds for task minigames: a clock tick, a click, a match striking or going out, a wrong
+   * move, a piano note (pitch = key number), a wrong chord, a crying baby. With a position the
+   * sound comes from there (someone else's noisy fail); without, it is yours.
+   */
+  taskSound(kind: TaskSoundKind, pitch = 0, at?: { x: number; z: number }) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    let out: AudioNode = this.master;
+    if (at) {
+      const panner = ctx.createPanner();
+      panner.distanceModel = "inverse";
+      panner.refDistance = 2;
+      panner.positionX.value = at.x;
+      panner.positionY.value = 1;
+      panner.positionZ.value = at.z;
+      panner.connect(this.master);
+      out = panner;
+    }
+    const tone = (type: OscillatorType, freq: number, level: number, len: number, start = t) => {
+      const osc = ctx.createOscillator();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, start);
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(level, start);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + len);
+      osc.connect(gain).connect(out);
+      osc.start(start);
+      osc.stop(start + len + 0.02);
+      return osc;
+    };
+
+    switch (kind) {
+      case "strike":
+      case "fizz": {
+        const src = ctx.createBufferSource();
+        src.buffer = this.noise;
+        const filter = ctx.createBiquadFilter();
+        filter.type = kind === "strike" ? "bandpass" : "highpass";
+        filter.frequency.value = kind === "strike" ? 3000 : 5000;
+        const gain = ctx.createGain();
+        const len = kind === "strike" ? 0.25 : 0.4;
+        gain.gain.setValueAtTime(kind === "strike" ? 0.3 : 0.12, t);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + len);
+        src.connect(filter).connect(gain).connect(out);
+        src.start(t);
+        src.stop(t + len);
+        return;
+      }
+      case "tick":
+        tone("triangle", 1800, 0.12, 0.03);
+        return;
+      case "click":
+        tone("triangle", 900, 0.18, 0.06);
+        return;
+      case "wrong":
+        tone("square", 140, 0.2, 0.2).frequency.exponentialRampToValueAtTime(80, t + 0.2);
+        return;
+      case "note": {
+        // An old, slightly sad scale, so any order sounds like it belongs in the hotel.
+        const steps = PIANO_SCALE[pitch % PIANO_SCALE.length]!;
+        const freq = PIANO_BASE_HZ * 2 ** (steps / 12);
+        tone("triangle", freq, 0.22, 1.2);
+        tone("sine", freq * 2, 0.06, 0.8);
+        return;
+      }
+      case "badNote":
+        // Three neighbouring notes at once: a loud, ugly clash.
+        for (const f of [233, 247, 262]) tone("sawtooth", f, 0.12, 1.4);
+        return;
+      case "cry": {
+        // Two rising-and-falling wails.
+        for (let i = 0; i < 2; i++) {
+          const start = t + i * 0.7;
+          const osc = ctx.createOscillator();
+          osc.type = "sawtooth";
+          osc.frequency.setValueAtTime(480, start);
+          osc.frequency.linearRampToValueAtTime(720, start + 0.25);
+          osc.frequency.linearRampToValueAtTime(430, start + 0.65);
+          const filter = ctx.createBiquadFilter();
+          filter.type = "bandpass";
+          filter.frequency.value = 1100;
+          filter.Q.value = 1.5;
+          const gain = ctx.createGain();
+          gain.gain.setValueAtTime(0.0001, start);
+          gain.gain.exponentialRampToValueAtTime(0.3, start + 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.65);
+          osc.connect(filter).connect(gain).connect(out);
+          osc.start(start);
+          osc.stop(start + 0.7);
+        }
+        return;
+      }
+    }
   }
 
   /** A camera shutter and flash whine. With a position it comes from there; without, it is yours. */

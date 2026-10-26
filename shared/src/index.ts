@@ -5,5 +5,6 @@ export * from "./map.ts";
 export * from "./night.ts";
 export * from "./voice.ts";
 export * from "./items.ts";
+export * from "./tasks.ts";
 export * from "./sim/movement.ts";
 export * from "./sim/physics.ts";

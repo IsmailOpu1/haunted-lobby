@@ -6,6 +6,11 @@ interface Snapshot extends GhostMsg {
 }
 
 const MAX_SNAPSHOTS = 30;
+// Placeholder look until the Phase 8 art pass.
+const HEAD_RADIUS_M = 0.16;
+const AURA_INTENSITY = 1.5;
+const AURA_RANGE_M = 4;
+const SHIMMER_PER_SEC = 6;
 
 function lerpAngle(a: number, b: number, t: number): number {
   const diff = Math.atan2(Math.sin(b - a), Math.cos(b - a));
@@ -19,25 +24,43 @@ function lerpAngle(a: number, b: number, t: number): number {
 export class GhostView {
   private snapshots: Snapshot[] = [];
   private root = new THREE.Group();
+  private bodyMat = new THREE.MeshLambertMaterial({
+    color: 0xc8d0dc,
+    emissive: 0x4a5566,
+    transparent: true,
+    opacity: 0.8,
+    side: THREE.DoubleSide,
+  });
+  private aura = new THREE.PointLight(0x9fb4ff, AURA_INTENSITY, AURA_RANGE_M, 2);
   /** Latest known position (for flicker and heartbeat), or null when the ghost is far or gone. */
   known: { x: number; z: number } | null = null;
 
   constructor(scene: THREE.Scene) {
     const { radiusM, heightM } = config.ghost;
-    const body = new THREE.Mesh(
-      new THREE.CapsuleGeometry(radiusM, heightM - radiusM * 2, 4, 12),
-      new THREE.MeshBasicMaterial({ color: 0x050505, fog: false }),
-    );
-    body.position.y = heightM / 2;
-    this.root.add(body);
+    // A pale, faintly glowing figure: visible in the dark on its own, brighter in a flashlight,
+    // so it can be seen even when your flashlight cuts out next to it (GDD Section 8).
+    const robe = new THREE.Mesh(new THREE.ConeGeometry(radiusM * 1.4, heightM * 0.85, 12, 1, true), this.bodyMat);
+    robe.position.y = (heightM * 0.85) / 2;
+    this.root.add(robe);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(HEAD_RADIUS_M, 12, 10), this.bodyMat);
+    head.position.y = heightM - HEAD_RADIUS_M;
+    this.root.add(head);
 
-    // Two faint eyes, so the shape reads as a face in the dark.
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xd8f0ff, fog: false });
+    // Dark sockets with bright eyes, facing where it walks (-z).
+    const socketMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xe8f4ff });
     for (const side of [-1, 1]) {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), eyeMat);
-      eye.position.set(side * 0.09, heightM - 0.3, -radiusM + 0.02);
+      const socket = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), socketMat);
+      socket.position.set(side * 0.06, heightM - HEAD_RADIUS_M + 0.02, -HEAD_RADIUS_M + 0.03);
+      this.root.add(socket);
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.02, 8, 8), eyeMat);
+      eye.position.set(side * 0.06, heightM - HEAD_RADIUS_M + 0.02, -HEAD_RADIUS_M - 0.005);
       this.root.add(eye);
     }
+
+    // A cold glow that lights the floor and walls around it.
+    this.aura.position.y = heightM * 0.6;
+    this.root.add(this.aura);
     this.root.visible = false;
     scene.add(this.root);
   }
@@ -72,6 +95,10 @@ export class GhostView {
     this.root.position.set(a.x + (b.x - a.x) * t, 0, a.z + (b.z - a.z) * t);
     this.root.rotation.y = lerpAngle(a.yaw, b.yaw, t);
     this.root.visible = b.visible;
+    // A slow shimmer, so it never looks quite solid.
+    const shimmer = Math.sin((now / 1000) * SHIMMER_PER_SEC);
+    this.bodyMat.opacity = 0.72 + 0.1 * shimmer;
+    this.aura.intensity = AURA_INTENSITY * (0.85 + 0.15 * shimmer);
   }
 
   /** Where the ghost is drawn while it hunts (its footsteps are heard then), else null. */

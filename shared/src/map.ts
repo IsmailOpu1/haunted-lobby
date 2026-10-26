@@ -36,6 +36,23 @@ export interface HidingSpotDef {
   exit: { x: number; z: number };
 }
 
+/** The minigames that exist. Each map's task list picks from these (GDD Section 9). */
+export type MinigameKind = "candelabra" | "stove" | "clock" | "letter" | "cradle" | "piano" | "boiler";
+
+/** A place in the map where a task is done. */
+export interface TaskStationDef {
+  id: string;
+  name: string;
+  room: string;
+  minigame: MinigameKind;
+  x: number;
+  z: number;
+  /** Visible tasks leave a change everyone can see (GDD 9), which the possessed cannot fake. */
+  visible: boolean;
+  /** Noisy tasks make a sound the ghost can hear when done badly (GDD 9). */
+  noisy: boolean;
+}
+
 export interface MapData {
   id: string;
   name: string;
@@ -47,6 +64,8 @@ export interface MapData {
   hidingSpots: HidingSpotDef[];
   /** Salt jar spots, one per possible player (GDD 8.3 / 21.1). Each refills 1 handful once. */
   saltJars: { id: string; x: number; z: number }[];
+  /** Task stations, in different areas, never in the basement (GDD Section 9). */
+  tasks: TaskStationDef[];
   spawns: { x: number; z: number }[];
 }
 

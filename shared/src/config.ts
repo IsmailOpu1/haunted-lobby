@@ -60,7 +60,37 @@ export const config = {
     triggerRadiusM: 0.35,
     jarRangeM: 1.5,
   },
-  tasks: { perPlayer: 3, options: [2, 3, 4, 5], minSec: 10, maxSec: 20, noisyFailGhostHearM: 10 },
+  tasks: {
+    perPlayer: 3,
+    options: [2, 3, 4, 5],
+    minSec: 10,
+    maxSec: 20,
+    noisyFailGhostHearM: 10,
+    // Chosen in Phase 4: how close you must stand, and the shortest time the server accepts
+    // for a finished minigame (a little under minSec so fast players are not refused).
+    useRangeM: 1.5,
+    serverMinSec: 7,
+    // Minigame tuning (chosen in Phase 4), each aimed at 10 to 20 s. Distances are in
+    // minigame units: the board is 640 wide and 400 tall, whatever the screen size.
+    // How often one player's noisy fails can reach the ghost.
+    noiseCooldownSec: 1,
+    minigames: {
+      // Shared by every task that uses a match: striking time, and the speed that blows it out.
+      match: { strikeSec: 0.8, outSpeed: 1100 },
+      candelabra: { wicks: 5, lightSec: 1.6 },
+      stove: { knobs: 3, turnDegPerSec: 55, onMinDeg: 140, onMaxDeg: 220, offSnapDeg: 6 },
+      clock: { tickSec: 0.75, turnsNeeded: 14, onBeatSec: 0.16 },
+      // The letter sways in the draught; keep the flame under it. Heat fades when you lose it.
+      letter: { catchSec: 6, swayUnits: 45, swayPeriodSec: 2.6, coolPerSec: 0.5, burnSec: 1.5 },
+      // Follow the swinging guide; rocking too fast makes the baby cry (a noisy fail).
+      cradle: { periodSec: 2.2, swingUnits: 150, matchUnits: 40, minUnitsPerSec: 60, fillSec: 11, cryUnitsPerSec: 900, cryLoseSec: 2, cryPauseSec: 1.5 },
+      // Press the symbol keys in the order shown; a wrong note is a noisy fail and restarts the round.
+      piano: { keys: 8, rounds: 3, notesPerRound: 5 },
+      // Pressure from 0 to 1. Each valve position gives a steady pressure (fully open lowers it
+      // by dropFullOpen); the needle follows with a lag, and draughts push it about a little.
+      boiler: { startPressure: 0.95, safeMin: 0.45, safeMax: 0.6, holdSec: 3, dropFullOpen: 0.8, followPerSec: 1.5, wobble: 0.07, turnDegPerSec: 30, maxOpenDeg: 360 },
+    },
+  },
   relics: {
     count: 3,
     options: [2, 3, 4, 5],

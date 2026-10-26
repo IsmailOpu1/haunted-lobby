@@ -51,6 +51,10 @@ const lookHint = el("look-hint");
 const itemsBox = el("items");
 const viewfinder = el("viewfinder");
 const screenFlash = el("screen-flash");
+const teamTasks = el("team-tasks");
+const teamFill = el("team-fill");
+const teamCount = el("team-count");
+const taskList = el("task-list");
 
 const NIGHT_PART_NAMES: Record<string, string> = {
   quiet: "Quiet",
@@ -62,7 +66,10 @@ const NIGHT_PART_NAMES: Record<string, string> = {
 
 const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
   // While the mouse is captured, hide the lobby panel so the 3D view is clear.
-  setLooking: (looking) => document.body.classList.toggle("looking", looking),
+  setLooking: (looking) => {
+    document.body.classList.toggle("looking", looking);
+    if (looking) document.body.classList.remove("resume");
+  },
   setStamina: (fraction) => {
     staminaBar.classList.toggle("hidden", fraction >= 1);
     staminaFill.style.width = `${Math.round(fraction * 100)}%`;
@@ -154,6 +161,40 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     screenFlash.classList.add("on");
     requestAnimationFrame(() => requestAnimationFrame(() => screenFlash.classList.remove("on")));
   },
+  setTasks: (list) => {
+    taskList.classList.toggle("hidden", list.length === 0);
+    taskList.replaceChildren(
+      ...list.map((t) => {
+        const li = document.createElement("li");
+        li.classList.toggle("done", t.done);
+        const room = document.createElement("span");
+        room.className = "room";
+        room.textContent = ` (${t.room})`;
+        li.append(t.name, room);
+        return li;
+      }),
+    );
+  },
+  setTeamTasks: (done, total) => {
+    teamTasks.classList.toggle("hidden", total === 0);
+    teamFill.style.width = `${total > 0 ? Math.round((done / total) * 100) : 0}%`;
+    teamCount.textContent = `${done} / ${total}`;
+  },
+  setTaskMode: (mode) => {
+    document.body.classList.toggle("in-task", mode === "in-task");
+    document.body.classList.toggle("resume", mode === "resume");
+  },
+}, {
+  root: el("task-overlay"),
+  canvas: el<HTMLCanvasElement>("task-canvas"),
+  title: el("task-title"),
+  hint: el("task-hint"),
+  leave: el<HTMLButtonElement>("task-leave"),
+});
+
+// After a task, Esc shows the room panel instead of the "click to keep playing" hint.
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Escape" && !e.defaultPrevented) document.body.classList.remove("resume");
 });
 
 micCheckBtn.addEventListener("click", () => game.startMicCheck());

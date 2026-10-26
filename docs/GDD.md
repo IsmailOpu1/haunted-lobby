@@ -207,7 +207,6 @@ Everyone starts with the same three items.
 | Fold the bedsheets | Guest Room | Drag the 4 corners together | No | No |
 | Rock the cradle | Nursery | Move the mouse gently in rhythm. Too fast and the baby cries | No | Yes |
 | Water the dead roses | Garden Courtyard | Pour until the line. Overflow and start again | No | No |
-| Hang the room keys | Guest Corridor | Drag each key to the hook with the same number | No | No |
 | Close the shutters | Upper Corridor | Drag 3 shutters closed against the wind | Yes | No |
 
 ---
@@ -730,6 +729,7 @@ Real-mic ghost hearing with mic calibration, the Spirit Camera, Wisps with the O
 | 2026-10-25 | Art style changed from low-poly PS1 to a detailed, stylized-realistic look inspired by *Invokyr*, with Low and High quality settings (Sections 23 and 26.1) | Owner decision: the game should look as close to *Invokyr* as possible, accepting more art time and higher hardware needs on High |
 | 2026-10-25 | Finish the browser version first; a downloadable version (Unity or Unreal) may follow | Owner decision: keep join-by-link now, consider a native release later |
 | 2026-10-25 | No background music or drone; footsteps are the background sound (Section 23). Volume slider added | Owner playtest: the drone caused headaches over a night; footsteps suit the game better |
+| 2026-10-26 | "Hang the room keys" removed from the task list (Section 9). The Guest Corridor gets a new task, still to be chosen | Owner playtest (Phase 4): it did not feel like a task and was not fun |
 
 ### 26.6 Phase 2 build choices (awaiting owner confirmation)
 
@@ -764,3 +764,28 @@ Rules the GDD did not specify, chosen while building the ghost. Numbers live in 
 | Whisper volume | Full volume up to 2 m, fading to silence at 3 m | Owner playtest: whispers were hard to hear even up close |
 | Dead players | Hear only other dead players | Early version of the Wisp channel (GDD 17) |
 | Known limit | The server decides who hears whom, but a modified, cheating game could ask LiveKit for voices out of range. Normal players cannot | Fully blocking it needs more work on LiveKit permissions; revisit before public release |
+
+### 26.8 Phase 4 build choices (awaiting owner confirmation)
+
+| Choice | Value | Why |
+|---|---|---|
+| Item keys | 2 raises or lowers the camera, click takes the photo; 3 pours salt straight away | One key per item, nothing to hold |
+| Salt jars | Every jar is full at the start of the night | Until match settings exist (Phase 7) |
+| What E does | One thing at a time, in this order: revive, pick up salt, start a task, hide, door. Things you can use are kept more than 1.5 m apart on the map (checked by a test) | Pressing E never does something you did not expect |
+| Starting a task | Stand within 1.5 m of the station and press E. The mouse is freed for the minigame | |
+| What cancels a task | Leave or Esc, walking more than 1.5 m from the station, or being downed | GDD 9: leaving or getting hit cancels it |
+| Fastest finish the server accepts | 7 s | A little under the 10 s minimum, so quick players are not refused, but a cheat cannot finish tasks instantly |
+| Grey-box tasks | Restaurant: candelabra, cursed letter. Kitchen: stove, boiler valve. Main Hall: grandfather clock, piano, cradle. Each player gets one task in each of 3 rooms | Until the full map (Phase 5) gives each task its own room. The Corridor has no task until its new one is chosen |
+| Candelabra | Strike a match on the box (0.8 s), hold it to each of 5 wicks for 1.6 s; a fast flick puts the match out | GDD 9 |
+| Stove | 3 knobs, each starting about half a turn from off; hold one and circle the mouse; they turn at most 55° a second | GDD 9 |
+| Clock | One tick every 0.75 s; click or Space within 0.16 s of a tick to turn the key; 14 turns; off the beat slips back one | GDD 9. Owner playtest: hard but good, kept as is |
+| Cursed letter | The letter sways in the draught; keep a lit match under it for 6 s in total (heat fades slowly when you lose it), then it burns. The fireplace stays lit | GDD 9 |
+| Cradle | Rock the cradle along with a pale guide for 11 s; rocking too fast makes the baby cry, costs 2 s and can be heard | GDD 9 |
+| Piano | 8 keys with painted symbols; play 3 lines of 5 symbols; a wrong note can be heard and restarts the line | GDD 9 |
+| Boiler valve | Each valve position gives a steady pressure, with draughts nudging the needle; turn the stiff wheel (at most 30° a second) until the needle stays in the green for 3 s | GDD 9. A first version where the pressure kept climbing took over 20 s and never settled |
+| Ghost look (until the art pass) | A pale, faintly glowing figure with bright eyes and a cold light around it, so it can be seen in the dark and when your flashlight cuts out near it | Owner playtest: the black ghost could not be seen, even with lights |
+| Minigame tests | Every minigame is played by a scripted player in the tests; a good run must finish between 7.5 s and 25 s | Catches a minigame that cannot be finished or is too slow before anyone plays it |
+| Noisy fails | The baby crying or a wrong note can be heard by the ghost within 10 m, and by players within 10 m. At most once a second per player | GDD 9 noisy tasks. Known limit: a cheating game could skip sending the noise |
+| Interactive things and doors | Salt jars and task stations sit more than 3.5 m from doors, so E can still open the door | E prefers jars and tasks over doors (checked by a test) |
+| Team bar | Shows done / total under the night bar; a player who leaves takes their unfinished tasks off the bar | GDD 9 |
+| Visible results | The candelabra stays lit with a warm light; the clock's pendulum swings | GDD 9 visible tasks |

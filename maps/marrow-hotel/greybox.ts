@@ -69,12 +69,23 @@ export const marrowHotelGreybox: MapData = {
   saltJars: [
     { id: "jar-hall-1", x: -6.5, z: 11 },
     { id: "jar-hall-2", x: 6.5, z: 1.5 },
-    { id: "jar-hall-3", x: 0, z: 11.2 },
+    { id: "jar-hall-3", x: 4, z: 11.2 },
     { id: "jar-corridor", x: -0.8, z: -13 },
     { id: "jar-restaurant-1", x: -12, z: -5 },
     { id: "jar-restaurant-2", x: -3, z: -13 },
     { id: "jar-kitchen-1", x: 8.5, z: -7 },
-    { id: "jar-kitchen-2", x: 2.5, z: -13 },
+    { id: "jar-kitchen-2", x: 3.3, z: -13.3 },
+  ],
+  // Tasks from the GDD Section 9 list. Until the full map (Phase 5) gives each its own room,
+  // several share a grey-box room. The Corridor's task is still to be chosen.
+  tasks: [
+    { id: "task-candelabra", name: "Light the candelabra", room: "Restaurant", minigame: "candelabra", x: -7, z: -9, visible: true, noisy: false },
+    { id: "task-letter", name: "Burn the cursed letter", room: "Restaurant", minigame: "letter", x: -12.4, z: -9, visible: true, noisy: false },
+    { id: "task-stove", name: "Turn off the stove", room: "Kitchen", minigame: "stove", x: 5.25, z: -6.7, visible: false, noisy: false },
+    { id: "task-boiler", name: "Turn the boiler valve", room: "Kitchen", minigame: "boiler", x: 8.6, z: -10, visible: false, noisy: false },
+    { id: "task-clock", name: "Wind the grandfather clock", room: "Main Hall", minigame: "clock", x: 0, z: 11.5, visible: true, noisy: false },
+    { id: "task-piano", name: "Tune the piano", room: "Main Hall", minigame: "piano", x: -7.2, z: 7, visible: false, noisy: true },
+    { id: "task-cradle", name: "Rock the cradle", room: "Main Hall", minigame: "cradle", x: 7.2, z: 6, visible: false, noisy: true },
   ],
   spawns: [
     { x: -3, z: 6 },

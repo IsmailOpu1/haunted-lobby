@@ -12,6 +12,7 @@ import {
   type MoveMode,
   type MoveState,
   type ServerMessages,
+  type TaskEntry,
 } from "@haunted/shared";
 import { SoundScape } from "./audio.ts";
 import { createFlashlight } from "./flashlight.ts";
@@ -20,7 +21,9 @@ import { playerStepKind, StepTracker } from "./footsteps.ts";
 import { GhostView } from "./ghostView.ts";
 import { ItemsView } from "./items.ts";
 import { PlayerInput } from "./input.ts";
+import { MinigameOverlay } from "./minigames/overlay.ts";
 import { RemotePlayers } from "./remotePlayers.ts";
+import { StationsView } from "./stations.ts";
 import { VoiceChat } from "./voice.ts";
 import { buildWorld, type DoorView } from "./world.ts";
 
@@ -60,6 +63,21 @@ export interface GameHud {
   setCameraRaised(raised: boolean): void;
   /** Your own camera flash: a brief white screen. */
   flashScreen(): void;
+  /** Your private task list. */
+  setTasks(list: TaskEntry[]): void;
+  /** The team task bar everyone sees. */
+  setTeamTasks(done: number, total: number): void;
+  /** "in-task" while a minigame is open, "resume" after it closes until the mouse is captured again. */
+  setTaskMode(mode: "none" | "in-task" | "resume"): void;
+}
+
+/** The page elements of the minigame window. */
+export interface TaskOverlayElements {
+  root: HTMLElement;
+  canvas: HTMLCanvasElement;
+  title: HTMLElement;
+  hint: HTMLElement;
+  leave: HTMLButtonElement;
 }
 
 /** What the microphone part of the room panel shows. */
@@ -116,6 +134,8 @@ export class Game {
   private remotes: RemotePlayers;
   private ghost: GhostView;
   private items: ItemsView;
+  private stations: StationsView;
+  private overlay: MinigameOverlay;
   private physics: PhysicsWorld;
   private collide: CollideFn;
 
@@ -137,8 +157,12 @@ export class Game {
   private myStepTracker = new StepTracker();
   private stepTrackers = new Map<string, StepTracker>();
   private ghostStepTracker = new StepTracker();
+  private myTasks: TaskEntry[] = [];
+  /** Where the open task stands on this side, so taskClosed can say the right thing. */
+  private taskState: "none" | "open" | "finished" | "left" = "none";
+  private openStation = "";
 
-  private constructor(canvas: HTMLCanvasElement, private map: MapData, private hud: GameHud) {
+  private constructor(private canvas: HTMLCanvasElement, private map: MapData, private hud: GameHud, overlay: TaskOverlayElements) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 
@@ -150,6 +174,12 @@ export class Game {
     this.remotes = new RemotePlayers(this.scene);
     this.ghost = new GhostView(this.scene);
     this.items = new ItemsView(this.scene, map);
+    this.stations = new StationsView(this.scene, map);
+    this.overlay = new MinigameOverlay(overlay.root, overlay.canvas, overlay.title, overlay.hint, overlay.leave, (kind, pitch) => this.sound.taskSound(kind, pitch), {
+      onFinish: () => this.endTask("finished", { stationId: this.openStation }),
+      onLeave: () => this.endTask("left"),
+      onNoise: () => this.room?.send("taskNoise"),
+    });
     this.physics = new PhysicsWorld(map);
     this.collide = this.physics.addBody().collide;
 
@@ -195,9 +225,19 @@ export class Game {
     });
   }
 
-  static async create(canvas: HTMLCanvasElement, map: MapData, hud: GameHud): Promise<Game> {
+  static async create(canvas: HTMLCanvasElement, map: MapData, hud: GameHud, overlay: TaskOverlayElements): Promise<Game> {
     await initPhysics();
-    return new Game(canvas, map, hud);
+    return new Game(canvas, map, hud, overlay);
+  }
+
+  /** The minigame closed on this side: tell the server, and try to capture the mouse again. */
+  private endTask(state: "finished" | "left", done?: { stationId: string }) {
+    this.taskState = state;
+    if (done) this.room?.send("taskDone", done);
+    else this.room?.send("taskCancel");
+    this.hud.setTaskMode("resume");
+    // Works when the browser still counts the last click; otherwise the player clicks once.
+    Promise.resolve(this.canvas.requestPointerLock()).catch(() => {});
   }
 
   /** Mute or unmute another player's voice, only for you. Returns whether they are now muted. */
@@ -267,6 +307,34 @@ export class Game {
     room.onMessage("photoTaken", (msg: ServerMessages["photoTaken"]) => {
       this.hud.showBanner(`Photo taken. It develops by the next meeting. Shots left: ${msg.shotsLeft}`, 4);
     });
+    room.onMessage("tasks", (msg: ServerMessages["tasks"]) => {
+      this.myTasks = msg.list;
+      this.hud.setTasks(msg.list);
+    });
+    room.onMessage("taskOpen", (msg: ServerMessages["taskOpen"]) => {
+      const def = this.map.tasks.find((t) => t.id === msg.stationId);
+      this.openStation = msg.stationId;
+      this.taskState = "open";
+      this.hud.setTaskMode("in-task");
+      document.exitPointerLock();
+      this.overlay.open(msg.minigame, def?.name ?? "Task");
+    });
+    room.onMessage("taskClosed", (msg: ServerMessages["taskClosed"]) => {
+      const name = this.map.tasks.find((t) => t.id === msg.stationId)?.name ?? "Task";
+      if (msg.reason === "done") this.hud.showBanner(`Done: ${name}`, 3);
+      else if (this.taskState === "open") this.hud.showBanner("Task cancelled. Start it again with E.", 3);
+      else if (this.taskState === "finished") this.hud.showBanner("Task not accepted. Try it again.", 3);
+      if (this.overlay.isOpen) {
+        // The server closed it (you moved, or got hurt).
+        this.overlay.close();
+        this.hud.setTaskMode("resume");
+      }
+      this.taskState = "none";
+    });
+    room.onMessage("taskNoise", (msg: ServerMessages["taskNoise"]) => {
+      this.sound.taskSound(msg.minigame === "cradle" ? "cry" : "badNote", undefined, msg);
+    });
+    room.send("tasksRequest");
 
     // Every handler is registered, so now ask for the voice pass; the answer cannot be missed.
     // Ask again once if the server is slow; if it still does not answer, say so and play.
@@ -299,6 +367,8 @@ export class Game {
       this.physics.setDoorOpen(id, door.open);
     });
     this.items.update(state);
+    this.stations.update(state);
+    if (typeof state.tasksTotal === "number") this.hud.setTeamTasks(state.tasksDone, state.tasksTotal);
     this.saltJarsTaken = new Set();
     state.saltJars?.forEach((jar: { taken: boolean }, id: string) => {
       if (jar.taken) this.saltJarsTaken.add(id);
@@ -378,6 +448,7 @@ export class Game {
     }
     const now = performance.now();
     for (const door of this.doors.values()) door.update(dt);
+    this.stations.render(now / 1000);
     this.ghost.render(now);
     this.remotes.render(now, dt, (x, z) => this.ghost.distanceTo(x, z));
 
@@ -475,6 +546,11 @@ export class Game {
       for (const jar of this.map.saltJars) {
         if (!this.saltJarsTaken.has(jar.id) && Math.hypot(jar.x - x, jar.z - z) <= config.salt.jarRangeM) return "E  Pick up salt";
       }
+    }
+    for (const task of this.myTasks) {
+      if (task.done) continue;
+      const def = this.map.tasks.find((t) => t.id === task.stationId);
+      if (def && Math.hypot(def.x - x, def.z - z) <= config.tasks.useRangeM) return `E  ${def.name}`;
     }
     const taken = new Set([...this.others.values()].map((p) => p.hidingSpot).filter(Boolean));
     for (const spot of this.map.hidingSpots) {
