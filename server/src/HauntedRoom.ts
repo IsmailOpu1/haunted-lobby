@@ -20,7 +20,7 @@ import {
   nightPart,
   pickRelicSpots,
   ritualRatePct,
-  roomAt,
+  nearestRoom,
   matchResult,
   worldDistance,
   PhysicsWorld,
@@ -219,8 +219,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       swingDoor: (id) => this.setDoor(id, true),
       ring: (at) => {
         // The bell is in the middle of the room the ghost is in, so it tells the room, not the spot.
-        const room = roomAt(this.map, at.x, at.z);
-        const msg: ServerMessages["bellRing"] = room ? { x: (room.minX + room.maxX) / 2, z: (room.minZ + room.maxZ) / 2 } : { x: at.x, z: at.z };
+        const room = nearestRoom(this.map, at.x, at.z);
+        const msg: ServerMessages["bellRing"] = { x: (room.minX + room.maxX) / 2, z: (room.minZ + room.maxZ) / 2 };
         this.broadcast("bellRing", msg);
       },
       distance: (a, b) => this.hearingDistance(a, b),

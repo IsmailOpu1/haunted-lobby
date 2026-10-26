@@ -100,6 +100,9 @@ describe("voice in a room", () => {
 
   it("keeps the dead out of the living's ears", async () => {
     const { a, b } = await joinPair();
+    // Alive, they hear each other (wait for the first voice refresh to include both).
+    await waitFor(() => fake.routes.get(b.sessionId)?.has(a.sessionId) === true);
+    await waitFor(() => fake.routes.get(a.sessionId)?.has(b.sessionId) === true);
     b.send("debug", { down: true });
     b.send("debug", { bleedLeft: 0.1 });
     await waitFor(() => a.state.players.get(b.sessionId)?.health === "dead");

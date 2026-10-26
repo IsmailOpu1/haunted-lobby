@@ -239,3 +239,19 @@ export function doorBox(door: DoorDef, thickness: number): FloorBox {
 export function roomAt(map: MapData, x: number, z: number): RoomDef | undefined {
   return map.rooms.find((r) => x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ);
 }
+
+/** The room rectangle at a place, or the nearest one (for a place in a doorway or on the stairs). */
+export function nearestRoom(map: MapData, x: number, z: number): RoomDef {
+  let best = map.rooms[0]!;
+  let bestDist = Infinity;
+  for (const r of map.rooms) {
+    const dx = Math.max(r.minX - x, 0, x - r.maxX);
+    const dz = Math.max(r.minZ - z, 0, z - r.maxZ);
+    const d = Math.hypot(dx, dz);
+    if (d < bestDist) {
+      best = r;
+      bestDist = d;
+    }
+  }
+  return best;
+}

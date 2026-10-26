@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { config, doorBox, furnitureBox, hidingSpotBox, levelOf, roomAt, wallBox, type FloorBox, type MapData } from "@haunted/shared";
+import { config, doorBox, furnitureBox, hidingSpotBox, levelOf, nearestRoom, roomAt, wallBox, type FloorBox, type MapData } from "@haunted/shared";
 import { marrowHotelGreybox } from "@haunted/maps";
 import { NavMap, pathLength } from "./sim/navmap.ts";
 
@@ -291,4 +291,11 @@ describe.each([marrowHotelGreybox].map((m) => [m.name, m] as const))("%s follows
       expect(beyond.has(roomAt(map, p.x, p.z)?.name ?? ""), `${p.x.toFixed(1)}, ${p.z.toFixed(1)}`).toBe(false);
     }
   }, 30000);
+  it("finds a room for every doorway and flight of stairs, so the Bellboy's bell always rings in a room (GDD 12.5)", () => {
+    for (const d of map.doors) {
+      const r = nearestRoom(map, d.x, d.z);
+      expect(Math.hypot(Math.max(r.minX - d.x, 0, d.x - r.maxX), Math.max(r.minZ - d.z, 0, d.z - r.maxZ)), d.id).toBeLessThan(0.2);
+    }
+    for (const s of map.stairs) expect(levelOf(map, nearestRoom(map, s.x, s.z).minX + 0.1, s.z).id, s.id).toBe(levelOf(map, s.x, s.z).id);
+  });
 });

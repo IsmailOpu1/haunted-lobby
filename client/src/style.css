@@ -243,9 +243,10 @@ button.mute {
   transition: none;
 }
 
+/* Below the night, task and ritual bars, so it never covers them. */
 #mic-lost {
   position: fixed;
-  top: 44px;
+  top: 82px;
   left: 50%;
   transform: translateX(-50%);
   padding: 8px 14px;
