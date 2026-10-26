@@ -1,6 +1,7 @@
 import type {
   DoorDef,
   FurnitureDef,
+  GhostTrickDef,
   HidingSpotDef,
   LevelDef,
   MapData,
@@ -58,6 +59,7 @@ export interface Plan {
   stairs: StairDef[];
   relicDoor?: string;
   relicNames: string[];
+  ghostTrick?: GhostTrickDef;
 }
 
 const EPS = 1e-3;
@@ -174,6 +176,7 @@ export function buildMap(plan: Plan): MapData {
     spawns: [],
     furniture: [],
     relicDoor: plan.relicDoor,
+    ghostTrick: plan.ghostTrick,
   };
 
   for (const f of plan.floors) {

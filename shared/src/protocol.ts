@@ -28,6 +28,8 @@ export interface ServerMessages {
   ghost: GhostView | null;
   /** Hunt warning (2 s of silence), hunt start, hunt end (GDD Section 12.1). */
   hunt: { phase: "warning" | "start" | "end" };
+  /** The ghost's service bell rang in a room (the Bellboy, GDD 12.5). Everyone hears it, from the room's middle. */
+  bellRing: { x: number; z: number };
   /** The match is over (GDD 18): who won, why, and every player's role, now shown to all (GDD 19). */
   matchEnd: { winner: Team; reason: EndReason; roles: { name: string; role: Role }[] };
   /** How to join the voice room, or disabled when this server has no voice keys. */

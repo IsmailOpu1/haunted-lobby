@@ -164,6 +164,8 @@ export class Game {
   private input: PlayerInput;
   private doors: Map<string, DoorView>;
   private ritualCircle: RitualCircleView | null;
+  /** Each door's last known state, to hear it move. */
+  private doorsOpen = new Map<string, boolean>();
   private remotes: RemotePlayers;
   private ghost: GhostView;
   private items: ItemsView;
@@ -346,6 +348,7 @@ export class Game {
       else if (msg.phase === "start") this.sound.huntStart();
       else this.sound.huntEnd();
     });
+    room.onMessage("bellRing", (msg: ServerMessages["bellRing"]) => this.sound.serviceBell(this.place(msg)));
     room.onMessage("matchEnd", (msg: ServerMessages["matchEnd"]) => {
       this.ended = true;
       if (this.overlay.isOpen) this.overlay.close();
@@ -424,6 +427,11 @@ export class Game {
     const room = this.room!;
 
     state.doors?.forEach((door: { open: boolean }, id: string) => {
+      // Every door that moves is heard, including the ones the ghost swings open (GDD 12.5).
+      const was = this.doorsOpen.get(id);
+      const def = this.map.doors.find((d) => d.id === id);
+      if (was !== undefined && was !== door.open && def) this.sound.door(this.place(def), door.open);
+      this.doorsOpen.set(id, door.open);
       this.doors.get(id)?.setOpen(door.open);
       this.physics.setDoorOpen(id, door.open);
     });

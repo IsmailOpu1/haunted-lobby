@@ -143,6 +143,21 @@ export interface StairDef {
   widthM: number;
 }
 
+/**
+ * The Bellboy (Marrow Hotel): every ringEverySec it rings a service bell in the room it is in,
+ * and while wandering it now and then swings open a closed door within swingRangeM.
+ */
+export interface BellboyTrickDef {
+  kind: "bellboy";
+  /** Seconds between rings, picked at random in [min, max]. */
+  ringEverySec: [number, number];
+  /** Seconds between door swings, picked at random in [min, max]. */
+  swingEverySec: [number, number];
+  swingRangeM: number;
+}
+
+export type GhostTrickDef = BellboyTrickDef;
+
 export interface MapData {
   id: string;
   name: string;
@@ -175,6 +190,8 @@ export interface MapData {
   ghostStart?: { x: number; z: number };
   /** Center of the ritual altar and its circle (GDD 11). */
   altar?: { x: number; z: number };
+  /** This map's ghost trick and its numbers (GDD 12.5). Rules code never names a map. */
+  ghostTrick?: GhostTrickDef;
 }
 
 export const HIDING_SPOT_HEIGHT_M = 2;

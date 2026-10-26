@@ -56,6 +56,8 @@ export const marrowHotelGreybox = buildMap({
   wallThicknessM: 0.2,
   relicNames: ["the Founder's Ring", "the Silver Bell", "the Music Box", "the Wedding Portrait", "the Brass Key"],
   relicDoor: "relic-door",
+  // The Bellboy (GDD 12.5): rings every 40 to 60 s; how often it swings doors is a Phase 5 choice (GDD 26.9).
+  ghostTrick: { kind: "bellboy", ringEverySec: [40, 60], swingEverySec: [25, 45], swingRangeM: 6 },
   stairs: [
     { id: "grand-stairs", lower: "ground", upper: "upper", x: 7.75, z: 14, dir: "-z", lengthM: 6, widthM: 2.5 },
     { id: "back-stairs", lower: "ground", upper: "upper", x: 21.75, z: -10.5, dir: "-z", lengthM: 6, widthM: 2.5 },

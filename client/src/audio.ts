@@ -57,6 +57,15 @@ function randomBetween(min: number, max: number): number {
   return min + Math.random() * (max - min);
 }
 
+// The Bellboy's service bell: a few bright, slightly out-of-tune partials ringing out.
+const BELL_PARTIALS = [
+  { hz: 1870, gain: 0.22, seconds: 2.2 },
+  { hz: 2690, gain: 0.12, seconds: 1.4 },
+  { hz: 4310, gain: 0.07, seconds: 0.8 },
+];
+const BELL_REF_DISTANCE_M = 4;
+const DOOR_REF_DISTANCE_M = 2;
+
 const WHISPER_HZ = 1400;
 const WHISPER_SWELL_HZ = 0.35;
 const WHISPER_LEVEL = 0.35;
@@ -371,6 +380,62 @@ export class SoundScape {
     this.whisper.panner.positionX.setTargetAtTime(at.x, t, 0.05);
     this.whisper.panner.positionY.setTargetAtTime(at.y + 0.8, t, 0.05);
     this.whisper.panner.positionZ.setTargetAtTime(at.z, t, 0.05);
+  }
+
+  /** A panner at a place in the world, or the plain output when there is no place. */
+  private placed(at: WorldPoint | undefined, heightM: number, refDistance: number): AudioNode {
+    const ctx = this.ctx!;
+    if (!at) return this.master;
+    const panner = ctx.createPanner();
+    panner.distanceModel = "inverse";
+    panner.refDistance = refDistance;
+    panner.positionX.value = at.x;
+    panner.positionY.value = at.y + heightM;
+    panner.positionZ.value = at.z;
+    panner.connect(this.master);
+    return panner;
+  }
+
+  /** The Bellboy rang a service bell (GDD 12.5). Two quick dings, heard across the hotel. */
+  serviceBell(at: WorldPoint) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const out = this.placed(at, 1, BELL_REF_DISTANCE_M);
+    for (const [i, start] of [0, 0.32].entries()) {
+      const t = ctx.currentTime + start;
+      for (const p of BELL_PARTIALS) {
+        const osc = ctx.createOscillator();
+        osc.frequency.value = p.hz * (i === 0 ? 1 : 0.998);
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(p.gain, t);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + p.seconds);
+        osc.connect(gain).connect(out);
+        osc.start(t);
+        osc.stop(t + p.seconds);
+      }
+    }
+  }
+
+  /** A door swinging open (a creak) or shut (a thud). */
+  door(at: WorldPoint, open: boolean) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const out = this.placed(at, 1, DOOR_REF_DISTANCE_M);
+    const noise = ctx.createBufferSource();
+    noise.buffer = this.noise;
+    const band = ctx.createBiquadFilter();
+    band.type = "bandpass";
+    band.Q.value = open ? 9 : 1.2;
+    band.frequency.setValueAtTime(open ? 520 : 140, t);
+    if (open) band.frequency.exponentialRampToValueAtTime(880, t + 0.6);
+    const gain = ctx.createGain();
+    const seconds = open ? 0.7 : 0.18;
+    gain.gain.setValueAtTime(open ? 0.5 : 0.6, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + seconds);
+    noise.connect(band).connect(gain).connect(out);
+    noise.start(t);
+    noise.stop(t + seconds);
   }
 
   /** A camera shutter and flash whine. With a position it comes from there; without, it is yours. */

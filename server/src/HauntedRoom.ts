@@ -20,6 +20,7 @@ import {
   nightPart,
   pickRelicSpots,
   ritualRatePct,
+  roomAt,
   matchResult,
   worldDistance,
   PhysicsWorld,
@@ -44,6 +45,7 @@ import {
 import { defaultMap } from "@haunted/maps";
 import { Ghost, type GhostTarget, type GhostWorld } from "./sim/ghost.ts";
 import { NavMap } from "./sim/navmap.ts";
+import { createTrick, type GhostTrick } from "./sim/tricks.ts";
 import { Door, GameState, Player, Relic, SaltJar, SaltLine, TaskStation } from "./state.ts";
 import { NoVoice, type VoiceBackend } from "./voice/backend.ts";
 import { liveKitFromEnv } from "./voice/livekit.ts";
@@ -158,6 +160,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private relics: RelicSim[] = [];
   /** The ghost's navmesh once the relic door is open (until then it walks one with the door as a wall). */
   private openNav: NavMap | null = null;
+  /** This map's ghost trick, or null (GDD 12.5). */
+  private trick: GhostTrick | null = null;
   private relicTimer = 0;
 
   async onCreate() {
@@ -207,6 +211,21 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const lastRoom = this.map.rooms[this.map.rooms.length - 1]!;
     const start = this.map.ghostStart ?? { x: (lastRoom.minX + lastRoom.maxX) / 2, z: (lastRoom.minZ + lastRoom.maxZ) / 2 };
     this.ghost = new Ghost(nav, this.ghostWorld(), start);
+    this.trick = createTrick(this.map.ghostTrick, {
+      ghost: () => this.ghost,
+      // The relic door opens only by its relics.
+      doors: this.map.doors.filter((d) => d.id !== this.map.relicDoor),
+      isDoorOpen: (id) => this.state.doors.get(id)?.open ?? true,
+      swingDoor: (id) => this.setDoor(id, true),
+      ring: (at) => {
+        // The bell is in the middle of the room the ghost is in, so it tells the room, not the spot.
+        const room = roomAt(this.map, at.x, at.z);
+        const msg: ServerMessages["bellRing"] = room ? { x: (room.minX + room.maxX) / 2, z: (room.minZ + room.maxZ) / 2 } : { x: at.x, z: at.z };
+        this.broadcast("bellRing", msg);
+      },
+      distance: (a, b) => this.hearingDistance(a, b),
+      random: Math.random,
+    });
 
     this.onMessage("input", (client, raw: unknown) => {
       const sim = this.sims.get(client.sessionId);
@@ -400,6 +419,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       }
       this.state.part = this.state.overtime ? "overtime" : part;
       this.ghost.update(elapsedSec, part, this.state.players.size);
+      this.trick?.update(elapsedSec);
       this.checkResult(part === "dawn");
     }
     this.noises.length = 0;

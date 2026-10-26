@@ -647,6 +647,24 @@ describe("HauntedRoom", () => {
     await b.leave();
   }, 20000);
 
+  it("lets everyone hear the Bellboy's bell from the middle of the ghost's room (GDD 12.5)", async () => {
+    const a = await new Client(endpoint).create(ROOM_NAME, { name: "Rafi" });
+    const b = await new Client(endpoint).joinById(a.roomId, { name: "Mim" });
+    for (const r of [a, b]) r.onMessage("*", () => {});
+    const rings = [collectMsgs(a, "bellRing"), collectMsgs(b, "bellRing")];
+    a.send("debug", { nightTime: config.match.quietSec + 1 });
+    await waitFor(() => a.state.part === "calm");
+    // The test makes the next ring due now.
+    const server = matchMaker.getLocalRoomById(a.roomId) as any;
+    server.trick.ringIn = 0;
+    await waitFor(() => rings.every((list) => list.length === 1));
+    const room = marrowHotelGreybox.rooms.find((r) => r.minX < server.ghost.x && server.ghost.x < r.maxX && r.minZ < server.ghost.z && server.ghost.z < r.maxZ)!;
+    expect(rings[0]![0]).toEqual({ x: (room.minX + room.maxX) / 2, z: (room.minZ + room.maxZ) / 2 });
+    expect(rings[1]![0]).toEqual(rings[0]![0]);
+    await a.leave();
+    await b.leave();
+  });
+
   it("only tells each player about relics near them", async () => {
     const room = await new Client(endpoint).create(ROOM_NAME, { name: "Far" });
     room.onMessage("*", () => {});
