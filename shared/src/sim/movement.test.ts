@@ -100,6 +100,8 @@ describe("collision with walls and doors", () => {
     hidingSpots: [],
     saltJars: [],
     tasks: [],
+    relicSpots: [],
+    relicNames: [],
     spawns: [],
   };
 

@@ -30,6 +30,9 @@ const log = el("log");
 const staminaBar = el("stamina");
 const staminaFill = el("stamina-fill");
 const prompt = el("prompt");
+const carrying = el("carrying");
+const statusPanel = el("status-panel");
+const relicList = el("relic-list");
 const night = el("night");
 const nightPartText = el("night-part");
 const nightFill = el("night-fill");
@@ -183,6 +186,27 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
   setTaskMode: (mode) => {
     document.body.classList.toggle("in-task", mode === "in-task");
     document.body.classList.toggle("resume", mode === "resume");
+  },
+  setRelics: (list) => {
+    const key = list.map((r) => `${r.name}|${r.status}`).join(";");
+    if (relicList.dataset.key === key) return;
+    relicList.dataset.key = key;
+    relicList.replaceChildren(
+      ...list.map((r) => {
+        const li = document.createElement("li");
+        const status = document.createElement("span");
+        status.className = "relic-status";
+        status.textContent = r.status;
+        li.append(r.name, status);
+        return li;
+      }),
+    );
+  },
+  showStatusPanel: (open) => statusPanel.classList.toggle("hidden", !open),
+  setCarrying: (name) => {
+    carrying.classList.toggle("hidden", !name);
+    const text = name ? `Carrying ${name} (G to drop)` : "";
+    if (carrying.textContent !== text) carrying.textContent = text;
   },
 }, {
   root: el("task-overlay"),

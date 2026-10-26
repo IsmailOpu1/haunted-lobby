@@ -11,6 +11,7 @@ import {
   type MoveInput,
   type MoveMode,
   type MoveState,
+  type RelicNear,
   type ServerMessages,
   type TaskEntry,
 } from "@haunted/shared";
@@ -22,6 +23,7 @@ import { GhostView } from "./ghostView.ts";
 import { ItemsView } from "./items.ts";
 import { PlayerInput } from "./input.ts";
 import { MinigameOverlay } from "./minigames/overlay.ts";
+import { RelicsView } from "./relicsView.ts";
 import { RemotePlayers } from "./remotePlayers.ts";
 import { StationsView } from "./stations.ts";
 import { VoiceChat } from "./voice.ts";
@@ -69,6 +71,12 @@ export interface GameHud {
   setTeamTasks(done: number, total: number): void;
   /** "in-task" while a minigame is open, "resume" after it closes until the mouse is captured again. */
   setTaskMode(mode: "none" | "in-task" | "resume"): void;
+  /** Every relic's state, for the Tab panel (GDD 10). */
+  setRelics(list: { name: string; status: string }[]): void;
+  /** Holding Tab shows the status panel. */
+  showStatusPanel(open: boolean): void;
+  /** The relic you carry, or null. */
+  setCarrying(name: string | null): void;
 }
 
 /** The page elements of the minigame window. */
@@ -113,6 +121,14 @@ interface PlayerData {
   actionProgress: number;
   salt: number;
   cameraShots: number;
+  relic: string;
+}
+
+/** A relic as the server shares it with everyone. */
+interface RelicData {
+  name: string;
+  status: string;
+  carrier: string;
 }
 
 /**
@@ -135,6 +151,7 @@ export class Game {
   private ghost: GhostView;
   private items: ItemsView;
   private stations: StationsView;
+  private relicsView: RelicsView;
   private overlay: MinigameOverlay;
   private physics: PhysicsWorld;
   private collide: CollideFn;
@@ -161,6 +178,9 @@ export class Game {
   /** Where the open task stands on this side, so taskClosed can say the right thing. */
   private taskState: "none" | "open" | "finished" | "left" = "none";
   private openStation = "";
+  /** Relics the server says are near you: hidden ones you can hear, dropped ones you can see. */
+  private relicsNear: RelicNear[] = [];
+  private relics = new Map<string, RelicData>();
 
   private constructor(private canvas: HTMLCanvasElement, private map: MapData, private hud: GameHud, overlay: TaskOverlayElements) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
@@ -175,6 +195,7 @@ export class Game {
     this.ghost = new GhostView(this.scene);
     this.items = new ItemsView(this.scene, map);
     this.stations = new StationsView(this.scene, map);
+    this.relicsView = new RelicsView(this.scene);
     this.overlay = new MinigameOverlay(overlay.root, overlay.canvas, overlay.title, overlay.hint, overlay.leave, (kind, pitch) => this.sound.taskSound(kind, pitch), {
       onFinish: () => this.endTask("finished", { stationId: this.openStation }),
       onLeave: () => this.endTask("left"),
@@ -200,6 +221,10 @@ export class Game {
       },
       onPourSalt: () => this.room?.send("pourSalt"),
       onUse: (down) => this.room?.send("use", { down }),
+      onDropRelic: () => {
+        if (this.me?.relic) this.room?.send("dropRelic");
+      },
+      onStatusPanel: (open) => hud.showStatusPanel(open),
       onToggleDebugLights: () => {
         this.ambient.intensity = this.ambient.intensity === DARK_AMBIENT ? DEBUG_AMBIENT : DARK_AMBIENT;
       },
@@ -312,18 +337,20 @@ export class Game {
       this.hud.setTasks(msg.list);
     });
     room.onMessage("taskOpen", (msg: ServerMessages["taskOpen"]) => {
-      const def = this.map.tasks.find((t) => t.id === msg.stationId);
       this.openStation = msg.stationId;
       this.taskState = "open";
       this.hud.setTaskMode("in-task");
       document.exitPointerLock();
-      this.overlay.open(msg.minigame, def?.name ?? "Task");
+      this.overlay.open(msg.minigame, msg.title);
     });
     room.onMessage("taskClosed", (msg: ServerMessages["taskClosed"]) => {
+      // Relic spots use the same minigame window as tasks.
+      const relic = this.map.relicSpots.some((s) => s.id === msg.stationId);
       const name = this.map.tasks.find((t) => t.id === msg.stationId)?.name ?? "Task";
-      if (msg.reason === "done") this.hud.showBanner(`Done: ${name}`, 3);
-      else if (this.taskState === "open") this.hud.showBanner("Task cancelled. Start it again with E.", 3);
-      else if (this.taskState === "finished") this.hud.showBanner("Task not accepted. Try it again.", 3);
+      const what = relic ? "Search" : "Task";
+      if (msg.reason === "done") this.hud.showBanner(relic ? "You found a relic. Take it to the basement door." : `Done: ${name}`, 3);
+      else if (this.taskState === "open") this.hud.showBanner(`${what} cancelled. Start it again with E.`, 3);
+      else if (this.taskState === "finished") this.hud.showBanner(`${what} not accepted. Try it again.`, 3);
       if (this.overlay.isOpen) {
         // The server closed it (you moved, or got hurt).
         this.overlay.close();
@@ -334,6 +361,11 @@ export class Game {
     room.onMessage("taskNoise", (msg: ServerMessages["taskNoise"]) => {
       this.sound.taskSound(msg.minigame === "cradle" ? "cry" : "badNote", undefined, msg);
     });
+    room.onMessage("relicsNear", (msg: ServerMessages["relicsNear"]) => {
+      this.relicsNear = msg.list;
+      this.relicsView.setDropped(msg.list);
+    });
+    room.onMessage("relicDrop", (msg: ServerMessages["relicDrop"]) => this.sound.taskSound("thud", 0, msg));
     room.send("tasksRequest");
 
     // Every handler is registered, so now ask for the voice pass; the answer cannot be missed.
@@ -368,6 +400,13 @@ export class Game {
     });
     this.items.update(state);
     this.stations.update(state);
+    this.relics.clear();
+    const relicList: { name: string; status: string }[] = [];
+    state.relics?.forEach((r: RelicData, id: string) => {
+      this.relics.set(id, { name: r.name, status: r.status, carrier: r.carrier });
+      relicList.push({ name: r.name, status: relicStatusText(r) });
+    });
+    this.hud.setRelics(relicList);
     if (typeof state.tasksTotal === "number") this.hud.setTeamTasks(state.tasksDone, state.tasksTotal);
     this.saltJarsTaken = new Set();
     state.saltJars?.forEach((jar: { taken: boolean }, id: string) => {
@@ -407,7 +446,7 @@ export class Game {
     if (!me) return "normal";
     if (me.health === "downed") return "crawl";
     if (me.health === "dead" || me.hidingSpot) return "frozen";
-    return "normal";
+    return me.relic ? "carry" : "normal";
   }
 
   /**
@@ -449,6 +488,8 @@ export class Game {
     const now = performance.now();
     for (const door of this.doors.values()) door.update(dt);
     this.stations.render(now / 1000);
+    this.relicsView.render(now / 1000);
+    this.sound.relicWhisper(this.nearestHiddenRelic());
     this.ghost.render(now);
     this.remotes.render(now, dt, (x, z) => this.ghost.distanceTo(x, z));
 
@@ -542,6 +583,10 @@ export class Game {
     for (const p of this.others.values()) {
       if (p.health === "downed" && Math.hypot(p.x - x, p.z - z) <= config.interact.reviveRangeM) return `Hold E  Revive ${p.name}`;
     }
+    if (!me.relic) {
+      const dropped = this.relicsNear.find((r) => !r.hidden && Math.hypot(r.x - x, r.z - z) <= config.relics.useRangeM);
+      if (dropped) return `E  Pick up ${this.relics.get(dropped.id)?.name ?? "the relic"}`;
+    }
     if (me.salt < config.salt.carryMax) {
       for (const jar of this.map.saltJars) {
         if (!this.saltJarsTaken.has(jar.id) && Math.hypot(jar.x - x, jar.z - z) <= config.salt.jarRangeM) return "E  Pick up salt";
@@ -551,6 +596,12 @@ export class Game {
       if (task.done) continue;
       const def = this.map.tasks.find((t) => t.id === task.stationId);
       if (def && Math.hypot(def.x - x, def.z - z) <= config.tasks.useRangeM) return `E  ${def.name}`;
+    }
+    if (!me.relic) {
+      // You only know a spot holds a relic once you can hear it whisper.
+      const hidden = this.relicsNear.find((r) => r.hidden && Math.hypot(r.x - x, r.z - z) <= config.relics.useRangeM);
+      const spot = hidden && this.map.relicSpots.find((s) => s.id === hidden.spotId);
+      if (spot) return `E  ${spot.label}`;
     }
     const taken = new Set([...this.others.values()].map((p) => p.hidingSpot).filter(Boolean));
     for (const spot of this.map.hidingSpots) {
@@ -567,5 +618,35 @@ export class Game {
     else this.hud.setStatus({ kind: "alive" });
     this.hud.setAction(me.action ? (ACTION_LABELS[me.action] ?? null) : null, me.actionProgress);
     this.hud.setItems(me.salt, me.cameraShots);
+    this.hud.setCarrying(me.relic ? (this.relics.get(me.relic)?.name ?? "a relic") : null);
+  }
+
+  /** The closest hidden relic within whisper range, for the whisper sound. */
+  private nearestHiddenRelic(): { x: number; z: number } | null {
+    const cam = this.camera.position;
+    let best: RelicNear | null = null;
+    let bestDist: number = config.relics.whisperM;
+    for (const r of this.relicsNear) {
+      const d = Math.hypot(r.x - cam.x, r.z - cam.z);
+      if (r.hidden && d <= bestDist) {
+        best = r;
+        bestDist = d;
+      }
+    }
+    return best;
+  }
+}
+
+/** How the Tab panel describes a relic (GDD 10). It never says where a dropped relic is. */
+function relicStatusText(r: RelicData): string {
+  switch (r.status) {
+    case "carried":
+      return `Carried by ${r.carrier}`;
+    case "dropped":
+      return `Dropped (last carried by ${r.carrier})`;
+    case "placed":
+      return "Placed";
+    default:
+      return "Hidden";
   }
 }

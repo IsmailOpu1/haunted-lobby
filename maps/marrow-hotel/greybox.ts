@@ -76,17 +76,33 @@ export const marrowHotelGreybox: MapData = {
     { id: "jar-kitchen-1", x: 8.5, z: -7 },
     { id: "jar-kitchen-2", x: 3.3, z: -13.3 },
   ],
-  // Tasks from the GDD Section 9 list. Until the full map (Phase 5) gives each its own room,
-  // several share a grey-box room. The Corridor's task is still to be chosen.
+  // Tasks from the GDD Section 9 list, plus the Corridor's portraits. Until the full map
+  // (Phase 5) gives each task its own room, several share a grey-box room.
   tasks: [
     { id: "task-candelabra", name: "Light the candelabra", room: "Restaurant", minigame: "candelabra", x: -7, z: -9, visible: true, noisy: false },
     { id: "task-letter", name: "Burn the cursed letter", room: "Restaurant", minigame: "letter", x: -12.4, z: -9, visible: true, noisy: false },
+    { id: "task-mirror", name: "Clean the mirror", room: "Restaurant", minigame: "mirror", x: -7, z: -13.4, visible: false, noisy: false },
+    { id: "task-roses", name: "Water the dead roses", room: "Restaurant", minigame: "roses", x: -5, z: -11.5, visible: false, noisy: false },
     { id: "task-stove", name: "Turn off the stove", room: "Kitchen", minigame: "stove", x: 5.25, z: -6.7, visible: false, noisy: false },
     { id: "task-boiler", name: "Turn the boiler valve", room: "Kitchen", minigame: "boiler", x: 8.6, z: -10, visible: false, noisy: false },
+    { id: "task-trunk", name: "Seal the old trunk", room: "Kitchen", minigame: "trunk", x: 5.25, z: -9.8, visible: false, noisy: false },
     { id: "task-clock", name: "Wind the grandfather clock", room: "Main Hall", minigame: "clock", x: 0, z: 11.5, visible: true, noisy: false },
     { id: "task-piano", name: "Tune the piano", room: "Main Hall", minigame: "piano", x: -7.2, z: 7, visible: false, noisy: true },
     { id: "task-cradle", name: "Rock the cradle", room: "Main Hall", minigame: "cradle", x: 7.2, z: 6, visible: false, noisy: true },
+    { id: "task-switchboard", name: "Repair the switchboard", room: "Main Hall", minigame: "switchboard", x: -7.4, z: 1, visible: false, noisy: false },
+    { id: "task-sheets", name: "Fold the bedsheets", room: "Main Hall", minigame: "sheets", x: -3, z: 11.5, visible: false, noisy: false },
+    { id: "task-shutters", name: "Close the shutters", room: "Main Hall", minigame: "shutters", x: 7.4, z: 3.2, visible: true, noisy: false },
+    { id: "task-portraits", name: "Straighten the portraits", room: "Corridor", minigame: "portraits", x: 0.85, z: -13.6, visible: true, noisy: false },
   ],
+  // Relic hiding places (never the Main Hall). The full map has about 12 (GDD 21.1).
+  relicSpots: [
+    { id: "relic-planter", label: "Dig in the planter", room: "Restaurant", minigame: "dig", x: -10, z: -13.5 },
+    { id: "relic-sideboard", label: "Open the jewellery box", room: "Restaurant", minigame: "lockbox", x: -4, z: -4.6 },
+    { id: "relic-drain", label: "Reach into the drain", room: "Kitchen", minigame: "drain", x: 3, z: -6.6 },
+    { id: "relic-shelf", label: "Open the jewellery box", room: "Kitchen", minigame: "lockbox", x: 7, z: -13.4 },
+    { id: "relic-palm", label: "Dig in the plant pot", room: "Corridor", minigame: "dig", x: 0.75, z: -5.6 },
+  ],
+  relicNames: ["the Founder's Ring", "the Silver Bell", "the Music Box", "the Wedding Portrait", "the Brass Key"],
   spawns: [
     { x: -3, z: 6 },
     { x: 3, z: 6 },

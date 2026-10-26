@@ -1,5 +1,5 @@
 import { config } from "@haunted/shared";
-import { BOARD_W, dist, drawBackdrop, type Minigame, type PlaySound, type Point } from "./types.ts";
+import { angleDeg, angleDiff, dist, drawBackdrop, type Minigame, type PlaySound, type Point } from "./types.ts";
 
 // Turn the boiler valve (GDD 9): hold the valve wheel and circle the mouse clockwise to open it,
 // back to close it, until the needle stays in the green for 3 s. The old wheel only turns so
@@ -10,14 +10,6 @@ const WHEEL = { x: 470, y: 230, r: 90 };
 // The gauge needle sweeps 240 degrees, from bottom left (0) to bottom right (1).
 const SWEEP_START = (-120 * Math.PI) / 180;
 const SWEEP = (240 * Math.PI) / 180;
-
-function angleDeg(from: Point, to: Point): number {
-  return (Math.atan2(to.x - from.x, -(to.y - from.y)) * 180) / Math.PI;
-}
-
-function angleDiff(to: number, from: number): number {
-  return ((((to - from) % 360) + 540) % 360) - 180;
-}
 
 export class Boiler implements Minigame {
   readonly hint = "Hold the valve wheel and turn it (circle the mouse) until the needle stays in the green.";

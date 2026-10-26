@@ -29,6 +29,8 @@ export const Player = schema({
   // Items (GDD Section 8).
   salt: t.uint8(),
   cameraShots: t.uint8(),
+  // The relic this player carries (a key of GameState.relics), or "" (GDD Section 10).
+  relic: t.string(),
 }, "Player");
 export type Player = SchemaType<typeof Player>;
 
@@ -55,12 +57,22 @@ export const TaskStation = schema({
 }, "TaskStation");
 export type TaskStation = SchemaType<typeof TaskStation>;
 
+/** A relic as everyone sees it on Tab (GDD 10). Where it is stays on the server. */
+export const Relic = schema({
+  name: t.string(),
+  status: t.string(),
+  /** Who carries it, or who carried it last. */
+  carrier: t.string(),
+}, "Relic");
+export type Relic = SchemaType<typeof Relic>;
+
 export const GameState = schema({
   players: t.map(Player),
   doors: t.map(Door),
   saltLines: t.map(SaltLine),
   saltJars: t.map(SaltJar),
   stations: t.map(TaskStation),
+  relics: t.map(Relic),
   // The team task bar (GDD 9). Only real tasks count.
   tasksDone: t.uint16(),
   tasksTotal: t.uint16(),

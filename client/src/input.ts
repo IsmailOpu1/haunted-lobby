@@ -14,6 +14,10 @@ export interface InputActions {
   onPourSalt(): void;
   /** E pressed (true) or released (false). */
   onUse(down: boolean): void;
+  /** G: drop the relic you carry. */
+  onDropRelic(): void;
+  /** Tab held (true) or released (false): the status panel. */
+  onStatusPanel(open: boolean): void;
   onToggleDebugLights(): void;
   onLookChange(looking: boolean): void;
   /** Any click or key press (browsers only start sound after one). */
@@ -31,7 +35,11 @@ export class PlayerInput {
     window.addEventListener("keydown", (e) => {
       actions.onUserGesture();
       this.keys.add(e.code);
+      // Tab would otherwise move focus to the room panel's buttons.
+      if (e.code === "Tab" && this.looking) e.preventDefault();
       if (!this.looking || e.repeat) return;
+      if (e.code === "Tab") actions.onStatusPanel(true);
+      if (e.code === "KeyG") actions.onDropRelic();
       if (e.code === "KeyE") actions.onUse(true);
       if (e.code === "Digit1") actions.onFlashlight();
       if (e.code === "Digit2") {
@@ -44,10 +52,12 @@ export class PlayerInput {
     window.addEventListener("keyup", (e) => {
       this.keys.delete(e.code);
       if (e.code === "KeyE") actions.onUse(false);
+      if (e.code === "Tab") actions.onStatusPanel(false);
     });
     window.addEventListener("blur", () => {
       this.keys.clear();
       actions.onUse(false);
+      actions.onStatusPanel(false);
     });
 
     canvas.addEventListener("mousedown", (e) => {

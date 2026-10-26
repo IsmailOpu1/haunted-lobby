@@ -1,8 +1,10 @@
 import * as THREE from "three";
-import type { MapData, MinigameKind, TaskStationDef } from "@haunted/shared";
+import type { MapData, RelicMinigame, TaskMinigame } from "@haunted/shared";
 
 // Placeholder task station models until the Phase 8 art pass. Visible tasks (GDD 9) show
-// their result to everyone: the candelabra stays lit and the clock's pendulum swings.
+// their result to everyone: the candelabra stays lit, the clock's pendulum swings, the
+// shutters close and the portraits hang straight. Relic hiding spots get props too, so every
+// spot looks the same whether or not a relic is in it this match.
 
 const BRASS = 0xa07a34;
 const WOOD = 0x3b2416;
@@ -19,7 +21,7 @@ interface StationView {
 }
 
 /** Turns the station to face away from the nearest wall (walls are axis-aligned). Models face +z. */
-function facingYaw(map: MapData, def: TaskStationDef): number {
+function facingYaw(map: MapData, def: { x: number; z: number }): number {
   let best = Infinity;
   let yaw = 0;
   for (const [x1, z1, x2, z2] of map.walls) {
@@ -170,7 +172,140 @@ function boiler(): StationView {
   return { group, setDone() {} };
 }
 
-const MODELS: Record<MinigameKind, () => StationView> = { candelabra, clock, stove, letter: fireplace, cradle, piano, boiler };
+function switchboard(): StationView {
+  const group = new THREE.Group();
+  group.add(box(1.0, 1.0, 0.15, WOOD, 0, 1.3, -0.1));
+  for (let i = 0; i < 4; i++) group.add(box(0.06, 0.06, 0.04, 0x0d0a07, -0.3 + i * 0.2, 1.4, 0));
+  group.add(box(1.0, 0.8, 0.4, WOOD, 0, 0.4, 0.05)); // desk
+  return { group, setDone() {} };
+}
+
+function mirror(): StationView {
+  const group = new THREE.Group();
+  group.add(box(0.9, 1.3, 0.06, BRASS, 0, 1.45, -0.05));
+  group.add(box(0.75, 1.15, 0.02, 0xa8b0b6, 0, 1.45, -0.01));
+  group.add(box(0.9, 0.8, 0.4, WOOD, 0, 0.4, 0.1)); // dresser
+  return { group, setDone() {} };
+}
+
+function trunk(): StationView {
+  const group = new THREE.Group();
+  group.add(box(1.0, 0.5, 0.55, 0x4b3420, 0, 0.25, 0));
+  group.add(box(1.02, 0.12, 0.57, 0x553a22, 0, 0.56, 0));
+  for (let i = -1; i <= 1; i++) group.add(box(0.06, 0.08, 0.02, BRASS, i * 0.3, 0.45, 0.29));
+  return { group, setDone() {} };
+}
+
+function sheets(): StationView {
+  const group = new THREE.Group();
+  group.add(box(1.2, 0.75, 0.7, WOOD, 0, 0.375, 0)); // table
+  group.add(box(0.9, 0.08, 0.5, 0xd9d4c4, 0, 0.79, 0));
+  return { group, setDone() {} };
+}
+
+function roses(): StationView {
+  const group = new THREE.Group();
+  group.add(box(1.1, 0.75, 0.5, WOOD, 0, 0.375, 0));
+  const glass = new THREE.MeshLambertMaterial({ color: 0xb8c8d0, transparent: true, opacity: 0.5 });
+  for (let i = -1; i <= 1; i++) {
+    const vase = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.06, 0.3, 10), glass);
+    vase.position.set(i * 0.32, 0.9, 0);
+    group.add(vase);
+    group.add(box(0.1, 0.1, 0.1, 0x8a2a36, i * 0.32, 1.12, 0));
+  }
+  return { group, setDone() {} };
+}
+
+function shutters(): StationView {
+  // A window on the wall, its shutters banging open until the task closes them.
+  const group = new THREE.Group();
+  group.add(box(1.2, 1.4, 0.08, 0x0b1018, 0, 1.5, -0.08));
+  const hinges: THREE.Group[] = [];
+  for (const side of [-1, 1]) {
+    const hinge = new THREE.Group();
+    hinge.position.set(side * 0.6, 1.5, -0.02);
+    hinge.add(box(0.6, 1.4, 0.04, 0x5e4630, -side * 0.3, 0, 0));
+    group.add(hinge);
+    hinges.push(hinge);
+  }
+  let shut = false;
+  return {
+    group,
+    setDone(done) {
+      shut = done;
+    },
+    update(time) {
+      hinges.forEach((h, i) => {
+        const side = i === 0 ? -1 : 1;
+        h.rotation.y = shut ? 0 : side * (1.9 + Math.sin(time * 1.3 + i) * 0.15);
+      });
+    },
+  };
+}
+
+function portraits(): StationView {
+  const group = new THREE.Group();
+  const frames: THREE.Group[] = [];
+  const tilts = [0.3, -0.45, 0.25];
+  for (let i = -1; i <= 1; i++) {
+    const pivot = new THREE.Group();
+    pivot.position.set(i * 0.75, 1.9, -0.06);
+    pivot.add(box(0.5, 0.65, 0.05, BRASS, 0, -0.4, 0));
+    pivot.add(box(0.4, 0.55, 0.02, 0x2e2a24, 0, -0.4, 0.03));
+    pivot.rotation.z = tilts[i + 1]!;
+    group.add(pivot);
+    frames.push(pivot);
+  }
+  return {
+    group,
+    setDone(done) {
+      frames.forEach((f, i) => (f.rotation.z = done ? 0 : tilts[i]!));
+    },
+  };
+}
+
+const MODELS: Record<TaskMinigame, () => StationView> = {
+  candelabra,
+  clock,
+  stove,
+  letter: fireplace,
+  cradle,
+  piano,
+  boiler,
+  switchboard,
+  mirror,
+  trunk,
+  sheets,
+  roses,
+  shutters,
+  portraits,
+};
+
+function lockboxSpot(): THREE.Group {
+  const group = new THREE.Group();
+  group.add(box(1.0, 0.85, 0.45, WOOD, 0, 0.425, 0)); // sideboard or shelf
+  group.add(box(0.3, 0.16, 0.2, 0x6a4a2a, 0, 0.93, 0));
+  group.add(box(0.06, 0.06, 0.02, BRASS, 0, 0.93, 0.11));
+  return group;
+}
+
+function digSpot(): THREE.Group {
+  const group = new THREE.Group();
+  group.add(box(0.8, 0.5, 0.8, 0x5a3b22, 0, 0.25, 0));
+  group.add(box(0.7, 0.04, 0.7, 0x2e2014, 0, 0.51, 0));
+  group.add(box(0.06, 0.9, 0.06, 0x3d6a33, 0, 0.95, 0));
+  group.add(box(0.6, 0.06, 0.06, 0x3d6a33, 0, 1.3, 0));
+  return group;
+}
+
+function drainSpot(): THREE.Group {
+  const group = new THREE.Group();
+  group.add(box(0.7, 0.02, 0.7, 0x2b3324, 0, 0.01, 0));
+  for (let i = -2; i <= 2; i++) group.add(box(0.04, 0.03, 0.6, 0x555048, i * 0.13, 0.025, 0));
+  return group;
+}
+
+const RELIC_SPOTS: Record<RelicMinigame, () => THREE.Group> = { lockbox: lockboxSpot, dig: digSpot, drain: drainSpot };
 
 /** Task stations in the world, with visible tasks showing their done state from the server. */
 export class StationsView {
@@ -184,6 +319,12 @@ export class StationsView {
       scene.add(view.group);
       // Only visible tasks change for everyone; the rest never show a result.
       this.views.set(def.id, def.visible ? view : { ...view, setDone() {} });
+    }
+    for (const spot of map.relicSpots) {
+      const prop = RELIC_SPOTS[spot.minigame]();
+      prop.position.set(spot.x, 0, spot.z);
+      prop.rotation.y = facingYaw(map, spot);
+      scene.add(prop);
     }
   }
 

@@ -6,12 +6,13 @@ import { marrowHotelGreybox } from "@haunted/maps";
 // interactive things must not sit so close together that E picks the wrong one.
 
 const maps = [marrowHotelGreybox];
-const reach = Math.max(config.salt.jarRangeM, config.tasks.useRangeM, config.interact.hideRangeM);
+const reach = Math.max(config.salt.jarRangeM, config.tasks.useRangeM, config.interact.hideRangeM, config.relics.useRangeM);
 
 describe.each(maps.map((m) => [m.name, m] as const))("%s", (_name, map) => {
   const points = [
     ...map.saltJars.map((j) => ({ id: j.id, x: j.x, z: j.z })),
     ...map.tasks.map((t) => ({ id: t.id, x: t.x, z: t.z })),
+    ...map.relicSpots.map((r) => ({ id: r.id, x: r.x, z: r.z })),
     ...map.hidingSpots.map((h) => ({ id: h.id, x: h.exit.x, z: h.exit.z })),
   ];
 
@@ -36,6 +37,15 @@ describe.each(maps.map((m) => [m.name, m] as const))("%s", (_name, map) => {
 
   it("puts every task station inside the room it names", () => {
     for (const t of map.tasks) expect(roomAt(map, t.x, t.z)?.name, t.id).toBe(t.room);
+  });
+
+  it("puts relic spots inside their rooms, never in the Main Hall, with a name for every relic", () => {
+    for (const r of map.relicSpots) {
+      expect(roomAt(map, r.x, r.z)?.name, r.id).toBe(r.room);
+      expect(r.room, r.id).not.toBe("Main Hall");
+    }
+    expect(map.relicSpots.length).toBeGreaterThanOrEqual(Math.max(...config.relics.options));
+    expect(map.relicNames.length).toBeGreaterThanOrEqual(Math.max(...config.relics.options));
   });
 
   it("has one salt jar per possible player", () => {

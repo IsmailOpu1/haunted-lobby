@@ -44,12 +44,31 @@ export interface ServerMessages {
   /** Your task list (private). Sent on request and whenever it changes. */
   tasks: { list: TaskEntry[] };
   /** Open this task's minigame (you pressed E at its station). */
-  taskOpen: { stationId: string; minigame: import("./map.ts").MinigameKind };
+  taskOpen: { stationId: string; minigame: import("./map.ts").MinigameKind; title: string };
   /** Close the minigame: finished, or cancelled (you moved, were downed, or quit). */
   taskClosed: { stationId: string; reason: "done" | "cancelled" };
   /** Someone near you botched a noisy task: the baby cried or a wrong note rang out. */
   taskNoise: { x: number; z: number; minigame: import("./map.ts").MinigameKind };
+  /**
+   * Relics near you (sent nearUpdateHz times a second): hidden ones within whisper range, so
+   * you can hear them, and dropped ones within sight. Positions are never sent from farther.
+   */
+  relicsNear: { list: RelicNear[] };
+  /** A relic hit the floor near you. */
+  relicDrop: { x: number; z: number };
 }
+
+export interface RelicNear {
+  id: string;
+  x: number;
+  z: number;
+  /** Hidden in a spot (spotId set) or lying on the floor. */
+  hidden: boolean;
+  spotId: string;
+}
+
+/** What everyone sees about a relic on Tab (GDD 10). Never where it is. */
+export type RelicStatus = "hidden" | "carried" | "dropped" | "placed";
 
 export interface GhostView {
   x: number;
@@ -89,6 +108,8 @@ export interface ClientMessages {
   taskCancel: undefined;
   /** My noisy minigame went wrong (the baby cried, a wrong note). The ghost may hear it. */
   taskNoise: undefined;
+  /** Drop the relic I carry (G). */
+  dropRelic: undefined;
   /** Take a Spirit Camera photo in the direction you are looking. */
   photo: undefined;
 }

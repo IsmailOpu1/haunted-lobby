@@ -591,3 +591,49 @@ body.resume .panel {
 body.resume:not(.looking) #resume-hint {
   display: block;
 }
+
+/* The relic you carry, above the item counts. */
+#carrying {
+  position: fixed;
+  bottom: 38px;
+  left: 16px;
+  font-size: 13px;
+  color: #e0b24a;
+  pointer-events: none;
+}
+
+/* Hold Tab: every relic's state (GDD 10). */
+#status-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 300px;
+  padding: 12px 18px;
+  background: rgba(12, 12, 16, 0.85);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+#status-panel h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+#relic-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+#relic-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 3px 0;
+}
+
+.relic-status {
+  color: var(--muted);
+}

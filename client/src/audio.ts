@@ -56,6 +56,10 @@ function randomBetween(min: number, max: number): number {
   return min + Math.random() * (max - min);
 }
 
+const WHISPER_HZ = 1400;
+const WHISPER_SWELL_HZ = 0.35;
+const WHISPER_LEVEL = 0.35;
+
 export class SoundScape {
   private ctx: AudioContext | null = null;
   private master!: GainNode;
@@ -68,6 +72,7 @@ export class SoundScape {
   private hunting = false;
   private listener = { x: 0, z: 0 };
   private nextPhantomAt = 0;
+  private whisper: { level: GainNode; panner: PannerNode } | null = null;
 
   /** Browsers only allow sound after a click or key press; call this from one. */
   unlock() {
@@ -292,7 +297,79 @@ export class SoundScape {
         }
         return;
       }
+      case "scrape":
+      case "splash":
+      case "spark": {
+        // Filtered noise bursts: soil under a trowel, water, a crackling socket.
+        const shape = { scrape: [700, 0.18, 0.18], splash: [1200, 0.2, 0.35], spark: [6000, 0.15, 0.12] } as const;
+        const [freq, level, len] = shape[kind];
+        const src = ctx.createBufferSource();
+        src.buffer = this.noise;
+        const filter = ctx.createBiquadFilter();
+        filter.type = "bandpass";
+        filter.frequency.setValueAtTime(freq, t);
+        if (kind === "splash") filter.frequency.exponentialRampToValueAtTime(400, t + len);
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(level, t);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + len);
+        src.connect(filter).connect(gain).connect(out);
+        src.start(t);
+        src.stop(t + len);
+        return;
+      }
+      case "thud":
+        tone("sine", 90, 0.4, 0.25).frequency.exponentialRampToValueAtTime(45, t + 0.25);
+        return;
+      case "scare": {
+        // A sudden dissonant swell.
+        for (const f of [311, 330, 466]) {
+          const osc = tone("sawtooth", f, 0.1, 1.1);
+          osc.frequency.exponentialRampToValueAtTime(f * 0.7, t + 1.1);
+        }
+        return;
+      }
     }
+  }
+
+  /**
+   * A hidden relic whispering (GDD 10): breathy noise that swells and fades, from where the
+   * nearest hidden relic is. null fades it out.
+   */
+  relicWhisper(at: { x: number; z: number } | null) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    if (!this.whisper) {
+      const src = ctx.createBufferSource();
+      src.buffer = this.noise;
+      src.loop = true;
+      const band = ctx.createBiquadFilter();
+      band.type = "bandpass";
+      band.frequency.value = WHISPER_HZ;
+      band.Q.value = 4;
+      // A slow swell, like breathing: the gain moves between 0 and 1.
+      const swell = ctx.createGain();
+      swell.gain.value = 0.5;
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = WHISPER_SWELL_HZ;
+      const depth = ctx.createGain();
+      depth.gain.value = 0.5;
+      lfo.connect(depth).connect(swell.gain);
+      const level = ctx.createGain();
+      level.gain.value = 0;
+      const panner = ctx.createPanner();
+      panner.distanceModel = "inverse";
+      panner.refDistance = 1.5;
+      src.connect(band).connect(swell).connect(level).connect(panner).connect(this.master);
+      src.start();
+      lfo.start();
+      this.whisper = { level, panner };
+    }
+    const t = ctx.currentTime;
+    this.whisper.level.gain.setTargetAtTime(at ? WHISPER_LEVEL : 0, t, 0.4);
+    if (!at) return;
+    this.whisper.panner.positionX.setTargetAtTime(at.x, t, 0.05);
+    this.whisper.panner.positionY.setTargetAtTime(0.8, t, 0.05);
+    this.whisper.panner.positionZ.setTargetAtTime(at.z, t, 0.05);
   }
 
   /** A camera shutter and flash whine. With a position it comes from there; without, it is yours. */

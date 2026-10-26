@@ -38,18 +38,21 @@ export function initialMoveState(x: number, z: number): MoveState {
 }
 
 /**
- * normal: walk, run and crouch. crawl: downed (GDD Section 7), slow and no running.
+ * normal: walk, run and crouch. carry: the same while carrying a relic, relicSlowPct slower
+ * (GDD Section 10). crawl: downed (GDD Section 7), slow and no running.
  * frozen: hidden or dead, no movement (stamina still recovers).
  */
-export type MoveMode = "normal" | "crawl" | "frozen";
+export type MoveMode = "normal" | "carry" | "crawl" | "frozen";
 
 export function stepMovement(state: MoveState, input: MoveInput, dt: number, collide: CollideFn, mode: MoveMode = "normal"): MoveState {
   const m = config.movement;
   const moving = mode !== "frozen" && (input.forward !== 0 || input.right !== 0);
-  const crouching = mode === "normal" && input.crouch;
-  const running = mode === "normal" && moving && input.run && !crouching && state.stamina > 0;
+  const upright = mode === "normal" || mode === "carry";
+  const crouching = upright && input.crouch;
+  const running = upright && moving && input.run && !crouching && state.stamina > 0;
 
-  const speed = mode === "crawl" ? m.crawl : crouching ? m.crouch : running ? m.run : m.walk;
+  const base = mode === "crawl" ? m.crawl : crouching ? m.crouch : running ? m.run : m.walk;
+  const speed = mode === "carry" ? base * (1 - m.relicSlowPct / 100) : base;
 
   // Forward is where the camera looks (yaw 0 = -z). Right is 90 degrees clockwise from it.
   const sin = Math.sin(input.yaw);

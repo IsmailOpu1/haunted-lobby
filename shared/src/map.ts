@@ -36,21 +36,51 @@ export interface HidingSpotDef {
   exit: { x: number; z: number };
 }
 
-/** The minigames that exist. Each map's task list picks from these (GDD Section 9). */
-export type MinigameKind = "candelabra" | "stove" | "clock" | "letter" | "cradle" | "piano" | "boiler";
+/** The task minigames that exist. Each map's task list picks from these (GDD Section 9). */
+export type TaskMinigame =
+  | "candelabra"
+  | "stove"
+  | "clock"
+  | "letter"
+  | "cradle"
+  | "piano"
+  | "boiler"
+  | "switchboard"
+  | "mirror"
+  | "trunk"
+  | "sheets"
+  | "roses"
+  | "shutters"
+  | "portraits";
+
+/** The minigames for taking a relic, one per kind of hiding place (GDD Section 10). */
+export type RelicMinigame = "lockbox" | "dig" | "drain";
+
+export type MinigameKind = TaskMinigame | RelicMinigame;
 
 /** A place in the map where a task is done. */
 export interface TaskStationDef {
   id: string;
   name: string;
   room: string;
-  minigame: MinigameKind;
+  minigame: TaskMinigame;
   x: number;
   z: number;
   /** Visible tasks leave a change everyone can see (GDD 9), which the possessed cannot fake. */
   visible: boolean;
   /** Noisy tasks make a sound the ghost can hear when done badly (GDD 9). */
   noisy: boolean;
+}
+
+/** A place a relic can be hidden, and how it is taken out (GDD Section 10). */
+export interface RelicSpotDef {
+  id: string;
+  /** What the player sees: "Search the planter". */
+  label: string;
+  room: string;
+  minigame: RelicMinigame;
+  x: number;
+  z: number;
 }
 
 export interface MapData {
@@ -66,6 +96,10 @@ export interface MapData {
   saltJars: { id: string; x: number; z: number }[];
   /** Task stations, in different areas, never in the basement (GDD Section 9). */
   tasks: TaskStationDef[];
+  /** Places a relic can be hidden, never in the Main Hall or the basement (GDD Section 10). */
+  relicSpots: RelicSpotDef[];
+  /** This map's relic names, used in order for the relics of a match. */
+  relicNames: string[];
   spawns: { x: number; z: number }[];
 }
 

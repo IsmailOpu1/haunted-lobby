@@ -730,6 +730,7 @@ Real-mic ghost hearing with mic calibration, the Spirit Camera, Wisps with the O
 | 2026-10-25 | Finish the browser version first; a downloadable version (Unity or Unreal) may follow | Owner decision: keep join-by-link now, consider a native release later |
 | 2026-10-25 | No background music or drone; footsteps are the background sound (Section 23). Volume slider added | Owner playtest: the drone caused headaches over a night; footsteps suit the game better |
 | 2026-10-26 | "Hang the room keys" removed from the task list (Section 9). The Guest Corridor gets a new task, still to be chosen | Owner playtest (Phase 4): it did not feel like a task and was not fun |
+| 2026-10-26 | **(Awaiting owner confirmation)** The Guest Corridor's new task is **Straighten the portraits** (visible): grab each of 3 crooked portraits and drag sideways to level it; one is haunted and swings crooked again once | The owner asked for a new Corridor task without naming one. Visible, so everyone sees the portraits hang straight |
 
 ### 26.6 Phase 2 build choices (awaiting owner confirmation)
 
@@ -771,11 +772,11 @@ Rules the GDD did not specify, chosen while building the ghost. Numbers live in 
 |---|---|---|
 | Item keys | 2 raises or lowers the camera, click takes the photo; 3 pours salt straight away | One key per item, nothing to hold |
 | Salt jars | Every jar is full at the start of the night | Until match settings exist (Phase 7) |
-| What E does | One thing at a time, in this order: revive, pick up salt, start a task, hide, door. Things you can use are kept more than 1.5 m apart on the map (checked by a test) | Pressing E never does something you did not expect |
+| What E does | One thing at a time, in this order: revive, pick up a dropped relic, pick up salt, start a task, search a relic spot, hide, door. Things you can use are kept more than 1.5 m apart on the map (checked by a test) | Pressing E never does something you did not expect |
 | Starting a task | Stand within 1.5 m of the station and press E. The mouse is freed for the minigame | |
 | What cancels a task | Leave or Esc, walking more than 1.5 m from the station, or being downed | GDD 9: leaving or getting hit cancels it |
 | Fastest finish the server accepts | 7 s | A little under the 10 s minimum, so quick players are not refused, but a cheat cannot finish tasks instantly |
-| Grey-box tasks | Restaurant: candelabra, cursed letter. Kitchen: stove, boiler valve. Main Hall: grandfather clock, piano, cradle. Each player gets one task in each of 3 rooms | Until the full map (Phase 5) gives each task its own room. The Corridor has no task until its new one is chosen |
+| Grey-box tasks | Restaurant: candelabra, cursed letter, mirror, roses. Kitchen: stove, boiler valve, trunk. Main Hall: grandfather clock, piano, cradle, switchboard, sheets, shutters. Corridor: portraits. Each player gets one task in each of 3 rooms | Until the full map (Phase 5) gives each task its own room |
 | Candelabra | Strike a match on the box (0.8 s), hold it to each of 5 wicks for 1.6 s; a fast flick puts the match out | GDD 9 |
 | Stove | 3 knobs, each starting about half a turn from off; hold one and circle the mouse; they turn at most 55° a second | GDD 9 |
 | Clock | One tick every 0.75 s; click or Space within 0.16 s of a tick to turn the key; 14 turns; off the beat slips back one | GDD 9. Owner playtest: hard but good, kept as is |
@@ -788,4 +789,18 @@ Rules the GDD did not specify, chosen while building the ghost. Numbers live in 
 | Noisy fails | The baby crying or a wrong note can be heard by the ghost within 10 m, and by players within 10 m. At most once a second per player | GDD 9 noisy tasks. Known limit: a cheating game could skip sending the noise |
 | Interactive things and doors | Salt jars and task stations sit more than 3.5 m from doors, so E can still open the door | E prefers jars and tasks over doors (checked by a test) |
 | Team bar | Shows done / total under the night bar; a player who leaves takes their unfinished tasks off the bar | GDD 9 |
-| Visible results | The candelabra stays lit with a warm light; the clock's pendulum swings | GDD 9 visible tasks |
+| Visible results | The candelabra stays lit with a warm light; the clock's pendulum swings; the shutters close; the portraits hang straight | GDD 9 visible tasks |
+| Switchboard | Drag each of 4 cables to the socket with its symbol and hold it in for 1.4 s; a wrong socket sparks and throws the cable back | GDD 9 |
+| Mirror | Hold and wipe the fog until 90% is clear; wiping faster than 300 units a second only smears. Half the time a face appears for 0.9 s halfway through (a scare only) | GDD 9 |
+| Trunk | Hold the lid down for 2 s, then turn 3 latches a quarter turn each (circle the mouse, at most 45° a second). Leave the latches untouched for 5 s and the lid bursts open and everything resets | GDD 9 |
+| Bed sheets | Fold the sheet in half 3 times by dragging the corner onto a mark; wet linen follows the mouse at most 110 units a second; letting go short drops the corner back | GDD 9 |
+| Roses | Hold over a vase to pour (3.5 s to fill); water runs on 0.35 s after you stop; fill 3 vases to the line; overflowing empties the vase | GDD 9 |
+| Shutters | Drag each of 3 shutters shut against gusting wind and hold it for 1.5 s while the latch catches | GDD 9 |
+| Portraits | 3 portraits tilted 20° to 35°; they turn at most 15° a second; level means within 2° for 0.6 s after you let go; one swings back 25° once | New Corridor task (26.5) |
+| Relic spots (grey box) | 5 spots: planter and jewellery box (Restaurant), drain and shelf box (Kitchen), plant pot (Corridor). 3 relics hide in random spots each match | GDD 10 asks for about 12 spots 20 m apart; the grey box is too small for that, so relics go as far apart as it allows. The full map (Phase 5) adds the 12 |
+| Finding a relic | Within 8 m you hear a whisper from the nearest hidden relic. The server only tells you where a relic is when you are within 8 m (hidden) or 15 m (dropped). Only spots you can hear show the E prompt | GDD 10; relic positions stay secret (PRD 10.3) |
+| Taking a relic | Stand within 1.5 m and press E. Jewellery box: lift 5 pins and let go in the gold band (a tick tells you). Planter: drag the trowel back and forth (frantic strokes do not dig faster). Drain: feel slowly through murky water (bubbles mean close), hold still 3 s to grip, then pull it up. The server refuses a finish under 6 s | GDD 10: 10 to 15 s minigames. Same window and rules as tasks |
+| Carrying | One relic at a time; 15% slower; the ghost hears you 25% farther. "Carrying X (G to drop)" shows on screen | GDD 10 |
+| Dropping | G drops it where you stand; the ghost and players within 8 m hear it. Downed or leaving: it falls silently. Anyone can pick a dropped relic up with E straight away | GDD 10. A dropped relic glows faintly so it can be found |
+| Tab | Hold Tab to see every relic: Hidden, Carried by X, Dropped (last carried by X), Placed. Never where | GDD 10 |
+| Placing relics | Not built yet: the basement door comes with the full map and the ritual (Phase 5) | The grey box has no basement |

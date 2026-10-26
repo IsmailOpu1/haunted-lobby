@@ -86,6 +86,20 @@ export const config = {
       cradle: { periodSec: 2.2, swingUnits: 150, matchUnits: 40, minUnitsPerSec: 60, fillSec: 11, cryUnitsPerSec: 900, cryLoseSec: 2, cryPauseSec: 1.5 },
       // Press the symbol keys in the order shown; a wrong note is a noisy fail and restarts the round.
       piano: { keys: 8, rounds: 3, notesPerRound: 5 },
+      // Drag each cable to the socket with the same symbol and hold it in while it seats.
+      switchboard: { cables: 4, seatSec: 1.4 },
+      // Wipe the fog off; a fast wipe smears instead of cleaning. A face may appear (scare only).
+      mirror: { clearPct: 90, brushUnits: 26, maxUnitsPerSec: 300, faceChance: 0.5, faceSec: 0.9 },
+      // Hold the lid down until it clicks, then turn the latches. Wait too long and it bursts open.
+      trunk: { latches: 3, pressSec: 2, turnDegPerSec: 45, popSec: 5 },
+      // Fold the sheet in half three times by dragging corners; wet linen is heavy.
+      sheets: { folds: 3, dragUnitsPerSec: 110, snapUnits: 30 },
+      // Pour until the line; water keeps flowing a moment after you stop. Overflow empties the vase.
+      roses: { vases: 3, fillSec: 3.5, lagSec: 0.35, line: 0.75, rim: 0.95 },
+      // Drag each shutter closed against the wind and hold it until the latch catches.
+      shutters: { count: 3, latchSec: 1.5, windPerSec: 0.35, dragPerSec: 0.9 },
+      // Level each crooked portrait; one keeps tilting back once.
+      portraits: { count: 3, minTiltDeg: 20, maxTiltDeg: 35, turnDegPerSec: 15, levelDeg: 2, holdSec: 0.6, hauntedReturnDeg: 25 },
       // Pressure from 0 to 1. Each valve position gives a steady pressure (fully open lowers it
       // by dropFullOpen); the needle follows with a lag, and draughts push it about a little.
       boiler: { startPressure: 0.95, safeMin: 0.45, safeMax: 0.6, holdSec: 3, dropFullOpen: 0.8, followPerSec: 1.5, wobble: 0.07, turnDegPerSec: 30, maxOpenDeg: 360 },
@@ -101,6 +115,21 @@ export const config = {
     placeSec: 3,
     carryHearingBonusPct: 25,
     dropGhostHearM: 8,
+    // Chosen in Phase 4: reach for searching a spot or picking a relic up, the shortest time
+    // the server accepts for a taking minigame, how far away a dropped relic can be seen,
+    // and how often each player hears where nearby relics are.
+    useRangeM: 1.5,
+    serverMinSec: 6,
+    seeDroppedM: 15,
+    nearUpdateHz: 5,
+    minigames: {
+      // Hold to lift each pin; let go while it is in the gold band.
+      lockbox: { pins: 5, riseSec: 2.4, bandMin: 0.62, bandMax: 0.8 },
+      // Drag the trowel back and forth through the soil; frantic strokes do not dig faster.
+      dig: { digUnits: 5200, maxUnitsPerSec: 550 },
+      // Feel through murky water (the hand is slow in it), hold still to grab, then pull up.
+      drain: { handUnitsPerSec: 160, feelUnits: 60, grabSec: 3, holdStillUnitsPerSec: 40, pullUnits: 220, pullUnitsPerSec: 80 },
+    },
   },
   ritual: {
     baseSec: 45,

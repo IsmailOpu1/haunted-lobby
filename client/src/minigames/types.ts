@@ -9,7 +9,20 @@ export interface Point {
   y: number;
 }
 
-export type TaskSoundKind = "tick" | "click" | "strike" | "fizz" | "wrong" | "cry" | "note" | "badNote";
+export type TaskSoundKind =
+  | "tick"
+  | "click"
+  | "strike"
+  | "fizz"
+  | "wrong"
+  | "cry"
+  | "note"
+  | "badNote"
+  | "scrape"
+  | "splash"
+  | "thud"
+  | "spark"
+  | "scare";
 
 /** Sounds from a noisy task done badly (GDD 9). The ghost can hear these. */
 export const NOISY_SOUNDS: ReadonlySet<TaskSoundKind> = new Set(["cry", "badNote"]);
@@ -32,6 +45,16 @@ export type PlaySound = (kind: TaskSoundKind, pitch?: number) => void;
 
 export function dist(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+/** Compass angle in degrees of `to` seen from `from` (0 is up, 90 is right). */
+export function angleDeg(from: Point, to: Point): number {
+  return (Math.atan2(to.x - from.x, -(to.y - from.y)) * 180) / Math.PI;
+}
+
+/** The short way round from one angle to another, in degrees (-180 to 180). */
+export function angleDiff(to: number, from: number): number {
+  return ((((to - from) % 360) + 540) % 360) - 180;
 }
 
 /** A dark wooden backdrop with a soft vignette. */

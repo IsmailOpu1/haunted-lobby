@@ -17,6 +17,7 @@ import {
   initialMoveState,
   initPhysics,
   nightPart,
+  pickRelicSpots,
   PhysicsWorld,
   sanitizeInput,
   SIM_DT,
@@ -30,6 +31,8 @@ import {
   type MoveMode,
   type MoveState,
   type PlayerAction,
+  type RelicNear,
+  type RelicStatus,
   type RosterEntry,
   type ServerMessages,
   type TaskEntry,
@@ -37,7 +40,7 @@ import {
 import { defaultMap } from "@haunted/maps";
 import { Ghost, type GhostTarget, type GhostWorld } from "./sim/ghost.ts";
 import { NavMap } from "./sim/navmap.ts";
-import { Door, GameState, Player, SaltJar, SaltLine, TaskStation } from "./state.ts";
+import { Door, GameState, Player, Relic, SaltJar, SaltLine, TaskStation } from "./state.ts";
 import { NoVoice, type VoiceBackend } from "./voice/backend.ts";
 import { liveKitFromEnv } from "./voice/livekit.ts";
 import { recordVoiceStart } from "./voice/status.ts";
@@ -91,8 +94,18 @@ interface PlayerSim {
   micCheck: { samples: number[]; elapsed: number } | null;
   // Tasks (GDD Section 9).
   tasks: { stationId: string; done: boolean }[];
-  /** The task minigame open right now, and for how long. */
-  task: { stationId: string; elapsed: number; noiseAt: number } | null;
+  /** The minigame open right now (a task, or taking a relic from a spot), and for how long. */
+  task: { kind: "task" | "relic"; stationId: string; elapsed: number; noiseAt: number } | null;
+}
+
+/** Where a relic really is. Only the server knows (PRD 10.3); clients learn it only up close. */
+interface RelicSim {
+  id: string;
+  /** The hiding spot it is in, or the spot it was taken from. */
+  spotId: string;
+  x: number;
+  z: number;
+  status: RelicStatus;
 }
 
 /** Ear height for walls between two players' voices (also used for camera line of sight). */
@@ -136,6 +149,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private saltCounter = 0;
   /** Spirit Camera photos, kept on the server until the next meeting shows them (Phase 6). */
   private photos: PhotoRecord[] = [];
+  private relics: RelicSim[] = [];
+  private relicTimer = 0;
 
   async onCreate() {
     // The 5-letter room code is the Colyseus room id, so friends join with joinById(code).
@@ -158,6 +173,12 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     // Every jar spot is stocked until the lobby decides the player count (Phase 7).
     for (const jar of this.map.saltJars) this.state.saltJars.set(jar.id, new SaltJar({ taken: false }));
     for (const station of this.map.tasks) this.state.stations.set(station.id, new TaskStation({ done: false }));
+    // Relics hide in random spots each match (GDD 10). The count becomes a lobby setting in Phase 7.
+    pickRelicSpots(this.map.relicSpots, config.relics.count, config.relics.minSpacingM).forEach((spot, i) => {
+      const id = `R${i + 1}`;
+      this.relics.push({ id, spotId: spot.id, x: spot.x, z: spot.z, status: "hidden" });
+      this.state.relics.set(id, new Relic({ name: this.map.relicNames[i] ?? `Relic ${i + 1}`, status: "hidden", carrier: "" }));
+    });
     this.state.tasksDone = 0;
     this.state.tasksTotal = 0;
     this.state.nightLength = config.match.lengthMin * 60;
@@ -207,6 +228,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     });
     this.onMessage("taskCancel", (client) => this.closeTask(client.sessionId, "cancelled"));
     this.onMessage("taskNoise", (client) => this.taskNoise(client.sessionId));
+    this.onMessage("dropRelic", (client) => this.dropRelic(client.sessionId, true));
 
     this.onMessage("voiceRequest", (client) => {
       const player = this.state.players.get(client.sessionId);
@@ -282,6 +304,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
         actionProgress: 0,
         salt: config.salt.perPlayer,
         cameraShots: config.camera.shotsPerPlayer,
+        relic: "",
       }),
     );
     this.state.tasksTotal += this.sims.get(client.sessionId)!.tasks.length;
@@ -307,6 +330,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const leaving = this.sims.get(client.sessionId);
     // A player who leaves takes their unfinished tasks off the bar; finished ones still count.
     if (leaving) this.state.tasksTotal -= leaving.tasks.filter((t) => !t.done).length;
+    // A relic they carried falls where they stood (GDD 18).
+    this.dropRelic(client.sessionId, false);
     leaving?.removeBody();
     this.sims.delete(client.sessionId);
     this.seesGhost.delete(client.sessionId);
@@ -347,6 +372,11 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     }
     this.noises.length = 0;
     this.sendGhostPositions();
+    this.relicTimer += elapsedSec;
+    if (this.relicTimer >= 1 / config.relics.nearUpdateHz) {
+      this.relicTimer = 0;
+      this.sendRelicsNear();
+    }
   }
 
   /**
@@ -392,8 +422,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       sim.task.elapsed += elapsedSec;
       // Walking away or being downed closes the minigame; the task must be restarted (GDD 9).
       // A small drift (steps still on the way when E was pressed) does not count.
-      const def = this.map.tasks.find((d) => d.id === sim.task!.stationId);
-      const away = !def || Math.hypot(def.x - sim.move.x, def.z - sim.move.z) > config.tasks.useRangeM;
+      const at = this.activityAt(sim.task);
+      const away = !at || Math.hypot(at.x - sim.move.x, at.z - sim.move.z) > at.rangeM;
       if (away || player.health !== "alive") this.closeTask(this.sessionOf(sim), "cancelled");
     }
   }
@@ -401,7 +431,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private moveMode(player: Player): MoveMode {
     if (player.health === "downed") return "crawl";
     if (player.health === "dead" || player.hidingSpot) return "frozen";
-    return "normal";
+    return player.relic ? "carry" : "normal";
   }
 
   /** How far a step of movement can be heard (GDD Section 12.2). */
@@ -537,6 +567,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     player.flashlightOn = false;
     player.holdingBreath = false;
     this.clearAction(sim, player);
+    // A downed player drops what they carry (GDD 10).
+    this.dropRelic(sessionId, false);
   }
 
   // ---------- Hold breath while hiding (GDD Section 6) ----------
@@ -587,8 +619,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       return;
     }
 
+    if (this.pickUpRelic(player, here.x, here.z)) return;
     if (this.pickUpSalt(player, here.x, here.z)) return;
     if (this.openTask(sessionId, sim, player, here.x, here.z)) return;
+    if (this.openRelicSpot(sessionId, sim, player, here.x, here.z)) return;
 
     const spot = this.nearestFreeHidingSpot(here.x, here.z);
     if (spot) {
@@ -719,10 +753,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       if (task.done) continue;
       const def = this.map.tasks.find((d) => d.id === task.stationId);
       if (!def || Math.hypot(def.x - x, def.z - z) > config.tasks.useRangeM) continue;
-      sim.task = { stationId: def.id, elapsed: 0, noiseAt: -Infinity };
+      sim.task = { kind: "task", stationId: def.id, elapsed: 0, noiseAt: -Infinity };
       player.action = "task";
       player.actionProgress = 0;
-      const msg: ServerMessages["taskOpen"] = { stationId: def.id, minigame: def.minigame };
+      const msg: ServerMessages["taskOpen"] = { stationId: def.id, minigame: def.minigame, title: def.name };
       this.clients.find((c) => c.sessionId === sessionId)?.send("taskOpen", msg);
       return true;
     }
@@ -736,11 +770,15 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private finishTask(sessionId: string, stationId: string) {
     const sim = this.sims.get(sessionId);
     const player = this.state.players.get(sessionId);
-    const def = this.map.tasks.find((d) => d.id === stationId);
-    if (!sim || !player || !def || sim.task?.stationId !== stationId) return;
-    const tooFast = sim.task.elapsed < config.tasks.serverMinSec;
-    const tooFar = Math.hypot(def.x - player.x, def.z - player.z) > config.tasks.useRangeM;
+    if (!sim || !player || sim.task?.stationId !== stationId) return;
+    const at = this.activityAt(sim.task);
+    const minSec = sim.task.kind === "relic" ? config.relics.serverMinSec : config.tasks.serverMinSec;
+    const tooFast = sim.task.elapsed < minSec;
+    const tooFar = !at || Math.hypot(at.x - player.x, at.z - player.z) > at.rangeM;
     if (tooFast || tooFar || player.health !== "alive") return this.closeTask(sessionId, "cancelled");
+    if (sim.task.kind === "relic") return this.takeRelic(sessionId, player, stationId);
+
+    const def = this.map.tasks.find((d) => d.id === stationId)!;
 
     const task = sim.tasks.find((t) => t.stationId === stationId);
     if (task && !task.done) {
@@ -755,7 +793,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   /** A noisy minigame went wrong (GDD 9): the ghost may hear it, and so do players nearby. */
   private taskNoise(sessionId: string) {
     const sim = this.sims.get(sessionId);
-    const def = sim?.task && this.map.tasks.find((d) => d.id === sim.task!.stationId);
+    const def = sim?.task?.kind === "task" ? this.map.tasks.find((d) => d.id === sim.task!.stationId) : undefined;
     if (!sim?.task || !def?.noisy) return;
     if (sim.task.elapsed - sim.task.noiseAt < config.tasks.noiseCooldownSec) return;
     sim.task.noiseAt = sim.task.elapsed;
@@ -765,6 +803,99 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     for (const client of this.clients) {
       const p = this.state.players.get(client.sessionId);
       if (client.sessionId !== sessionId && p && Math.hypot(p.x - def.x, p.z - def.z) <= radiusM) client.send("taskNoise", msg);
+    }
+  }
+
+  /** Where a minigame is done, and how far you may stand from it. */
+  private activityAt(task: NonNullable<PlayerSim["task"]>): { x: number; z: number; rangeM: number } | null {
+    if (task.kind === "relic") {
+      const spot = this.map.relicSpots.find((s) => s.id === task.stationId);
+      return spot ? { x: spot.x, z: spot.z, rangeM: config.relics.useRangeM } : null;
+    }
+    const def = this.map.tasks.find((d) => d.id === task.stationId);
+    return def ? { x: def.x, z: def.z, rangeM: config.tasks.useRangeM } : null;
+  }
+
+  // ---------- Relics (GDD Section 10) ----------
+
+  /** E at a spot that still hides a relic, with empty hands: open its taking minigame. */
+  private openRelicSpot(sessionId: string, sim: PlayerSim, player: Player, x: number, z: number): boolean {
+    if (sim.task || player.relic) return false;
+    for (const relic of this.relics) {
+      if (relic.status !== "hidden" || Math.hypot(relic.x - x, relic.z - z) > config.relics.useRangeM) continue;
+      const spot = this.map.relicSpots.find((s) => s.id === relic.spotId)!;
+      sim.task = { kind: "relic", stationId: spot.id, elapsed: 0, noiseAt: -Infinity };
+      player.action = "task";
+      player.actionProgress = 0;
+      const msg: ServerMessages["taskOpen"] = { stationId: spot.id, minigame: spot.minigame, title: spot.label };
+      this.clients.find((c) => c.sessionId === sessionId)?.send("taskOpen", msg);
+      return true;
+    }
+    return false;
+  }
+
+  /** The taking minigame is finished: the relic is yours, unless someone was quicker. */
+  private takeRelic(sessionId: string, player: Player, spotId: string) {
+    const relic = this.relics.find((r) => r.spotId === spotId && r.status === "hidden");
+    if (!relic || player.relic) return this.closeTask(sessionId, "cancelled");
+    this.carry(player, relic);
+    this.closeTask(sessionId, "done");
+  }
+
+  private carry(player: Player, relic: RelicSim) {
+    relic.status = "carried";
+    player.relic = relic.id;
+    const shown = this.state.relics.get(relic.id)!;
+    shown.status = relic.status;
+    shown.carrier = player.name;
+  }
+
+  /** E next to a dropped relic, with empty hands: pick it up straight away. */
+  private pickUpRelic(player: Player, x: number, z: number): boolean {
+    if (player.relic) return false;
+    const relic = this.relics.find((r) => r.status === "dropped" && Math.hypot(r.x - x, r.z - z) <= config.relics.useRangeM);
+    if (!relic) return false;
+    this.carry(player, relic);
+    return true;
+  }
+
+  /**
+   * The relic falls where the player stands: on purpose with G (which makes a noise, GDD 10),
+   * or because they were downed or left. Tab then shows "Dropped, last carried by" them.
+   */
+  private dropRelic(sessionId: string, onPurpose: boolean) {
+    const player = this.state.players.get(sessionId);
+    const relic = player && this.relics.find((r) => r.id === player.relic);
+    if (!player || !relic) return;
+    if (onPurpose && player.health !== "alive") return;
+    player.relic = "";
+    relic.status = "dropped";
+    relic.x = player.x;
+    relic.z = player.z;
+    this.state.relics.get(relic.id)!.status = relic.status;
+    if (!onPurpose) return;
+    const radiusM = config.relics.dropGhostHearM;
+    this.noises.push({ x: relic.x, z: relic.z, radiusM });
+    const msg: ServerMessages["relicDrop"] = { x: relic.x, z: relic.z };
+    for (const client of this.clients) {
+      const p = this.state.players.get(client.sessionId);
+      if (p && Math.hypot(p.x - relic.x, p.z - relic.z) <= radiusM) client.send("relicDrop", msg);
+    }
+  }
+
+  /** Each player hears hidden relics within whisper range and sees dropped ones within sight. */
+  private sendRelicsNear() {
+    for (const client of this.clients) {
+      const p = this.state.players.get(client.sessionId);
+      if (!p) continue;
+      const list: RelicNear[] = [];
+      for (const r of this.relics) {
+        const d = Math.hypot(r.x - p.x, r.z - p.z);
+        if (r.status === "hidden" && d <= config.relics.whisperM) list.push({ id: r.id, x: r.x, z: r.z, hidden: true, spotId: r.spotId });
+        else if (r.status === "dropped" && d <= config.relics.seeDroppedM) list.push({ id: r.id, x: r.x, z: r.z, hidden: false, spotId: "" });
+      }
+      const msg: ServerMessages["relicsNear"] = { list };
+      client.send("relicsNear", msg);
     }
   }
 
@@ -882,7 +1013,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
             hidingSpot: p.hidingSpot || null,
             flashlightOn: p.flashlightOn,
             // Footsteps and breathing this tick, or the voice, whichever carries farther.
-            noiseM: Math.max(sim.noiseM, sim.voiceNoiseM),
+            // Carrying a relic makes every sound carry farther (GDD 12.2).
+            noiseM: Math.max(sim.noiseM, sim.voiceNoiseM) * (p.relic ? 1 + config.relics.carryHearingBonusPct / 100 : 1),
             immune: sim.immuneLeft > 0,
           });
         });

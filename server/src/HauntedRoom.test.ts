@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Client, type Room } from "@colyseus/sdk";
+import { matchMaker } from "colyseus";
 import { config, isValidRoomCode, ROOM_NAME, type ServerMessages } from "@haunted/shared";
 import { createGameServer } from "./app.ts";
 import { marrowHotelGreybox } from "@haunted/maps";
@@ -338,7 +339,7 @@ describe("HauntedRoom", () => {
     room.send("use", { down: true });
     room.send("use", { down: false });
     await waitFor(() => opened.length === 1);
-    expect(opened[0]).toEqual({ stationId: "task-clock", minigame: "clock" });
+    expect(opened[0]).toEqual({ stationId: "task-clock", minigame: "clock", title: marrowHotelGreybox.tasks.find((t) => t.id === "task-clock")!.name });
 
     // Claiming it done straight away is refused: the minigame takes longer than that.
     room.send("taskDone", { stationId: "task-clock" });
@@ -393,6 +394,110 @@ describe("HauntedRoom", () => {
     expect(heard[0]).toEqual({ x: station.x, z: station.z, minigame: station.minigame });
     await Promise.all([room.leave(), friend.leave()]);
   }, 40000);
+
+  it("hides relics, and lets a player take, carry, drop and pick one up (GDD 10)", async () => {
+    const room = await new Client(endpoint).create(ROOM_NAME, { name: "Seeker" });
+    room.onMessage("*", () => {});
+    const near = collectMsgs(room, "relicsNear");
+    const opened = collectMsgs(room, "taskOpen");
+    const closed = collectMsgs(room, "taskClosed");
+    const drops = collectMsgs(room, "relicDrop");
+    await waitFor(() => room.state.relics?.size === config.relics.count);
+    const me = () => room.state.players.get(room.sessionId);
+    const relic = (id: string) => room.state.relics.get(id);
+
+    // Everyone sees each relic's name and status, never where it is.
+    room.state.relics.forEach((r: any) => {
+      expect(r.status).toBe("hidden");
+      expect(marrowHotelGreybox.relicNames).toContain(r.name);
+      expect(Object.keys(r.toJSON()).sort()).toEqual(["carrier", "name", "status"]);
+    });
+
+    // The test reaches into the server to stand the player at the first relic's spot
+    // (spots are random each match, and the grey box has no straight path to all of them).
+    const server = matchMaker.getLocalRoomById(room.roomId) as any;
+    const teleport = (x: number, z: number) => {
+      const sim = server.sims.get(room.sessionId);
+      sim.move = { ...sim.move, x, z };
+      Object.assign(server.state.players.get(room.sessionId), { x, z });
+    };
+    const target = server.relics[0] as { id: string; spotId: string };
+    const spot = marrowHotelGreybox.relicSpots.find((s) => s.id === target.spotId)!;
+    expect(spot.room).not.toBe("Main Hall");
+    const start = { x: me().x, z: me().z };
+    teleport(spot.x, spot.z);
+
+    // Up close you hear it whisper: the server tells you where it is, and only you.
+    await waitFor(() => near.at(-1)?.list.some((r) => r.id === target.id && r.hidden) ?? false);
+
+    room.send("use", { down: true });
+    room.send("use", { down: false });
+    await waitFor(() => opened.length === 1);
+    expect(opened[0]).toEqual({ stationId: spot.id, minigame: spot.minigame, title: spot.label });
+
+    // Claiming it straight away is refused.
+    room.send("taskDone", { stationId: spot.id });
+    await waitFor(() => closed.length === 1);
+    expect(closed[0]!.reason).toBe("cancelled");
+    expect(me().relic).toBe("");
+
+    room.send("use", { down: true });
+    room.send("use", { down: false });
+    await waitFor(() => opened.length === 2);
+    await new Promise((r) => setTimeout(r, (config.relics.serverMinSec + 0.5) * 1000));
+    room.send("taskDone", { stationId: spot.id });
+    await waitFor(() => closed.length === 2);
+    expect(closed[1]!.reason).toBe("done");
+    await waitFor(() => me().relic === target.id);
+    expect(relic(target.id).status).toBe("carried");
+    expect(relic(target.id).carrier).toBe("Seeker");
+
+    // Carrying is 15% slower (back in the open Main Hall).
+    teleport(start.x, start.z);
+    await new Promise((r) => setTimeout(r, 200));
+    const z0 = me().z;
+    for (let seq = 1; seq <= config.net.tickRate; seq++) {
+      room.send("input", { seq, forward: 1, right: 0, run: false, crouch: false, yaw: 0, pitch: 0 });
+    }
+    await waitFor(() => me().lastSeq === config.net.tickRate);
+    expect(z0 - me().z).toBeCloseTo(config.movement.walk * (1 - config.movement.relicSlowPct / 100), 1);
+
+    // G drops it where you stand, with a noise; it now shows as dropped and you can see it.
+    room.send("dropRelic");
+    await waitFor(() => relic(target.id).status === "dropped");
+    expect(me().relic).toBe("");
+    expect(relic(target.id).carrier).toBe("Seeker");
+    await waitFor(() => drops.length === 1);
+    await waitFor(() => near.at(-1)?.list.some((r) => r.id === target.id && !r.hidden) ?? false);
+
+    // E picks it straight back up.
+    room.send("use", { down: true });
+    room.send("use", { down: false });
+    await waitFor(() => me().relic === target.id);
+    expect(relic(target.id).status).toBe("carried");
+
+    // Downed while carrying: it falls, and makes no drop noise.
+    server.downPlayer(room.sessionId);
+    await waitFor(() => relic(target.id).status === "dropped");
+    expect(me().relic).toBe("");
+    await new Promise((r) => setTimeout(r, 200));
+    expect(drops).toHaveLength(1);
+    await room.leave();
+  }, 40000);
+
+  it("only tells each player about relics near them", async () => {
+    const room = await new Client(endpoint).create(ROOM_NAME, { name: "Far" });
+    room.onMessage("*", () => {});
+    const near = collectMsgs(room, "relicsNear");
+    await waitFor(() => near.length > 2);
+    const server = matchMaker.getLocalRoomById(room.roomId) as any;
+    const me = room.state.players.get(room.sessionId);
+    for (const r of server.relics as { id: string; x: number; z: number }[]) {
+      const heard = near.at(-1)!.list.some((n) => n.id === r.id);
+      expect(heard).toBe(Math.hypot(r.x - me.x, r.z - me.z) <= config.relics.whisperM);
+    }
+    await room.leave();
+  });
 
   it("refuses players beyond the room limit", async () => {
     const rooms: Room[] = [await new Client(endpoint).create(ROOM_NAME, { name: "P1" })];
