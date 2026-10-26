@@ -34,6 +34,8 @@ export interface GhostWorld {
   hit(playerId: string): void;
   /** Hunt warning (2 s of silence), hunt start and hunt end. */
   huntEvent(phase: "warning" | "start" | "end"): void;
+  /** The altar while the ritual runs, else null: the ghost then keeps coming to the Ritual Room (GDD 11). */
+  ritualAt(): Point | null;
   /** If a salt line is under the ghost, removes it and returns true (GDD 8.3). */
   takeSaltAt(x: number, z: number): boolean;
 }
@@ -103,7 +105,10 @@ export class Ghost {
       return;
     }
     const params = ghostParams(part, this.difficulty, playerCount);
-    this.betweenHuntsSec = params.betweenHuntsSec;
+    // During the ritual it hunts with only short breaks, whatever the part of the night (GDD 12.4).
+    const ritual = this.world.ritualAt();
+    this.betweenHuntsSec = ritual ? config.ghost.ritualBetweenHuntsSec : params.betweenHuntsSec;
+    if (ritual && this.huntTimer > this.betweenHuntsSec) this.huntTimer = this.betweenHuntsSec;
     if (this.state === "asleep") {
       this.state = "wander";
       this.huntTimer = params.betweenHuntsSec;
@@ -223,7 +228,7 @@ export class Ghost {
       this.pauseTimer -= dt;
       return;
     }
-    if (!this.goal) this.setGoal(this.nav.randomPoint(this));
+    if (!this.goal) this.setGoal(this.roamPoint());
     if (this.moveAlongPath(dt, speed)) {
       // Arrived.
       this.goal = null;
@@ -315,10 +320,10 @@ export class Ghost {
           this.pendingInspect = spot;
         } else {
           this.lastKnown = null;
-          this.setGoal(this.nav.randomPoint(this));
+          this.setGoal(this.roamPoint());
         }
       } else {
-        this.setGoal(this.nav.randomPoint(this));
+        this.setGoal(this.roamPoint());
       }
     }
 
@@ -368,6 +373,11 @@ export class Ghost {
   }
 
   // ---------- Movement ----------
+
+  /** Where to go with nothing noticed: anywhere, or the altar while the ritual runs. */
+  private roamPoint(): Point {
+    return this.world.ritualAt() ?? this.nav.randomPoint(this);
+  }
 
   private setGoal(p: Point) {
     const goal = this.nav.closest(p);

@@ -30,7 +30,7 @@ import { RelicsView } from "./relicsView.ts";
 import { RemotePlayers } from "./remotePlayers.ts";
 import { StationsView } from "./stations.ts";
 import { VoiceChat } from "./voice.ts";
-import { buildWorld, type DoorView } from "./world.ts";
+import { buildWorld, type DoorView, type RitualCircleView } from "./world.ts";
 
 // Near-zero ambient light (GDD Section 23). Press L while testing to light everything up.
 const DARK_AMBIENT = 0.04;
@@ -72,6 +72,8 @@ export interface GameHud {
   setTasks(list: TaskEntry[]): void;
   /** The team task bar everyone sees. */
   setTeamTasks(done: number, total: number): void;
+  /** The ritual bar (GDD 11): hidden until the ritual is ready. */
+  setRitual(ritual: RitualHud): void;
   /** "in-task" while a minigame is open, "resume" after it closes until the mouse is captured again. */
   setTaskMode(mode: "none" | "in-task" | "resume"): void;
   /** Every relic's state, for the Tab panel (GDD 10). */
@@ -80,6 +82,15 @@ export interface GameHud {
   showStatusPanel(open: boolean): void;
   /** The relic you carry, or null. */
   setCarrying(name: string | null): void;
+}
+
+export interface RitualHud {
+  ready: boolean;
+  started: boolean;
+  /** 0 to 100. */
+  progress: number;
+  inCircle: number;
+  needed: number;
 }
 
 /** The page elements of the minigame window. */
@@ -150,6 +161,7 @@ export class Game {
   private sound = new SoundScape();
   private input: PlayerInput;
   private doors: Map<string, DoorView>;
+  private ritualCircle: RitualCircleView | null;
   private remotes: RemotePlayers;
   private ghost: GhostView;
   private items: ItemsView;
@@ -195,7 +207,7 @@ export class Game {
     this.scene.fog = new THREE.Fog(0x000000, FOG_NEAR, FOG_FAR);
     this.scene.add(this.ambient);
 
-    this.doors = buildWorld(this.scene, map);
+    ({ doors: this.doors, ritualCircle: this.ritualCircle } = buildWorld(this.scene, map));
     const place = (x: number, z: number) => toWorld(map, x, z);
     this.remotes = new RemotePlayers(this.scene, place);
     this.ghost = new GhostView(this.scene, place);
@@ -417,6 +429,15 @@ export class Game {
     const relicDoor = this.map.relicDoor && this.doors.get(this.map.relicDoor);
     if (relicDoor) relicDoor.setSlots([...this.relics.values()].filter((r) => r.status === "placed").length, this.relics.size);
     if (typeof state.tasksTotal === "number") this.hud.setTeamTasks(state.tasksDone, state.tasksTotal);
+    const ritual: RitualHud = {
+      ready: !!state.ritualReady,
+      started: !!state.ritualStarted,
+      progress: state.ritualProgress ?? 0,
+      inCircle: state.circleCount ?? 0,
+      needed: state.circleNeeded ?? 0,
+    };
+    this.hud.setRitual(ritual);
+    this.ritualCircle?.setState(ritual.started ? "running" : ritual.ready ? "ready" : "waiting");
     this.saltJarsTaken = new Set();
     state.saltJars?.forEach((jar: { taken: boolean }, id: string) => {
       if (jar.taken) this.saltJarsTaken.add(id);

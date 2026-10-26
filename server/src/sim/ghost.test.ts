@@ -40,6 +40,8 @@ function makeWorld(players: GhostTarget[], m: MapData = map, walls: PhysicsWorld
     events: [] as string[],
     noises: [] as { x: number; z: number; radiusM: number }[],
     salt: [] as SaltLineDef[],
+    /** Set to the altar to have the ritual running. */
+    ritual: null as { x: number; z: number } | null,
   };
   const world: GhostWorld = {
     players: () => players,
@@ -56,6 +58,7 @@ function makeWorld(players: GhostTarget[], m: MapData = map, walls: PhysicsWorld
       if (p) p.health = "downed";
     },
     huntEvent: (phase) => log.events.push(phase),
+    ritualAt: () => log.ritual,
     takeSaltAt: (x, z) => {
       const i = log.salt.findIndex((line) => ghostOnSalt(x, z, line));
       if (i < 0) return false;
@@ -203,6 +206,18 @@ describe("ghost", () => {
     run(ghost, 1, "calm");
     expect(ghost.frozen).toBe(false);
     expect(ghost.z).toBeLessThan(stuckAt - 0.3); // walking on again
+  });
+
+  it("goes to the altar during the ritual and hunts every 15 s, whatever the part of the night (GDD 11, 12.4)", () => {
+    const { world, log } = makeWorld([]);
+    const altar = { x: 5, z: -10 };
+    log.ritual = altar;
+    const ghost = new Ghost(nav, world, { x: 0, z: -2 });
+    run(ghost, config.ghost.ritualBetweenHuntsSec - 1, "calm");
+    expect(log.events).toEqual([]);
+    expect(Math.hypot(ghost.x - altar.x, ghost.z - altar.z)).toBeLessThan(1);
+    run(ghost, 1.5, "calm");
+    expect(log.events).toEqual(["warning"]);
   });
 
   it("is gone at dawn", () => {

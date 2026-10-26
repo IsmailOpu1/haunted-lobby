@@ -57,6 +57,10 @@ const screenFlash = el("screen-flash");
 const teamTasks = el("team-tasks");
 const teamFill = el("team-fill");
 const teamCount = el("team-count");
+const ritualBox = el("ritual");
+const ritualFill = el("ritual-fill");
+const ritualLabel = el("ritual-label");
+const ritualCount = el("ritual-count");
 const taskList = el("task-list");
 
 const NIGHT_PART_NAMES: Record<string, string> = {
@@ -65,6 +69,7 @@ const NIGHT_PART_NAMES: Record<string, string> = {
   restless: "Restless",
   furious: "Furious",
   dawn: "Dawn",
+  overtime: "Overtime",
 };
 
 const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
@@ -182,6 +187,14 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     teamTasks.classList.toggle("hidden", total === 0);
     teamFill.style.width = `${total > 0 ? Math.round((done / total) * 100) : 0}%`;
     teamCount.textContent = `${done} / ${total}`;
+  },
+  setRitual: (r) => {
+    ritualBox.classList.toggle("hidden", !r.ready && !r.started);
+    const short = r.inCircle < r.needed;
+    ritualBox.classList.toggle("draining", r.started && short && r.progress < 100);
+    ritualLabel.textContent = r.started ? "Ritual" : "Ritual ready";
+    ritualFill.style.width = `${Math.round(r.progress)}%`;
+    ritualCount.textContent = r.started || !short ? `${r.inCircle} / ${r.needed} in the circle` : `Gather ${r.needed} at the altar (${r.inCircle} there)`;
   },
   setTaskMode: (mode) => {
     document.body.classList.toggle("in-task", mode === "in-task");

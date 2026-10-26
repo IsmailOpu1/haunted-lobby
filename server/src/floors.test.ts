@@ -101,6 +101,7 @@ describe("floors and stairs", () => {
       takeNoises: () => [],
       hit: () => {},
       huntEvent: () => {},
+      ritualAt: () => null,
       takeSaltAt: () => false,
     };
     const ghost = new Ghost(nav, world, { x: -4, z: 4 });

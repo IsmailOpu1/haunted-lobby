@@ -552,6 +552,65 @@ describe("HauntedRoom", () => {
     await room.leave();
   }, 40000);
 
+  it("runs the ritual: starts with enough players in the circle, fills, drains, and gets overtime at dawn (GDD 4, 11)", async () => {
+    const a = await new Client(endpoint).create(ROOM_NAME, { name: "Rafi" });
+    const b = await new Client(endpoint).joinById(a.roomId, { name: "Mim" });
+    for (const r of [a, b]) r.onMessage("*", () => {});
+    const server = matchMaker.getLocalRoomById(a.roomId) as any;
+    const s = () => a.state;
+    const altar = marrowHotelGreybox.altar!;
+    const inCircle = { x: altar.x + 2.5, z: altar.z };
+    const outside = { x: altar.x + config.ritual.circleRadiusM + 2, z: altar.z };
+    const place = async (room: Room, at: { x: number; z: number }) => {
+      room.send("debug", { teleport: at });
+      await new Promise((r) => setTimeout(r, 250));
+    };
+    await waitFor(() => s().circleNeeded === 2);
+
+    // Not ready until the basement is open and the task bar is full. The test reaches in for both.
+    await place(a, inCircle);
+    await place(b, inCircle);
+    expect(s().circleCount).toBe(2);
+    expect(s().ritualReady).toBe(false);
+    expect(s().ritualStarted).toBe(false);
+    for (const r of server.relics) r.status = "placed";
+    await new Promise((r) => setTimeout(r, 250));
+    expect(s().ritualReady).toBe(false);
+    server.state.tasksDone = server.state.tasksTotal;
+    // Ready, and two players are already standing in the circle: it starts.
+    await waitFor(() => s().ritualStarted);
+    expect(s().ritualReady).toBe(true);
+
+    // 45 s at the minimum.
+    const p0 = s().ritualProgress;
+    await new Promise((r) => setTimeout(r, 1000));
+    expect(s().ritualProgress - p0).toBeGreaterThan(1.5);
+    expect(s().ritualProgress - p0).toBeLessThan(3.2);
+
+    // One steps out: it drains slowly, and does not reset.
+    await place(b, outside);
+    expect(s().circleCount).toBe(1);
+    const p1 = s().ritualProgress;
+    await new Promise((r) => setTimeout(r, 1000));
+    expect(s().ritualProgress).toBeLessThan(p1);
+    expect(s().ritualProgress).toBeGreaterThan(p1 - 1.6);
+
+    // With both in the circle at dawn, the night waits up to 30 s for the ritual.
+    await place(b, inCircle);
+    server.state.ritualProgress = 50;
+    a.send("debug", { nightTime: s().nightLength - 0.3 });
+    await waitFor(() => s().overtime === true);
+    expect(s().part).toBe("overtime");
+    await new Promise((r) => setTimeout(r, 500));
+    expect(s().ritualProgress).toBeGreaterThan(50);
+    // The circle breaks: overtime ends and dawn comes.
+    await place(b, outside);
+    await waitFor(() => s().part === "dawn");
+    expect(s().overtime).toBe(false);
+    await a.leave();
+    await b.leave();
+  }, 20000);
+
   it("only tells each player about relics near them", async () => {
     const room = await new Client(endpoint).create(ROOM_NAME, { name: "Far" });
     room.onMessage("*", () => {});

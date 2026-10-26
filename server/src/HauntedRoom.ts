@@ -5,6 +5,7 @@ import {
   ghostOnSalt,
   normalizeAngle,
   saltLineInFront,
+  circleNeeded,
   classifyVoice,
   cleanPlayerName,
   config,
@@ -18,6 +19,7 @@ import {
   initPhysics,
   nightPart,
   pickRelicSpots,
+  ritualRatePct,
   worldDistance,
   PhysicsWorld,
   sanitizeInput,
@@ -144,6 +146,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private spawnIndex = 0;
   private nightStarted = false;
   private dawnSent = false;
+  private overtimeUsed = 0;
   private noises: { x: number; z: number; radiusM: number }[] = [];
   /** Clients that currently know where the ghost is (so they get one "gone" message). */
   private seesGhost = new Set<string>();
@@ -189,6 +192,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.state.nightLength = config.match.lengthMin * 60;
     this.state.nightTime = 0;
     this.state.part = "quiet";
+    this.state.overtime = false;
+    this.state.ritualReady = false;
+    this.state.ritualStarted = false;
+    this.state.ritualProgress = 0;
 
     // While the relic door is locked the ghost cannot get past it either (GDD 10).
     const relicDoor = this.map.relicDoor;
@@ -376,9 +383,18 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     }
 
     if (this.nightStarted) {
+      if (!this.dawnSent) this.tickRitual(elapsedSec);
       this.state.nightTime = Math.min(this.state.nightTime + elapsedSec, this.state.nightLength);
-      const part = nightPart(this.state.nightTime, this.state.nightLength);
-      this.state.part = part;
+      let part = nightPart(this.state.nightTime, this.state.nightLength);
+      if (part === "dawn" && !this.dawnSent && this.overtimeHolds()) {
+        // Overtime: the night waits while the ritual can still finish (GDD 4). The ghost stays furious.
+        this.overtimeUsed += elapsedSec;
+        this.state.overtime = true;
+        part = "furious";
+      } else {
+        this.state.overtime = false;
+      }
+      this.state.part = this.state.overtime ? "overtime" : part;
       this.ghost.update(elapsedSec, part, this.state.players.size);
       if (part === "dawn" && !this.dawnSent) {
         this.dawnSent = true;
@@ -393,6 +409,38 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       this.relicTimer = 0;
       this.sendRelicsNear();
     }
+  }
+
+  // ---------- The ritual (GDD Section 11) ----------
+
+  /** Starts the ritual once it is ready and the circle is full, then fills or drains it. */
+  private tickRitual(dt: number) {
+    const s = this.state;
+    s.ritualReady = !this.relicDoorLocked() && s.tasksTotal > 0 && s.tasksDone >= s.tasksTotal;
+    s.circleNeeded = circleNeeded(s.players.size);
+    s.circleCount = this.playersInCircle();
+    if (!s.ritualStarted && s.ritualReady && s.circleCount >= s.circleNeeded) s.ritualStarted = true;
+    if (!s.ritualStarted || s.ritualProgress >= 100) return;
+    // A meeting will freeze it here instead (Phase 6). The ritual length becomes a lobby setting in Phase 7.
+    const rate = ritualRatePct(s.circleCount, s.circleNeeded, config.ritual.baseSec);
+    s.ritualProgress = Math.max(0, Math.min(100, s.ritualProgress + rate * dt));
+  }
+
+  /** Living, standing players inside the circle around the altar. Downed, dead and hidden players do not count. */
+  private playersInCircle(): number {
+    const altar = this.map.altar;
+    if (!altar) return 0;
+    let count = 0;
+    this.state.players.forEach((p) => {
+      if (p.health === "alive" && !p.hidingSpot && this.hearingDistance(p, altar) <= config.ritual.circleRadiusM) count++;
+    });
+    return count;
+  }
+
+  /** At dawn, a running ritual with enough players in the circle gets up to overtimeSec more. */
+  private overtimeHolds(): boolean {
+    const s = this.state;
+    return s.ritualStarted && s.ritualProgress < 100 && s.circleCount >= s.circleNeeded && this.overtimeUsed < config.match.overtimeSec;
   }
 
   /**
@@ -1076,6 +1124,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       },
       lineOfSight: (a, b, h) => this.physics.lineOfSight(a, b, h),
       doors: this.map.doors,
+      ritualAt: () => (this.state.ritualStarted && this.map.altar ? this.map.altar : null),
       isDoorOpen: (id) => this.state.doors.get(id)?.open ?? true,
       openDoor: (id) => {
         if (id !== this.map.relicDoor || !this.relicDoorLocked()) this.setDoor(id, true);

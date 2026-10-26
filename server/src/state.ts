@@ -80,5 +80,15 @@ export const GameState = schema({
   nightTime: t.float32(),
   nightLength: t.float32(),
   part: t.string(),
+  /** Up to 30 s past dawn while a ritual with enough players in the circle finishes (GDD 4). */
+  overtime: t.boolean(),
+  // The ritual (GDD 11). Ready once the basement is open and the task bar is full.
+  ritualReady: t.boolean(),
+  ritualStarted: t.boolean(),
+  /** 0 to 100. */
+  ritualProgress: t.float32(),
+  /** Living, standing players in the circle, and how many it needs. */
+  circleCount: t.uint8(),
+  circleNeeded: t.uint8(),
 }, "GameState");
 export type GameState = SchemaType<typeof GameState>;

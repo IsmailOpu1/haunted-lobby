@@ -502,6 +502,44 @@ body.looking #esc-hint {
   transition: width 0.4s;
 }
 
+/* The ritual bar (GDD 11), under the task bar once the ritual is ready. */
+#ritual {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  pointer-events: none;
+}
+
+#ritual > span:first-child {
+  min-width: 64px;
+  text-align: right;
+  color: #e0b25a;
+}
+
+#ritual-bar {
+  width: 220px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+#ritual-fill {
+  height: 100%;
+  background: #e0b25a;
+  transition: width 0.2s;
+}
+
+#ritual.draining #ritual-fill {
+  background: #a33a3a;
+}
+
 /* Your own tasks, top left. */
 #task-list {
   position: fixed;

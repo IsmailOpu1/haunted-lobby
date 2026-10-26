@@ -99,7 +99,7 @@ export class DoorView {
 }
 
 /** Builds the grey-box rooms: floors, ceilings, walls, stairs and doors, each on its own floor. */
-export function buildWorld(scene: THREE.Scene, map: MapData): Map<string, DoorView> {
+export function buildWorld(scene: THREE.Scene, map: MapData): { doors: Map<string, DoorView>; ritualCircle: RitualCircleView | null } {
   const h = map.wallHeightM;
   const wallMat = new THREE.MeshLambertMaterial({ color: WALL_COLOR });
   for (const segment of map.walls) {
@@ -144,7 +144,8 @@ export function buildWorld(scene: THREE.Scene, map: MapData): Map<string, DoorVi
   };
   if (map.bell) placeAt(bellModel(), map.bell);
   if (map.fuseBox) placeAt(fuseBoxModel(), map.fuseBox);
-  if (map.altar) placeAt(ritualCircle(), map.altar);
+  const circle = map.altar ? new RitualCircleView() : null;
+  if (circle && map.altar) placeAt(circle.mesh, map.altar);
 
   // Hiding furniture: wardrobes and cupboards are wood boxes, curtains are dark cloth.
   for (const spot of map.hidingSpots) {
@@ -159,7 +160,7 @@ export function buildWorld(scene: THREE.Scene, map: MapData): Map<string, DoorVi
 
   const doors = new Map<string, DoorView>();
   for (const def of map.doors) doors.set(def.id, new DoorView(scene, map, def, h));
-  return doors;
+  return { doors, ritualCircle: circle };
 }
 
 /**
@@ -228,10 +229,21 @@ function fuseBoxModel(): THREE.Group {
 }
 
 /** The chalk circle around the altar (GDD 11): stand inside it to do the ritual. */
-function ritualCircle(): THREE.Mesh {
-  const r = config.ritual.circleRadiusM;
-  const ring = new THREE.Mesh(new THREE.RingGeometry(r - 0.08, r, 64), new THREE.MeshBasicMaterial({ color: 0x8a1c1c }));
-  ring.rotation.x = -Math.PI / 2;
-  ring.position.y = 0.012;
-  return ring;
+const CIRCLE_COLORS = { waiting: 0x8a1c1c, ready: 0xd04a2a, running: 0xe0b25a };
+
+/** The circle on the floor around the altar: dull red, brighter once the ritual is ready, gold while it runs. */
+export class RitualCircleView {
+  readonly mesh: THREE.Mesh;
+  private material = new THREE.MeshBasicMaterial({ color: CIRCLE_COLORS.waiting });
+
+  constructor() {
+    const r = config.ritual.circleRadiusM;
+    this.mesh = new THREE.Mesh(new THREE.RingGeometry(r - 0.08, r, 64), this.material);
+    this.mesh.rotation.x = -Math.PI / 2;
+    this.mesh.position.y = 0.012;
+  }
+
+  setState(state: keyof typeof CIRCLE_COLORS) {
+    this.material.color.setHex(CIRCLE_COLORS[state]);
+  }
 }
