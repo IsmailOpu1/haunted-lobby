@@ -1,8 +1,9 @@
 import type { MapData } from "@haunted/shared";
 import { marrowHotelGreybox } from "./marrow-hotel/greybox.ts";
+import { oneFloorTestMap } from "./test/one-floor.ts";
 import { twoFloorTestMap } from "./test/two-floors.ts";
 
-export { marrowHotelGreybox, twoFloorTestMap };
+export { marrowHotelGreybox, oneFloorTestMap, twoFloorTestMap };
 
 /** The map used until the lobby map setting exists (Phase 7). */
 export const defaultMap: MapData = marrowHotelGreybox;

@@ -1,7 +1,7 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import { config } from "../config.ts";
 import { crossStairs, levelOf, stairWalls } from "../levels.ts";
-import { doorBox, HIDING_SPOT_HEIGHT_M, hidingSpotBox, wallBox, type FloorBox, type MapData } from "../map.ts";
+import { doorBox, furnitureBox, HIDING_SPOT_HEIGHT_M, hidingSpotBox, wallBox, type FloorBox, type MapData } from "../map.ts";
 import type { CollideFn } from "./movement.ts";
 
 let ready: Promise<void> | undefined;
@@ -33,6 +33,7 @@ export class PhysicsWorld {
     for (const segment of [...map.walls, ...stairWalls(map)]) this.addBox(wallBox(segment, map.wallThicknessM), h);
     for (const door of map.doors) this.doors.set(door.id, this.addBox(doorBox(door, map.wallThicknessM), h));
     for (const spot of map.hidingSpots) this.addBox(hidingSpotBox(spot), HIDING_SPOT_HEIGHT_M);
+    for (const f of map.furniture) this.addBox(furnitureBox(f), f.heightM);
 
     this.controller = this.world.createCharacterController(0.01);
     this.controller.setSlideEnabled(true);

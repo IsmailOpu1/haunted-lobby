@@ -104,6 +104,7 @@ describe("collision with walls and doors", () => {
     tasks: [],
     relicSpots: [],
     relicNames: [],
+    furniture: [],
     spawns: [],
   };
 

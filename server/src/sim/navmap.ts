@@ -1,6 +1,6 @@
 import { init, NavMeshQuery } from "@recast-navigation/core";
 import { generateSoloNavMesh } from "@recast-navigation/generators";
-import { config, HIDING_SPOT_HEIGHT_M, hidingSpotBox, levelOf, stairFloors, stairRoute, stairWalls, wallBox, type FloorBox, type MapData } from "@haunted/shared";
+import { config, furnitureBox, HIDING_SPOT_HEIGHT_M, hidingSpotBox, levelOf, stairFloors, stairRoutes, stairWalls, wallBox, type FloorBox, type MapData } from "@haunted/shared";
 
 export interface Point {
   x: number;
@@ -54,6 +54,7 @@ export class NavMap {
     for (const f of stairFloors(map)) quad([f.minX, 0, f.minZ], [f.maxX, 0, f.minZ], [f.maxX, 0, f.maxZ], [f.minX, 0, f.maxZ]);
     for (const segment of [...map.walls, ...stairWalls(map)]) box(wallBox(segment, map.wallThicknessM), map.wallHeightM);
     for (const spot of map.hidingSpots) box(hidingSpotBox(spot), HIDING_SPOT_HEIGHT_M);
+    for (const f of map.furniture) box(furnitureBox(f), f.heightM);
 
     const result = generateSoloNavMesh(positions, indices, {
       cs: CELL_SIZE,
@@ -72,8 +73,24 @@ export class NavMap {
    * in the next floor's area.
    */
   path(a: Point, b: Point): Point[] {
-    const route = stairRoute(this.map, levelOf(this.map, a.x, a.z).id, levelOf(this.map, b.x, b.z).id);
-    if (route.length === 0) return this.pathOnFloor(a, b);
+    const routes = stairRoutes(this.map, levelOf(this.map, a.x, a.z).id, levelOf(this.map, b.x, b.z).id);
+    if (routes.length === 0) return this.pathOnFloor(a, b);
+    // With more than one flight between floors, take the shortest way.
+    let best: Point[] = [];
+    let bestLength = Infinity;
+    for (const route of routes) {
+      const points = this.pathVia(a, b, route);
+      const length = pathLength(a, points);
+      if (points.length > 0 && length < bestLength) {
+        best = points;
+        bestLength = length;
+      }
+    }
+    return best;
+  }
+
+  /** A path through the given flights of stairs, or empty if a leg is unreachable. */
+  private pathVia(a: Point, b: Point, route: { before: Point; after: Point }[]): Point[] {
     const points: Point[] = [];
     let from = a;
     for (const step of route) {
@@ -105,4 +122,15 @@ export class NavMap {
     const r = this.query.findRandomPoint();
     return { x: r.randomPoint.x, z: r.randomPoint.z };
   }
+}
+
+/** Walking length of a path from `start`; jumps between floors cost nothing (same real place). */
+export function pathLength(start: Point, points: Point[]): number {
+  let length = 0;
+  let prev = start;
+  for (const p of points) {
+    if (!p.jump) length += Math.hypot(p.x - prev.x, p.z - prev.z);
+    prev = p;
+  }
+  return length;
 }

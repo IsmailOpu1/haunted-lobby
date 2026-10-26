@@ -147,47 +147,39 @@ export function stairFloors(map: MapData): { minX: number; maxX: number; minZ: n
 }
 
 /**
- * The way from one floor to another for something that walks a route (the ghost): the point
- * just below the middle of a flight on this floor, and just above it on the next floor. Lists
- * the flights to take, in order. Empty if already on the same floor or no stairs connect them.
+ * The ways from one floor to another for something that walks a route (the ghost). Each way
+ * lists the flights to take, in order: the point just below the middle of a flight on this
+ * floor, and just above it on the next floor. Every way that never visits a floor twice is
+ * listed, so the walker can pick the shortest. Empty if already on the same floor or no stairs
+ * connect them.
  */
-export function stairRoute(map: MapData, fromLevel: string, toLevel: string): { before: Point; after: Point }[] {
+export function stairRoutes(map: MapData, fromLevel: string, toLevel: string): { before: Point; after: Point }[][] {
   if (fromLevel === toLevel) return [];
-  // Breadth-first over floors linked by stairs.
-  const prev = new Map<string, { level: string; step: { before: Point; after: Point } }>();
-  const seen = new Set([fromLevel]);
-  const queue = [fromLevel];
   const NUDGE = 0.3;
-  while (queue.length > 0) {
-    const level = queue.shift()!;
-    if (level === toLevel) break;
+  const routes: { before: Point; after: Point }[][] = [];
+  const walk = (level: string, seen: Set<string>, route: { before: Point; after: Point }[]) => {
+    if (level === toLevel) {
+      routes.push(route);
+      return;
+    }
     for (const stair of map.stairs) {
       const g = geometry(map, stair);
       const mid = { x: stair.x + (g.u.x * stair.lengthM) / 2, z: stair.z + (g.u.z * stair.lengthM) / 2 };
       const belowMid = { x: mid.x - g.u.x * NUDGE, z: mid.z - g.u.z * NUDGE };
-      const aboveMid = { x: mid.x + g.u.x * NUDGE, z: mid.z + g.u.z * NUDGE };
-      const inUpper = (p: Point) => ({ x: p.x + g.shift.x, z: p.z + g.shift.z });
-      let next: string | null = null;
-      let step: { before: Point; after: Point } | null = null;
+      const aboveMid = { x: mid.x + g.u.x * NUDGE + g.shift.x, z: mid.z + g.u.z * NUDGE + g.shift.z };
+      let next: string;
+      let step: { before: Point; after: Point };
       if (stair.lower === level) {
         next = stair.upper;
-        step = { before: belowMid, after: inUpper(aboveMid) };
+        step = { before: belowMid, after: aboveMid };
       } else if (stair.upper === level) {
         next = stair.lower;
-        step = { before: inUpper(aboveMid), after: belowMid };
-      }
-      if (!next || !step || seen.has(next)) continue;
-      seen.add(next);
-      prev.set(next, { level, step });
-      queue.push(next);
+        step = { before: aboveMid, after: belowMid };
+      } else continue;
+      if (seen.has(next)) continue;
+      walk(next, new Set([...seen, next]), [...route, step]);
     }
-  }
-  if (!prev.has(toLevel)) return [];
-  const route: { before: Point; after: Point }[] = [];
-  for (let level = toLevel; level !== fromLevel; ) {
-    const p = prev.get(level)!;
-    route.unshift(p.step);
-    level = p.level;
-  }
-  return route;
+  };
+  walk(fromLevel, new Set([fromLevel]), []);
+  return routes;
 }

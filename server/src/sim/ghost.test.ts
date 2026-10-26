@@ -11,10 +11,11 @@ import {
   SIM_DT,
   stepMovement,
   worldDistance,
+  type MapData,
   type MoveInput,
   type NightPart,
 } from "@haunted/shared";
-import { marrowHotelGreybox as map } from "@haunted/maps";
+import { marrowHotelGreybox, oneFloorTestMap as map } from "@haunted/maps";
 import { Ghost, type GhostTarget, type GhostWorld } from "./ghost.ts";
 import { NavMap } from "./navmap.ts";
 
@@ -32,7 +33,7 @@ function player(over: Partial<GhostTarget> & { id: string; x: number; z: number 
 }
 
 /** A test world: fixed players, real walls for line of sight, doors that start closed. */
-function makeWorld(players: GhostTarget[]) {
+function makeWorld(players: GhostTarget[], m: MapData = map, walls: PhysicsWorld = physics) {
   const open = new Set<string>();
   const log = {
     hits: [] as string[],
@@ -42,12 +43,12 @@ function makeWorld(players: GhostTarget[]) {
   };
   const world: GhostWorld = {
     players: () => players,
-    lineOfSight: (a, b, h) => physics.lineOfSight(a, b, h),
-    distance: (a, b) => worldDistance(map, a, b),
-    doors: map.doors,
+    lineOfSight: (a, b, h) => walls.lineOfSight(a, b, h),
+    distance: (a, b) => worldDistance(m, a, b),
+    doors: m.doors,
     isDoorOpen: (id) => open.has(id),
     openDoor: (id) => open.add(id),
-    hidingSpots: map.hidingSpots,
+    hidingSpots: m.hidingSpots,
     takeNoises: () => log.noises.splice(0),
     hit: (id) => {
       log.hits.push(id);
@@ -213,11 +214,16 @@ describe("ghost", () => {
   });
 });
 
-describe("ghost never gets stuck (PRD Phase 2: 20 test runs)", () => {
-  it("keeps moving through 20 nights with wandering players", () => {
+describe.each([
+  ["the one-floor test map", map],
+  ["the full hotel", marrowHotelGreybox],
+] as const)("ghost never gets stuck on %s (PRD Phase 2: 20 test runs)", (_name, m) => {
+  it("keeps moving through 20 nights with wandering players", async () => {
+    const nav = await NavMap.create(m);
+    const physics = new PhysicsWorld(m);
     const nightSec = 6 * 60; // shortened nights keep the test fast; every part still occurs
     for (let run = 0; run < 20; run++) {
-      const bodies = map.spawns.slice(0, 3).map((s, i) => ({
+      const bodies = m.spawns.slice(0, 3).map((s, i) => ({
         id: `p${i}`,
         move: initialMoveState(s.x, s.z),
         collide: physics.addBody().collide,
@@ -225,7 +231,7 @@ describe("ghost never gets stuck (PRD Phase 2: 20 test runs)", () => {
         turnIn: 0,
       }));
       const players = bodies.map((b) => player({ id: b.id, x: b.move.x, z: b.move.z, noiseM: config.ghost.hearingM.walk }));
-      const { world } = makeWorld(players);
+      const { world } = makeWorld(players, m, physics);
       // Caught players are not downed here (immune for one tick), so the ghost keeps hunting all night.
       world.hit = (id) => {
         players.find((q) => q.id === id)!.immune = true;

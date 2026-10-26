@@ -175,7 +175,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     for (const jar of this.map.saltJars) this.state.saltJars.set(jar.id, new SaltJar({ taken: false }));
     for (const station of this.map.tasks) this.state.stations.set(station.id, new TaskStation({ done: false }));
     // Relics hide in random spots each match (GDD 10). The count becomes a lobby setting in Phase 7.
-    pickRelicSpots(this.map.relicSpots, config.relics.count, config.relics.minSpacingM).forEach((spot, i) => {
+    pickRelicSpots(this.map.relicSpots, config.relics.count, config.relics.minSpacingM, Math.random, (a, b) => this.hearingDistance(a, b)).forEach((spot, i) => {
       const id = `R${i + 1}`;
       this.relics.push({ id, spotId: spot.id, x: spot.x, z: spot.z, status: "hidden" });
       this.state.relics.set(id, new Relic({ name: this.map.relicNames[i] ?? `Relic ${i + 1}`, status: "hidden", carrier: "" }));
@@ -187,9 +187,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.state.part = "quiet";
 
     const nav = await NavMap.create(this.map);
-    // The ghost starts asleep in the room farthest from the spawn, the Kitchen in the grey box.
+    // The ghost starts asleep where the map says (far from the spawn), else in the last room listed.
     const lastRoom = this.map.rooms[this.map.rooms.length - 1]!;
-    this.ghost = new Ghost(nav, this.ghostWorld(), { x: (lastRoom.minX + lastRoom.maxX) / 2, z: (lastRoom.minZ + lastRoom.maxZ) / 2 });
+    const start = this.map.ghostStart ?? { x: (lastRoom.minX + lastRoom.maxX) / 2, z: (lastRoom.minZ + lastRoom.maxZ) / 2 };
+    this.ghost = new Ghost(nav, this.ghostWorld(), start);
 
     this.onMessage("input", (client, raw: unknown) => {
       const sim = this.sims.get(client.sessionId);
@@ -242,12 +243,19 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     });
 
     if (DEBUG) {
-      this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number }) => {
+      this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number; teleport?: { x: number; z: number } }) => {
         if (typeof msg?.nightTime === "number") this.state.nightTime = msg.nightTime;
         if (typeof msg?.huntIn === "number") this.ghost.debugHuntIn(msg.huntIn);
         if (msg?.down) this.downPlayer(client.sessionId);
         const player = this.state.players.get(client.sessionId);
         if (player && typeof msg?.bleedLeft === "number") player.bleedLeft = msg.bleedLeft;
+        // Jump straight to a spot (tests on the full map, where walking would take a minute).
+        const sim = this.sims.get(client.sessionId);
+        if (player && sim && typeof msg?.teleport?.x === "number" && typeof msg.teleport.z === "number") {
+          sim.move = { ...sim.move, x: msg.teleport.x, z: msg.teleport.z };
+          player.x = msg.teleport.x;
+          player.z = msg.teleport.z;
+        }
       });
     }
 

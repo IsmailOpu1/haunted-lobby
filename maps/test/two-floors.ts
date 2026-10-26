@@ -49,5 +49,6 @@ export const twoFloorTestMap: MapData = {
   tasks: [],
   relicSpots: [],
   relicNames: [],
+  furniture: [],
   spawns: [{ x: 0, z: 3 }],
 };

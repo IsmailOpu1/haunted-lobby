@@ -162,18 +162,11 @@ describe("HauntedRoom", () => {
     await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
     const me = () => room.state.players.get(room.sessionId);
 
-    // Walk north from the spawn (z 6) toward the hall door at z 0 until within reach.
-    let seq = 0;
-    while (me().z > 1.2) {
-      room.send("input", { seq: ++seq, forward: 1, right: 0, run: false, crouch: false, yaw: 0, pitch: 0 });
-      await new Promise((r) => setTimeout(r, 1000 / config.net.tickRate));
-    }
-    // Spawn 0 is at x -3; step sideways so the door at x 0 is within 2 m.
-    while (me().x < -0.5) {
-      room.send("input", { seq: ++seq, forward: 0, right: 1, run: false, crouch: false, yaw: 0, pitch: 0 });
-      await new Promise((r) => setTimeout(r, 1000 / config.net.tickRate));
-    }
-    const door = () => room.state.doors.get("hall-corridor");
+    // Walk north from spawn 0 toward the Main Hall's west door until within reach.
+    const def = marrowHotelGreybox.doors.find((d) => d.id === "hall-front-west")!;
+    await walkTo(room, { x: def.x, z: def.z + 1.5 });
+    expect(Math.hypot(me().x - def.x, me().z - def.z)).toBeLessThan(config.interact.rangeM);
+    const door = () => room.state.doors.get(def.id);
     expect(door().open).toBe(false);
     room.send("use", { down: true });
     room.send("use", { down: false });
@@ -209,8 +202,9 @@ describe("HauntedRoom", () => {
     await waitFor(() => helper.state.players?.size === 2);
     const hurt = () => helper.state.players.get(victim.sessionId);
 
-    // Spawns are at (-3, 6) and (3, 6). The helper walks east until next to the victim.
-    await walkTo(helper, { x: 2, z: 6 });
+    // The helper walks from spawn 0 until next to the victim at spawn 1.
+    const [, at] = marrowHotelGreybox.spawns;
+    await walkTo(helper, { x: at!.x - 1, z: at!.z });
     victim.send("debug", { down: true });
     await waitFor(() => hurt().health === "downed");
 
@@ -229,22 +223,23 @@ describe("HauntedRoom", () => {
     await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
     const me = () => room.state.players.get(room.sessionId);
 
-    // The west wardrobe in the Main Hall: exit point (-6.7, 3).
-    const seq = await walkTo(room, { x: -6.7, z: 3 });
+    // The west wardrobe in the Main Hall.
+    const spot = marrowHotelGreybox.hidingSpots.find((h) => h.id === "hall-wardrobe-west")!;
+    const seq = await walkTo(room, spot.exit);
     room.send("use", { down: true });
-    await waitFor(() => me().hidingSpot === "hall-wardrobe-west", 3000);
+    await waitFor(() => me().hidingSpot === spot.id, 3000);
     room.send("use", { down: false });
-    expect(me().x).toBeCloseTo(-7.6, 1);
+    expect(me().z).toBeCloseTo(spot.z, 1);
 
     // Moving does nothing while hidden; Shift holds breath.
     let s = seq;
     for (let i = 0; i < 10; i++) room.send("input", { seq: ++s, forward: 1, right: 0, run: true, crouch: false, yaw: 0, pitch: 0 });
     await waitFor(() => me().holdingBreath === true);
-    expect(me().x).toBeCloseTo(-7.6, 1);
+    expect(me().z).toBeCloseTo(spot.z, 1);
 
     room.send("use", { down: true });
     await waitFor(() => me().hidingSpot === "", 3000);
-    expect(me().x).toBeCloseTo(-6.7, 1);
+    expect(me().z).toBeCloseTo(spot.exit.z, 1);
     expect(me().holdingBreath).toBe(false);
     await room.leave();
   }, 20000);
@@ -260,9 +255,12 @@ describe("HauntedRoom", () => {
     expect(room.state.part).toBe("quiet");
     expect(ghostMsgs).toEqual([]); // asleep
 
+    // Far from the ghost's room, nothing is said about it; next to it, its position is sent.
     room.send("debug", { nightTime: config.match.quietSec + 1 });
     await waitFor(() => room.state.part === "calm");
-    // The ghost wakes in the Kitchen, within interest range of the Main Hall spawn.
+    await new Promise((r) => setTimeout(r, 300));
+    expect(ghostMsgs).toEqual([]);
+    room.send("debug", { teleport: marrowHotelGreybox.ghostStart! });
     await waitFor(() => ghostMsgs.length > 0);
     expect(ghostMsgs.at(-1)).toMatchObject({ visible: false });
     await room.leave();
@@ -291,16 +289,18 @@ describe("HauntedRoom", () => {
     expect(me().salt).toBe(config.salt.perPlayer - 1);
     let line: { x: number; z: number } | undefined;
     room.state.saltLines.forEach((l: { x: number; z: number }) => (line = l));
-    // Spawn 0 is (-3, 6) facing north: the line lands 1 m ahead.
-    expect(line!.x).toBeCloseTo(-3, 1);
-    expect(line!.z).toBeCloseTo(6 - config.salt.placeAheadM, 1);
+    // Spawn 0 faces north: the line lands 1 m ahead.
+    const spawn = marrowHotelGreybox.spawns[0]!;
+    expect(line!.x).toBeCloseTo(spawn.x, 1);
+    expect(line!.z).toBeCloseTo(spawn.z - config.salt.placeAheadM, 1);
 
-    // The jar at (-6.5, 11) gives one handful back, once.
-    await walkTo(room, { x: -6.5, z: 10.2 });
+    // The Main Hall's jar gives one handful back, once.
+    const jar = marrowHotelGreybox.saltJars.find((j) => j.id === "jar-hall")!;
+    await walkTo(room, { x: jar.x + 0.8, z: jar.z });
     room.send("use", { down: true });
     room.send("use", { down: false });
     await waitFor(() => me().salt === config.salt.perPlayer);
-    expect(room.state.saltJars.get("jar-hall-1").taken).toBe(true);
+    expect(room.state.saltJars.get(jar.id).taken).toBe(true);
     await room.leave();
   }, 20000);
 
@@ -335,7 +335,9 @@ describe("HauntedRoom", () => {
 
     const opened = collectMsgs(room, "taskOpen");
     const closed = collectMsgs(room, "taskClosed");
-    let seq = await walkTo(room, { x: 0, z: 10.4 });
+    const clock = marrowHotelGreybox.tasks.find((t) => t.id === "task-clock")!;
+    const atClock = { x: clock.x, z: clock.z - 1.2 };
+    let seq = await walkTo(room, atClock);
     room.send("use", { down: true });
     room.send("use", { down: false });
     await waitFor(() => opened.length === 1);
@@ -351,10 +353,10 @@ describe("HauntedRoom", () => {
     room.send("use", { down: true });
     room.send("use", { down: false });
     await waitFor(() => opened.length === 2);
-    seq = await walkTo(room, { x: 0, z: 8.5 }, seq);
+    seq = await walkTo(room, { x: clock.x, z: clock.z - 2.5 }, seq);
     await waitFor(() => closed.length === 2);
     expect(closed[1]!.reason).toBe("cancelled");
-    await walkTo(room, { x: 0, z: 10.4 }, seq);
+    await walkTo(room, atClock, seq);
 
     room.send("use", { down: true });
     room.send("use", { down: false });
@@ -377,11 +379,14 @@ describe("HauntedRoom", () => {
     friend.onMessage("*", () => {});
     const heard = collectMsgs(friend, "taskNoise");
     await waitFor(() => room.state.players.size === 2);
-    // The friend stands a few metres away, well inside the 10 m the noise carries.
-    await walkTo(friend, { x: station.x / 2, z: 7 });
+    // Both jump to the station's room: the friend a few metres away, well inside the 10 m the
+    // noise carries, and the worker beside the station.
+    const beside = { x: station.x + Math.sign(-station.x), z: station.z };
+    friend.send("debug", { teleport: { x: station.x, z: station.z + 3 } });
+    room.send("debug", { teleport: beside });
+    await waitFor(() => Math.abs(room.state.players.get(room.sessionId).x - beside.x) < 0.01);
 
     const opened = collectMsgs(room, "taskOpen");
-    await walkTo(room, { x: station.x - Math.sign(station.x), z: station.z });
     room.send("use", { down: true });
     room.send("use", { down: false });
     await waitFor(() => opened.length === 1);

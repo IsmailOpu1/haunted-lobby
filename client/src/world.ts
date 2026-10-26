@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { doorBox, HIDING_SPOT_HEIGHT_M, hidingSpotBox, toWorld, wallBox, type DoorDef, type MapData, type StairDef } from "@haunted/shared";
+import { config, doorBox, furnitureBox, HIDING_SPOT_HEIGHT_M, hidingSpotBox, toWorld, wallBox, type DoorDef, type MapData, type StairDef } from "@haunted/shared";
 import { liftToFloor } from "./place.ts";
 
 const WALL_COLOR = 0x8a8a8a;
@@ -11,6 +11,21 @@ const DOOR_THICKNESS = 0.08;
 const DOOR_SWING_PER_SEC = 4; // radians per second for the open/close animation
 const STAIR_COLOR = 0x5e5850;
 const STEP_RISE_M = 0.2;
+// Ceilings sit a little under the floor above, so the bottoms of things upstairs never show through.
+const SLAB_M = 0.05;
+const RELIC_DOOR_COLOR = 0x5a1f1f;
+
+// Placeholder furniture colors by kind until the Phase 8 art pass.
+const FURNITURE_COLORS: Record<string, number> = {
+  table: 0x5a4632,
+  counter: 0x4f4a44,
+  shelf: 0x4a3a2a,
+  bed: 0x6b6157,
+  fountain: 0x6d7470,
+  stage: 0x3e3128,
+  crates: 0x6a5a3c,
+  altar: 0x2a2626,
+};
 
 /** A door mesh that swings around its hinge. */
 export class DoorView {
@@ -32,6 +47,7 @@ export class DoorView {
       this.pivot.position.set(def.x, 0, def.z - half);
       mesh.position.set(0, (height * 0.9) / 2, half);
     }
+    if (def.id === map.relicDoor) (mesh.material as THREE.MeshLambertMaterial).color.setHex(RELIC_DOOR_COLOR);
     this.pivot.add(mesh);
     liftToFloor(map, this.pivot, def.x, def.z);
     scene.add(this.pivot);
@@ -72,11 +88,29 @@ export function buildWorld(scene: THREE.Scene, map: MapData): Map<string, DoorVi
     floor.position.set(cx, 0, cz);
     scene.add(liftToFloor(map, floor));
 
+    if (room.outdoor) continue; // open to the night sky
     const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(w, d), ceilingMat);
     ceiling.rotation.x = Math.PI / 2;
-    ceiling.position.set(cx, h, cz);
+    ceiling.position.set(cx, h - SLAB_M, cz);
     scene.add(liftToFloor(map, ceiling));
   }
+
+  // Furniture: each piece is its own object, named by its id, so interactions can find it later.
+  for (const f of map.furniture) {
+    const box = furnitureBox(f);
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(box.sizeX, f.heightM, box.sizeZ), new THREE.MeshLambertMaterial({ color: FURNITURE_COLORS[f.kind] ?? 0x5a5048 }));
+    mesh.name = f.id;
+    mesh.position.set(box.x, f.heightM / 2, box.z);
+    scene.add(liftToFloor(map, mesh));
+  }
+  const placeAt = (obj: THREE.Object3D, at: { x: number; z: number }) => {
+    obj.position.x = at.x;
+    obj.position.z = at.z;
+    scene.add(liftToFloor(map, obj));
+  };
+  if (map.bell) placeAt(bellModel(), map.bell);
+  if (map.fuseBox) placeAt(fuseBoxModel(), map.fuseBox);
+  if (map.altar) placeAt(ritualCircle(), map.altar);
 
   // Hiding furniture: wardrobes and cupboards are wood boxes, curtains are dark cloth.
   for (const spot of map.hidingSpots) {
@@ -130,4 +164,40 @@ function buildStairs(scene: THREE.Scene, map: MapData, stair: StairDef, wallMat:
   ceiling.rotation.x = Math.PI / 2;
   ceiling.position.set(0, wallHeight, -stair.lengthM / 2);
   group.add(ceiling);
+  // Above the bottom step, the upper floor's wall closes the stairwell off from the floor above.
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(stair.widthM + map.wallThicknessM, map.wallHeightM, map.wallThicknessM), wallMat);
+  lintel.position.set(0, rise + map.wallHeightM / 2, 0);
+  group.add(lintel);
+}
+
+/** The meeting bell on its stand (GDD 16). Placeholder look. */
+function bellModel(): THREE.Group {
+  const group = new THREE.Group();
+  const brass = new THREE.MeshLambertMaterial({ color: 0xb08d3c, emissive: 0x2a1e08 });
+  const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.25, 1, 10), new THREE.MeshLambertMaterial({ color: 0x3b2d20 }));
+  stand.position.y = 0.5;
+  const bell = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), brass);
+  bell.position.y = 1.0;
+  group.add(stand, bell);
+  return group;
+}
+
+/** The fuse box on its post (GDD 14). Placeholder look. */
+function fuseBoxModel(): THREE.Group {
+  const group = new THREE.Group();
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.2), new THREE.MeshLambertMaterial({ color: 0x4d5a4f }));
+  box.position.y = 1.4;
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.05, 0.08), new THREE.MeshLambertMaterial({ color: 0x333333 }));
+  post.position.y = 0.525;
+  group.add(box, post);
+  return group;
+}
+
+/** The chalk circle around the altar (GDD 11): stand inside it to do the ritual. */
+function ritualCircle(): THREE.Mesh {
+  const r = config.ritual.circleRadiusM;
+  const ring = new THREE.Mesh(new THREE.RingGeometry(r - 0.08, r, 64), new THREE.MeshBasicMaterial({ color: 0x8a1c1c }));
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.012;
+  return ring;
 }

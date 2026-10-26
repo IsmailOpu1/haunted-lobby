@@ -15,12 +15,33 @@ export interface DoorDef {
   axis: "x" | "z";
 }
 
+/** One rectangle of a room. A room that is not a rectangle is several of these with the same name. */
 export interface RoomDef {
   name: string;
   minX: number;
   maxX: number;
   minZ: number;
   maxZ: number;
+  /** Open to the sky: no ceiling (the Garden Courtyard). */
+  outdoor?: boolean;
+}
+
+/**
+ * A solid piece of furniture (bed, table, shelf, counter...). Each is its own object with an id,
+ * so hands-on interactions can attach to it later (GDD 26.5). It blocks walking; low furniture
+ * does not block sight.
+ */
+export interface FurnitureDef {
+  id: string;
+  /** What it is, for drawing: "bed", "table", "shelf"... */
+  kind: string;
+  room: string;
+  /** Center of the box on the floor. */
+  x: number;
+  z: number;
+  sizeX: number;
+  sizeZ: number;
+  heightM: number;
 }
 
 /** A wardrobe, cupboard or curtain a player can hide in (GDD Section 6). It is also solid furniture. */
@@ -142,12 +163,28 @@ export interface MapData {
   /** This map's relic names, used in order for the relics of a match. */
   relicNames: string[];
   spawns: { x: number; z: number }[];
+  /** Solid furniture that is not a hiding spot. */
+  furniture: FurnitureDef[];
+  /** The meeting bell (GDD 16), in the Main Hall. */
+  bell?: { x: number; z: number };
+  /** The fuse box (GDD 14). */
+  fuseBox?: { x: number; z: number };
+  /** The door with one slot per relic that locks the Ritual Room's area (GDD 10). One of `doors`. */
+  relicDoor?: string;
+  /** Where the ghost sleeps at the start of the night: far from the spawn, outside the locked area. */
+  ghostStart?: { x: number; z: number };
+  /** Center of the ritual altar and its circle (GDD 11). */
+  altar?: { x: number; z: number };
 }
 
 export const HIDING_SPOT_HEIGHT_M = 2;
 
 export function hidingSpotBox(spot: HidingSpotDef): FloorBox {
   return { x: spot.x, z: spot.z, sizeX: spot.sizeX, sizeZ: spot.sizeZ };
+}
+
+export function furnitureBox(f: FurnitureDef): FloorBox {
+  return { x: f.x, z: f.z, sizeX: f.sizeX, sizeZ: f.sizeZ };
 }
 
 /** An axis-aligned box on the floor: center and full size. */

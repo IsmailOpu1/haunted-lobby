@@ -805,3 +805,19 @@ Rules the GDD did not specify, chosen while building the ghost. Numbers live in 
 | Dropping | G drops it where you stand; the ghost and players within 8 m hear it. Downed or leaving: it falls silently. Anyone can pick a dropped relic up with E straight away | GDD 10. A dropped relic glows faintly so it can be found |
 | Tab | Hold Tab to see every relic: Hidden, Carried by X, Dropped (last carried by X), Placed. Never where | GDD 10 |
 | Placing relics | Not built yet: the basement door comes with the full map and the ritual (Phase 5) | The grey box has no basement |
+
+### 26.9 Phase 5 build choices (awaiting owner confirmation)
+
+| Choice | Value | Why |
+|---|---|---|
+| Hotel layout | A ring of corridors around the open-air Garden Courtyard on the ground floor, with the Main Hall south of it, the Reception, Library and Ballroom on the west and the Restaurant, Kitchen and Service Room on the east. The upper floor repeats the ring around the open courtyard. The basement lies under the west side. Plan: `docs/maps/marrow-hotel.svg` | The ring gives at least 2 routes everywhere (21.1); the courtyard is in the middle so you cross or skirt it often |
+| Stairs | Grand stairs up and cellar stairs down, both inside the Main Hall; back stairs up in the Service Room, landing in the Laundry. Floors are 3 m apart | Two ways between ground and upper floors (21.1); the relic door is at the bottom of the main stairs to the basement (21.2) |
+| Corridor names | Ground: Front, West, East and North Corridor. Upper: Upper Corridor (front and east, plus the landing) and Guest Corridor (west and north). Basement: Cellar Passage | The GDD names only the upper corridors |
+| Basement | Stairwell, then the relic door, then the Cellar Passage between the Wine Cellar and Storage; the Ritual Room is beyond them with one doorway from each | 21.1: the Ritual Room has 2 doorways, so defending it is a team job |
+| One task per room | Main Hall clock, Reception switchboard, Library letter, Ballroom piano, Courtyard roses, Restaurant candelabra, Kitchen stove; upstairs Upper Corridor shutters, Guest Corridor portraits, Bridal Suite mirror, Nursery cradle, Guest Room 1 sheets, Staff Quarters trunk, Laundry boiler | The GDD 9 table, one room each |
+| Relic spots (12) | Library, Ballroom, Restaurant (jewellery boxes); Courtyard (flower bed); Kitchen, Service Room (drains); Bridal Suite, Guest Rooms 2 and 4 (jewellery boxes); Nursery and Guest Corridor (plant pots); Laundry (drain) | Never the Main Hall or basement (10). The 20 m spacing is now measured as the real distance, through floors |
+| Salt jars (8) | Main Hall (beside the cellar stairs), Reception, Restaurant, Service Room; Nursery, Guest Room 1, Staff Quarters, Laundry | One per possible player, spread over both floors, none in the locked basement |
+| Where the ghost sleeps | The Ballroom, out of the 25 m range of the spawn | It used to sleep in the last room listed, which is now the locked Ritual Room |
+| Walking end to end | About 46 s at walking speed (96 m, Guest Room 3 to the Ritual Room, middle to middle). Without the basement, about 39 s | 21.1 asks 45 to 60 s; checked by a test |
+| Furniture | Separate pieces with their own ids (tables, beds, counters, shelves, a stage, the fountain, wine racks, crates, the altar). They block walking; low ones do not block sight | 26.5: the 3D interaction rework attaches to real furniture |
+| Hiding spots and doors | A hiding spot's exit is at least 2 m from any door | Otherwise E at that door hides you instead of opening it |
