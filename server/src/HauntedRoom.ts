@@ -65,7 +65,8 @@ type Action =
   | { kind: "revive"; targetId: string; elapsed: number }
   | { kind: "hide"; spotId: string; elapsed: number }
   | { kind: "unhide"; elapsed: number }
-  | { kind: "salt"; elapsed: number };
+  | { kind: "salt"; elapsed: number }
+  | { kind: "placeRelic"; elapsed: number };
 
 /** Server-only data for one connected player. */
 interface PlayerSim {
@@ -125,6 +126,7 @@ const ACTION_SECONDS: Record<Action["kind"], number> = {
   hide: config.movement.hideEnterExitSec,
   unhide: config.movement.hideEnterExitSec,
   salt: config.salt.placeSec,
+  placeRelic: config.relics.placeSec,
 };
 
 export class HauntedRoom extends Room<{ state: GameState }> {
@@ -151,6 +153,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   /** Spirit Camera photos, kept on the server until the next meeting shows them (Phase 6). */
   private photos: PhotoRecord[] = [];
   private relics: RelicSim[] = [];
+  /** The ghost's navmesh once the relic door is open (until then it walks one with the door as a wall). */
+  private openNav: NavMap | null = null;
   private relicTimer = 0;
 
   async onCreate() {
@@ -186,7 +190,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.state.nightTime = 0;
     this.state.part = "quiet";
 
-    const nav = await NavMap.create(this.map);
+    // While the relic door is locked the ghost cannot get past it either (GDD 10).
+    const relicDoor = this.map.relicDoor;
+    this.openNav = await NavMap.create(this.map);
+    const nav = relicDoor ? await NavMap.create(this.map, [relicDoor]) : this.openNav;
     // The ghost starts asleep where the map says (far from the spawn), else in the last room listed.
     const lastRoom = this.map.rooms[this.map.rooms.length - 1]!;
     const start = this.map.ghostStart ?? { x: (lastRoom.minX + lastRoom.maxX) / 2, z: (lastRoom.minZ + lastRoom.maxZ) / 2 };
@@ -629,6 +636,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     }
 
     if (this.pickUpRelic(player, here.x, here.z)) return;
+    if (player.relic && this.nearRelicDoor(here.x, here.z)) {
+      this.setAction(sim, player, { kind: "placeRelic", elapsed: 0 });
+      return;
+    }
     if (this.pickUpSalt(player, here.x, here.z)) return;
     if (this.openTask(sessionId, sim, player, here.x, here.z)) return;
     if (this.openRelicSpot(sessionId, sim, player, here.x, here.z)) return;
@@ -700,6 +711,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     if (action.kind === "revive") this.revive(action.targetId);
     else if (action.kind === "hide") this.hide(sim, player, action.spotId);
     else if (action.kind === "salt") this.pourSalt(player);
+    else if (action.kind === "placeRelic") this.placeRelic(player);
     else this.unhide(sim, player);
   }
 
@@ -868,6 +880,31 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     return true;
   }
 
+  private nearRelicDoor(x: number, z: number): boolean {
+    const door = this.map.doors.find((d) => d.id === this.map.relicDoor);
+    return !!door && Math.hypot(door.x - x, door.z - z) <= config.interact.rangeM;
+  }
+
+  /** The held relic goes into a slot of the relic door for good. The last one opens the basement (GDD 10). */
+  private placeRelic(player: Player) {
+    const relic = this.relics.find((r) => r.id === player.relic);
+    const door = this.map.doors.find((d) => d.id === this.map.relicDoor);
+    if (!relic || !door || !this.nearRelicDoor(player.x, player.z)) return;
+    player.relic = "";
+    relic.status = "placed";
+    relic.x = door.x;
+    relic.z = door.z;
+    this.state.relics.get(relic.id)!.status = relic.status;
+    if (this.relicDoorLocked()) return;
+    this.setDoor(door.id, true);
+    if (this.openNav) this.ghost.setNav(this.openNav);
+  }
+
+  /** The relic door stays shut until every relic is placed. */
+  private relicDoorLocked(): boolean {
+    return !!this.map.relicDoor && this.relics.some((r) => r.status !== "placed");
+  }
+
   /**
    * The relic falls where the player stands: on purpose with G (which makes a noise, GDD 10),
    * or because they were downed or left. Tab then shows "Dropped, last carried by" them.
@@ -988,6 +1025,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private toggleNearestDoor(x: number, z: number) {
     let nearest: { id: string; dist: number } | undefined;
     for (const door of this.map.doors) {
+      // The relic door cannot be worked by hand: it is locked, then open for good.
+      if (door.id === this.map.relicDoor) continue;
       const dist = Math.hypot(door.x - x, door.z - z);
       if (dist <= config.interact.rangeM && (!nearest || dist < nearest.dist)) nearest = { id: door.id, dist };
     }
@@ -1038,7 +1077,9 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       lineOfSight: (a, b, h) => this.physics.lineOfSight(a, b, h),
       doors: this.map.doors,
       isDoorOpen: (id) => this.state.doors.get(id)?.open ?? true,
-      openDoor: (id) => this.setDoor(id, true),
+      openDoor: (id) => {
+        if (id !== this.map.relicDoor || !this.relicDoorLocked()) this.setDoor(id, true);
+      },
       hidingSpots: this.map.hidingSpots,
       takeNoises: () => this.noises.slice(),
       takeSaltAt: (x, z) => {

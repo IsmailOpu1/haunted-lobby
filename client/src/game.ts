@@ -101,7 +101,7 @@ export type VoiceUiState =
   | { kind: "checking" }
   | { kind: "ready" };
 
-const ACTION_LABELS: Record<string, string> = { revive: "Reviving", hide: "Hiding", unhide: "Stepping out", salt: "Pouring salt" };
+const ACTION_LABELS: Record<string, string> = { revive: "Reviving", hide: "Hiding", unhide: "Stepping out", salt: "Pouring salt", placeRelic: "Placing relic" };
 
 /** The parts of a player's server state this client reads. */
 interface PlayerData {
@@ -414,6 +414,8 @@ export class Game {
       relicList.push({ name: r.name, status: relicStatusText(r) });
     });
     this.hud.setRelics(relicList);
+    const relicDoor = this.map.relicDoor && this.doors.get(this.map.relicDoor);
+    if (relicDoor) relicDoor.setSlots([...this.relics.values()].filter((r) => r.status === "placed").length, this.relics.size);
     if (typeof state.tasksTotal === "number") this.hud.setTeamTasks(state.tasksDone, state.tasksTotal);
     this.saltJarsTaken = new Set();
     state.saltJars?.forEach((jar: { taken: boolean }, id: string) => {
@@ -604,6 +606,9 @@ export class Game {
       const dropped = this.relicsNear.find((r) => !r.hidden && Math.hypot(r.x - x, r.z - z) <= config.relics.useRangeM);
       if (dropped) return `E  Pick up ${this.relics.get(dropped.id)?.name ?? "the relic"}`;
     }
+    const relicDoor = this.map.doors.find((d) => d.id === this.map.relicDoor);
+    const atRelicDoor = !!relicDoor && Math.hypot(relicDoor.x - x, relicDoor.z - z) <= config.interact.rangeM;
+    if (atRelicDoor && me.relic) return `Hold E  Place ${this.relics.get(me.relic)?.name ?? "the relic"}`;
     if (me.salt < config.salt.carryMax) {
       for (const jar of this.map.saltJars) {
         if (!this.saltJarsTaken.has(jar.id) && Math.hypot(jar.x - x, jar.z - z) <= config.salt.jarRangeM) return "E  Pick up salt";
@@ -624,7 +629,14 @@ export class Game {
     for (const spot of this.map.hidingSpots) {
       if (!taken.has(spot.id) && Math.hypot(spot.exit.x - x, spot.exit.z - z) <= config.interact.hideRangeM) return "Hold E  Hide";
     }
-    if (this.map.doors.some((d) => Math.hypot(d.x - x, d.z - z) <= config.interact.rangeM)) return "E  Open / close door";
+    if (atRelicDoor) {
+      const relics = [...this.relics.values()];
+      const placed = relics.filter((r) => r.status === "placed").length;
+      // Once every slot is full the door stays open, and there is nothing to do here.
+      if (placed < relics.length) return `Locked: ${placed} of ${relics.length} relics placed`;
+    }
+    const doors = this.map.doors.filter((d) => d.id !== this.map.relicDoor);
+    if (doors.some((d) => Math.hypot(d.x - x, d.z - z) <= config.interact.rangeM)) return "E  Open / close door";
     return null;
   }
 

@@ -118,7 +118,7 @@ export interface ClientMessages {
 export type Health = "alive" | "downed" | "dead";
 
 /** A timed action a player is doing (holding E, pouring salt, or a task minigame). */
-export type PlayerAction = "" | "revive" | "hide" | "unhide" | "salt" | "task";
+export type PlayerAction = "" | "revive" | "hide" | "unhide" | "salt" | "task" | "placeRelic";
 
 /** One of your tasks, as only you see it (the possessed get a fake list in Phase 6). */
 export interface TaskEntry {

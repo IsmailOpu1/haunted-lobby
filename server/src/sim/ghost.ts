@@ -77,6 +77,12 @@ export class Ghost {
     this.progressAnchor = { ...p };
   }
 
+  /** Walks by a new navmesh from now on (the relic door opened), keeping its current goal. */
+  setNav(nav: NavMap) {
+    this.nav = nav;
+    if (this.goal) this.path = this.nav.path(this, this.goal);
+  }
+
   /** The ghost can be seen only while it hunts. */
   get visible(): boolean {
     return this.state === "hunt";
@@ -217,7 +223,7 @@ export class Ghost {
       this.pauseTimer -= dt;
       return;
     }
-    if (!this.goal) this.setGoal(this.nav.randomPoint());
+    if (!this.goal) this.setGoal(this.nav.randomPoint(this));
     if (this.moveAlongPath(dt, speed)) {
       // Arrived.
       this.goal = null;
@@ -309,10 +315,10 @@ export class Ghost {
           this.pendingInspect = spot;
         } else {
           this.lastKnown = null;
-          this.setGoal(this.nav.randomPoint());
+          this.setGoal(this.nav.randomPoint(this));
         }
       } else {
-        this.setGoal(this.nav.randomPoint());
+        this.setGoal(this.nav.randomPoint(this));
       }
     }
 
@@ -346,11 +352,11 @@ export class Ghost {
   /** After retreating, the ghost comes back somewhere away from every player. */
   private reappear() {
     const players = this.world.players().filter((p) => p.health !== "dead");
-    let spot = this.nav.randomPoint();
+    let spot = this.nav.randomPoint(this);
     for (let i = 0; i < 20; i++) {
       const far = players.every((p) => this.world.distance(p, spot) >= config.ghost.reappearMinDistM);
       if (far) break;
-      spot = this.nav.randomPoint();
+      spot = this.nav.randomPoint(this);
     }
     this.x = spot.x;
     this.z = spot.z;

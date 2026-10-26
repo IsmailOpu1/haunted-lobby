@@ -274,4 +274,21 @@ describe.each([marrowHotelGreybox].map((m) => [m.name, m] as const))("%s follows
       expect(seconds, `${longest.from} to ${longest.to}: ${longest.m.toFixed(0)} m`).toBeLessThanOrEqual(60);
     });
   });
+  it("keeps the ghost's walking out of the basement while the relic door is locked (GDD 10)", async () => {
+    const locked = await NavMap.create(map, [map.relicDoor!]);
+    const open = await NavMap.create(map);
+    const from = map.ghostStart!;
+    const altar = locked.closest(map.altar!);
+    expect(locked.path(from, altar)).toEqual([]);
+    expect(open.path(from, altar).length).toBeGreaterThan(0);
+    // The stairwell in front of the door is still open to it.
+    const stairwell = map.rooms.find((r) => r.name === "Stairwell")!;
+    expect(locked.path(from, locked.closest({ x: (stairwell.minX + stairwell.maxX) / 2, z: (stairwell.minZ + stairwell.maxZ) / 2 })).length).toBeGreaterThan(0);
+    // Wandering never picks a spot it cannot reach.
+    const beyond = new Set(["Cellar Passage", "Wine Cellar", "Storage", "Ritual Room"]);
+    for (let i = 0; i < 200; i++) {
+      const p = locked.randomPoint(from);
+      expect(beyond.has(roomAt(map, p.x, p.z)?.name ?? ""), `${p.x.toFixed(1)}, ${p.z.toFixed(1)}`).toBe(false);
+    }
+  }, 30000);
 });

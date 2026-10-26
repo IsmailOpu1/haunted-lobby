@@ -14,6 +14,10 @@ const STEP_RISE_M = 0.2;
 // Ceilings sit a little under the floor above, so the bottoms of things upstairs never show through.
 const SLAB_M = 0.05;
 const RELIC_DOOR_COLOR = 0x5a1f1f;
+const SLOT_EMPTY_COLOR = 0x140c0c;
+const SLOT_FULL_COLOR = 0xc9a640;
+const SLOT_SIZE_M = 0.2;
+const SLOT_HEIGHT_M = 1.3;
 
 // Placeholder furniture colors by kind until the Phase 8 art pass.
 const FURNITURE_COLORS: Record<string, number> = {
@@ -30,7 +34,9 @@ const FURNITURE_COLORS: Record<string, number> = {
 /** A door mesh that swings around its hinge. */
 export class DoorView {
   private pivot = new THREE.Group();
+  private mesh: THREE.Mesh;
   private targetAngle = 0;
+  private slots: THREE.Mesh[] = [];
 
   constructor(scene: THREE.Scene, map: MapData, private def: DoorDef, height: number) {
     const box = doorBox(def, DOOR_THICKNESS);
@@ -38,6 +44,7 @@ export class DoorView {
       new THREE.BoxGeometry(box.sizeX, height * 0.9, box.sizeZ),
       new THREE.MeshLambertMaterial({ color: DOOR_COLOR }),
     );
+    this.mesh = mesh;
     // Hinge at one end of the doorway; the panel extends from it.
     const half = def.width / 2;
     if (def.axis === "x") {
@@ -51,6 +58,33 @@ export class DoorView {
     this.pivot.add(mesh);
     liftToFloor(map, this.pivot, def.x, def.z);
     scene.add(this.pivot);
+  }
+
+  /** The relic door's slots, one per relic, lit gold once filled (GDD 10). They show on both faces. */
+  setSlots(placed: number, total: number) {
+    if (this.slots.length !== total) {
+      for (const slot of this.slots) this.mesh.remove(slot);
+      const spacing = this.def.width / (total + 1);
+      const along = this.def.axis === "x";
+      this.slots = Array.from({ length: total }, (_, i) => {
+        const depth = DOOR_THICKNESS + 0.04;
+        const slot = new THREE.Mesh(
+          new THREE.BoxGeometry(along ? SLOT_SIZE_M : depth, SLOT_SIZE_M, along ? depth : SLOT_SIZE_M),
+          new THREE.MeshLambertMaterial({ color: SLOT_EMPTY_COLOR }),
+        );
+        const offset = -this.def.width / 2 + spacing * (i + 1);
+        const y = SLOT_HEIGHT_M - this.mesh.position.y;
+        slot.position.set(along ? offset : 0, y, along ? 0 : offset);
+        this.mesh.add(slot);
+        return slot;
+      });
+    }
+    this.slots.forEach((slot, i) => {
+      const material = slot.material as THREE.MeshLambertMaterial;
+      material.color.setHex(i < placed ? SLOT_FULL_COLOR : SLOT_EMPTY_COLOR);
+      material.emissive.setHex(i < placed ? SLOT_FULL_COLOR : 0x000000);
+      material.emissiveIntensity = 0.4;
+    });
   }
 
   setOpen(open: boolean) {

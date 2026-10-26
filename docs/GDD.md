@@ -804,7 +804,7 @@ Rules the GDD did not specify, chosen while building the ghost. Numbers live in 
 | Carrying | One relic at a time; 15% slower; the ghost hears you 25% farther. "Carrying X (G to drop)" shows on screen | GDD 10 |
 | Dropping | G drops it where you stand; the ghost and players within 8 m hear it. Downed or leaving: it falls silently. Anyone can pick a dropped relic up with E straight away | GDD 10. A dropped relic glows faintly so it can be found |
 | Tab | Hold Tab to see every relic: Hidden, Carried by X, Dropped (last carried by X), Placed. Never where | GDD 10 |
-| Placing relics | Not built yet: the basement door comes with the full map and the ritual (Phase 5) | The grey box has no basement |
+| Placing relics | Hold E within 2 m of the relic door while carrying a relic (3 s, moving cancels). It comes right after picking up a relic in what E does. The door shows one slot per relic, lit gold when filled; Tab shows the relic as Placed. Until every slot is full, nobody can open the door, and the ghost cannot pass it either (it can still reach the Stairwell in front of it). The last relic opens it for good: E no longer works it | GDD 10; the Stairwell is outside the lock so carriers can be chased right up to the door |
 
 ### 26.9 Phase 5 build choices (awaiting owner confirmation)
 

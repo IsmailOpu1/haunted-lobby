@@ -490,6 +490,68 @@ describe("HauntedRoom", () => {
     await room.leave();
   }, 40000);
 
+  it("places relics in the locked relic door, which opens for good when every slot is full (GDD 10)", async () => {
+    const room = await new Client(endpoint).create(ROOM_NAME, { name: "Keeper" });
+    room.onMessage("*", () => {});
+    await waitFor(() => room.state.relics?.size === config.relics.count);
+    const me = () => room.state.players.get(room.sessionId);
+    const server = matchMaker.getLocalRoomById(room.roomId) as any;
+    const def = marrowHotelGreybox.doors.find((d) => d.id === marrowHotelGreybox.relicDoor)!;
+    const door = () => room.state.doors.get(def.id);
+    const press = async (holdMs: number) => {
+      room.send("use", { down: true });
+      await new Promise((r) => setTimeout(r, holdMs));
+      room.send("use", { down: false });
+    };
+    // One second of walking north (into the door).
+    let seq = 0;
+    const walkNorth = async () => {
+      for (let i = 0; i < config.net.tickRate; i++) {
+        room.send("input", { seq: ++seq, forward: 1, right: 0, run: false, crouch: false, yaw: 0, pitch: 0 });
+        await new Promise((r) => setTimeout(r, 1000 / config.net.tickRate));
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    };
+
+    // Stand in the Stairwell in front of the door. E does not open it, and it blocks the way.
+    room.send("debug", { teleport: { x: def.x, z: def.z + 1.5 } });
+    await waitFor(() => Math.abs(me().z - (def.z + 1.5)) < 0.01);
+    await press(100);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(door().open).toBe(false);
+    await walkNorth();
+    expect(me().z).toBeGreaterThan(def.z);
+    const lockedNav = server.ghost.nav;
+    room.send("debug", { teleport: { x: def.x, z: def.z + 1.5 } });
+    await new Promise((r) => setTimeout(r, 200));
+
+    const relics = server.relics as { id: string }[];
+    for (const [i, r] of relics.entries()) {
+      // The test hands the player each relic (finding them is covered above).
+      server.carry(server.state.players.get(room.sessionId), r);
+      await waitFor(() => me().relic === r.id);
+      if (i === 0) {
+        // Letting go early places nothing.
+        await press(1000);
+        await new Promise((r) => setTimeout(r, 200));
+        expect(room.state.relics.get(r.id).status).toBe("carried");
+      }
+      await press((config.relics.placeSec + 0.4) * 1000);
+      await waitFor(() => room.state.relics.get(r.id).status === "placed");
+      expect(me().relic).toBe("");
+      expect(door().open).toBe(i === relics.length - 1);
+    }
+
+    // Open for good: E cannot close it, and the ghost now walks a navmesh through it.
+    await press(100);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(door().open).toBe(true);
+    expect(server.ghost.nav).not.toBe(lockedNav);
+    await walkNorth();
+    expect(me().z).toBeLessThan(def.z);
+    await room.leave();
+  }, 40000);
+
   it("only tells each player about relics near them", async () => {
     const room = await new Client(endpoint).create(ROOM_NAME, { name: "Far" });
     room.onMessage("*", () => {});
