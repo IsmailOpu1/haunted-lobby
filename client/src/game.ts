@@ -82,6 +82,8 @@ export interface GameHud {
   showStatusPanel(open: boolean): void;
   /** The relic you carry, or null. */
   setCarrying(name: string | null): void;
+  /** The match is over (GDD 18 and 19). */
+  showEndScreen(end: ServerMessages["matchEnd"]): void;
 }
 
 export interface RitualHud {
@@ -194,6 +196,8 @@ export class Game {
   private myTasks: TaskEntry[] = [];
   /** Where the open task stands on this side, so taskClosed can say the right thing. */
   private taskState: "none" | "open" | "finished" | "left" = "none";
+  /** The match is over: no more moving. */
+  private ended = false;
   private openStation = "";
   /** Relics the server says are near you: hidden ones you can hear, dropped ones you can see. */
   private relicsNear: RelicNear[] = [];
@@ -342,7 +346,13 @@ export class Game {
       else if (msg.phase === "start") this.sound.huntStart();
       else this.sound.huntEnd();
     });
-    room.onMessage("dawn", () => this.hud.showBanner("Dawn. The night is over.", 6));
+    room.onMessage("matchEnd", (msg: ServerMessages["matchEnd"]) => {
+      this.ended = true;
+      if (this.overlay.isOpen) this.overlay.close();
+      this.hud.setTaskMode("none");
+      document.exitPointerLock();
+      this.hud.showEndScreen(msg);
+    });
     room.onMessage("flash", (msg: ServerMessages["flash"]) => {
       if (msg.by === room.sessionId) this.hud.flashScreen();
       else this.items.flashAt(msg.x, msg.z);
@@ -515,7 +525,7 @@ export class Game {
       this.accumulator += dt;
       while (this.accumulator >= SIM_DT) {
         this.accumulator -= SIM_DT;
-        this.simulateStep();
+        if (!this.ended) this.simulateStep();
       }
       this.updateCamera(dt);
     }

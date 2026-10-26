@@ -90,5 +90,8 @@ export const GameState = schema({
   /** Living, standing players in the circle, and how many it needs. */
   circleCount: t.uint8(),
   circleNeeded: t.uint8(),
+  /** "" while the match goes on, then "investigators" or "possessed" (GDD 18). */
+  winner: t.string(),
+  endReason: t.string(),
 }, "GameState");
 export type GameState = SchemaType<typeof GameState>;

@@ -20,6 +20,7 @@ import {
   nightPart,
   pickRelicSpots,
   ritualRatePct,
+  matchResult,
   worldDistance,
   PhysicsWorld,
   sanitizeInput,
@@ -145,7 +146,6 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private sims = new Map<string, PlayerSim>();
   private spawnIndex = 0;
   private nightStarted = false;
-  private dawnSent = false;
   private overtimeUsed = 0;
   private noises: { x: number; z: number; radiusM: number }[] = [];
   /** Clients that currently know where the ghost is (so they get one "gone" message). */
@@ -196,6 +196,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.state.ritualReady = false;
     this.state.ritualStarted = false;
     this.state.ritualProgress = 0;
+    this.state.winner = "";
+    this.state.endReason = "";
 
     // While the relic door is locked the ghost cannot get past it either (GDD 10).
     const relicDoor = this.map.relicDoor;
@@ -371,22 +373,24 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   }
 
   private tick(elapsedSec: number) {
-    for (const [sessionId, sim] of this.sims) {
-      const player = this.state.players.get(sessionId);
-      if (player) this.tickPlayer(sim, player, elapsedSec);
-    }
-
     this.voiceTimer += elapsedSec;
     if (this.voiceTimer * 1000 >= config.voice.subscriptionRefreshMs) {
       this.tickVoice(this.voiceTimer);
       this.voiceTimer = 0;
     }
+    // The match is over: everything stops but voice, so everyone can talk it over.
+    if (this.state.winner) return;
+
+    for (const [sessionId, sim] of this.sims) {
+      const player = this.state.players.get(sessionId);
+      if (player) this.tickPlayer(sim, player, elapsedSec);
+    }
 
     if (this.nightStarted) {
-      if (!this.dawnSent) this.tickRitual(elapsedSec);
+      this.tickRitual(elapsedSec);
       this.state.nightTime = Math.min(this.state.nightTime + elapsedSec, this.state.nightLength);
       let part = nightPart(this.state.nightTime, this.state.nightLength);
-      if (part === "dawn" && !this.dawnSent && this.overtimeHolds()) {
+      if (part === "dawn" && this.overtimeHolds()) {
         // Overtime: the night waits while the ritual can still finish (GDD 4). The ghost stays furious.
         this.overtimeUsed += elapsedSec;
         this.state.overtime = true;
@@ -396,11 +400,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       }
       this.state.part = this.state.overtime ? "overtime" : part;
       this.ghost.update(elapsedSec, part, this.state.players.size);
-      if (part === "dawn" && !this.dawnSent) {
-        this.dawnSent = true;
-        const dawn: ServerMessages["dawn"] = {};
-        this.broadcast("dawn", dawn);
-      }
+      this.checkResult(part === "dawn");
     }
     this.noises.length = 0;
     this.sendGhostPositions();
@@ -435,6 +435,26 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       if (p.health === "alive" && !p.hidingSpot && this.hearingDistance(p, altar) <= config.ritual.circleRadiusM) count++;
     });
     return count;
+  }
+
+  /** Ends the match once someone has won (GDD 18). Checked after the ritual, so finishing at dawn wins. */
+  private checkResult(dawn: boolean) {
+    let living = 0;
+    this.state.players.forEach((p) => {
+      if (p.health !== "dead") living++;
+    });
+    // Everyone is an investigator until the possessed come in Phase 6.
+    const result = matchResult({ ritualComplete: this.state.ritualProgress >= 100, dawn, livingInvestigators: living, livingPossessed: 0 });
+    if (!result) return;
+    this.state.winner = result.winner;
+    this.state.endReason = result.reason;
+    this.state.part = "dawn";
+    this.state.overtime = false;
+    this.ghost.update(0, "dawn", this.state.players.size);
+    const roles: ServerMessages["matchEnd"]["roles"] = [];
+    this.state.players.forEach((p) => roles.push({ name: p.name, role: "investigator" }));
+    const msg: ServerMessages["matchEnd"] = { ...result, roles };
+    this.broadcast("matchEnd", msg);
   }
 
   /** At dawn, a running ritual with enough players in the circle gets up to overtimeSec more. */
@@ -661,7 +681,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private startUse(sessionId: string) {
     const sim = this.sims.get(sessionId);
     const player = this.state.players.get(sessionId);
-    if (!sim || !player || player.health !== "alive" || sim.action) return;
+    if (!sim || !player || player.health !== "alive" || sim.action || this.state.winner) return;
     const here = { x: sim.move.x, z: sim.move.z };
 
     if (player.hidingSpot) {

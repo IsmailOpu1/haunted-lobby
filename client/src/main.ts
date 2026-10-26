@@ -4,6 +4,7 @@ import {
   config,
   isValidRoomCode,
   normalizeRoomCode,
+  type EndReason,
   type ServerMessages,
 } from "@haunted/shared";
 import { defaultMap } from "@haunted/maps";
@@ -57,11 +58,26 @@ const screenFlash = el("screen-flash");
 const teamTasks = el("team-tasks");
 const teamFill = el("team-fill");
 const teamCount = el("team-count");
+const endScreen = el("end-screen");
+const endTitle = el("end-title");
+const endText = el("end-text");
+const endRoles = el("end-roles");
+el("end-leave").addEventListener("click", () => {
+  location.href = location.pathname;
+});
 const ritualBox = el("ritual");
 const ritualFill = el("ritual-fill");
 const ritualLabel = el("ritual-label");
 const ritualCount = el("ritual-count");
 const taskList = el("task-list");
+
+/** End screen wording for each way a match ends (GDD 18). */
+const END_TEXT: Record<EndReason, { title: string; why: string }> = {
+  ritual: { title: "The sun rises. The investigators win.", why: "The ritual is complete." },
+  dawn: { title: "Dawn. The possessed win.", why: "The ritual was not finished before dawn." },
+  allDead: { title: "Nobody is left. The possessed win.", why: "Every investigator died." },
+  outnumbered: { title: "The possessed win.", why: "The possessed now equal or outnumber the living investigators." },
+};
 
 const NIGHT_PART_NAMES: Record<string, string> = {
   quiet: "Quiet",
@@ -211,6 +227,24 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
         status.className = "relic-status";
         status.textContent = r.status;
         li.append(r.name, status);
+        return li;
+      }),
+    );
+  },
+  showEndScreen: (end) => {
+    const text = END_TEXT[end.reason];
+    endScreen.classList.remove("hidden");
+    document.body.classList.add("ended");
+    endScreen.dataset.winner = end.winner;
+    endTitle.textContent = text.title;
+    endText.textContent = text.why;
+    endRoles.replaceChildren(
+      ...end.roles.map((r) => {
+        const li = document.createElement("li");
+        const role = document.createElement("span");
+        role.className = `end-role ${r.role}`;
+        role.textContent = r.role === "possessed" ? "Possessed" : "Investigator";
+        li.append(r.name, role);
         return li;
       }),
     );

@@ -1,5 +1,7 @@
 // Names and payloads of messages between client and server.
 
+import type { EndReason, Team } from "./result.ts";
+
 export const ROOM_NAME = "haunted";
 
 export interface JoinOptions {
@@ -12,6 +14,8 @@ export interface RosterEntry {
 }
 
 /** Messages the server sends to clients. */
+export type Role = "investigator" | "possessed";
+
 export interface ServerMessages {
   /** A line for the lobby log, e.g. "Rafi joined the room". */
   system: { kind: "join" | "leave"; name: string; text: string };
@@ -24,8 +28,8 @@ export interface ServerMessages {
   ghost: GhostView | null;
   /** Hunt warning (2 s of silence), hunt start, hunt end (GDD Section 12.1). */
   hunt: { phase: "warning" | "start" | "end" };
-  /** The night is over. */
-  dawn: Record<string, never>;
+  /** The match is over (GDD 18): who won, why, and every player's role, now shown to all (GDD 19). */
+  matchEnd: { winner: Team; reason: EndReason; roles: { name: string; role: Role }[] };
   /** How to join the voice room, or disabled when this server has no voice keys. */
   voice: { url: string; token: string } | { disabled: true };
   /**

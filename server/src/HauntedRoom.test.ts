@@ -191,6 +191,9 @@ describe("HauntedRoom", () => {
     room.send("debug", { bleedLeft: 0.2 });
     await waitFor(() => me().health === "dead");
     expect(me().flashlightOn).toBe(false);
+    // The only investigator is dead: the possessed win (GDD 18).
+    await waitFor(() => room.state.winner === "possessed");
+    expect(room.state.endReason).toBe("allDead");
     await room.leave();
   });
 
@@ -607,6 +610,39 @@ describe("HauntedRoom", () => {
     await place(b, outside);
     await waitFor(() => s().part === "dawn");
     expect(s().overtime).toBe(false);
+    // The ritual was not finished: the possessed win at dawn (GDD 18).
+    expect(s().winner).toBe("possessed");
+    expect(s().endReason).toBe("dawn");
+    await a.leave();
+    await b.leave();
+  }, 20000);
+
+  it("ends the match when the ritual completes: the investigators win, everything stops, and every role is shown (GDD 18, 19)", async () => {
+    const a = await new Client(endpoint).create(ROOM_NAME, { name: "Sam" });
+    const b = await new Client(endpoint).joinById(a.roomId, { name: "Mim" });
+    for (const r of [a, b]) r.onMessage("*", () => {});
+    const ends = collectMsgs(b, "matchEnd");
+    const server = matchMaker.getLocalRoomById(a.roomId) as any;
+    const altar = marrowHotelGreybox.altar!;
+    for (const r of [a, b]) r.send("debug", { teleport: { x: altar.x + 2.5, z: altar.z } });
+    for (const r of server.relics) r.status = "placed";
+    server.state.tasksDone = server.state.tasksTotal;
+    await waitFor(() => a.state.ritualStarted);
+    server.state.ritualProgress = 99;
+
+    await waitFor(() => ends.length === 1);
+    expect(ends[0]).toEqual({ winner: "investigators", reason: "ritual", roles: [{ name: "Sam", role: "investigator" }, { name: "Mim", role: "investigator" }] });
+    await waitFor(() => a.state.winner === "investigators");
+    expect(a.state.part).toBe("dawn");
+
+    // Nothing moves any more: not the clock, not the players.
+    const time = a.state.nightTime;
+    const me = () => a.state.players.get(a.sessionId);
+    const z0 = me().z;
+    for (let seq = 1; seq <= 10; seq++) a.send("input", { seq, forward: 1, right: 0, run: false, crouch: false, yaw: 0, pitch: 0 });
+    await new Promise((r) => setTimeout(r, 500));
+    expect(a.state.nightTime).toBe(time);
+    expect(me().z).toBe(z0);
     await a.leave();
     await b.leave();
   }, 20000);

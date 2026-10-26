@@ -641,6 +641,78 @@ body.resume:not(.looking) #resume-hint {
 }
 
 /* Hold Tab: every relic's state (GDD 10). */
+/* End screen (GDD 19): who won, why, and every role. */
+#end-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 20;
+}
+
+/* The room panel and HUD give way to the end screen. */
+body.ended #lobby,
+body.ended #esc-hint,
+body.ended #crosshair {
+  display: none;
+}
+
+#end-screen .end-box {
+  min-width: 320px;
+  max-width: calc(100vw - 32px);
+  padding: 20px 26px;
+  background: rgba(12, 12, 16, 0.95);
+  border-radius: 6px;
+  text-align: center;
+}
+
+#end-title {
+  margin: 0 0 6px;
+  font-size: 24px;
+}
+
+#end-screen[data-winner="investigators"] #end-title {
+  color: #e0b25a;
+}
+
+#end-screen[data-winner="possessed"] #end-title {
+  color: #c4554a;
+}
+
+#end-text {
+  margin: 0 0 16px;
+  color: var(--muted);
+}
+
+#end-screen h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+#end-roles {
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+#end-roles li {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 3px 0;
+}
+
+.end-role.possessed {
+  color: #c4554a;
+}
+
+.end-role.investigator {
+  color: var(--muted);
+}
+
 #status-panel {
   position: fixed;
   top: 50%;
