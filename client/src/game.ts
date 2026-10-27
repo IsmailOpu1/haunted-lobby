@@ -57,8 +57,6 @@ const CUE_FLOOR_DIFF_M = 1.5;
 const WORK_FOV = 58;
 const NORMAL_FOV = 75;
 const FOV_LERP_PER_SEC = 6;
-/** Remembers which hands-on tasks you have seen the how-to hint for. */
-const HINTS_SEEN_KEY = "handsHintsSeen";
 const STOP_HINT = "E or a step to stop";
 /** A hidden relic this close to the place you found one is that relic. */
 const FOUND_SAME_PLACE_M = 0.5;
@@ -761,18 +759,8 @@ export class Game {
     this.stations.setBusy(id);
     this.hands.start(task, this.input.yaw, this.input.pitch);
     this.input.working = true;
-    let seen: string[] = [];
-    try {
-      seen = JSON.parse(localStorage.getItem(HINTS_SEEN_KEY) ?? "[]");
-    } catch {
-      // Storage blocked: show the hint every time.
-    }
-    this.hud.setWorkHint(seen.includes(kind) ? STOP_HINT : `${task.hint}  (${STOP_HINT})`);
-    try {
-      if (!seen.includes(kind)) localStorage.setItem(HINTS_SEEN_KEY, JSON.stringify([...seen, kind]));
-    } catch {
-      // See above.
-    }
+    // The how-to stays up the whole time you work: playtests showed a once-only hint is easily missed.
+    this.hud.setWorkHint(`${task.hint}  (${STOP_HINT})`);
   }
 
   private stopHands() {
@@ -823,7 +811,7 @@ export class Game {
   private whisperCue(at: WorldPoint): SoundCue {
     const s = config.relics.search;
     const d = this.distanceFromMe(at);
-    const text = d <= s.veryCloseM ? "A relic whispers, very close" : d <= s.closeM ? "A relic whispers close by" : "A faint whisper";
+    const text = d <= s.veryCloseM ? "A music box plays, very close" : d <= s.closeM ? "A music box plays close by" : "A faint music box";
     const cue = this.cue(text, at);
     return { ...cue, angle: d <= s.closeM || cue.angle === null ? null : roundDirection(cue.angle) };
   }
