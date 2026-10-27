@@ -720,6 +720,7 @@ body.ended #crosshair {
   left: 50%;
   transform: translate(-50%, -50%);
   min-width: 300px;
+  max-width: calc(100vw - 32px);
   padding: 12px 18px;
   background: rgba(12, 12, 16, 0.85);
   border-radius: 6px;
@@ -747,4 +748,127 @@ body.ended #crosshair {
 
 .relic-status {
   color: var(--muted);
+}
+
+/* The floor plan on the Tab panel (GDD 26.10). Drawn in meters. */
+#floor-plan svg {
+  display: block;
+  width: min(860px, calc(100vw - 68px));
+  height: auto;
+  margin-bottom: 12px;
+}
+
+.plan-room {
+  opacity: 0.75;
+}
+
+.plan-room.task {
+  stroke: #e0b84a;
+  stroke-width: 0.6;
+  opacity: 1;
+}
+
+.plan-stairs {
+  fill: #1c1c1c;
+  stroke: #9a9a9a;
+  stroke-width: 0.15;
+  stroke-dasharray: 0.5 0.5;
+}
+
+.plan-wall {
+  stroke: #d8d4cc;
+  stroke-width: 0.3;
+  stroke-linecap: square;
+}
+
+.plan-label {
+  fill: #f0ece4;
+  font-size: 1.25px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.6);
+  stroke-width: 0.4px;
+}
+
+.plan-floor {
+  fill: var(--muted);
+  font-size: 2px;
+  text-anchor: middle;
+}
+
+.plan-floor.here {
+  fill: #f0ece4;
+  font-weight: bold;
+}
+
+.plan-you {
+  fill: #ffffff;
+  stroke: #000000;
+  stroke-width: 0.25;
+}
+
+/* The room you just walked into. */
+#room-name {
+  position: fixed;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-shadow: 0 1px 4px #000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.8s;
+}
+
+#room-name.on {
+  opacity: 1;
+  transition: opacity 0.2s;
+}
+
+#room-name-room {
+  font-size: 26px;
+  letter-spacing: 0.04em;
+}
+
+#room-name-floor {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+body.ended #room-name,
+body.ended #sound-cues {
+  display: none;
+}
+
+/* Subtitles for important sounds, with an arrow toward each (GDD 23). */
+#sound-cues {
+  position: fixed;
+  bottom: 22%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.cue {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  font-size: 15px;
+  background: var(--panel);
+  border-radius: 4px;
+}
+
+.cue-arrow {
+  width: 20px;
+  height: 20px;
+  fill: #f0ece4;
 }

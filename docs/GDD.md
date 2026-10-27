@@ -831,3 +831,15 @@ Rules the GDD did not specify, chosen while building the ghost. Numbers live in 
 | End screen for now | Who won and why, and every player's role, then a "Back to the start" button. Rematch, timeline, photos and awards come with the lobby (Phase 7) and later phases | GDD 19 roles are P0; the rest is P1 (PRD FR-E8) |
 | The Bellboy's bell | Every 40 to 60 s (at random) a service bell rings twice. Everyone hears it, from the middle of the room the ghost is in (not its exact spot), quieter with distance and through floors. It does not ring while the ghost sleeps, and never in the 2 s of silence before a hunt: it waits and rings as the hunt starts | GDD 12.5 and the 2:40 example in GDD 24 |
 | The Bellboy's doors | While wandering, every 25 to 45 s it swings open the nearest closed door within 6 m of it (the next one it passes, if none is near). Never the relic door. Every door that opens or shuts now makes a sound, so players hear it | GDD 12.5 says "sometimes"; these numbers live in the hotel's map data |
+
+### 26.10 Grey-box readability (awaiting owner confirmation)
+
+After the Phase 5 playtest the owner found the grey map a maze where every room looks the same, and missed a relic close by. These help until the Phase 8 art.
+
+| Choice | Value | Why |
+|---|---|---|
+| Room colours | Every room has its own colour in the map data: its walls, and darker shades on its floor and ceiling. Warm on the ground floor, softer upstairs, cold and dark in the basement. Rooms next to each other never share a colour | Grey walls everywhere gave nothing to remember a place by |
+| Room name | Walking into a room shows its name and floor for 3 s in the middle of the screen | Players can say where they are on voice ("I'm in the Kitchen") |
+| Tab map | Holding Tab shows every floor side by side: rooms in their colours with names, walls and doorways, stairs, your unfinished tasks' rooms outlined in gold, and you as an arrow. It never shows other players, the ghost or relics | GDD 6 calls Tab "Map and status" and says it never shows player positions; GDD 10 keeps relic places secret |
+| Sound subtitles | While you can hear a relic whisper, "A relic whispers nearby" shows with an arrow toward it. When the Bellboy's bell rings, "The bell rings" shows for 4 s with an arrow toward the room it rang in. Both say "(above)" or "(below)" when the sound is on another floor | GDD 23 asks for subtitles and direction arrows for important sounds; brought forward from Phase 8 because the whisper alone was too easy to miss |
+

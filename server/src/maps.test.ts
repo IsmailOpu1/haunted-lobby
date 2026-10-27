@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { config, doorBox, furnitureBox, hidingSpotBox, levelOf, nearestRoom, roomAt, wallBox, type FloorBox, type MapData } from "@haunted/shared";
+import { config, doorBox, furnitureBox, hidingSpotBox, levelOf, nearestRoom, roomAt, wallBox, wallFaces, type FloorBox, type MapData } from "@haunted/shared";
 import { marrowHotelGreybox } from "@haunted/maps";
 import { NavMap, pathLength } from "./sim/navmap.ts";
 
@@ -184,6 +184,37 @@ describe.each([marrowHotelGreybox].map((m) => [m.name, m] as const))("%s follows
     for (const r of map.rooms.filter((r) => isCorridor(r.name))) {
       expect(Math.min(r.maxX - r.minX, r.maxZ - r.minZ), r.name).toBeGreaterThanOrEqual(2);
       expect(Math.min(r.maxX - r.minX, r.maxZ - r.minZ), r.name).toBeLessThanOrEqual(3);
+    }
+  });
+
+  it("gives every room a colour, different from the rooms next to it (GDD 26.10)", () => {
+    const names = new Set(map.rooms.map((r) => r.name));
+    for (const name of names) expect(map.roomColors?.[name], name).toMatch(/^#[0-9a-f]{6}$/);
+    expect(Object.keys(map.roomColors ?? {}).filter((name) => !names.has(name))).toEqual([]);
+    const faces = wallFaces(map);
+    const line = (f: (typeof faces)[number]) => (f.axis === "x" ? f.z : f.x);
+    const along = (f: (typeof faces)[number]) => (f.axis === "x" ? f.x : f.z);
+    for (const a of faces) {
+      for (const b of faces) {
+        const facingEachOther = a.axis === b.axis && a.facing === 1 && b.facing === -1 && Math.abs(line(a) - line(b)) < 1e-3;
+        const overlap = Math.abs(along(a) - along(b)) < (a.length + b.length) / 2 - 1e-3;
+        if (facingEachOther && overlap) expect(map.roomColors?.[a.room], `${a.room} next to ${b.room}`).not.toBe(map.roomColors?.[b.room]);
+      }
+    }
+  });
+
+  it("colours every wall on at least one side", () => {
+    const faces = wallFaces(map);
+    for (const [x1, z1, x2, z2] of map.walls) {
+      const alongX = z1 === z2;
+      const covered = faces
+        .filter((f) => f.axis === (alongX ? "x" : "z") && Math.abs((alongX ? f.z : f.x) - (alongX ? z1 : x1)) < 1e-3)
+        .filter((f) => {
+          const mid = alongX ? f.x : f.z;
+          return mid >= Math.min(alongX ? x1 : z1, alongX ? x2 : z2) && mid <= Math.max(alongX ? x1 : z1, alongX ? x2 : z2);
+        })
+        .reduce((sum, f) => sum + f.length, 0);
+      expect(covered, `wall ${x1},${z1} to ${x2},${z2}`).toBeGreaterThanOrEqual(Math.hypot(x2 - x1, z2 - z1) - 1e-3);
     }
   });
 

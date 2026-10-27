@@ -8,6 +8,7 @@ import {
   type ServerMessages,
 } from "@haunted/shared";
 import { defaultMap } from "@haunted/maps";
+import { FloorPlan } from "./floorplan.ts";
 import { Game } from "./game.ts";
 import { createRoom, joinRoom } from "./network.ts";
 
@@ -70,6 +71,17 @@ const ritualFill = el("ritual-fill");
 const ritualLabel = el("ritual-label");
 const ritualCount = el("ritual-count");
 const taskList = el("task-list");
+const roomName = el("room-name");
+const roomNameRoom = el("room-name-room");
+const roomNameFloor = el("room-name-floor");
+const soundCues = el("sound-cues");
+const floorPlan = new FloorPlan(defaultMap);
+el("floor-plan").append(floorPlan.element);
+
+/** How long the room name stays up after you walk into a room. */
+const ROOM_NAME_SEC = 3;
+let shownRoom = "";
+let roomNameTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** End screen wording for each way a match ends (GDD 18). */
 const END_TEXT: Record<EndReason, { title: string; why: string }> = {
@@ -186,6 +198,7 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     requestAnimationFrame(() => requestAnimationFrame(() => screenFlash.classList.remove("on")));
   },
   setTasks: (list) => {
+    floorPlan.setTaskRooms(list.filter((t) => !t.done).map((t) => t.room));
     taskList.classList.toggle("hidden", list.length === 0);
     taskList.replaceChildren(
       ...list.map((t) => {
@@ -250,6 +263,35 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     );
   },
   showStatusPanel: (open) => statusPanel.classList.toggle("hidden", !open),
+  setRoom: (room, floor) => {
+    // In a doorway or on the stairs, keep the last room.
+    if (!room || room === shownRoom) return;
+    shownRoom = room;
+    roomNameRoom.textContent = room;
+    roomNameFloor.textContent = floor;
+    roomName.classList.add("on");
+    clearTimeout(roomNameTimer);
+    roomNameTimer = setTimeout(() => roomName.classList.remove("on"), ROOM_NAME_SEC * 1000);
+  },
+  setPlanPosition: (x, z, yaw) => {
+    if (!statusPanel.classList.contains("hidden")) floorPlan.setYou(x, z, yaw);
+  },
+  setSoundCues: (cues) => {
+    while (soundCues.children.length > cues.length) soundCues.lastElementChild!.remove();
+    cues.forEach((cue, i) => {
+      let row = soundCues.children[i] as HTMLElement | undefined;
+      if (!row) {
+        row = document.createElement("div");
+        row.className = "cue";
+        row.innerHTML = '<svg class="cue-arrow" viewBox="-2 -2 4 4"><polygon points="0,-1.6 1.1,1.2 0,0.5 -1.1,1.2" /></svg><span class="cue-text"></span>';
+        soundCues.append(row);
+      }
+      const text = cue.vertical ? `${cue.text} (${cue.vertical})` : cue.text;
+      const label = row.querySelector(".cue-text")!;
+      if (label.textContent !== text) label.textContent = text;
+      (row.querySelector(".cue-arrow") as SVGElement).style.transform = `rotate(${cue.angle}rad)`;
+    });
+  },
   setCarrying: (name) => {
     carrying.classList.toggle("hidden", !name);
     const text = name ? `Carrying ${name} (G to drop)` : "";
