@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { MapData, RelicMinigame, TaskMinigame } from "@haunted/shared";
+import { searchPlaces, type MapData, type RelicMinigame, type TaskMinigame } from "@haunted/shared";
 import { liftToFloor } from "./place.ts";
 
 // Placeholder task station models until the Phase 8 art pass. Visible tasks (GDD 9) show
@@ -14,11 +14,40 @@ const CANDLE_LIGHT_RANGE_M = 5;
 const FIRE_LIGHT_RANGE_M = 7;
 const PENDULUM_SWING_RAD = 0.3;
 const PENDULUM_PERIOD_SEC = 1.5;
+const CANDLE_LIGHT = 2.5;
+const SHUTTER_OPEN_RAD = 1.9;
+/** How deep a dug pot's soil goes, and how far down a searched (empty) one stays. */
+const DIG_DEPTH_M = 0.3;
+const SEARCHED_DEPTH = 0.4;
+
+/**
+ * The parts of a station your hands work on (GDD 26.5). Each part is a mesh named by
+ * userData.part ("wick:2", "knob:0", "shutter:1", "soil"), which the crosshair can pick.
+ */
+export type HandsModel =
+  | { kind: "candelabra"; wicks: THREE.Mesh[]; tips: THREE.Object3D[]; setLit(lit: readonly boolean[]): void }
+  | { kind: "stove"; knobs: THREE.Mesh[]; setKnobs(angleDeg: readonly number[], flame: readonly number[]): void }
+  | { kind: "shutters"; panels: THREE.Mesh[]; setOpen(open: readonly number[]): void }
+  | { kind: "dig"; soil: THREE.Mesh; setDepth(depth: number, relicShows: boolean): void };
 
 interface StationView {
   group: THREE.Group;
   setDone(done: boolean): void;
   update?(time: number): void;
+  hands?: HandsModel;
+}
+
+/** A place to search for a relic (GDD 26.5). Searched places stay dug up for everyone. */
+interface PlaceView {
+  group: THREE.Group;
+  setSearched(searched: boolean): void;
+  hands?: HandsModel;
+}
+
+/** A mesh with its own material, so it can glow on its own when the crosshair is on it. */
+function part(mesh: THREE.Mesh, name: string): THREE.Mesh {
+  mesh.userData.part = name;
+  return mesh;
 }
 
 /** Turns the station to face away from the nearest wall (walls are axis-aligned). Models face +z. */
@@ -49,11 +78,20 @@ function candelabra(): StationView {
   group.add(box(0.06, 0.35, 0.06, BRASS, 0, 0.92, 0));
   group.add(box(0.6, 0.04, 0.04, BRASS, 0, 1.08, 0));
   const flames: THREE.Mesh[] = [];
+  const wicks: THREE.Mesh[] = [];
+  const tips: THREE.Object3D[] = [];
   const flameMat = new THREE.MeshBasicMaterial({ color: 0xffc966 });
   for (let i = 0; i < 5; i++) {
     const x = -0.28 + i * 0.14;
     const h = 0.12 + Math.sin((i / 4) * Math.PI) * 0.06;
-    group.add(box(0.035, h, 0.035, 0xe9dfc6, x, 1.1 + h / 2, 0));
+    const wick = part(box(0.035, h, 0.035, 0xe9dfc6, x, 1.1 + h / 2, 0), `wick:${i}`);
+    group.add(wick);
+    wicks.push(wick);
+    // Where a flame must touch to light it: the top of the candle.
+    const tip = new THREE.Object3D();
+    tip.position.set(x, 1.1 + h + 0.01, 0);
+    group.add(tip);
+    tips.push(tip);
     const flame = new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.05, 6), flameMat);
     flame.position.set(x, 1.1 + h + 0.03, 0);
     flame.visible = false;
@@ -63,15 +101,20 @@ function candelabra(): StationView {
   const light = new THREE.PointLight(0xffb060, 0, CANDLE_LIGHT_RANGE_M, 2);
   light.position.set(0, 1.4, 0);
   group.add(light);
+  const setLit = (lit: readonly boolean[]) => {
+    flames.forEach((f, i) => (f.visible = !!lit[i]));
+    light.intensity = (CANDLE_LIGHT * lit.filter(Boolean).length) / flames.length;
+  };
   return {
     group,
     setDone(done) {
-      for (const f of flames) f.visible = done;
-      light.intensity = done ? 2.5 : 0;
+      setLit(flames.map(() => done));
     },
     update(time) {
-      if (light.intensity > 0) light.intensity = 2.5 + Math.sin(time * 13) * 0.25 + Math.sin(time * 31) * 0.15;
+      const lit = flames.filter((f) => f.visible).length;
+      if (lit > 0) light.intensity = ((CANDLE_LIGHT + Math.sin(time * 13) * 0.25 + Math.sin(time * 31) * 0.15) * lit) / flames.length;
     },
+    hands: { kind: "candelabra", wicks, tips, setLit },
   };
 }
 
@@ -105,14 +148,41 @@ function clock(): StationView {
 function stove(): StationView {
   const group = new THREE.Group();
   group.add(box(1.2, 0.9, 0.7, IRON, 0, 0.45, 0));
+  const knobs: THREE.Mesh[] = [];
+  const pivots: THREE.Group[] = [];
+  const flames: THREE.Mesh[] = [];
+  const flameMat = new THREE.MeshBasicMaterial({ color: 0x4a7dff, transparent: true, opacity: 0.85 });
   for (let i = 0; i < 3; i++) {
-    group.add(box(0.26, 0.03, 0.26, 0x18191b, -0.38 + i * 0.38, 0.915, -0.05));
-    const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.04, 12), new THREE.MeshLambertMaterial({ color: 0x5a5c62 }));
+    const x = -0.38 + i * 0.38;
+    group.add(box(0.26, 0.03, 0.26, 0x18191b, x, 0.915, -0.05));
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.08, 10, 1, true), flameMat);
+    flame.position.set(x, 0.97, -0.05);
+    group.add(flame);
+    flames.push(flame);
+    // The knob turns about the axis that points at you; its pointer shows where it is set.
+    const pivot = new THREE.Group();
+    pivot.position.set(x, 0.72, 0.37);
+    const knob = part(new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.05, 16), new THREE.MeshLambertMaterial({ color: 0x5a5c62 })), `knob:${i}`);
     knob.rotation.x = Math.PI / 2;
-    knob.position.set(-0.38 + i * 0.38, 0.75, 0.37);
-    group.add(knob);
+    knob.position.z = 0.025;
+    pivot.add(knob);
+    pivot.add(box(0.012, 0.045, 0.01, 0xe9dfc6, 0, 0.025, 0.055));
+    group.add(pivot);
+    pivots.push(pivot);
+    knobs.push(knob);
+    // The "off" mark above each knob.
+    group.add(box(0.01, 0.025, 0.005, 0xe9dfc6, x, 0.8, 0.352));
   }
-  return { group, setDone() {} };
+  const setKnobs = (angleDeg: readonly number[], flame: readonly number[]) => {
+    pivots.forEach((p, i) => (p.rotation.z = (-(angleDeg[i] ?? 0) * Math.PI) / 180));
+    flames.forEach((f, i) => {
+      const level = flame[i] ?? 1;
+      f.visible = level > 0;
+      f.scale.setScalar(Math.max(0.15, level));
+    });
+  };
+  setKnobs([150, 150, 150], [1, 1, 1]);
+  return { group, setDone() {}, hands: { kind: "stove", knobs, setKnobs } };
 }
 
 function fireplace(): StationView {
@@ -218,29 +288,44 @@ function roses(): StationView {
 }
 
 function shutters(): StationView {
-  // A window on the wall, its shutters banging open until the task closes them.
+  // Three windows on the wall, each with a shutter banging in the wind until the task closes it.
+  // A shutter hangs on its left side; open 1 is swung out into the corridor, 0 is shut.
   const group = new THREE.Group();
-  group.add(box(1.2, 1.4, 0.08, 0x0b1018, 0, 1.5, -0.08));
   const hinges: THREE.Group[] = [];
-  for (const side of [-1, 1]) {
+  const panels: THREE.Mesh[] = [];
+  for (let i = -1; i <= 1; i++) {
+    const x = i * 0.7;
+    group.add(box(0.55, 1.3, 0.06, 0x0b1018, x, 1.5, -0.08));
     const hinge = new THREE.Group();
-    hinge.position.set(side * 0.6, 1.5, -0.02);
-    hinge.add(box(0.6, 1.4, 0.04, 0x5e4630, -side * 0.3, 0, 0));
+    hinge.position.set(x - 0.27, 1.5, -0.02);
+    const panel = part(box(0.54, 1.3, 0.04, 0x5e4630, 0.27, 0, 0), `shutter:${i + 1}`);
+    hinge.add(panel);
     group.add(hinge);
     hinges.push(hinge);
+    panels.push(panel);
   }
+  let open: readonly number[] = [1, 1, 1];
   let shut = false;
+  let working = false;
+  const setOpen = (o: readonly number[]) => {
+    working = true;
+    open = o;
+  };
   return {
     group,
     setDone(done) {
       shut = done;
+      working = false;
     },
     update(time) {
       hinges.forEach((h, i) => {
-        const side = i === 0 ? -1 : 1;
-        h.rotation.y = shut ? 0 : side * (1.9 + Math.sin(time * 1.3 + i) * 0.15);
+        // Loose shutters sway in the wind; while you work on them they go where the task says.
+        const o = working ? open[i]! : shut ? 0 : 1;
+        const sway = o > 0 ? Math.sin(time * 1.3 + i) * 0.08 * o : 0;
+        h.rotation.y = -(o * SHUTTER_OPEN_RAD + sway);
       });
     },
+    hands: { kind: "shutters", panels, setOpen },
   };
 }
 
@@ -282,35 +367,63 @@ const MODELS: Record<TaskMinigame, () => StationView> = {
   portraits,
 };
 
-function lockboxSpot(): THREE.Group {
+function lockboxSpot(): PlaceView {
   const group = new THREE.Group();
   group.add(box(1.0, 0.85, 0.45, WOOD, 0, 0.425, 0)); // sideboard or shelf
   group.add(box(0.3, 0.16, 0.2, 0x6a4a2a, 0, 0.93, 0));
   group.add(box(0.06, 0.06, 0.02, BRASS, 0, 0.93, 0.11));
-  return group;
+  return { group, setSearched() {} };
 }
 
-function digSpot(): THREE.Group {
+function digSpot(): PlaceView {
   const group = new THREE.Group();
   group.add(box(0.8, 0.5, 0.8, 0x5a3b22, 0, 0.25, 0));
-  group.add(box(0.7, 0.04, 0.7, 0x2e2014, 0, 0.51, 0));
-  group.add(box(0.06, 0.9, 0.06, 0x3d6a33, 0, 0.95, 0));
-  group.add(box(0.6, 0.06, 0.06, 0x3d6a33, 0, 1.3, 0));
-  return group;
+  const soil = part(box(0.7, 0.04, 0.7, 0x2e2014, 0, 0.51, 0), "soil");
+  group.add(soil);
+  const plant = new THREE.Group();
+  plant.add(box(0.06, 0.9, 0.06, 0x3d6a33, 0, 0.95, 0));
+  plant.add(box(0.6, 0.06, 0.06, 0x3d6a33, 0, 1.3, 0));
+  group.add(plant);
+  // Soil thrown out of a dug pot, and the relic glinting at the bottom.
+  const heap = box(0.3, 0.12, 0.3, 0x2e2014, 0.55, 0.06, 0.2);
+  heap.visible = false;
+  group.add(heap);
+  const relic = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.08), new THREE.MeshLambertMaterial({ color: 0xc9a640, emissive: 0x3a2a08 }));
+  relic.position.set(0, 0.25, 0);
+  relic.visible = false;
+  group.add(relic);
+  const setDepth = (depth: number, relicShows: boolean) => {
+    soil.position.y = 0.51 - depth * DIG_DEPTH_M;
+    plant.visible = depth < 0.1;
+    heap.visible = depth > 0.1;
+    heap.scale.y = Math.max(0.3, depth);
+    relic.visible = relicShows;
+  };
+  return {
+    group,
+    setSearched(searched) {
+      setDepth(searched ? SEARCHED_DEPTH : 0, false);
+    },
+    hands: { kind: "dig", soil, setDepth },
+  };
 }
 
-function drainSpot(): THREE.Group {
+function drainSpot(): PlaceView {
   const group = new THREE.Group();
   group.add(box(0.7, 0.02, 0.7, 0x2b3324, 0, 0.01, 0));
   for (let i = -2; i <= 2; i++) group.add(box(0.04, 0.03, 0.6, 0x555048, i * 0.13, 0.025, 0));
-  return group;
+  return { group, setSearched() {} };
 }
 
-const RELIC_SPOTS: Record<RelicMinigame, () => THREE.Group> = { lockbox: lockboxSpot, dig: digSpot, drain: drainSpot };
+const RELIC_SPOTS: Record<RelicMinigame, () => PlaceView> = { lockbox: lockboxSpot, dig: digSpot, drain: drainSpot };
 
 /** Task stations in the world, with visible tasks showing their done state from the server. */
 export class StationsView {
   private views = new Map<string, StationView>();
+  private places = new Map<string, PlaceView>();
+  /** The station or place in your hands: the server's state does not reset it while you work. */
+  private busy: string | null = null;
+  private lastState: any = null;
 
   constructor(scene: THREE.Scene, map: MapData) {
     for (const def of map.tasks) {
@@ -323,16 +436,41 @@ export class StationsView {
       this.views.set(def.id, def.visible ? view : { ...view, setDone() {} });
     }
     for (const spot of map.relicSpots) {
-      const prop = RELIC_SPOTS[spot.minigame]();
-      prop.position.set(spot.x, 0, spot.z);
-      liftToFloor(map, prop);
-      prop.rotation.y = facingYaw(map, spot);
-      scene.add(prop);
+      for (const place of searchPlaces(spot)) {
+        const view = RELIC_SPOTS[spot.minigame]();
+        view.group.position.set(place.x, 0, place.z);
+        liftToFloor(map, view.group);
+        view.group.rotation.y = facingYaw(map, place);
+        scene.add(view.group);
+        this.places.set(place.id, view);
+      }
     }
   }
 
+  /** The hands-on parts of a task station or a place to search, by id. */
+  hands(id: string): HandsModel | undefined {
+    return (this.views.get(id) ?? this.places.get(id))?.hands;
+  }
+
+  /** While you work on one, keep the server's state off it; afterwards show the server's state again. */
+  setBusy(id: string | null) {
+    this.busy = id;
+    if (id === null && this.lastState) this.update(this.lastState);
+  }
+
   update(state: any) {
-    state.stations?.forEach((s: { done: boolean }, id: string) => this.views.get(id)?.setDone(s.done));
+    this.lastState = state;
+    state.stations?.forEach((s: { done: boolean }, id: string) => {
+      if (id !== this.busy) this.views.get(id)?.setDone(s.done);
+    });
+    state.searchPlaces?.forEach((p: { searched: boolean }, id: string) => {
+      if (id !== this.busy) this.places.get(id)?.setSearched(p.searched);
+    });
+  }
+
+  /** Whether a place to search has been searched (GDD 26.5). */
+  searched(id: string): boolean {
+    return !!this.lastState?.searchPlaces?.get(id)?.searched;
   }
 
   render(time: number) {

@@ -77,8 +77,6 @@ export const config = {
     minigames: {
       // Shared by every task that uses a match: striking time, and the speed that blows it out.
       match: { strikeSec: 0.8, outSpeed: 1100 },
-      candelabra: { wicks: 5, lightSec: 1.6 },
-      stove: { knobs: 3, turnDegPerSec: 55, onMinDeg: 140, onMaxDeg: 220, offSnapDeg: 6 },
       clock: { tickSec: 0.75, turnsNeeded: 14, onBeatSec: 0.16 },
       // The letter sways in the draught; keep the flame under it. Heat fades when you lose it.
       letter: { catchSec: 6, swayUnits: 45, swayPeriodSec: 2.6, coolPerSec: 0.5, burnSec: 1.5 },
@@ -96,13 +94,24 @@ export const config = {
       sheets: { folds: 3, dragUnitsPerSec: 110, snapUnits: 30 },
       // Pour until the line; water keeps flowing a moment after you stop. Overflow empties the vase.
       roses: { vases: 3, fillSec: 3.5, lagSec: 0.35, line: 0.75, rim: 0.95 },
-      // Drag each shutter closed against the wind and hold it until the latch catches.
-      shutters: { count: 3, latchSec: 1.5, windPerSec: 0.35, dragPerSec: 0.9 },
       // Level each crooked portrait; one keeps tilting back once.
       portraits: { count: 3, minTiltDeg: 20, maxTiltDeg: 35, turnDegPerSec: 15, levelDeg: 2, holdSec: 0.6, hauntedReturnDeg: 25 },
       // Pressure from 0 to 1. Each valve position gives a steady pressure (fully open lowers it
       // by dropFullOpen); the needle follows with a lag, and draughts push it about a little.
       boiler: { startPressure: 0.95, safeMin: 0.45, safeMax: 0.6, holdSec: 3, dropFullOpen: 0.8, followPerSec: 1.5, wobble: 0.07, turnDegPerSec: 30, maxOpenDeg: 360 },
+    },
+    // Hands-on tasks in the 3D world (GDD 26.5), each aimed at 10 to 20 s. Mouse movement is
+    // in screen pixels; "Px" numbers are how far you move the mouse while holding the button.
+    hands: {
+      // Flick down while holding the button to strike (a weaker flick only sparks). Hold the
+      // flame on each wick until it catches; turning the view faster than outRadPerSec blows it out.
+      candelabra: { wicks: 5, lightSec: 1.5, coolPerSec: 1, burnSec: 8, strikePxPerSec: 1500, sparkPxPerSec: 600, newMatchSec: 1, outRadPerSec: 3.5, aimM: 0.045 },
+      // Drag each shutter shut (open 1 to shut 0) and hold it until the latch clicks. The wind
+      // pulls on it, and gusts you can hear coming pull harder. Let go nearly shut and it slams.
+      shutters: { count: 3, pxToClose: 420, windPerSec: 0.08, gustEverySec: [2.5, 4.5], warnSec: 0.9, gustSec: 1.1, gustPerSec: 0.9, heldGustFactor: 0.6, latchAt: 0.05, latchSec: 2.2, slamBelow: 0.4 },
+      // Turn each knob to its narrow "off" notch at 0 degrees. Turned slower than catchDegPerSec
+      // it clicks into the notch and the flame dies over settleSec; faster, it slips past.
+      stove: { knobs: 3, degPerPx: 0.25, startMinDeg: 90, startMaxDeg: 240, notchDeg: 8, catchDegPerSec: 120, detentDeg: 10, settleSec: 2 },
     },
   },
   relics: {
@@ -125,10 +134,18 @@ export const config = {
     minigames: {
       // Hold to lift each pin; let go while it is in the gold band.
       lockbox: { pins: 5, riseSec: 2.4, bandMin: 0.62, bandMax: 0.8 },
-      // Drag the trowel back and forth through the soil; frantic strokes do not dig faster.
-      dig: { digUnits: 5200, maxUnitsPerSec: 550 },
       // Feel through murky water (the hand is slow in it), hold still to grab, then pull up.
       drain: { handUnitsPerSec: 160, feelUnits: 60, grabSec: 3, holdStillUnitsPerSec: 40, pullUnits: 220, pullUnitsPerSec: 80 },
+    },
+    // Searching a group of places (GDD 26.5): an empty place takes a short search and makes a
+    // small noise; the server refuses a search shorter than serverMinSec. The whisper is
+    // "close" within closeM and "very close" within veryCloseM; its arrow shows only beyond closeM.
+    search: { serverMinSec: 2, noiseM: 5, closeM: 3, veryCloseM: 1 },
+    hands: {
+      // Scoop by moving the mouse down while holding the button. Searching a place takes
+      // searchPx of scooping; taking the relic out takes takePx more. Faster than maxPxPerSec
+      // only counts fastFactor of the extra and throws soil (a noise).
+      dig: { searchPx: 1800, takePx: 4200, maxPxPerSec: 700, fastFactor: 0.3 },
     },
   },
   ritual: {

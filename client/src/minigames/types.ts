@@ -22,7 +22,11 @@ export type TaskSoundKind =
   | "splash"
   | "thud"
   | "spark"
-  | "scare";
+  | "scare"
+  // Hands-on tasks (GDD 26.5): a gust of wind coming, a shutter slamming, gas hissing.
+  | "whistle"
+  | "bang"
+  | "hiss";
 
 /** Sounds from a noisy task done badly (GDD 9). The ghost can hear these. */
 export const NOISY_SOUNDS: ReadonlySet<TaskSoundKind> = new Set(["cry", "badNote"]);

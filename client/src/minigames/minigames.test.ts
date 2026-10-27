@@ -1,20 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { config } from "@haunted/shared";
 import { Boiler } from "./boiler.ts";
-import { Candelabra } from "./candelabra.ts";
 import { Clock } from "./clock.ts";
 import { Cradle } from "./cradle.ts";
 import { Letter } from "./letter.ts";
 import { Piano } from "./piano.ts";
-import { Dig } from "./dig.ts";
 import { Drain } from "./drain.ts";
 import { Lockbox } from "./lockbox.ts";
 import { Mirror } from "./mirror.ts";
 import { Portraits } from "./portraits.ts";
 import { Roses } from "./roses.ts";
 import { Sheets } from "./sheets.ts";
-import { Shutters } from "./shutters.ts";
-import { Stove } from "./stove.ts";
 import { Switchboard } from "./switchboard.ts";
 import { Trunk } from "./trunk.ts";
 import type { Minigame, Point, TaskSoundKind } from "./types.ts";
@@ -124,41 +120,6 @@ function hand(start: Point) {
 const MATCHBOX = { x: 90, y: 345 };
 
 describe.each(SEEDS)("minigames (seed %i)", (seed) => {
-  it("candelabra: strike, light each wick, finish in time", () => {
-    seedRandom(seed);
-    const h = hand(MATCHBOX);
-    const run = play(
-      (s) => new Candelabra(s),
-      (game, t) => {
-        const m = g(game).match;
-        if (t === 0) return game.pointerDown?.(h.at);
-        if (!m.lit) return;
-        const wick = g(game).wicks.find((w: { lit: number }) => w.lit < config.tasks.minigames.candelabra.lightSec);
-        if (wick) h.moveTo(game, wick);
-      },
-    );
-    expectGoodTime(run);
-    expect(run.sounds).toContain("strike");
-  });
-
-  it("stove: turn every knob to off, finish in time", () => {
-    seedRandom(seed);
-    const run = play(
-      (s) => new Stove(s),
-      (game) => {
-        const knobs = g(game).knobs as { x: number; angle: number; off: boolean }[];
-        const k = knobs.find((k) => !k.off);
-        if (!k) return;
-        if (g(game).held === null) game.pointerDown?.({ x: k.x, y: 280 });
-        // Lead the knob by 25 degrees toward the off mark, the short way round.
-        const a = k.angle > 180 ? k.angle + 25 : Math.max(0, k.angle - 25);
-        const r = (a * Math.PI) / 180;
-        game.pointerMove?.({ x: k.x + Math.sin(r) * 60, y: 280 - Math.cos(r) * 60 });
-      },
-    );
-    expectGoodTime(run);
-  });
-
   it("clock: click on every tick, finish in time", () => {
     seedRandom(seed);
     const tick = config.tasks.minigames.clock.tickSec;
@@ -239,8 +200,8 @@ describe.each(SEEDS)("minigames (seed %i)", (seed) => {
 });
 
 describe("minigame mistakes", () => {
-  it("candelabra and letter: a fast flick puts the match out", () => {
-    for (const make of [(s: (k: TaskSoundKind) => void) => new Candelabra(s), (s: (k: TaskSoundKind) => void) => new Letter(s)]) {
+  it("letter: a fast flick puts the match out", () => {
+    for (const make of [(s: (k: TaskSoundKind) => void) => new Letter(s)]) {
       const sounds: TaskSoundKind[] = [];
       const game = make((k) => sounds.push(k));
       game.pointerDown(MATCHBOX);
@@ -261,17 +222,6 @@ describe("minigame mistakes", () => {
     g(game).heat = 3;
     for (let t = 0; t < 2; t += DT) game.update(DT);
     expect(g(game).heat).toBeCloseTo(3 - 2 * config.tasks.minigames.letter.coolPerSec, 1);
-  });
-
-  it("stove: a knob never turns faster than the limit", () => {
-    const game = new Stove(() => {});
-    const k = g(game).knobs[0];
-    const start = k.angle;
-    game.pointerDown({ x: k.x, y: 280 });
-    game.pointerMove({ x: k.x, y: 220 }); // straight up: the off mark
-    game.update(0.5);
-    const turned = Math.abs(((start - k.angle + 540) % 360) - 180);
-    expect(turned).toBeLessThanOrEqual(config.tasks.minigames.stove.turnDegPerSec * 0.5 + 0.01);
   });
 
   it("clock: a click off the beat slips the key back", () => {
@@ -469,25 +419,6 @@ describe.each(SEEDS)("new minigames (seed %i)", (seed) => {
     expect(run.sounds).not.toContain("wrong");
   });
 
-  it("shutters: drag each one shut and hold it, finish in time", () => {
-    seedRandom(seed);
-    const h = hand({ x: 320, y: 200 });
-    const run = play(
-      (s) => new Shutters(s),
-      (game) => {
-        const s = g(game).shutters.find((s: { latched: boolean }) => !s.latched);
-        if (!s) return;
-        if (g(game).held !== s) {
-          const handle = g(game).handle(s) as Point;
-          if (Math.hypot(h.at.x - handle.x, h.at.y - handle.y) > 8) return h.moveTo(game, handle);
-          return game.pointerDown?.(h.at);
-        }
-        h.moveTo(game, { x: s.left + 140, y: 200 });
-      },
-    );
-    expectGoodTime(run);
-  });
-
   it("portraits: level each one (and the haunted one twice), finish in time", () => {
     seedRandom(seed);
     const c = config.tasks.minigames.portraits;
@@ -532,22 +463,6 @@ describe.each(SEEDS)("new minigames (seed %i)", (seed) => {
     );
     expectRelicTime(run);
     expect(run.sounds).not.toContain("wrong");
-  });
-
-  it("dig: steady strokes, finish in time", () => {
-    seedRandom(seed);
-    const next = follower(
-      Array.from({ length: 40 }, (_, i) => ({ x: i % 2 ? 480 : 160, y: 260 })),
-      HAND_SPEED,
-    );
-    const run = play(
-      (s) => new Dig(s),
-      (game, t) => {
-        if (t === 0) return game.pointerDown?.({ x: 160, y: 260 });
-        game.pointerMove?.(next());
-      },
-    );
-    expectRelicTime(run);
   });
 
   it("drain: reach the relic, hold still, pull it up, finish in time", () => {
@@ -663,19 +578,6 @@ describe("new minigame mistakes", () => {
     expect(v.level - before).toBeCloseTo(r.lagSec / r.fillSec, 1);
   });
 
-  it("shutters: let go early and the wind throws it open", () => {
-    const game = new Shutters(() => {});
-    const s = g(game).shutters[0];
-    s.open = 0;
-    game.pointerDown(g(game).handle(s));
-    game.update(config.tasks.minigames.shutters.latchSec / 2);
-    game.pointerUp();
-    for (let t = 0; t < 1; t += DT) game.update(DT);
-    expect(s.latched).toBe(false);
-    expect(s.latch).toBe(0);
-    expect(s.open).toBeGreaterThan(0.2);
-  });
-
   it("portraits: the haunted one swings back only once", () => {
     const sounds: TaskSoundKind[] = [];
     const game = new Portraits((k) => sounds.push(k));
@@ -703,16 +605,6 @@ describe("new minigame mistakes", () => {
     for (let t = 0; t < config.relics.minigames.lockbox.riseSec + 0.1; t += DT) game.update(DT);
     expect(g(game).lifting).toBe(false);
     expect(g(game).lift).toBe(0);
-  });
-
-  it("dig: frantic strokes dig no faster than the limit", () => {
-    const game = new Dig(() => {});
-    game.pointerDown({ x: 160, y: 260 });
-    for (let i = 1; i <= 60; i++) {
-      game.pointerMove({ x: i % 2 ? 480 : 160, y: 260 });
-      game.update(DT);
-    }
-    expect(g(game).dug).toBeLessThanOrEqual(config.relics.minigames.dig.maxUnitsPerSec * 60 * DT + 0.01);
   });
 
   it("drain: letting go while pulling lets the relic slip back", () => {

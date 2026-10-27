@@ -66,6 +66,12 @@ export const Relic = schema({
 }, "Relic");
 export type Relic = SchemaType<typeof Relic>;
 
+/** A place to search for a relic (GDD 26.5). Searched places stay disturbed for everyone. */
+export const SearchPlace = schema({
+  searched: t.boolean(),
+}, "SearchPlace");
+export type SearchPlace = SchemaType<typeof SearchPlace>;
+
 export const GameState = schema({
   players: t.map(Player),
   doors: t.map(Door),
@@ -73,6 +79,7 @@ export const GameState = schema({
   saltJars: t.map(SaltJar),
   stations: t.map(TaskStation),
   relics: t.map(Relic),
+  searchPlaces: t.map(SearchPlace),
   // The team task bar (GDD 9). Only real tasks count.
   tasksDone: t.uint16(),
   tasksTotal: t.uint16(),

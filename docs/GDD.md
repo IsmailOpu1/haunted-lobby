@@ -207,7 +207,7 @@ Everyone starts with the same three items.
 | Fold the bedsheets | Guest Room | Drag the 4 corners together | No | No |
 | Rock the cradle | Nursery | Move the mouse gently in rhythm. Too fast and the baby cries | No | Yes |
 | Water the dead roses | Garden Courtyard | Pour until the line. Overflow and start again | No | No |
-| Close the shutters | Upper Corridor | Drag 3 shutters closed against the wind | Yes | No |
+| Close the shutters | Upper Corridor | Drag 3 shutters closed against the wind | Yes | Yes (a shutter let go too early bangs open) |
 
 ---
 
@@ -731,6 +731,7 @@ Real-mic ghost hearing with mic calibration, the Spirit Camera, Wisps with the O
 | 2026-10-25 | No background music or drone; footsteps are the background sound (Section 23). Volume slider added | Owner playtest: the drone caused headaches over a night; footsteps suit the game better |
 | 2026-10-26 | "Hang the room keys" removed from the task list (Section 9). The Guest Corridor gets a new task, still to be chosen | Owner playtest (Phase 4): it did not feel like a task and was not fun |
 | 2026-10-26 | Tasks and relic taking become **interactions in the 3D world**, not 2D minigame windows: you handle the real object in first person (dig the soil with a trowel, light the real candles with the match in your hand, pour into the real vases, push the real shutters shut, straighten the real paintings). Relics are found by following the whisper, which grows louder and clearer up close, among searchable spots that are mostly empty; no prompt gives a relic away. Interactions ask for skill and reading sounds and objects, not busywork. You stay in the room while you work, so the ghost can hear and reach you. The rework comes after Phase 5, on the full map's real furniture; Phase 5 builds that furniture as separate objects the interactions can attach to | Owner playtest (Phase 4): the 2D minigames were flat, too easy and not fun ("it feels stupid because it's so easy") |
+| 2026-10-27 | Owner approved the hands-on plan (`docs/plans/interaction-rework.md`). The left mouse button is your hand while you work, and the flashlight moves to key 1 only. Others see your hands mid-task only with the Phase 8 character models. Each relic spot becomes a group of 3 or 4 places to search; an empty place takes about 3 s and makes a small noise. The whisper subtitle says faint, close or very close, and its arrow (8 directions) shows only beyond 3 m. Close the shutters becomes a noisy task (Section 9) | Owner approval of the plan's four questions |
 | 2026-10-26 | **(Awaiting owner confirmation)** The Guest Corridor's new task is **Straighten the portraits** (visible): grab each of 3 crooked portraits and drag sideways to level it; one is haunted and swings crooked again once | The owner asked for a new Corridor task without naming one. Visible, so everyone sees the portraits hang straight |
 
 ### 26.6 Phase 2 build choices (awaiting owner confirmation)

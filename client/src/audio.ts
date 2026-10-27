@@ -69,6 +69,11 @@ const DOOR_REF_DISTANCE_M = 2;
 const WHISPER_HZ = 1400;
 const WHISPER_SWELL_HZ = 0.35;
 const WHISPER_LEVEL = 0.35;
+const WHISPER_Q = 4;
+// Up close: this much louder, a broader (clearer) band, and a quicker murmur.
+const WHISPER_NEAR_GAIN = 1.5;
+const WHISPER_NEAR_Q = 1.2;
+const WHISPER_NEAR_SWELL_HZ = 4;
 
 export class SoundScape {
   private ctx: AudioContext | null = null;
@@ -82,7 +87,7 @@ export class SoundScape {
   private hunting = false;
   private listener = { x: 0, y: 0, z: 0 };
   private nextPhantomAt = 0;
-  private whisper: { level: GainNode; panner: PannerNode } | null = null;
+  private whisper: { level: GainNode; panner: PannerNode; band: BiquadFilterNode; lfo: OscillatorNode } | null = null;
 
   /** Browsers only allow sound after a click or key press; call this from one. */
   unlock() {
@@ -330,6 +335,41 @@ export class SoundScape {
       case "thud":
         tone("sine", 90, 0.4, 0.25).frequency.exponentialRampToValueAtTime(45, t + 0.25);
         return;
+      case "bang": {
+        // A wooden shutter slamming: a deep knock with a crack of noise on top.
+        tone("sine", 110, 0.6, 0.35).frequency.exponentialRampToValueAtTime(50, t + 0.35);
+        tone("square", 70, 0.15, 0.12);
+        const src = ctx.createBufferSource();
+        src.buffer = this.noise;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.35, t);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+        src.connect(gain).connect(out);
+        src.start(t);
+        src.stop(t + 0.15);
+        return;
+      }
+      case "whistle":
+      case "hiss": {
+        // Wind rising before a gust; gas escaping from a burner.
+        const whistle = kind === "whistle";
+        const len = whistle ? 1.1 : 0.6;
+        const src = ctx.createBufferSource();
+        src.buffer = this.noise;
+        const filter = ctx.createBiquadFilter();
+        filter.type = whistle ? "bandpass" : "highpass";
+        filter.Q.value = whistle ? 8 : 0.7;
+        filter.frequency.setValueAtTime(whistle ? 500 : 4000, t);
+        if (whistle) filter.frequency.exponentialRampToValueAtTime(1400, t + len);
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(whistle ? 0.5 : 0.15, t + (whistle ? len * 0.85 : 0.05));
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + len);
+        src.connect(filter).connect(gain).connect(out);
+        src.start(t);
+        src.stop(t + len);
+        return;
+      }
       case "scare": {
         // A sudden dissonant swell.
         for (const f of [311, 330, 466]) {
@@ -345,7 +385,8 @@ export class SoundScape {
    * A hidden relic whispering (GDD 10): breathy noise that swells and fades, from where the
    * nearest hidden relic is. null fades it out.
    */
-  relicWhisper(at: WorldPoint | null) {
+  /** closeness: 0 at the edge of whisper range, 1 right on top of it. */
+  relicWhisper(at: WorldPoint | null, closeness = 0) {
     const ctx = this.ctx;
     if (!ctx) return;
     if (!this.whisper) {
@@ -355,7 +396,7 @@ export class SoundScape {
       const band = ctx.createBiquadFilter();
       band.type = "bandpass";
       band.frequency.value = WHISPER_HZ;
-      band.Q.value = 4;
+      band.Q.value = WHISPER_Q;
       // A slow swell, like breathing: the gain moves between 0 and 1.
       const swell = ctx.createGain();
       swell.gain.value = 0.5;
@@ -372,10 +413,14 @@ export class SoundScape {
       src.connect(band).connect(swell).connect(level).connect(panner).connect(this.master);
       src.start();
       lfo.start();
-      this.whisper = { level, panner };
+      this.whisper = { level, panner, band, lfo };
     }
     const t = ctx.currentTime;
-    this.whisper.level.gain.setTargetAtTime(at ? WHISPER_LEVEL : 0, t, 0.4);
+    // Closer, it grows louder, fuller and quicker, like words you can almost make out (GDD 26.5).
+    const near = Math.max(0, Math.min(1, closeness));
+    this.whisper.level.gain.setTargetAtTime(at ? WHISPER_LEVEL * (1 + WHISPER_NEAR_GAIN * near) : 0, t, 0.4);
+    this.whisper.band.Q.setTargetAtTime(WHISPER_Q - (WHISPER_Q - WHISPER_NEAR_Q) * near, t, 0.2);
+    this.whisper.lfo.frequency.setTargetAtTime(WHISPER_SWELL_HZ + WHISPER_NEAR_SWELL_HZ * near * near, t, 0.2);
     if (!at) return;
     this.whisper.panner.positionX.setTargetAtTime(at.x, t, 0.05);
     this.whisper.panner.positionY.setTargetAtTime(at.y + 0.8, t, 0.05);

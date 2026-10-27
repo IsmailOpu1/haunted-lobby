@@ -19,6 +19,7 @@ import {
   initPhysics,
   nightPart,
   pickRelicSpots,
+  searchPlaces,
   ritualRatePct,
   nearestRoom,
   matchResult,
@@ -46,7 +47,7 @@ import { defaultMap } from "@haunted/maps";
 import { Ghost, type GhostTarget, type GhostWorld } from "./sim/ghost.ts";
 import { NavMap } from "./sim/navmap.ts";
 import { createTrick, type GhostTrick } from "./sim/tricks.ts";
-import { Door, GameState, Player, Relic, SaltJar, SaltLine, TaskStation } from "./state.ts";
+import { Door, GameState, Player, Relic, SaltJar, SaltLine, SearchPlace, TaskStation } from "./state.ts";
 import { NoVoice, type VoiceBackend } from "./voice/backend.ts";
 import { liveKitFromEnv } from "./voice/livekit.ts";
 import { recordVoiceStart } from "./voice/status.ts";
@@ -102,7 +103,11 @@ interface PlayerSim {
   // Tasks (GDD Section 9).
   tasks: { stationId: string; done: boolean }[];
   /** The minigame open right now (a task, or taking a relic from a spot), and for how long. */
-  task: { kind: "task" | "relic"; stationId: string; elapsed: number; noiseAt: number } | null;
+  /**
+   * The task or search open in the player's hands. stationId is the task station, or the place
+   * being searched. `found` is set once a search reaches the place that hides the relic.
+   */
+  task: { kind: "task" | "relic"; stationId: string; elapsed: number; noiseAt: number; found?: boolean } | null;
 }
 
 /** Where a relic really is. Only the server knows (PRD 10.3); clients learn it only up close. */
@@ -110,6 +115,8 @@ interface RelicSim {
   id: string;
   /** The hiding spot it is in, or the spot it was taken from. */
   spotId: string;
+  /** The place in the spot's group it hides in (GDD 26.5); the spot's own id for a spot with one place. */
+  placeId: string;
   x: number;
   z: number;
   status: RelicStatus;
@@ -186,9 +193,15 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     for (const jar of this.map.saltJars) this.state.saltJars.set(jar.id, new SaltJar({ taken: false }));
     for (const station of this.map.tasks) this.state.stations.set(station.id, new TaskStation({ done: false }));
     // Relics hide in random spots each match (GDD 10). The count becomes a lobby setting in Phase 7.
+    for (const spot of this.map.relicSpots) {
+      for (const place of spot.places ?? []) this.state.searchPlaces.set(place.id, new SearchPlace({ searched: false }));
+    }
     pickRelicSpots(this.map.relicSpots, config.relics.count, config.relics.minSpacingM, Math.random, (a, b) => this.hearingDistance(a, b)).forEach((spot, i) => {
       const id = `R${i + 1}`;
-      this.relics.push({ id, spotId: spot.id, x: spot.x, z: spot.z, status: "hidden" });
+      // In a group, the relic hides in one of its places, picked at random (GDD 26.5).
+      const places = searchPlaces(spot);
+      const place = places[Math.floor(Math.random() * places.length)]!;
+      this.relics.push({ id, spotId: spot.id, placeId: place.id, x: place.x, z: place.z, status: "hidden" });
       this.state.relics.set(id, new Relic({ name: this.map.relicNames[i] ?? `Relic ${i + 1}`, status: "hidden", carrier: "" }));
     });
     this.state.tasksDone = 0;
@@ -278,8 +291,18 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     });
 
     if (DEBUG) {
-      this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number; teleport?: { x: number; z: number } }) => {
+      this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number; teleport?: { x: number; z: number }; giveTask?: string; hideRelicAt?: string }) => {
         if (typeof msg?.nightTime === "number") this.state.nightTime = msg.nightTime;
+        // Swap your first task for this station's (to try a particular task).
+        const mine = this.sims.get(client.sessionId);
+        if (mine && typeof msg?.giveTask === "string" && this.map.tasks.some((t) => t.id === msg.giveTask)) {
+          mine.tasks[0] = { stationId: msg.giveTask, done: false };
+          this.sendTasks(client.sessionId);
+        }
+        // Move the first hidden relic to this place to search (to try finding one).
+        const at = typeof msg?.hideRelicAt === "string" ? this.searchPlace(msg.hideRelicAt) : null;
+        const hidden = this.relics.find((r) => r.status === "hidden");
+        if (at && hidden) Object.assign(hidden, { spotId: at.spot.id, placeId: at.place.id, x: at.place.x, z: at.place.z });
         if (typeof msg?.huntIn === "number") this.ghost.debugHuntIn(msg.huntIn);
         if (msg?.down) this.downPlayer(client.sessionId);
         const player = this.state.players.get(client.sessionId);
@@ -881,11 +904,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const player = this.state.players.get(sessionId);
     if (!sim || !player || sim.task?.stationId !== stationId) return;
     const at = this.activityAt(sim.task);
-    const minSec = sim.task.kind === "relic" ? config.relics.serverMinSec : config.tasks.serverMinSec;
-    const tooFast = sim.task.elapsed < minSec;
+    const tooFast = sim.task.elapsed < this.taskMinSec(sim.task);
     const tooFar = !at || Math.hypot(at.x - player.x, at.z - player.z) > at.rangeM;
     if (tooFast || tooFar || player.health !== "alive") return this.closeTask(sessionId, "cancelled");
-    if (sim.task.kind === "relic") return this.takeRelic(sessionId, player, stationId);
+    if (sim.task.kind === "relic") return this.finishSearch(sessionId, sim, player, stationId);
 
     const def = this.map.tasks.find((d) => d.id === stationId)!;
 
@@ -899,9 +921,25 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.sendTasks(sessionId);
   }
 
+  /**
+   * The shortest time the server accepts for finishing. Searching a place in a group is short;
+   * taking the relic is the full time, counted from when the search started.
+   */
+  private taskMinSec(task: NonNullable<PlayerSim["task"]>): number {
+    if (task.kind === "task") return config.tasks.serverMinSec;
+    const grouped = this.state.searchPlaces.has(task.stationId);
+    return grouped && !task.found ? config.relics.search.serverMinSec : config.relics.serverMinSec;
+  }
+
   /** A noisy minigame went wrong (GDD 9): the ghost may hear it, and so do players nearby. */
   private taskNoise(sessionId: string) {
     const sim = this.sims.get(sessionId);
+    if (sim?.task?.kind === "relic") {
+      // Digging too hard throws soil about (GDD 26.5).
+      if (sim.task.elapsed - sim.task.noiseAt < config.tasks.noiseCooldownSec) return;
+      sim.task.noiseAt = sim.task.elapsed;
+      return this.searchNoise(sessionId, sim.task.stationId);
+    }
     const def = sim?.task?.kind === "task" ? this.map.tasks.find((d) => d.id === sim.task!.stationId) : undefined;
     if (!sim?.task || !def?.noisy) return;
     if (sim.task.elapsed - sim.task.noiseAt < config.tasks.noiseCooldownSec) return;
@@ -918,8 +956,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   /** Where a minigame is done, and how far you may stand from it. */
   private activityAt(task: NonNullable<PlayerSim["task"]>): { x: number; z: number; rangeM: number } | null {
     if (task.kind === "relic") {
-      const spot = this.map.relicSpots.find((s) => s.id === task.stationId);
-      return spot ? { x: spot.x, z: spot.z, rangeM: config.relics.useRangeM } : null;
+      const at = this.searchPlace(task.stationId);
+      return at ? { x: at.place.x, z: at.place.z, rangeM: config.relics.useRangeM } : null;
     }
     const def = this.map.tasks.find((d) => d.id === task.stationId);
     return def ? { x: def.x, z: def.z, rangeM: config.tasks.useRangeM } : null;
@@ -927,12 +965,28 @@ export class HauntedRoom extends Room<{ state: GameState }> {
 
   // ---------- Relics (GDD Section 10) ----------
 
-  /** E at a spot that still hides a relic, with empty hands: open its taking minigame. */
+  /**
+   * E at a place to search, with empty hands. Every unsearched place in a group can be searched,
+   * whether or not the relic is there (GDD 26.5). A spot with one place opens only while it
+   * still hides a relic.
+   */
   private openRelicSpot(sessionId: string, sim: PlayerSim, player: Player, x: number, z: number): boolean {
     if (sim.task || player.relic) return false;
+    for (const spot of this.map.relicSpots) {
+      for (const place of spot.places ?? []) {
+        if (this.state.searchPlaces.get(place.id)?.searched || Math.hypot(place.x - x, place.z - z) > config.relics.useRangeM) continue;
+        sim.task = { kind: "relic", stationId: place.id, elapsed: 0, noiseAt: -Infinity, found: false };
+        player.action = "task";
+        player.actionProgress = 0;
+        const msg: ServerMessages["taskOpen"] = { stationId: place.id, minigame: spot.minigame, title: spot.label };
+        this.clients.find((c) => c.sessionId === sessionId)?.send("taskOpen", msg);
+        return true;
+      }
+    }
     for (const relic of this.relics) {
       if (relic.status !== "hidden" || Math.hypot(relic.x - x, relic.z - z) > config.relics.useRangeM) continue;
       const spot = this.map.relicSpots.find((s) => s.id === relic.spotId)!;
+      if (spot.places) continue;
       sim.task = { kind: "relic", stationId: spot.id, elapsed: 0, noiseAt: -Infinity };
       player.action = "task";
       player.actionProgress = 0;
@@ -943,12 +997,51 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     return false;
   }
 
-  /** The taking minigame is finished: the relic is yours, unless someone was quicker. */
-  private takeRelic(sessionId: string, player: Player, spotId: string) {
-    const relic = this.relics.find((r) => r.spotId === spotId && r.status === "hidden");
+  /**
+   * A search or taking minigame is finished. An empty place is marked searched and makes a
+   * small noise. At the relic's place the first finish only finds it (the client keeps going),
+   * and the second takes it, unless someone was quicker (GDD 26.5).
+   */
+  private finishSearch(sessionId: string, sim: PlayerSim, player: Player, placeId: string) {
+    const relic = this.relics.find((r) => r.placeId === placeId && r.status === "hidden");
+    const grouped = this.state.searchPlaces.has(placeId);
+    if (grouped && !relic) {
+      this.state.searchPlaces.get(placeId)!.searched = true;
+      this.searchNoise(sessionId, placeId);
+      return this.closeTask(sessionId, "empty");
+    }
     if (!relic || player.relic) return this.closeTask(sessionId, "cancelled");
+    if (grouped && !sim.task!.found) {
+      sim.task!.found = true;
+      const msg: ServerMessages["searchFound"] = { stationId: placeId };
+      this.clients.find((c) => c.sessionId === sessionId)?.send("searchFound", msg);
+      return;
+    }
+    if (grouped) this.state.searchPlaces.get(placeId)!.searched = true;
     this.carry(player, relic);
     this.closeTask(sessionId, "done");
+  }
+
+  /** Searching makes a small noise the ghost and nearby players hear (GDD 26.5). */
+  private searchNoise(sessionId: string, placeId: string) {
+    const at = this.searchPlace(placeId);
+    if (!at) return;
+    const radiusM = config.relics.search.noiseM;
+    this.noises.push({ x: at.place.x, z: at.place.z, radiusM });
+    const msg: ServerMessages["taskNoise"] = { x: at.place.x, z: at.place.z, minigame: at.spot.minigame };
+    for (const client of this.clients) {
+      const p = this.state.players.get(client.sessionId);
+      if (client.sessionId !== sessionId && p && this.hearingDistance(p, at.place) <= radiusM) client.send("taskNoise", msg);
+    }
+  }
+
+  /** A place to search by id, with its spot: a place in a group, or a spot with one place. */
+  private searchPlace(id: string) {
+    for (const spot of this.map.relicSpots) {
+      const place = searchPlaces(spot).find((p) => p.id === id);
+      if (place) return { spot, place };
+    }
+    return null;
   }
 
   private carry(player: Player, relic: RelicSim) {
@@ -1033,7 +1126,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     }
   }
 
-  private closeTask(sessionId: string, reason: "done" | "cancelled") {
+  private closeTask(sessionId: string, reason: ServerMessages["taskClosed"]["reason"]) {
     const sim = this.sims.get(sessionId);
     const player = this.state.players.get(sessionId);
     if (!sim?.task) return;

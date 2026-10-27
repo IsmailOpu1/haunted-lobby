@@ -1,9 +1,7 @@
 import type { MinigameKind } from "@haunted/shared";
 import { Boiler } from "./boiler.ts";
-import { Candelabra } from "./candelabra.ts";
 import { Clock } from "./clock.ts";
 import { Cradle } from "./cradle.ts";
-import { Dig } from "./dig.ts";
 import { Drain } from "./drain.ts";
 import { Letter } from "./letter.ts";
 import { Lockbox } from "./lockbox.ts";
@@ -12,15 +10,15 @@ import { Piano } from "./piano.ts";
 import { Portraits } from "./portraits.ts";
 import { Roses } from "./roses.ts";
 import { Sheets } from "./sheets.ts";
-import { Shutters } from "./shutters.ts";
-import { Stove } from "./stove.ts";
 import { Switchboard } from "./switchboard.ts";
 import { Trunk } from "./trunk.ts";
 import { BOARD_H, BOARD_W, NOISY_SOUNDS, type Minigame, type PlaySound, type Point } from "./types.ts";
 
-const MAKERS: Record<MinigameKind, (play: PlaySound) => Minigame> = {
-  candelabra: (play) => new Candelabra(play),
-  stove: (play) => new Stove(play),
+/** The tasks done with your hands in the 3D world instead (GDD 26.5, client/src/hands). */
+export type HandsKind = "candelabra" | "stove" | "shutters" | "dig";
+export const HANDS_KINDS: ReadonlySet<MinigameKind> = new Set<HandsKind>(["candelabra", "stove", "shutters", "dig"]);
+
+const MAKERS: Record<Exclude<MinigameKind, HandsKind>, (play: PlaySound) => Minigame> = {
   clock: (play) => new Clock(play),
   letter: (play) => new Letter(play),
   cradle: (play) => new Cradle(play),
@@ -31,11 +29,9 @@ const MAKERS: Record<MinigameKind, (play: PlaySound) => Minigame> = {
   trunk: (play) => new Trunk(play),
   sheets: (play) => new Sheets(play),
   roses: (play) => new Roses(play),
-  shutters: (play) => new Shutters(play),
   portraits: (play) => new Portraits(play),
   // Taking a relic from its hiding spot (GDD 10).
   lockbox: (play) => new Lockbox(play),
-  dig: (play) => new Dig(play),
   drain: (play) => new Drain(play),
 };
 
@@ -99,7 +95,7 @@ export class MinigameOverlay {
     return this.game !== null;
   }
 
-  open(kind: MinigameKind, name: string) {
+  open(kind: Exclude<MinigameKind, HandsKind>, name: string) {
     this.game = MAKERS[kind]((sound, pitch) => {
       this.play(sound, pitch);
       if (NOISY_SOUNDS.has(sound)) this.events.onNoise();

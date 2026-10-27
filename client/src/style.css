@@ -872,3 +872,18 @@ body.ended #sound-cues {
   height: 20px;
   fill: #f0ece4;
 }
+
+/* While you work with your hands (GDD 26.5): how to, or how to stop. */
+#work-hint {
+  position: fixed;
+  bottom: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 6px 12px;
+  font-size: 14px;
+  text-align: center;
+  background: var(--panel);
+  border-radius: 4px;
+  pointer-events: none;
+}

@@ -51,8 +51,10 @@ export interface ServerMessages {
   tasks: { list: TaskEntry[] };
   /** Open this task's minigame (you pressed E at its station). */
   taskOpen: { stationId: string; minigame: import("./map.ts").MinigameKind; title: string };
-  /** Close the minigame: finished, or cancelled (you moved, were downed, or quit). */
-  taskClosed: { stationId: string; reason: "done" | "cancelled" };
+  /** Close the minigame: finished, cancelled (you moved, were downed, or quit), or a search found nothing. */
+  taskClosed: { stationId: string; reason: "done" | "cancelled" | "empty" };
+  /** The place you are searching holds the relic: keep going to take it (GDD 26.5). */
+  searchFound: { stationId: string };
   /** Someone near you botched a noisy task: the baby cried or a wrong note rang out. */
   taskNoise: { x: number; z: number; minigame: import("./map.ts").MinigameKind };
   /**

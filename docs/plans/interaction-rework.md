@@ -1,6 +1,6 @@
 # Plan: hands-on tasks and relic searching
 
-**Status: draft for the owner's approval.** Branch `interaction-rework`. Follows the owner's decision in GDD 26.5 (2026-10-26): tasks and taking relics happen in the 3D world with the real objects, not in 2D windows.
+**Status: approved by the owner on 2026-10-27, with the suggested answers to the four questions (see the end). First batch built; awaiting the owner's playtest.** Branch `interaction-rework`. Follows the owner's decision in GDD 26.5 (2026-10-26): tasks and taking relics happen in the 3D world with the real objects, not in 2D windows.
 
 ## Goal
 
@@ -93,3 +93,12 @@ The old 2D windows stay working for these until each is replaced, then they are 
 2. Should others see your hands working mid-task now (more work) or with the Phase 8 character models (planned)?
 3. Searching an empty place: is about 3 s plus a small noise the right cost?
 4. Whisper arrow only from afar, none within 3 m: agreed?
+
+**Answers (owner, 2026-10-27):** all four as suggested. 1: the left mouse button is your hand; the flashlight is on key 1 only while working. 2: others see your hands mid-task with the Phase 8 character models. 3: an empty search costs about 3 s plus a small noise. 4: the whisper arrow shows only from afar, none within 3 m.
+
+## First batch: as built
+
+- Numbers are in `shared/config.ts` under `tasks.hands` and `relics.search` / `relics.hands.dig`.
+- The shutters latch after **2.2 s** held shut (not 1.5 s), so a steady player still takes at least 10 s for the three (GDD 9).
+- An empty dig takes about **2.6 s** at the steadiest fast pace and about 4 s at a calm one. Digging is judged over 0.2 s, so mouse events bunching up between frames don't count as frantic.
+- Checked in the browser: candelabra (two matches for 5 wicks), shutters (8.8 s), stove (about 7 s), digging (empty place gives "Nothing here."; the right place gives "Something is down there", then the relic at about 13 s).

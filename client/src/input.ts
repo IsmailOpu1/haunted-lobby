@@ -22,7 +22,16 @@ export interface InputActions {
   onLookChange(looking: boolean): void;
   /** Any click or key press (browsers only start sound after one). */
   onUserGesture(): void;
+  /** While working with your hands: the mouse button went down (true) or up (false). */
+  onHand(down: boolean): void;
+  /** While working with the button held: the mouse moved, in pixels. */
+  onHandMove(dx: number, dy: number): void;
+  /** While working: E, a movement key or Esc stops the work. */
+  onStopWork(): void;
 }
+
+/** Keys that walk: pressing one while working stops the work. */
+const MOVE_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD"]);
 
 export class PlayerInput {
   yaw = 0;
@@ -30,6 +39,12 @@ export class PlayerInput {
   private keys = new Set<string>();
   private enabled = false;
   private cameraRaised = false;
+  /**
+   * Working with your hands (GDD 26.5): the mouse button is your hand instead of the
+   * flashlight, holding it moves the mouse into the task, and you cannot walk.
+   */
+  working = false;
+  private handDown = false;
 
   constructor(private canvas: HTMLCanvasElement, private actions: InputActions) {
     window.addEventListener("keydown", (e) => {
@@ -39,6 +54,11 @@ export class PlayerInput {
       if (e.code === "Tab" && this.looking) e.preventDefault();
       if (!this.looking || e.repeat) return;
       if (e.code === "Tab") actions.onStatusPanel(true);
+      if (this.working) {
+        if (e.code === "KeyE" || MOVE_KEYS.has(e.code)) actions.onStopWork();
+        if (e.code === "Digit1") actions.onFlashlight();
+        return;
+      }
       if (e.code === "KeyG") actions.onDropRelic();
       if (e.code === "KeyE") actions.onUse(true);
       if (e.code === "Digit1") actions.onFlashlight();
@@ -63,7 +83,10 @@ export class PlayerInput {
     canvas.addEventListener("mousedown", (e) => {
       actions.onUserGesture();
       if (!this.enabled || e.button !== 0) return;
-      if (this.looking) {
+      if (this.looking && this.working) {
+        this.handDown = true;
+        actions.onHand(true);
+      } else if (this.looking) {
         // With the camera raised, a click takes the photo; otherwise it toggles the flashlight.
         if (this.cameraRaised) {
           actions.onPhoto();
@@ -78,8 +101,19 @@ export class PlayerInput {
       }
     });
 
+    window.addEventListener("mouseup", (e) => {
+      if (e.button !== 0 || !this.handDown) return;
+      this.handDown = false;
+      actions.onHand(false);
+    });
+
     document.addEventListener("pointerlockchange", () => {
       if (!this.looking) {
+        if (this.handDown) {
+          this.handDown = false;
+          actions.onHand(false);
+        }
+        if (this.working) actions.onStopWork();
         this.keys.clear();
         actions.onUse(false);
         if (this.cameraRaised) {
@@ -92,6 +126,10 @@ export class PlayerInput {
 
     document.addEventListener("mousemove", (e) => {
       if (!this.looking) return;
+      if (this.working && this.handDown) {
+        actions.onHandMove(e.movementX, e.movementY);
+        return;
+      }
       this.yaw -= e.movementX * MOUSE_SENSITIVITY;
       this.pitch -= e.movementY * MOUSE_SENSITIVITY;
       this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch));
@@ -109,7 +147,7 @@ export class PlayerInput {
 
   /** The movement keys held right now. Nothing counts while the mouse is not captured. */
   movement() {
-    if (!this.looking) return { forward: 0, right: 0, run: false, crouch: false };
+    if (!this.looking || this.working) return { forward: 0, right: 0, run: false, crouch: false };
     const k = this.keys;
     return {
       forward: (k.has("KeyW") ? 1 : 0) - (k.has("KeyS") ? 1 : 0),

@@ -75,6 +75,7 @@ const roomName = el("room-name");
 const roomNameRoom = el("room-name-room");
 const roomNameFloor = el("room-name-floor");
 const soundCues = el("sound-cues");
+const workHint = el("work-hint");
 const floorPlan = new FloorPlan(defaultMap);
 el("floor-plan").append(floorPlan.element);
 
@@ -263,6 +264,10 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     );
   },
   showStatusPanel: (open) => statusPanel.classList.toggle("hidden", !open),
+  setWorkHint: (text) => {
+    workHint.classList.toggle("hidden", !text);
+    workHint.textContent = text ?? "";
+  },
   setRoom: (room, floor) => {
     // In a doorway or on the stairs, keep the last room.
     if (!room || room === shownRoom) return;
@@ -289,7 +294,9 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
       const text = cue.vertical ? `${cue.text} (${cue.vertical})` : cue.text;
       const label = row.querySelector(".cue-text")!;
       if (label.textContent !== text) label.textContent = text;
-      (row.querySelector(".cue-arrow") as SVGElement).style.transform = `rotate(${cue.angle}rad)`;
+      const arrow = row.querySelector(".cue-arrow") as SVGElement;
+      arrow.style.display = cue.angle === null ? "none" : "";
+      if (cue.angle !== null) arrow.style.transform = `rotate(${cue.angle}rad)`;
     });
   },
   setCarrying: (name) => {

@@ -9,6 +9,7 @@ import {
   stepMovement,
   type CollideFn,
   type MapData,
+  type MinigameKind,
   type MoveInput,
   type MoveMode,
   type MoveState,
@@ -16,23 +17,27 @@ import {
   type ServerMessages,
   type TaskEntry,
   roomAt,
+  searchPlaces,
   toWorld,
   worldDistance,
   type WorldPoint,
 } from "@haunted/shared";
 import { SoundScape } from "./audio.ts";
-import { directionTo } from "./cues.ts";
+import { directionTo, roundDirection } from "./cues.ts";
 import { createFlashlight } from "./flashlight.ts";
 import { Flicker } from "./flicker.ts";
 import { playerStepKind, StepTracker } from "./footsteps.ts";
 import { GhostView } from "./ghostView.ts";
+import { createHandsTask } from "./hands/tasks.ts";
+import { HandsWork } from "./hands/work.ts";
 import { ItemsView } from "./items.ts";
 import { PlayerInput } from "./input.ts";
-import { MinigameOverlay } from "./minigames/overlay.ts";
+import { HANDS_KINDS, MinigameOverlay, type HandsKind } from "./minigames/overlay.ts";
 import { RelicsView } from "./relicsView.ts";
 import { RemotePlayers } from "./remotePlayers.ts";
 import { StationsView } from "./stations.ts";
 import { VoiceChat } from "./voice.ts";
+import type { TaskSoundKind } from "./minigames/types.ts";
 import { buildWorld, type DoorView, type RitualCircleView } from "./world.ts";
 
 // Near-zero ambient light (GDD Section 23). Press L while testing to light everything up.
@@ -49,12 +54,19 @@ const VOICE_ANSWER_TIMEOUT_MS = 5000;
 // you a sound must be to say "above" or "below".
 const BELL_CUE_SEC = 4;
 const CUE_FLOOR_DIFF_M = 1.5;
+// Working with your hands (GDD 26.5): the view narrows a little toward what you work on.
+const WORK_FOV = 58;
+const NORMAL_FOV = 75;
+const FOV_LERP_PER_SEC = 6;
+/** Remembers which hands-on tasks you have seen the how-to hint for. */
+const HINTS_SEEN_KEY = "handsHintsSeen";
+const STOP_HINT = "E or a step to stop";
 
 /** A subtitle for an important sound, with an arrow toward it (GDD 23). */
 export interface SoundCue {
   text: string;
-  /** Where the sound is from the way you face, in radians: 0 ahead, positive to the right. */
-  angle: number;
+  /** Where the sound is from the way you face, in radians: 0 ahead, positive to the right. Null: no arrow. */
+  angle: number | null;
   /** The sound is on another floor. */
   vertical: "above" | "below" | null;
 }
@@ -96,6 +108,8 @@ export interface GameHud {
   setRelics(list: { name: string; status: string }[]): void;
   /** Holding Tab shows the status panel. */
   showStatusPanel(open: boolean): void;
+  /** The line under the crosshair while you work with your hands, or null. */
+  setWorkHint(text: string | null): void;
   /** The room and floor you are in (room null in a doorway or on the stairs). */
   setRoom(room: string | null, floor: string): void;
   /** Your simulation position and facing, for the floor plan. */
@@ -135,6 +149,9 @@ export type VoiceUiState =
   | { kind: "needs-check"; error?: string }
   | { kind: "checking" }
   | { kind: "ready" };
+
+/** What a noisy task or a search sounds like to players nearby. */
+const TASK_NOISES: Partial<Record<MinigameKind, TaskSoundKind>> = { cradle: "cry", piano: "badNote", shutters: "bang", dig: "scrape" };
 
 const ACTION_LABELS: Record<string, string> = { revive: "Reviving", hide: "Hiding", unhide: "Stepping out", salt: "Pouring salt", placeRelic: "Placing relic" };
 
@@ -226,6 +243,10 @@ export class Game {
   /** Relics the server says are near you: hidden ones you can hear, dropped ones you can see. */
   private relicsNear: RelicNear[] = [];
   private relics = new Map<string, RelicData>();
+  /** The hands-on task in progress (GDD 26.5). */
+  private hands: HandsWork;
+  /** When your hands last made a noise, so the server is told at most once a second. */
+  private handsNoiseAt = -Infinity;
   /** The last bell ring, for its subtitle. */
   private bellCue: { at: WorldPoint; until: number } | null = null;
 
@@ -250,6 +271,7 @@ export class Game {
       onNoise: () => this.room?.send("taskNoise"),
     });
     this.physics = new PhysicsWorld(map);
+    this.hands = new HandsWork(this.scene, this.camera);
     this.collide = this.physics.addBody().collide;
 
     // Your flashlight is held slightly to the right and below your eyes.
@@ -279,6 +301,11 @@ export class Game {
       },
       onLookChange: (looking) => hud.setLooking(looking),
       onUserGesture: () => this.sound.unlock(),
+      onHand: (down) => this.hands.press(down),
+      onHandMove: (dx, dy) => this.hands.move(dx, dy),
+      onStopWork: () => {
+        if (this.taskState === "open") this.endTask("left");
+      },
     });
 
     this.voice = new VoiceChat(
@@ -309,6 +336,11 @@ export class Game {
     this.taskState = state;
     if (done) this.room?.send("taskDone", done);
     else this.room?.send("taskCancel");
+    if (this.hands.active) {
+      // Hands-on work never let go of the mouse; stopping just gives your view back.
+      if (state === "left") this.stopHands();
+      return;
+    }
     this.hud.setTaskMode("resume");
     // Works when the browser still counts the last click; otherwise the player clicks once.
     Promise.resolve(this.canvas.requestPointerLock()).catch(() => {});
@@ -380,6 +412,7 @@ export class Game {
     room.onMessage("matchEnd", (msg: ServerMessages["matchEnd"]) => {
       this.ended = true;
       if (this.overlay.isOpen) this.overlay.close();
+      if (this.hands.active) this.stopHands();
       this.hud.setTaskMode("none");
       document.exitPointerLock();
       this.hud.showEndScreen(msg);
@@ -399,16 +432,28 @@ export class Game {
     room.onMessage("taskOpen", (msg: ServerMessages["taskOpen"]) => {
       this.openStation = msg.stationId;
       this.taskState = "open";
+      if (HANDS_KINDS.has(msg.minigame)) {
+        this.startHands(msg.stationId, msg.minigame as HandsKind);
+        return;
+      }
       this.hud.setTaskMode("in-task");
       document.exitPointerLock();
-      this.overlay.open(msg.minigame, msg.title);
+      this.overlay.open(msg.minigame as Exclude<typeof msg.minigame, HandsKind>, msg.title);
+    });
+    room.onMessage("searchFound", (msg: ServerMessages["searchFound"]) => {
+      if (msg.stationId !== this.openStation || !this.hands.active) return;
+      this.hands.found();
+      this.taskState = "open";
+      this.hud.showBanner("Something is down there. Keep digging.", 3);
     });
     room.onMessage("taskClosed", (msg: ServerMessages["taskClosed"]) => {
-      // Relic spots use the same minigame window as tasks.
-      const relic = this.map.relicSpots.some((s) => s.id === msg.stationId);
+      // Places to search use the same flow as tasks.
+      const relic = this.map.relicSpots.some((s) => searchPlaces(s).some((p) => p.id === msg.stationId));
       const name = this.map.tasks.find((t) => t.id === msg.stationId)?.name ?? "Task";
       const what = relic ? "Search" : "Task";
-      if (msg.reason === "done") this.hud.showBanner(relic ? "You found a relic. Take it to the basement door." : `Done: ${name}`, 3);
+      if (this.hands.active) this.stopHands();
+      if (msg.reason === "empty") this.hud.showBanner("Nothing here.", 2);
+      else if (msg.reason === "done") this.hud.showBanner(relic ? "You found a relic. Take it to the basement door." : `Done: ${name}`, 3);
       else if (this.taskState === "open") this.hud.showBanner(`${what} cancelled. Start it again with E.`, 3);
       else if (this.taskState === "finished") this.hud.showBanner(`${what} not accepted. Try it again.`, 3);
       if (this.overlay.isOpen) {
@@ -419,7 +464,8 @@ export class Game {
       this.taskState = "none";
     });
     room.onMessage("taskNoise", (msg: ServerMessages["taskNoise"]) => {
-      this.sound.taskSound(msg.minigame === "cradle" ? "cry" : "badNote", undefined, this.place(msg));
+      const kind = TASK_NOISES[msg.minigame] ?? "badNote";
+      this.sound.taskSound(kind, undefined, this.place(msg));
     });
     room.onMessage("relicsNear", (msg: ServerMessages["relicsNear"]) => {
       this.relicsNear = msg.list;
@@ -565,12 +611,13 @@ export class Game {
       }
       this.updateCamera(dt);
     }
+    this.updateHands(dt);
     const now = performance.now();
     for (const door of this.doors.values()) door.update(dt);
     this.stations.render(now / 1000);
     this.relicsView.render(now / 1000);
     const whisper = this.nearestHiddenRelic();
-    this.sound.relicWhisper(whisper);
+    this.sound.relicWhisper(whisper, whisper ? 1 - this.distanceFromMe(whisper) / config.relics.whisperM : 0);
     this.updateWhereabouts(whisper, now);
     this.ghost.render(now);
     this.remotes.render(now, dt, (at) => this.ghost.distanceTo(at));
@@ -689,9 +736,14 @@ export class Game {
       if (def && Math.hypot(def.x - x, def.z - z) <= config.tasks.useRangeM) return `E  ${def.name}`;
     }
     if (!me.relic) {
-      // You only know a spot holds a relic once you can hear it whisper.
+      // Every unsearched place in a group can be searched, so the prompt gives nothing away (GDD 26.5).
+      for (const spot of this.map.relicSpots) {
+        const place = spot.places?.find((p) => !this.stations.searched(p.id) && Math.hypot(p.x - x, p.z - z) <= config.relics.useRangeM);
+        if (place) return `E  ${spot.label}`;
+      }
+      // A spot with one place: you only know it holds a relic once you can hear it whisper.
       const hidden = this.relicsNear.find((r) => r.hidden && Math.hypot(r.x - x, r.z - z) <= config.relics.useRangeM);
-      const spot = hidden && this.map.relicSpots.find((s) => s.id === hidden.spotId);
+      const spot = hidden && this.map.relicSpots.find((s) => s.id === hidden.spotId && !s.places);
       if (spot) return `E  ${spot.label}`;
     }
     const taken = new Set([...this.others.values()].map((p) => p.hidingSpot).filter(Boolean));
@@ -719,6 +771,60 @@ export class Game {
     this.hud.setCarrying(me.relic ? (this.relics.get(me.relic)?.name ?? "a relic") : null);
   }
 
+  /** Starts hands-on work on a station or a place to search (GDD 26.5). */
+  private startHands(id: string, kind: HandsKind) {
+    const model = this.stations.hands(id);
+    if (!model || model.kind !== kind) {
+      // No parts to work on: give it up rather than leave you stuck.
+      this.endTask("left");
+      return;
+    }
+    const task = createHandsTask(model, {
+      play: (sound) => this.sound.taskSound(sound),
+      noise: () => {
+        const now = performance.now() / 1000;
+        if (now - this.handsNoiseAt < config.tasks.noiseCooldownSec) return;
+        this.handsNoiseAt = now;
+        this.room?.send("taskNoise");
+      },
+    });
+    this.stations.setBusy(id);
+    this.hands.start(task, this.input.yaw, this.input.pitch);
+    this.input.working = true;
+    let seen: string[] = [];
+    try {
+      seen = JSON.parse(localStorage.getItem(HINTS_SEEN_KEY) ?? "[]");
+    } catch {
+      // Storage blocked: show the hint every time.
+    }
+    this.hud.setWorkHint(seen.includes(kind) ? STOP_HINT : `${task.hint}  (${STOP_HINT})`);
+    try {
+      if (!seen.includes(kind)) localStorage.setItem(HINTS_SEEN_KEY, JSON.stringify([...seen, kind]));
+    } catch {
+      // See above.
+    }
+  }
+
+  private stopHands() {
+    this.hands.stop();
+    this.stations.setBusy(null);
+    this.input.working = false;
+    this.hud.setWorkHint(null);
+  }
+
+  /** Your hands at work, and the view narrowing toward the work. */
+  private updateHands(dt: number) {
+    if (this.hands.active && this.hands.frame(dt, this.input.yaw, this.input.pitch) && this.taskState === "open") {
+      this.taskState = "finished";
+      this.room?.send("taskDone", { stationId: this.openStation });
+    }
+    const fov = this.hands.active ? WORK_FOV : NORMAL_FOV;
+    if (Math.abs(this.camera.fov - fov) > 0.05) {
+      this.camera.fov += (fov - this.camera.fov) * Math.min(1, FOV_LERP_PER_SEC * dt);
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
   /** The room name, the floor plan arrow and the sound subtitles. */
   private updateWhereabouts(whisper: WorldPoint | null, now: number) {
     const me = this.predicted;
@@ -728,9 +834,27 @@ export class Game {
     }
     if (this.bellCue && now > this.bellCue.until) this.bellCue = null;
     const cues: SoundCue[] = [];
-    if (whisper) cues.push(this.cue("A relic whispers nearby", whisper));
+    if (whisper) cues.push(this.whisperCue(whisper));
     if (this.bellCue) cues.push(this.cue("The bell rings", this.bellCue.at));
     this.hud.setSoundCues(this.ended ? [] : cues);
+  }
+
+  /** How far a place is from your feet, in meters. */
+  private distanceFromMe(at: WorldPoint): number {
+    const cam = this.camera.position;
+    return Math.hypot(at.x - cam.x, at.y - (cam.y - this.eyeHeight), at.z - cam.z);
+  }
+
+  /**
+   * The whisper's subtitle says how close it is. From afar a rough arrow points the way; up
+   * close there is none, so you must listen and search (GDD 26.5).
+   */
+  private whisperCue(at: WorldPoint): SoundCue {
+    const s = config.relics.search;
+    const d = this.distanceFromMe(at);
+    const text = d <= s.veryCloseM ? "A relic whispers, very close" : d <= s.closeM ? "A relic whispers close by" : "A faint whisper";
+    const cue = this.cue(text, at);
+    return { ...cue, angle: d <= s.closeM || cue.angle === null ? null : roundDirection(cue.angle) };
   }
 
   private cue(text: string, at: WorldPoint): SoundCue {

@@ -205,7 +205,7 @@ export function buildMap(plan: Plan): MapData {
     map.furniture.push(...(f.furniture ?? []).map(p));
     map.saltJars.push(...(f.saltJars ?? []).map(p));
     map.tasks.push(...(f.tasks ?? []).map(p));
-    map.relicSpots.push(...(f.relicSpots ?? []).map(p));
+    map.relicSpots.push(...(f.relicSpots ?? []).map((r) => ({ ...p(r), ...(r.places ? { places: r.places.map(p) } : {}) })));
     map.spawns.push(...(f.spawns ?? []).map(p));
     if (f.bell) map.bell = p(f.bell);
     if (f.fuseBox) map.fuseBox = p(f.fuseBox);

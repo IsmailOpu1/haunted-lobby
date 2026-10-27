@@ -49,6 +49,12 @@ function relic(id: string, label: string, room: string, minigame: RelicSpotDef["
   return { id, label, room, minigame, x, z };
 }
 
+/** A group of places to search (GDD 26.5): the relic hides in one of them, the rest are empty. */
+function relicGroup(id: string, label: string, room: string, minigame: RelicSpotDef["minigame"], places: [number, number][]): RelicSpotDef {
+  const [x, z] = places[0]!;
+  return { id, label, room, minigame, x, z, places: places.map(([px, pz], i) => ({ id: `${id}-${i + 1}`, x: px, z: pz })) };
+}
+
 export const marrowHotelGreybox = buildMap({
   id: "marrow-hotel-greybox",
   name: "Marrow Hotel (grey box)",
@@ -204,7 +210,7 @@ export const marrowHotelGreybox = buildMap({
       relicSpots: [
         relic("relic-library", LOCKBOX, "Library", "lockbox", -22.3, 3.5),
         relic("relic-ballroom", LOCKBOX, "Ballroom", "lockbox", -22.3, -19.3),
-        relic("relic-courtyard", "Dig in the flower bed", "Garden Courtyard", "dig", 5, -10),
+        relicGroup("relic-courtyard", "Dig in the flower bed", "Garden Courtyard", "dig", [[5, -12.2], [5, -10], [5, -7.8]]),
         relic("relic-restaurant", LOCKBOX, "Restaurant", "lockbox", 22.3, 17.8),
         relic("relic-kitchen", "Reach into the drain", "Kitchen", "drain", 19, -5.3),
         relic("relic-service", "Reach into the drain", "Service Room", "drain", 19.5, -21.3),
@@ -303,7 +309,7 @@ export const marrowHotelGreybox = buildMap({
         { id: "jar-laundry", x: 15, z: -12 },
       ],
       tasks: [
-        task("task-shutters", "Close the shutters", "Upper Corridor", "shutters", 0, 2.7, true),
+        task("task-shutters", "Close the shutters", "Upper Corridor", "shutters", 0, 2.7, true, true),
         task("task-portraits", "Straighten the portraits", "Guest Corridor", "portraits", -9.7, -6, true),
         task("task-mirror", "Clean the mirror", "Bridal Suite", "mirror", -0.7, 12),
         task("task-cradle", "Rock the cradle", "Nursery", "cradle", 3, 12, false, true),
@@ -313,11 +319,11 @@ export const marrowHotelGreybox = buildMap({
       ],
       relicSpots: [
         relic("relic-bridal", LOCKBOX, "Bridal Suite", "lockbox", -4.5, 17.8),
-        relic("relic-nursery", "Dig in the plant pot", "Nursery", "dig", 8.3, 17.8),
+        relicGroup("relic-nursery", "Dig in the plant pot", "Nursery", "dig", [[8.3, 17.8], [8.3, 15.5], [6, 17.8]]),
         relic("relic-guest2", LOCKBOX, "Guest Room 2", "lockbox", -22.3, 3.8),
         relic("relic-guest4", LOCKBOX, "Guest Room 4", "lockbox", 22.3, 17.8),
         relic("relic-laundry", "Reach into the drain", "Laundry", "drain", 17, -21.3),
-        relic("relic-guest-corridor", "Dig in the plant pot", "Guest Corridor", "dig", -5, -15.8),
+        relicGroup("relic-guest-corridor", "Dig in the plant pot", "Guest Corridor", "dig", [[-7.5, -15.8], [-5, -15.8], [-2.5, -15.8]]),
       ],
     },
     {
