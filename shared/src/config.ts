@@ -75,11 +75,6 @@ export const config = {
     // How often one player's noisy fails can reach the ghost.
     noiseCooldownSec: 1,
     minigames: {
-      // Shared by every task that uses a match: striking time, and the speed that blows it out.
-      match: { strikeSec: 0.8, outSpeed: 1100 },
-      clock: { tickSec: 0.75, turnsNeeded: 14, onBeatSec: 0.16 },
-      // The letter sways in the draught; keep the flame under it. Heat fades when you lose it.
-      letter: { catchSec: 6, swayUnits: 45, swayPeriodSec: 2.6, coolPerSec: 0.5, burnSec: 1.5 },
       // Follow the swinging guide; rocking too fast makes the baby cry (a noisy fail).
       cradle: { periodSec: 2.2, swingUnits: 150, matchUnits: 40, minUnitsPerSec: 60, fillSec: 11, cryUnitsPerSec: 900, cryLoseSec: 2, cryPauseSec: 1.5 },
       // Press the symbol keys in the order shown; a wrong note is a noisy fail and restarts the round.
@@ -92,20 +87,34 @@ export const config = {
       trunk: { latches: 3, pressSec: 2, turnDegPerSec: 45, popSec: 5 },
       // Fold the sheet in half three times by dragging corners; wet linen is heavy.
       sheets: { folds: 3, dragUnitsPerSec: 110, snapUnits: 30 },
-      // Pour until the line; water keeps flowing a moment after you stop. Overflow empties the vase.
-      roses: { vases: 3, fillSec: 3.5, lagSec: 0.35, line: 0.75, rim: 0.95 },
-      // Level each crooked portrait; one keeps tilting back once.
-      portraits: { count: 3, minTiltDeg: 20, maxTiltDeg: 35, turnDegPerSec: 15, levelDeg: 2, holdSec: 0.6, hauntedReturnDeg: 25 },
-      // Pressure from 0 to 1. Each valve position gives a steady pressure (fully open lowers it
-      // by dropFullOpen); the needle follows with a lag, and draughts push it about a little.
-      boiler: { startPressure: 0.95, safeMin: 0.45, safeMax: 0.6, holdSec: 3, dropFullOpen: 0.8, followPerSec: 1.5, wobble: 0.07, turnDegPerSec: 30, maxOpenDeg: 360 },
     },
     // Hands-on tasks in the 3D world (GDD 26.5), each aimed at 10 to 20 s. Mouse movement is
     // in screen pixels; "Px" numbers are how far you move the mouse while holding the button.
     hands: {
-      // Flick down while holding the button to strike (a weaker flick only sparks). Hold the
-      // flame on each wick until it catches; turning the view faster than outRadPerSec blows it out.
-      candelabra: { wicks: 5, lightSec: 1.5, coolPerSec: 1, burnSec: 8, strikePxPerSec: 1500, sparkPxPerSec: 600, newMatchSec: 1, outRadPerSec: 3.5, aimM: 0.045 },
+      // A match in your hand (candelabra, letter): flick down while holding the button to strike
+      // it (a weaker flick only sparks). It burns burnSec; turning the view faster than
+      // outRadPerSec blows it out, and a new one takes newMatchSec to reach for.
+      match: { burnSec: 8, strikePxPerSec: 1500, sparkPxPerSec: 600, newMatchSec: 1, outRadPerSec: 3.5 },
+      // Hold the flame on each wick (within aimM of its tip) until it catches; it cools off the flame.
+      candelabra: { wicks: 5, lightSec: 1.5, coolPerSec: 1, aimM: 0.045 },
+      // The letter hangs from the mantel and sways in the draught (swayM each way). Keep the flame
+      // within aimM under it until it has had catchSec of heat; it cools off the flame. Then it
+      // burns for burnSec and drops into the grate.
+      letter: { catchSec: 6, coolPerSec: 0.6, burnSec: 1.5, swayM: 0.14, swayPeriodSec: 2.6, aimM: 0.07 },
+      // Wind the clock with its key, a quarter turn (pxPerQuarter of dragging) on each tick. A
+      // quarter finished more than beatSec from a tick, or two on one tick, slips back slipQuarters.
+      clock: { quarters: 12, tickSec: 0.8, pxPerQuarter: 110, beatSec: 0.2, slipQuarters: 2 },
+      // Turn the heavy valve wheel (at most maxDegPerSec) to bring the gauge's needle into the safe
+      // band and keep it there holdSec. Each wheel position gives a steady pressure (fully open lowers
+      // it by dropFullOpen); the needle follows with a lag and draughts wobble it.
+      boiler: { degPerPx: 0.3, maxDegPerSec: 60, maxOpenDeg: 360, startPressure: 0.95, dropFullOpen: 0.8, followPerSec: 1.2, wobble: 0.04, safeMin: 0.45, safeMax: 0.6, holdSec: 5 },
+      // Grab a crooked portrait and drag sideways to level it (heavy: at most maxDegPerSec). Let go
+      // within levelDeg and it settles after holdSec. One is haunted and swings crooked once more.
+      portraits: { count: 3, minTiltDeg: 20, maxTiltDeg: 35, degPerPx: 0.15, maxDegPerSec: 18, levelDeg: 2, holdSec: 1, hauntedReturnDeg: 25 },
+      // A watering can in your hand: hold the button to tip it (tiltSec to tip fully or back) and
+      // pour into the vase you aim at; a full pour fills one in fillSec. Stop between the line and
+      // the rim; past the rim it overflows and must be emptied (start that vase again).
+      roses: { vases: 3, fillSec: 4.5, tiltSec: 0.4, line: 0.75, rim: 0.95 },
       // Drag each shutter shut (open 1 to shut 0) and hold it until the latch clicks. The wind
       // pulls on it, and gusts you can hear coming pull harder. Let go nearly shut and it slams.
       shutters: { count: 3, pxToClose: 420, windPerSec: 0.08, gustEverySec: [2.5, 4.5], warnSec: 0.9, gustSec: 1.1, gustPerSec: 0.9, heldGustFactor: 0.6, latchAt: 0.05, latchSec: 2.2, slamBelow: 0.4 },

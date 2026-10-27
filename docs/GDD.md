@@ -197,17 +197,17 @@ Everyone starts with the same three items.
 | Task | Room | Minigame | Visible? | Noisy? |
 |---|---|---|---|---|
 | Light the candelabra | Restaurant | Light 5 wicks with a match. Move too fast and the match goes out | Yes | No |
-| Turn the boiler valve | Laundry | Turn the mouse slowly until the pressure needle sits in the safe zone for 3 s | No | No |
+| Turn the boiler valve | Laundry | Turn the heavy valve wheel until the gauge's needle sits in the safe zone for 5 s | No | No |
 | Repair the switchboard | Reception | Connect 4 cables by matching symbols | No | No |
-| Burn the cursed letter | Library | Hold a match under the letter until it catches fire | Yes (fireplace) | No |
-| Wind the grandfather clock | Main Hall | Turn the key in rhythm with the ticks | Yes (pendulum) | No |
+| Burn the cursed letter | Library | Hold a match under the swaying letter until it catches fire | Yes (fireplace) | No |
+| Wind the grandfather clock | Main Hall | Turn the key a quarter on each tick | Yes (pendulum) | No |
 | Clean the mirror | Bridal Suite | Wipe the fog away. Sometimes a face appears behind you (scare only) | No | No |
 | Seal the old trunk | Staff Quarters | Press the lid down and turn 3 latches | No | No |
 | Tune the piano | Ballroom | Press the keys shown by symbols, in order | No | Yes |
 | Turn off the stove | Kitchen | Turn 3 knobs to the off mark | No | No |
 | Fold the bedsheets | Guest Room | Drag the 4 corners together | No | No |
 | Rock the cradle | Nursery | Move the mouse gently in rhythm. Too fast and the baby cries | No | Yes |
-| Water the dead roses | Garden Courtyard | Pour until the line. Overflow and start again | No | No |
+| Water the dead roses | Garden Courtyard | Pour from a watering can until the line. Overflow and start again | No | No |
 | Close the shutters | Upper Corridor | Drag 3 shutters closed against the wind | Yes | Yes (a shutter let go too early bangs open) |
 
 ---
@@ -733,6 +733,7 @@ Real-mic ghost hearing with mic calibration, the Spirit Camera, Wisps with the O
 | 2026-10-26 | "Hang the room keys" removed from the task list (Section 9). The Guest Corridor gets a new task, still to be chosen | Owner playtest (Phase 4): it did not feel like a task and was not fun |
 | 2026-10-26 | Tasks and relic taking become **interactions in the 3D world**, not 2D minigame windows: you handle the real object in first person (dig the soil with a trowel, light the real candles with the match in your hand, pour into the real vases, push the real shutters shut, straighten the real paintings). Relics are found by following the whisper, which grows louder and clearer up close, among searchable spots that are mostly empty; no prompt gives a relic away. Interactions ask for skill and reading sounds and objects, not busywork. You stay in the room while you work, so the ghost can hear and reach you. The rework comes after Phase 5, on the full map's real furniture; Phase 5 builds that furniture as separate objects the interactions can attach to | Owner playtest (Phase 4): the 2D minigames were flat, too easy and not fun ("it feels stupid because it's so easy") |
 | 2026-10-27 | Owner approved the hands-on plan (`docs/plans/interaction-rework.md`). The left mouse button is your hand while you work, and the flashlight moves to key 1 only. Others see your hands mid-task only with the Phase 8 character models. Each relic spot becomes a group of 3 or 4 places to search; an empty place takes about 3 s and makes a small noise. The whisper subtitle says faint, close or very close, and its arrow (8 directions) shows only beyond 3 m. Close the shutters becomes a noisy task (Section 9) | Owner approval of the plan's four questions |
+| 2026-10-27 | Second batch of hands-on tasks built in the 3D world, as in the approved plan's Part 5: burn the letter, wind the clock, turn the boiler valve, straighten the portraits, water the roses (details in `docs/plans/interaction-rework.md`). The boiler holds 5 s in the safe zone (was 3 s) because its wheel is now heavy and slow | Owner: keep building before the playtest |
 | 2026-10-27 | Tasks are dealt like cards: no task is given to a second player while another is still free, and a visible task never goes to two players (unless nothing else is left). With 14 tasks, 4 of them visible, 8 players × 3 tasks fits exactly | Owner playtest: asked whether players share tasks. Two players with the same visible task would confuse the "who did it" clue |
 | 2026-10-27 | The relic whisper falls quiet once the server tells you the relic is in the place you're searching, and is softer up close | Owner playtest: the whisper kept sounding at full strength while digging out a relic already found |
 | 2026-10-27 | Fewer doors and signs over every doorway (Section 26.11) | Owner playtest: rooms with 3 or 4 doors made the hotel "a living maze" |

@@ -1,15 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { config } from "@haunted/shared";
-import { Boiler } from "./boiler.ts";
-import { Clock } from "./clock.ts";
 import { Cradle } from "./cradle.ts";
-import { Letter } from "./letter.ts";
 import { Piano } from "./piano.ts";
 import { Drain } from "./drain.ts";
 import { Lockbox } from "./lockbox.ts";
 import { Mirror } from "./mirror.ts";
-import { Portraits } from "./portraits.ts";
-import { Roses } from "./roses.ts";
 import { Sheets } from "./sheets.ts";
 import { Switchboard } from "./switchboard.ts";
 import { Trunk } from "./trunk.ts";
@@ -120,36 +115,6 @@ function hand(start: Point) {
 const MATCHBOX = { x: 90, y: 345 };
 
 describe.each(SEEDS)("minigames (seed %i)", (seed) => {
-  it("clock: click on every tick, finish in time", () => {
-    seedRandom(seed);
-    const tick = config.tasks.minigames.clock.tickSec;
-    let next = tick + 0.05; // a little after each tick, like a person reacting
-    const run = play(
-      (s) => new Clock(s),
-      (game, t) => {
-        if (t < next) return;
-        next += tick;
-        game.pointerDown();
-      },
-    );
-    expectGoodTime(run);
-    expect(run.sounds).not.toContain("wrong");
-  });
-
-  it("letter: strike, follow the swaying letter, finish in time", () => {
-    seedRandom(seed);
-    const h = hand(MATCHBOX);
-    const run = play(
-      (s) => new Letter(s),
-      (game, t) => {
-        if (t === 0) return game.pointerDown?.(h.at);
-        if (!g(game).match.lit) return;
-        h.moveTo(game, { x: g(game).letterX(), y: 70 + 120 + 20 });
-      },
-    );
-    expectGoodTime(run);
-  });
-
   it("cradle: rock with the guide, finish in time without crying", () => {
     seedRandom(seed);
     const run = play(
@@ -178,72 +143,9 @@ describe.each(SEEDS)("minigames (seed %i)", (seed) => {
     expect(run.sounds).not.toContain("badNote");
   });
 
-  it("boiler: steer the needle into the green, finish in time", () => {
-    seedRandom(seed);
-    const b = config.tasks.minigames.boiler;
-    let angle = 0;
-    const run = play(
-      (s) => new Boiler(s),
-      (game, t) => {
-        if (t === 0) game.pointerDown?.({ x: 470, y: 160 });
-        // Open while the needle is above the green, close while below, gently.
-        const p = g(game).pressure;
-        const mid = (b.safeMin + b.safeMax) / 2;
-        const dir = p > mid + 0.03 ? 1 : p < mid - 0.03 ? -1 : 0;
-        angle += dir * b.turnDegPerSec * 0.9 * DT;
-        const r = (angle * Math.PI) / 180;
-        game.pointerMove?.({ x: 470 + Math.sin(r) * 70, y: 230 - Math.cos(r) * 70 });
-      },
-    );
-    expectGoodTime(run);
-  });
 });
 
 describe("minigame mistakes", () => {
-  it("letter: a fast flick puts the match out", () => {
-    for (const make of [(s: (k: TaskSoundKind) => void) => new Letter(s)]) {
-      const sounds: TaskSoundKind[] = [];
-      const game = make((k) => sounds.push(k));
-      game.pointerDown(MATCHBOX);
-      for (let t = 0; t < 1; t += DT) game.update(DT);
-      expect(g(game).match.lit).toBe(true);
-      // A flick across the whole board in a tenth of a second.
-      for (let i = 1; i <= 6; i++) {
-        game.pointerMove({ x: 90 + i * 90, y: 345 - i * 40 });
-        game.update(DT);
-      }
-      expect(g(game).match.lit).toBe(false);
-      expect(sounds).toContain("fizz");
-    }
-  });
-
-  it("letter: the heat fades when the flame leaves the letter", () => {
-    const game = new Letter(() => {});
-    g(game).heat = 3;
-    for (let t = 0; t < 2; t += DT) game.update(DT);
-    expect(g(game).heat).toBeCloseTo(3 - 2 * config.tasks.minigames.letter.coolPerSec, 1);
-  });
-
-  it("clock: a click off the beat slips the key back", () => {
-    const sounds: TaskSoundKind[] = [];
-    const game = new Clock((k) => sounds.push(k));
-    g(game).turns = 3;
-    const tick = config.tasks.minigames.clock.tickSec;
-    for (let t = 0; t < tick * 1.5; t += DT) game.update(DT); // halfway between ticks
-    game.pointerDown();
-    expect(g(game).turns).toBe(2);
-    expect(sounds).toContain("wrong");
-  });
-
-  it("clock: clicking twice on the same tick counts once", () => {
-    const game = new Clock(() => {});
-    const tick = config.tasks.minigames.clock.tickSec;
-    for (let t = 0; t < tick + 0.02; t += DT) game.update(DT);
-    game.pointerDown();
-    game.pointerDown();
-    expect(g(game).turns).toBeLessThanOrEqual(1);
-  });
-
   it("cradle: rocking too fast makes the baby cry and costs progress", () => {
     const sounds: TaskSoundKind[] = [];
     const game = new Cradle((k) => sounds.push(k));
@@ -276,12 +178,6 @@ describe("minigame mistakes", () => {
     expect(sounds).toContain("badNote");
   });
 
-  it("boiler: with the valve shut, the needle stays in the red and never finishes", () => {
-    const game = new Boiler(() => {});
-    for (let t = 0; t < 20; t += DT) game.update(DT);
-    expect(g(game).pressure).toBeGreaterThan(config.tasks.minigames.boiler.safeMax);
-    expect(game.done).toBe(false);
-  });
 });
 
 // ---------- The Phase 4 additions: seven more tasks and the three relic games ----------
@@ -391,56 +287,6 @@ describe.each(SEEDS)("new minigames (seed %i)", (seed) => {
       },
     );
     expectGoodTime(run);
-  });
-
-  it("roses: fill each vase to the line, finish in time", () => {
-    seedRandom(seed);
-    const r = config.tasks.minigames.roses;
-    const aim = (r.line + r.rim) / 2;
-    const h = hand({ x: 320, y: 130 });
-    const run = play(
-      (s) => new Roses(s),
-      (game) => {
-        const pouring = g(game).held && g(game).stream;
-        // Stop early: the water keeps running for lagSec.
-        if (pouring) {
-          if (pouring.level + r.lagSec / r.fillSec >= aim) game.pointerUp();
-          return;
-        }
-        const v = g(game).vases.find((v: { level: number }) => v.level < r.line);
-        if (!v) return;
-        const over = { x: v.x, y: 130 };
-        if (Math.hypot(h.at.x - over.x, h.at.y - over.y) > 1) return h.moveTo(game, over);
-        if (g(game).runOn > 0) return;
-        game.pointerDown?.(h.at);
-      },
-    );
-    expectGoodTime(run);
-    expect(run.sounds).not.toContain("wrong");
-  });
-
-  it("portraits: level each one (and the haunted one twice), finish in time", () => {
-    seedRandom(seed);
-    const c = config.tasks.minigames.portraits;
-    const h = hand({ x: 320, y: 220 });
-    const run = play(
-      (s) => new Portraits(s),
-      (game) => {
-        if (g(game).haunt) return; // wait while it swings back
-        const held = g(game).held;
-        if (held) {
-          if (Math.abs(held.tilt) <= 0.5) return game.pointerUp();
-          return h.moveTo(game, { x: g(game).grab.x - g(game).grab.tilt / 0.25, y: h.at.y });
-        }
-        const p = g(game).portraits.find((p: { level: boolean; tilt: number }) => !p.level && Math.abs(p.tilt) > c.levelDeg);
-        if (!p) return;
-        const centre = g(game).centre(p) as Point;
-        if (Math.hypot(h.at.x - centre.x, h.at.y - centre.y) > 1) return h.moveTo(game, centre);
-        game.pointerDown?.(h.at);
-      },
-    );
-    expectGoodTime(run);
-    expect(run.sounds).toContain("scare");
   });
 
   it("lockbox: lift each pin into the band, finish in time", () => {
@@ -554,39 +400,6 @@ describe("new minigame mistakes", () => {
     game.pointerMove({ x: 100, y: start.y });
     game.update(0.5);
     expect(start.x - g(game).corner.x).toBeCloseTo(config.tasks.minigames.sheets.dragUnitsPerSec * 0.5, 3);
-  });
-
-  it("roses: overflowing a vase empties it", () => {
-    const sounds: TaskSoundKind[] = [];
-    const game = new Roses((k) => sounds.push(k));
-    const v = g(game).vases[0];
-    game.pointerDown({ x: v.x, y: 130 });
-    for (let t = 0; t < config.tasks.minigames.roses.fillSec * 1.2; t += DT) game.update(DT);
-    expect(sounds).toContain("wrong");
-    expect(v.level).toBeLessThan(config.tasks.minigames.roses.line);
-  });
-
-  it("roses: water keeps running after you stop", () => {
-    const r = config.tasks.minigames.roses;
-    const game = new Roses(() => {});
-    const v = g(game).vases[0];
-    game.pointerDown({ x: v.x, y: 130 });
-    game.update(1);
-    game.pointerUp();
-    const before = v.level;
-    for (let t = 0; t < 1; t += DT) game.update(DT);
-    expect(v.level - before).toBeCloseTo(r.lagSec / r.fillSec, 1);
-  });
-
-  it("portraits: the haunted one swings back only once", () => {
-    const sounds: TaskSoundKind[] = [];
-    const game = new Portraits((k) => sounds.push(k));
-    for (let round = 0; round < 2; round++) {
-      for (const p of g(game).portraits) p.tilt = 0;
-      for (let t = 0; t < 3; t += DT) game.update(DT);
-    }
-    expect(sounds.filter((s) => s === "scare")).toHaveLength(1);
-    expect(game.done).toBe(true);
   });
 
   it("lockbox: letting go outside the band drops the pin", () => {

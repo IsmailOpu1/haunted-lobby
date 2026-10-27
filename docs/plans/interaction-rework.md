@@ -102,3 +102,19 @@ The old 2D windows stay working for these until each is replaced, then they are 
 - The shutters latch after **2.2 s** held shut (not 1.5 s), so a steady player still takes at least 10 s for the three (GDD 9).
 - An empty dig takes about **2.6 s** at the steadiest fast pace and about 4 s at a calm one. Digging is judged over 0.2 s, so mouse events bunching up between frames don't count as frantic.
 - Checked in the browser: candelabra (two matches for 5 wicks), shutters (8.8 s), stove (about 7 s), digging (empty place gives "Nothing here."; the right place gives "Something is down there", then the relic at about 13 s).
+
+## Second batch: as built (2026-10-27)
+
+The owner asked to keep building before playtesting the first batch. These five reuse the first batch's controls (a match, turning, dragging, a tool in hand):
+
+| Task | In the world | Steady player, in the browser |
+|---|---|---|
+| Burn the cursed letter | The letter hangs on a string under the mantel and sways in the draught. Strike a match and keep the flame just under it for 6 s of heat (it cools when the flame slips away), then it burns and drops into the grate | 8 s |
+| Wind the grandfather clock | Grab the key on the clock face and drag it round a quarter turn on each tick (12 quarters). Off the beat, or two on one tick, it slips back 2 | 9.9 s |
+| Turn the boiler valve | Grab the heavy wheel (it turns at most 60° a second) and watch the real gauge: bring the needle into the green band and keep it there 5 s. The needle lags and wobbles | 10.7 s |
+| Straighten the portraits | Grab a crooked frame and drag sideways to level it (heavy: 18° a second at most), then let go; it settles after 1 s. One is haunted and swings crooked once more | 15.6 s |
+| Water the dead roses | A watering can in your hand: aim at a vase and hold the button to tip it. The can rights itself slowly, so stop a little before the painted line; past the rim it overflows and empties | 13.9 s |
+
+- The match is shared by the candelabra and the letter (`tasks.hands.match`).
+- Their old 2D windows are removed. Still in 2D windows: switchboard, mirror, trunk, piano, sheets, cradle, and the lockbox and drain relic spots (the third batch).
+

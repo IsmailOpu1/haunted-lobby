@@ -1,35 +1,25 @@
 import type { MinigameKind } from "@haunted/shared";
-import { Boiler } from "./boiler.ts";
-import { Clock } from "./clock.ts";
 import { Cradle } from "./cradle.ts";
 import { Drain } from "./drain.ts";
-import { Letter } from "./letter.ts";
 import { Lockbox } from "./lockbox.ts";
 import { Mirror } from "./mirror.ts";
 import { Piano } from "./piano.ts";
-import { Portraits } from "./portraits.ts";
-import { Roses } from "./roses.ts";
 import { Sheets } from "./sheets.ts";
 import { Switchboard } from "./switchboard.ts";
 import { Trunk } from "./trunk.ts";
 import { BOARD_H, BOARD_W, NOISY_SOUNDS, type Minigame, type PlaySound, type Point } from "./types.ts";
 
 /** The tasks done with your hands in the 3D world instead (GDD 26.5, client/src/hands). */
-export type HandsKind = "candelabra" | "stove" | "shutters" | "dig";
-export const HANDS_KINDS: ReadonlySet<MinigameKind> = new Set<HandsKind>(["candelabra", "stove", "shutters", "dig"]);
+export type HandsKind = "candelabra" | "stove" | "shutters" | "dig" | "letter" | "clock" | "boiler" | "portraits" | "roses";
+export const HANDS_KINDS: ReadonlySet<MinigameKind> = new Set<HandsKind>(["candelabra", "stove", "shutters", "dig", "letter", "clock", "boiler", "portraits", "roses"]);
 
 const MAKERS: Record<Exclude<MinigameKind, HandsKind>, (play: PlaySound) => Minigame> = {
-  clock: (play) => new Clock(play),
-  letter: (play) => new Letter(play),
   cradle: (play) => new Cradle(play),
   piano: (play) => new Piano(play),
-  boiler: (play) => new Boiler(play),
   switchboard: (play) => new Switchboard(play),
   mirror: (play) => new Mirror(play),
   trunk: (play) => new Trunk(play),
   sheets: (play) => new Sheets(play),
-  roses: (play) => new Roses(play),
-  portraits: (play) => new Portraits(play),
   // Taking a relic from its hiding spot (GDD 10).
   lockbox: (play) => new Lockbox(play),
   drain: (play) => new Drain(play),

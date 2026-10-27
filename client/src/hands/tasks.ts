@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { config } from "@haunted/shared";
 import type { TaskSoundKind } from "../minigames/types.ts";
 import type { HandsModel } from "../stations.ts";
-import { CandelabraLogic, DigLogic, ShuttersLogic, StoveLogic } from "./logic.ts";
+import { BoilerLogic, CandelabraLogic, ClockLogic, DigLogic, LetterLogic, PortraitsLogic, RosesLogic, ShuttersLogic, StoveLogic } from "./logic.ts";
 
 // Hands-on tasks in the 3D world (GDD 26.5): each one ties its rules (logic.ts) to the real
 // parts of its station (stations.ts) and the tool in your hand.
@@ -235,6 +235,198 @@ class DigTask implements HandsTask {
   }
 }
 
+class LetterTask implements HandsTask {
+  readonly hint = "Hold the mouse button and flick down to strike a match. Keep the flame just under the swaying letter until it catches. Turn slowly, or it goes out.";
+  readonly parts: THREE.Object3D[];
+  readonly tool: THREE.Group;
+  private logic: LetterLogic;
+  private flame: THREE.Mesh;
+  private light: THREE.PointLight;
+
+  constructor(private model: Extract<HandsModel, { kind: "letter" }>, events: HandsEvents) {
+    this.logic = new LetterLogic(events.play);
+    this.parts = [model.letter];
+    ({ tool: this.tool, flame: this.flame, light: this.light } = matchTool());
+  }
+
+  get done() {
+    return this.logic.done;
+  }
+
+  canHold() {
+    return false;
+  }
+
+  glows() {
+    return this.logic.match.lit && !this.logic.caught;
+  }
+
+  update(f: HandsFrame) {
+    const bottom = this.model.bottom.getWorldPosition(_v);
+    const depth = f.ray.origin.distanceTo(bottom);
+    f.ray.at(Math.min(depth, TOOL_REST_M * 2), this.tool.position);
+    this.tool.lookAt(f.ray.origin);
+    const under = f.ray.distanceToPoint(bottom) < config.tasks.hands.letter.aimM;
+    this.logic.update(f.dt, { under, holding: f.holding, dragY: f.dragY, lookSpeed: f.lookSpeed });
+    this.flame.visible = this.logic.match.lit;
+    this.light.intensity = this.logic.match.lit ? 1.2 : 0;
+    const c = config.tasks.hands.letter;
+    this.model.setLetter(this.logic.sway, this.logic.heat / c.catchSec, this.logic.burned / c.burnSec);
+  }
+}
+
+class ClockTask implements HandsTask {
+  readonly hint = "Point at the key, hold the mouse button and drag right to turn it: one quarter turn on each tick. Off the beat, it slips back.";
+  readonly parts: THREE.Object3D[];
+  private logic: ClockLogic;
+
+  constructor(private model: Extract<HandsModel, { kind: "clock" }>, events: HandsEvents) {
+    this.logic = new ClockLogic(events.play);
+    this.parts = [model.key];
+    model.setKey(0);
+  }
+
+  get done() {
+    return this.logic.done;
+  }
+
+  canHold(part: string) {
+    return part === "key";
+  }
+
+  glows(part: string) {
+    return this.canHold(part);
+  }
+
+  update(f: HandsFrame) {
+    this.logic.update(f.dt, { holding: f.held === "key", dragX: f.dragX });
+    this.model.setKey(this.logic.keyDeg);
+  }
+}
+
+class BoilerTask implements HandsTask {
+  readonly hint = "Point at the wheel, hold the mouse button and drag right to open the valve, left to close it. Bring the needle into the green and keep it there.";
+  readonly parts: THREE.Object3D[];
+  private logic: BoilerLogic;
+
+  constructor(private model: Extract<HandsModel, { kind: "boiler" }>, events: HandsEvents) {
+    this.logic = new BoilerLogic(events.play);
+    this.parts = model.wheel;
+  }
+
+  get done() {
+    return this.logic.done;
+  }
+
+  canHold(part: string) {
+    return part === "wheel";
+  }
+
+  glows(part: string) {
+    return this.canHold(part);
+  }
+
+  update(f: HandsFrame) {
+    this.logic.update(f.dt, { holding: f.held === "wheel", dragX: f.dragX });
+    this.model.setValve(this.logic.openDeg, this.logic.pressure);
+  }
+}
+
+class PortraitsTask implements HandsTask {
+  readonly hint = "Point at a crooked portrait, hold the mouse button and drag sideways to level it, then let go. They are heavy: turn them slowly.";
+  readonly parts: THREE.Object3D[];
+  private logic: PortraitsLogic;
+
+  constructor(private model: Extract<HandsModel, { kind: "portraits" }>, events: HandsEvents) {
+    this.logic = new PortraitsLogic(events.play);
+    this.parts = model.frames;
+    model.setTilt(this.logic.tilt);
+  }
+
+  get done() {
+    return this.logic.done;
+  }
+
+  canHold(part: string) {
+    const i = index(part, "portrait");
+    return i !== null && !this.logic.level[i];
+  }
+
+  glows(part: string) {
+    return this.canHold(part);
+  }
+
+  update(f: HandsFrame) {
+    this.logic.update(f.dt, { held: index(f.held, "portrait"), dragX: f.dragX });
+    this.model.setTilt(this.logic.tilt);
+  }
+}
+
+/** How far above a vase's middle the can's spout sits while you pour. */
+const SPOUT_ABOVE_M = 0.3;
+/** How far the can tips forward when fully tipped. */
+const CAN_TIP_RAD = 1.0;
+
+class RosesTask implements HandsTask {
+  readonly hint = "Aim the watering can at a vase and hold the mouse button to pour. Stop between the line and the rim: water keeps coming a moment after you let go.";
+  readonly parts: THREE.Object3D[];
+  readonly tool: THREE.Group;
+  private logic: RosesLogic;
+  private can: THREE.Group;
+  private stream: THREE.Mesh;
+
+  constructor(private model: Extract<HandsModel, { kind: "roses" }>, events: HandsEvents) {
+    this.logic = new RosesLogic(events.play);
+    this.parts = model.vases;
+    this.tool = new THREE.Group();
+    this.can = new THREE.Group();
+    const tin = new THREE.MeshLambertMaterial({ color: 0x5f6f66 });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.16, 12), tin);
+    body.position.z = 0.1;
+    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, 0.18, 6), tin);
+    spout.rotation.x = Math.PI / 2.6;
+    spout.position.set(0, 0.04, -0.02);
+    this.can.add(body, spout);
+    this.tool.add(this.can);
+    this.stream = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 1, 6), new THREE.MeshLambertMaterial({ color: 0x5a7a98, transparent: true, opacity: 0.7 }));
+    this.stream.visible = false;
+    this.tool.add(this.stream);
+    model.setWater(this.logic.water);
+  }
+
+  get done() {
+    return this.logic.done;
+  }
+
+  canHold() {
+    return false;
+  }
+
+  glows(part: string) {
+    const i = index(part, "vase");
+    return i !== null && this.logic.water[i]! < config.tasks.hands.roses.line;
+  }
+
+  update(f: HandsFrame) {
+    const vase = index(f.aim, "vase");
+    this.logic.update(f.dt, { vase, holding: f.holding });
+    this.model.setWater(this.logic.water);
+    // The can hangs over the vase you aim at, or in front of you; it tips as you pour.
+    const target = vase !== null ? this.model.vases[vase]!.getWorldPosition(_v) : null;
+    if (target) this.tool.position.set(target.x, target.y + SPOUT_ABOVE_M, target.z);
+    else f.ray.at(TOOL_REST_M, this.tool.position);
+    this.tool.position.addScaledVector(f.ray.direction, -0.12);
+    this.tool.rotation.set(0, Math.atan2(-f.ray.direction.x, -f.ray.direction.z), 0);
+    this.can.rotation.x = -this.logic.tilt * CAN_TIP_RAD;
+    this.stream.visible = this.logic.tilt > 0.3;
+    if (this.stream.visible) {
+      const fall = target ? SPOUT_ABOVE_M - 0.1 : 0.8;
+      this.stream.scale.y = fall;
+      this.stream.position.set(0, -fall / 2, -0.1);
+    }
+  }
+}
+
 /** The hands-on task for a station's or place's parts. */
 export function createHandsTask(model: HandsModel, events: HandsEvents): HandsTask {
   switch (model.kind) {
@@ -246,5 +438,15 @@ export function createHandsTask(model: HandsModel, events: HandsEvents): HandsTa
       return new StoveTask(model, events);
     case "dig":
       return new DigTask(model, events);
+    case "letter":
+      return new LetterTask(model, events);
+    case "clock":
+      return new ClockTask(model, events);
+    case "boiler":
+      return new BoilerTask(model, events);
+    case "portraits":
+      return new PortraitsTask(model, events);
+    case "roses":
+      return new RosesTask(model, events);
   }
 }

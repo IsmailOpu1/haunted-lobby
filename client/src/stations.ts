@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { searchPlaces, type MapData, type RelicMinigame, type TaskMinigame } from "@haunted/shared";
+import { config, searchPlaces, type MapData, type RelicMinigame, type TaskMinigame } from "@haunted/shared";
 import { liftToFloor } from "./place.ts";
 
 // Placeholder task station models until the Phase 8 art pass. Visible tasks (GDD 9) show
@@ -16,6 +16,14 @@ const PENDULUM_SWING_RAD = 0.3;
 const PENDULUM_PERIOD_SEC = 1.5;
 const CANDLE_LIGHT = 2.5;
 const SHUTTER_OPEN_RAD = 1.9;
+/** The letter hangs this far below its hook on the mantel. */
+const LETTER_DROP_M = 0.2;
+const LETTER_HEIGHT_M = 0.2;
+const PAPER = 0xe9dfc6;
+const SCORCH = 0x3a2010;
+/** A gauge's needle sweeps this far each way from straight up, from no pressure to full. */
+const GAUGE_SWEEP_RAD = (135 * Math.PI) / 180;
+const VASE_HEIGHT_M = 0.3;
 /** How deep a dug pot's soil goes, and how far down a searched (empty) one stays. */
 const DIG_DEPTH_M = 0.3;
 const SEARCHED_DEPTH = 0.4;
@@ -28,7 +36,12 @@ export type HandsModel =
   | { kind: "candelabra"; wicks: THREE.Mesh[]; tips: THREE.Object3D[]; setLit(lit: readonly boolean[]): void }
   | { kind: "stove"; knobs: THREE.Mesh[]; setKnobs(angleDeg: readonly number[], flame: readonly number[]): void }
   | { kind: "shutters"; panels: THREE.Mesh[]; setOpen(open: readonly number[]): void }
-  | { kind: "dig"; soil: THREE.Mesh; setDepth(depth: number, relicShows: boolean): void };
+  | { kind: "dig"; soil: THREE.Mesh; setDepth(depth: number, relicShows: boolean): void }
+  | { kind: "letter"; letter: THREE.Mesh; bottom: THREE.Object3D; setLetter(swayM: number, heat: number, burned: number): void }
+  | { kind: "clock"; key: THREE.Mesh; setKey(angleDeg: number): void }
+  | { kind: "boiler"; wheel: THREE.Mesh[]; setValve(openDeg: number, pressure: number): void }
+  | { kind: "portraits"; frames: THREE.Mesh[]; setTilt(deg: readonly number[]): void }
+  | { kind: "roses"; vases: THREE.Mesh[]; setWater(levels: readonly number[]): void };
 
 interface StationView {
   group: THREE.Group;
@@ -124,6 +137,13 @@ function clock(): StationView {
   const face = new THREE.Mesh(new THREE.CircleGeometry(0.2, 24), new THREE.MeshLambertMaterial({ color: 0xe9dfc6 }));
   face.position.set(0, 1.75, 0.18);
   group.add(face);
+  // The winding key in its hole below the hands; it turns about the axis pointing at you.
+  const keyPivot = new THREE.Group();
+  keyPivot.position.set(0, 1.66, 0.19);
+  keyPivot.add(box(0.012, 0.012, 0.03, BRASS, 0, 0, 0.015));
+  const key = part(box(0.08, 0.045, 0.012, BRASS, 0, 0, 0.035), "key");
+  keyPivot.add(key);
+  group.add(keyPivot);
   const pivot = new THREE.Group();
   pivot.position.set(0, 1.35, 0.19);
   pivot.add(box(0.02, 0.55, 0.02, BRASS, 0, -0.275, 0));
@@ -142,6 +162,7 @@ function clock(): StationView {
     update(time) {
       if (swinging) pivot.rotation.z = Math.sin((time / PENDULUM_PERIOD_SEC) * Math.PI * 2) * PENDULUM_SWING_RAD;
     },
+    hands: { kind: "clock", key, setKey: (deg) => (keyPivot.rotation.z = (-deg * Math.PI) / 180) },
   };
 }
 
@@ -203,17 +224,42 @@ function fireplace(): StationView {
   const light = new THREE.PointLight(0xff7a30, 0, FIRE_LIGHT_RANGE_M, 2);
   light.position.set(0, 0.5, 0.5);
   group.add(light);
+  // The cursed letter hangs on a string from a hook under the mantel, swaying in the draught.
+  const hook = new THREE.Group();
+  hook.position.set(0, 1.1, 0.3);
+  hook.add(box(0.004, LETTER_DROP_M, 0.004, 0x8a8070, 0, -LETTER_DROP_M / 2, 0));
+  const paper = new THREE.MeshLambertMaterial({ color: PAPER });
+  const letter = part(new THREE.Mesh(new THREE.BoxGeometry(0.15, LETTER_HEIGHT_M, 0.004), paper), "letter");
+  letter.position.y = -LETTER_DROP_M - LETTER_HEIGHT_M / 2;
+  hook.add(letter);
+  // Where the flame must be: just under the letter's bottom edge.
+  const bottom = new THREE.Object3D();
+  bottom.position.y = -LETTER_DROP_M - LETTER_HEIGHT_M - 0.02;
+  hook.add(bottom);
+  group.add(hook);
+  const paperColor = new THREE.Color(PAPER);
+  const scorch = new THREE.Color(SCORCH);
+  const setLetter = (swayM: number, heat: number, burned: number) => {
+    hook.rotation.z = -Math.atan2(swayM, LETTER_DROP_M + LETTER_HEIGHT_M);
+    paper.color.copy(paperColor).lerp(scorch, Math.min(1, heat) * 0.6);
+    paper.emissive.setHex(burned > 0 ? 0xff6a20 : 0x000000);
+    letter.scale.y = Math.max(0.05, 1 - burned);
+    letter.position.y = -LETTER_DROP_M - (LETTER_HEIGHT_M * letter.scale.y) / 2;
+    letter.visible = burned < 1;
+  };
   return {
     group,
     setDone(done) {
       for (const f of flames) f.visible = done;
       light.intensity = done ? 3 : 0;
+      setLetter(0, 0, done ? 1 : 0);
     },
     update(time) {
       if (light.intensity === 0) return;
       light.intensity = 3 + Math.sin(time * 9) * 0.4 + Math.sin(time * 23) * 0.3;
       flames.forEach((f, i) => (f.scale.y = 1 + Math.sin(time * 11 + i * 2) * 0.2));
     },
+    hands: { kind: "letter", letter, bottom, setLetter },
   };
 }
 
@@ -237,10 +283,38 @@ function boiler(): StationView {
   const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 1.8, 16), new THREE.MeshLambertMaterial({ color: 0x4a3a2a }));
   tank.position.set(0, 0.9, -0.1);
   group.add(tank);
-  const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.025, 6, 16), new THREE.MeshLambertMaterial({ color: 0xa8392a }));
-  wheel.position.set(0.25, 1.1, 0.4);
-  group.add(wheel);
-  return { group, setDone() {} };
+  // The valve wheel turns about the axis pointing at you; its rim and spokes are all handles.
+  const wheelPivot = new THREE.Group();
+  wheelPivot.position.set(0.25, 1.1, 0.42);
+  const red = 0xa8392a;
+  const rim = part(new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.025, 6, 16), new THREE.MeshLambertMaterial({ color: red })), "wheel");
+  const spokeA = part(box(0.28, 0.025, 0.025, red), "wheel");
+  const spokeB = part(box(0.025, 0.28, 0.025, red), "wheel");
+  wheelPivot.add(rim, spokeA, spokeB);
+  group.add(wheelPivot);
+  // The pressure gauge: a dial with a green safe band and a needle.
+  const gauge = new THREE.Group();
+  gauge.position.set(-0.2, 1.4, 0.37);
+  gauge.add(new THREE.Mesh(new THREE.CircleGeometry(0.12, 24), new THREE.MeshLambertMaterial({ color: 0xe9dfc6 })));
+  const { safeMin, safeMax } = config.tasks.hands.boiler;
+  const angleOf = (p: number) => GAUGE_SWEEP_RAD - p * 2 * GAUGE_SWEEP_RAD; // from straight up, counterclockwise
+  const band = new THREE.Mesh(
+    new THREE.RingGeometry(0.085, 0.11, 16, 1, Math.PI / 2 + angleOf(safeMax), angleOf(safeMin) - angleOf(safeMax)),
+    new THREE.MeshLambertMaterial({ color: 0x3e8a4a }),
+  );
+  band.position.z = 0.002;
+  gauge.add(band);
+  const needle = new THREE.Group();
+  needle.position.z = 0.004;
+  needle.add(box(0.008, 0.1, 0.004, 0x1a1010, 0, 0.05, 0));
+  gauge.add(needle);
+  group.add(gauge);
+  const setValve = (openDeg: number, pressure: number) => {
+    wheelPivot.rotation.z = (-openDeg * Math.PI) / 180;
+    needle.rotation.z = angleOf(Math.max(0, Math.min(1, pressure)));
+  };
+  setValve(0, config.tasks.hands.boiler.startPressure);
+  return { group, setDone() {}, hands: { kind: "boiler", wheel: [rim, spokeA, spokeB], setValve } };
 }
 
 function switchboard(): StationView {
@@ -277,14 +351,37 @@ function sheets(): StationView {
 function roses(): StationView {
   const group = new THREE.Group();
   group.add(box(1.1, 0.75, 0.5, WOOD, 0, 0.375, 0));
-  const glass = new THREE.MeshLambertMaterial({ color: 0xb8c8d0, transparent: true, opacity: 0.5 });
+  const vases: THREE.Mesh[] = [];
+  const waters: THREE.Mesh[] = [];
+  const bottomY = 0.75;
+  const waterMat = new THREE.MeshLambertMaterial({ color: 0x3a5a78, transparent: true, opacity: 0.8 });
   for (let i = -1; i <= 1; i++) {
-    const vase = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.06, 0.3, 10), glass);
-    vase.position.set(i * 0.32, 0.9, 0);
+    const glass = new THREE.MeshLambertMaterial({ color: 0xb8c8d0, transparent: true, opacity: 0.35, depthWrite: false });
+    const vase = part(new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.06, VASE_HEIGHT_M, 10), glass), `vase:${i + 1}`);
+    vase.position.set(i * 0.32, bottomY + VASE_HEIGHT_M / 2, 0);
     group.add(vase);
+    vases.push(vase);
+    const water = new THREE.Mesh(new THREE.CylinderGeometry(0.058, 0.055, 1, 10), waterMat);
+    water.position.set(i * 0.32, bottomY, 0);
+    water.visible = false;
+    group.add(water);
+    waters.push(water);
+    // The line to fill to, painted round the vase.
+    const line = new THREE.Mesh(new THREE.TorusGeometry(0.068, 0.004, 4, 16), new THREE.MeshBasicMaterial({ color: 0x1a1410 }));
+    line.rotation.x = Math.PI / 2;
+    line.position.set(i * 0.32, bottomY + VASE_HEIGHT_M * config.tasks.hands.roses.line, 0);
+    group.add(line);
     group.add(box(0.1, 0.1, 0.1, 0x8a2a36, i * 0.32, 1.12, 0));
   }
-  return { group, setDone() {} };
+  const setWater = (levels: readonly number[]) => {
+    waters.forEach((w, i) => {
+      const h = VASE_HEIGHT_M * Math.max(0, levels[i] ?? 0);
+      w.visible = h > 0.002;
+      w.scale.y = Math.max(0.001, h);
+      w.position.y = bottomY + h / 2;
+    });
+  };
+  return { group, setDone() {}, hands: { kind: "roses", vases, setWater } };
 }
 
 function shutters(): StationView {
@@ -331,22 +428,28 @@ function shutters(): StationView {
 
 function portraits(): StationView {
   const group = new THREE.Group();
-  const frames: THREE.Group[] = [];
-  const tilts = [0.3, -0.45, 0.25];
+  const pivots: THREE.Group[] = [];
+  const frames: THREE.Mesh[] = [];
+  const tilts = [17, -26, 14];
   for (let i = -1; i <= 1; i++) {
+    // Each hangs from a nail at the top and swings about it.
     const pivot = new THREE.Group();
     pivot.position.set(i * 0.75, 1.9, -0.06);
-    pivot.add(box(0.5, 0.65, 0.05, BRASS, 0, -0.4, 0));
+    const frame = part(box(0.5, 0.65, 0.05, BRASS, 0, -0.4, 0), `portrait:${i + 1}`);
+    pivot.add(frame);
     pivot.add(box(0.4, 0.55, 0.02, 0x2e2a24, 0, -0.4, 0.03));
-    pivot.rotation.z = tilts[i + 1]!;
     group.add(pivot);
-    frames.push(pivot);
+    pivots.push(pivot);
+    frames.push(frame);
   }
+  const setTilt = (deg: readonly number[]) => pivots.forEach((p, i) => (p.rotation.z = (-(deg[i] ?? 0) * Math.PI) / 180));
+  setTilt(tilts);
   return {
     group,
     setDone(done) {
-      frames.forEach((f, i) => (f.rotation.z = done ? 0 : tilts[i]!));
+      setTilt(done ? [0, 0, 0] : tilts);
     },
+    hands: { kind: "portraits", frames, setTilt },
   };
 }
 
