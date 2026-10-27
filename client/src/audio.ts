@@ -71,7 +71,7 @@ const WHISPER_SWELL_HZ = 0.35;
 const WHISPER_LEVEL = 0.35;
 const WHISPER_Q = 4;
 // Up close: this much louder, a broader (clearer) band, and a quicker murmur.
-const WHISPER_NEAR_GAIN = 1.5;
+const WHISPER_NEAR_GAIN = 0.8;
 const WHISPER_NEAR_Q = 1.2;
 const WHISPER_NEAR_SWELL_HZ = 4;
 

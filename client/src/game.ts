@@ -61,6 +61,8 @@ const FOV_LERP_PER_SEC = 6;
 /** Remembers which hands-on tasks you have seen the how-to hint for. */
 const HINTS_SEEN_KEY = "handsHintsSeen";
 const STOP_HINT = "E or a step to stop";
+/** A hidden relic this close to the place you found one is that relic. */
+const FOUND_SAME_PLACE_M = 0.5;
 
 /** A subtitle for an important sound, with an arrow toward it (GDD 23). */
 export interface SoundCue {
@@ -247,6 +249,8 @@ export class Game {
   private hands: HandsWork;
   /** When your hands last made a noise, so the server is told at most once a second. */
   private handsNoiseAt = -Infinity;
+  /** The place you are digging a found relic out of: its whisper has done its job and falls quiet. */
+  private foundAt: { x: number; z: number } | null = null;
   /** The last bell ring, for its subtitle. */
   private bellCue: { at: WorldPoint; until: number } | null = null;
 
@@ -443,6 +447,7 @@ export class Game {
     room.onMessage("searchFound", (msg: ServerMessages["searchFound"]) => {
       if (msg.stationId !== this.openStation || !this.hands.active) return;
       this.hands.found();
+      this.foundAt = this.map.relicSpots.flatMap((s) => searchPlaces(s)).find((p) => p.id === msg.stationId) ?? null;
       this.taskState = "open";
       this.hud.showBanner("Something is down there. Keep digging.", 3);
     });
@@ -807,6 +812,7 @@ export class Game {
 
   private stopHands() {
     this.hands.stop();
+    this.foundAt = null;
     this.stations.setBusy(null);
     this.input.working = false;
     this.hud.setWorkHint(null);
@@ -872,7 +878,8 @@ export class Game {
     let bestDist: number = config.relics.whisperM;
     for (const r of this.relicsNear) {
       const d = worldDistance(this.map, r, me);
-      if (r.hidden && d <= bestDist) {
+      const found = this.foundAt && Math.hypot(r.x - this.foundAt.x, r.z - this.foundAt.z) < FOUND_SAME_PLACE_M;
+      if (r.hidden && !found && d <= bestDist) {
         best = r;
         bestDist = d;
       }
