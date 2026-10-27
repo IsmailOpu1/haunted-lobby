@@ -171,6 +171,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   /** This map's ghost trick, or null (GDD 12.5). */
   private trick: GhostTrick | null = null;
   private relicTimer = 0;
+  /** Test shortcut (debug servers only): the ghost is sent away. */
+  private ghostPaused = false;
 
   async onCreate() {
     // The 5-letter room code is the Colyseus room id, so friends join with joinById(code).
@@ -292,7 +294,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     });
 
     if (DEBUG) {
-      this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number; teleport?: { x: number; z: number }; giveTask?: string; hideRelicAt?: string }) => {
+      this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number; teleport?: { x: number; z: number }; giveTask?: string; hideRelicAt?: string; toggleGhost?: boolean }) => {
         if (typeof msg?.nightTime === "number") this.state.nightTime = msg.nightTime;
         // Swap your first task for this station's (to try a particular task).
         const mine = this.sims.get(client.sessionId);
@@ -305,6 +307,13 @@ export class HauntedRoom extends Room<{ state: GameState }> {
         const hidden = this.relics.find((r) => r.status === "hidden");
         if (at && hidden) Object.assign(hidden, { spotId: at.spot.id, placeId: at.place.id, x: at.place.x, z: at.place.z });
         if (typeof msg?.huntIn === "number") this.ghost.debugHuntIn(msg.huntIn);
+        // Send the ghost away for everyone in the room, or bring it back (to test in peace).
+        if (msg?.toggleGhost) {
+          this.ghostPaused = !this.ghostPaused;
+          this.ghost.debugPause(this.ghostPaused);
+          const paused: ServerMessages["debugGhost"] = { paused: this.ghostPaused };
+          this.broadcast("debugGhost", paused);
+        }
         if (msg?.down) this.downPlayer(client.sessionId);
         const player = this.state.players.get(client.sessionId);
         if (player && typeof msg?.bleedLeft === "number") player.bleedLeft = msg.bleedLeft;
@@ -445,7 +454,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
         this.state.overtime = false;
       }
       this.state.part = this.state.overtime ? "overtime" : part;
-      this.ghost.update(elapsedSec, part, this.state.players.size);
+      if (!this.ghostPaused) this.ghost.update(elapsedSec, part, this.state.players.size);
       this.trick?.update(elapsedSec);
       this.checkResult(part === "dawn");
     }

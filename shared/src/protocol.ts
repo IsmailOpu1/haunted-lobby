@@ -47,6 +47,8 @@ export interface ServerMessages {
   flash: { x: number; z: number; by: string };
   /** Your photo was taken. It develops by the next meeting; nobody sees it before then. */
   photoTaken: { shotsLeft: number };
+  /** Test shortcut (debug servers only): the ghost was sent away or brought back. */
+  debugGhost: { paused: boolean };
   /** Your task list (private). Sent on request and whenever it changes. */
   tasks: { list: TaskEntry[] };
   /** Open this task's minigame (you pressed E at its station). */

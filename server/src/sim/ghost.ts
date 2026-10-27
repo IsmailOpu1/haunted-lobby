@@ -163,6 +163,12 @@ export class Ghost {
     return this.frozenLeft > 0;
   }
 
+  /** Test shortcut (HAUNTED_DEBUG only): send the ghost away (ending any hunt), or let it come back. */
+  debugPause(paused: boolean) {
+    if (paused) this.update(0, "dawn", 0);
+    else this.state = "asleep";
+  }
+
   /** Test shortcut (HAUNTED_DEBUG only): start the hunt countdown from this many seconds. */
   debugHuntIn(seconds: number) {
     this.huntTimer = seconds;

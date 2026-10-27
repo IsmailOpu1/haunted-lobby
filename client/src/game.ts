@@ -285,6 +285,7 @@ export class Game {
       onToggleDebugLights: () => {
         this.ambient.intensity = this.ambient.intensity === DARK_AMBIENT ? DEBUG_AMBIENT : DARK_AMBIENT;
       },
+      onToggleGhost: () => this.room?.send("debug", { toggleGhost: true }),
       onLookChange: (looking) => hud.setLooking(looking),
       onUserGesture: () => this.sound.unlock(),
       onHand: (down) => this.hands.press(down),
@@ -397,6 +398,9 @@ export class Game {
       if (msg.by === room.sessionId) this.hud.flashScreen();
       else this.items.flashAt(msg.x, msg.z);
       this.sound.shutter(msg.by === room.sessionId ? undefined : this.place(msg));
+    });
+    room.onMessage("debugGhost", (msg: ServerMessages["debugGhost"]) => {
+      this.hud.showBanner(msg.paused ? "Ghost paused for testing (K to bring it back)" : "Ghost is back", 3);
     });
     room.onMessage("photoTaken", (msg: ServerMessages["photoTaken"]) => {
       this.hud.showBanner(`Photo taken. It develops by the next meeting. Shots left: ${msg.shotsLeft}`, 4);

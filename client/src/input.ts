@@ -19,6 +19,8 @@ export interface InputActions {
   /** Tab held (true) or released (false): the status panel. */
   onStatusPanel(open: boolean): void;
   onToggleDebugLights(): void;
+  /** K: send the ghost away or bring it back (debug servers only). */
+  onToggleGhost(): void;
   onLookChange(looking: boolean): void;
   /** Any click or key press (browsers only start sound after one). */
   onUserGesture(): void;
@@ -68,6 +70,7 @@ export class PlayerInput {
       }
       if (e.code === "Digit3") actions.onPourSalt();
       if (e.code === "KeyL") actions.onToggleDebugLights();
+      if (e.code === "KeyK") actions.onToggleGhost();
     });
     window.addEventListener("keyup", (e) => {
       this.keys.delete(e.code);

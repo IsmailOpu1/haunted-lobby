@@ -269,6 +269,34 @@ describe("HauntedRoom", () => {
     await room.leave();
   });
 
+  it("sends the ghost away and brings it back with the debug key (debug servers only)", async () => {
+    const room = await new Client(endpoint).create(ROOM_NAME, { name: "Tester" });
+    const ghostMsgs: unknown[] = [];
+    const pauses: boolean[] = [];
+    room.onMessage("*", () => {});
+    room.onMessage("ghost", (m: unknown) => ghostMsgs.push(m));
+    room.onMessage("debugGhost", (m: { paused: boolean }) => pauses.push(m.paused));
+    await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+    room.send("debug", { nightTime: config.match.quietSec + 1 });
+    room.send("debug", { teleport: marrowHotelGreybox.ghostStart! });
+    await waitFor(() => ghostMsgs.length > 0);
+
+    room.send("debug", { toggleGhost: true });
+    await waitFor(() => pauses.length === 1);
+    expect(pauses).toEqual([true]);
+    // Gone: nothing more is said about where it is.
+    await new Promise((r) => setTimeout(r, 300));
+    ghostMsgs.length = 0;
+    await new Promise((r) => setTimeout(r, 500));
+    expect(ghostMsgs).toEqual([]);
+
+    room.send("debug", { toggleGhost: true });
+    await waitFor(() => pauses.length === 2);
+    expect(pauses).toEqual([true, false]);
+    await waitFor(() => ghostMsgs.length > 0);
+    await room.leave();
+  });
+
   it("toggles a player's flashlight", async () => {
     const room = await new Client(endpoint).create(ROOM_NAME, { name: "Torch" });
     await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
