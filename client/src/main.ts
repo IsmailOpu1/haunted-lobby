@@ -75,6 +75,7 @@ const roomName = el("room-name");
 const roomNameRoom = el("room-name-room");
 const roomNameFloor = el("room-name-floor");
 const soundCues = el("sound-cues");
+const workHint = el("work-hint");
 const floorPlan = new FloorPlan(defaultMap);
 el("floor-plan").append(floorPlan.element);
 
@@ -102,10 +103,7 @@ const NIGHT_PART_NAMES: Record<string, string> = {
 
 const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
   // While the mouse is captured, hide the lobby panel so the 3D view is clear.
-  setLooking: (looking) => {
-    document.body.classList.toggle("looking", looking);
-    if (looking) document.body.classList.remove("resume");
-  },
+  setLooking: (looking) => document.body.classList.toggle("looking", looking),
   setStamina: (fraction) => {
     staminaBar.classList.toggle("hidden", fraction >= 1);
     staminaFill.style.width = `${Math.round(fraction * 100)}%`;
@@ -225,10 +223,6 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     ritualFill.style.width = `${Math.round(r.progress)}%`;
     ritualCount.textContent = r.started || !short ? `${r.inCircle} / ${r.needed} in the circle` : `Gather ${r.needed} at the altar (${r.inCircle} there)`;
   },
-  setTaskMode: (mode) => {
-    document.body.classList.toggle("in-task", mode === "in-task");
-    document.body.classList.toggle("resume", mode === "resume");
-  },
   setRelics: (list) => {
     const key = list.map((r) => `${r.name}|${r.status}`).join(";");
     if (relicList.dataset.key === key) return;
@@ -263,6 +257,10 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     );
   },
   showStatusPanel: (open) => statusPanel.classList.toggle("hidden", !open),
+  setWorkHint: (text) => {
+    workHint.classList.toggle("hidden", !text);
+    workHint.textContent = text ?? "";
+  },
   setRoom: (room, floor) => {
     // In a doorway or on the stairs, keep the last room.
     if (!room || room === shownRoom) return;
@@ -289,7 +287,9 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
       const text = cue.vertical ? `${cue.text} (${cue.vertical})` : cue.text;
       const label = row.querySelector(".cue-text")!;
       if (label.textContent !== text) label.textContent = text;
-      (row.querySelector(".cue-arrow") as SVGElement).style.transform = `rotate(${cue.angle}rad)`;
+      const arrow = row.querySelector(".cue-arrow") as SVGElement;
+      arrow.style.display = cue.angle === null ? "none" : "";
+      if (cue.angle !== null) arrow.style.transform = `rotate(${cue.angle}rad)`;
     });
   },
   setCarrying: (name) => {
@@ -297,17 +297,6 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     const text = name ? `Carrying ${name} (G to drop)` : "";
     if (carrying.textContent !== text) carrying.textContent = text;
   },
-}, {
-  root: el("task-overlay"),
-  canvas: el<HTMLCanvasElement>("task-canvas"),
-  title: el("task-title"),
-  hint: el("task-hint"),
-  leave: el<HTMLButtonElement>("task-leave"),
-});
-
-// After a task, Esc shows the room panel instead of the "click to keep playing" hint.
-window.addEventListener("keydown", (e) => {
-  if (e.code === "Escape" && !e.defaultPrevented) document.body.classList.remove("resume");
 });
 
 micCheckBtn.addEventListener("click", () => game.startMicCheck());

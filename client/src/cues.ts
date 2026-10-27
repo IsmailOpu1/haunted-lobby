@@ -9,3 +9,9 @@ export function directionTo(fromX: number, fromZ: number, yaw: number, toX: numb
   const right = dx * Math.cos(yaw) - dz * Math.sin(yaw);
   return Math.atan2(right, ahead);
 }
+
+/** A direction rounded to one of `steps` even directions (8: ahead, ahead-right, right...). */
+export function roundDirection(angle: number, steps = 8): number {
+  const step = (Math.PI * 2) / steps;
+  return Math.round(angle / step) * step;
+}

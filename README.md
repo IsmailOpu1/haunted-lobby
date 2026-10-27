@@ -24,6 +24,8 @@ Open http://localhost:5173. See [docs/DEPLOY.md](docs/DEPLOY.md) for testing wit
 
 **Controls:** mouse to look, WASD to move, Shift to run, C to crouch, E to open doors, hold E to revive a friend or hide (and to step out), Shift while hidden to hold your breath, click or 1 for the flashlight, L for test lights, Esc for the room panel.
 
+**Testing in peace:** start the server in debug mode with `HAUNTED_DEBUG=1` set (the "server-debug" entry in `.claude/launch.json` does this). Then K sends the ghost away for everyone in the room, and K again brings it back. A normal server ignores the key.
+
 ## Documents
 
 - [Game Design Document](docs/GDD.md): how the game works

@@ -162,8 +162,8 @@ describe("HauntedRoom", () => {
     await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
     const me = () => room.state.players.get(room.sessionId);
 
-    // Walk north from spawn 0 toward the Main Hall's west door until within reach.
-    const def = marrowHotelGreybox.doors.find((d) => d.id === "hall-front-west")!;
+    // Walk north from spawn 0 toward the Main Hall's door until within reach.
+    const def = marrowHotelGreybox.doors.find((d) => d.id === "hall-front")!;
     await walkTo(room, { x: def.x, z: def.z + 1.5 });
     expect(Math.hypot(me().x - def.x, me().z - def.z)).toBeLessThan(config.interact.rangeM);
     const door = () => room.state.doors.get(def.id);
@@ -266,6 +266,34 @@ describe("HauntedRoom", () => {
     room.send("debug", { teleport: marrowHotelGreybox.ghostStart! });
     await waitFor(() => ghostMsgs.length > 0);
     expect(ghostMsgs.at(-1)).toMatchObject({ visible: false });
+    await room.leave();
+  });
+
+  it("sends the ghost away and brings it back with the debug key (debug servers only)", async () => {
+    const room = await new Client(endpoint).create(ROOM_NAME, { name: "Tester" });
+    const ghostMsgs: unknown[] = [];
+    const pauses: boolean[] = [];
+    room.onMessage("*", () => {});
+    room.onMessage("ghost", (m: unknown) => ghostMsgs.push(m));
+    room.onMessage("debugGhost", (m: { paused: boolean }) => pauses.push(m.paused));
+    await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
+    room.send("debug", { nightTime: config.match.quietSec + 1 });
+    room.send("debug", { teleport: marrowHotelGreybox.ghostStart! });
+    await waitFor(() => ghostMsgs.length > 0);
+
+    room.send("debug", { toggleGhost: true });
+    await waitFor(() => pauses.length === 1);
+    expect(pauses).toEqual([true]);
+    // Gone: nothing more is said about where it is.
+    await new Promise((r) => setTimeout(r, 300));
+    ghostMsgs.length = 0;
+    await new Promise((r) => setTimeout(r, 500));
+    expect(ghostMsgs).toEqual([]);
+
+    room.send("debug", { toggleGhost: true });
+    await waitFor(() => pauses.length === 2);
+    expect(pauses).toEqual([true, false]);
+    await waitFor(() => ghostMsgs.length > 0);
     await room.leave();
   });
 
@@ -429,8 +457,10 @@ describe("HauntedRoom", () => {
       sim.move = { ...sim.move, x, z };
       Object.assign(server.state.players.get(room.sessionId), { x, z });
     };
+    // This test is about a spot with one place; groups of places have their own test below.
+    const spot = marrowHotelGreybox.relicSpots.find((s) => !s.places && !server.relics.some((r: any) => r.spotId === s.id))!;
     const target = server.relics[0] as { id: string; spotId: string };
-    const spot = marrowHotelGreybox.relicSpots.find((s) => s.id === target.spotId)!;
+    Object.assign(target, { spotId: spot.id, placeId: spot.id, x: spot.x, z: spot.z });
     expect(spot.room).not.toBe("Main Hall");
     const start = { x: me().x, z: me().z };
     teleport(spot.x, spot.z);
@@ -490,6 +520,74 @@ describe("HauntedRoom", () => {
     expect(me().relic).toBe("");
     await new Promise((r) => setTimeout(r, 200));
     expect(drops).toHaveLength(1);
+    await room.leave();
+  }, 40000);
+
+  it("searches a group of places: empty ones are quick and stay searched, the relic's place is found, then taken (GDD 26.5)", async () => {
+    const room = await new Client(endpoint).create(ROOM_NAME, { name: "Digger" });
+    room.onMessage("*", () => {});
+    const opened = collectMsgs(room, "taskOpen");
+    const closed = collectMsgs(room, "taskClosed");
+    const found = collectMsgs(room, "searchFound");
+    await waitFor(() => room.state.relics?.size === config.relics.count);
+    const me = () => room.state.players.get(room.sessionId);
+    const server = matchMaker.getLocalRoomById(room.roomId) as any;
+    const teleport = (x: number, z: number) => {
+      const sim = server.sims.get(room.sessionId);
+      sim.move = { ...sim.move, x, z };
+      Object.assign(server.state.players.get(room.sessionId), { x, z });
+    };
+    const use = () => {
+      room.send("use", { down: true });
+      room.send("use", { down: false });
+    };
+
+    // Hide the first relic in the second place of the flower bed, and no other relic there.
+    const group = marrowHotelGreybox.relicSpots.find((s) => s.id === "relic-courtyard")!;
+    const [empty, full] = group.places!;
+    server.relics.forEach((r: any, i: number) => {
+      if (i > 0 && r.spotId === group.id) Object.assign(r, { spotId: "elsewhere", placeId: "elsewhere" });
+    });
+    const target = server.relics[0];
+    Object.assign(target, { spotId: group.id, placeId: full!.id, x: full!.x, z: full!.z });
+
+    // Every place can be searched, so E never gives the relic away.
+    teleport(empty!.x, empty!.z);
+    use();
+    await waitFor(() => opened.length === 1);
+    expect(opened[0]).toEqual({ stationId: empty!.id, minigame: group.minigame, title: group.label });
+    room.send("taskDone", { stationId: empty!.id });
+    await waitFor(() => closed.length === 1);
+    expect(closed[0]!.reason).toBe("cancelled");
+
+    use();
+    await waitFor(() => opened.length === 2);
+    await new Promise((r) => setTimeout(r, (config.relics.search.serverMinSec + 0.3) * 1000));
+    room.send("taskDone", { stationId: empty!.id });
+    await waitFor(() => closed.length === 2);
+    expect(closed[1]!.reason).toBe("empty");
+    await waitFor(() => room.state.searchPlaces.get(empty!.id)?.searched === true);
+    // A searched place cannot be searched again.
+    use();
+    await new Promise((r) => setTimeout(r, 300));
+    expect(opened).toHaveLength(2);
+
+    // At the relic's place the short search finds it, and the full time takes it.
+    teleport(full!.x, full!.z);
+    use();
+    await waitFor(() => opened.length === 3);
+    await new Promise((r) => setTimeout(r, (config.relics.search.serverMinSec + 0.3) * 1000));
+    room.send("taskDone", { stationId: full!.id });
+    await waitFor(() => found.length === 1);
+    expect(found[0]).toEqual({ stationId: full!.id });
+    expect(closed).toHaveLength(2);
+    expect(me().relic).toBe("");
+    await new Promise((r) => setTimeout(r, (config.relics.serverMinSec - config.relics.search.serverMinSec) * 1000));
+    room.send("taskDone", { stationId: full!.id });
+    await waitFor(() => closed.length === 3);
+    expect(closed[2]!.reason).toBe("done");
+    await waitFor(() => me().relic === target.id);
+    expect(room.state.searchPlaces.get(full!.id)?.searched).toBe(true);
     await room.leave();
   }, 40000);
 

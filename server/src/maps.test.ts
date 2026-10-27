@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { config, doorBox, furnitureBox, hidingSpotBox, levelOf, nearestRoom, roomAt, wallBox, wallFaces, type FloorBox, type MapData } from "@haunted/shared";
+import { config, doorBox, furnitureBox, hidingSpotBox, levelOf, nearestRoom, roomAt, searchPlaces, wallBox, wallFaces, type FloorBox, type MapData } from "@haunted/shared";
 import { marrowHotelGreybox } from "@haunted/maps";
 import { NavMap, pathLength } from "./sim/navmap.ts";
 
@@ -13,7 +13,7 @@ describe.each(maps.map((m) => [m.name, m] as const))("%s", (_name, map) => {
   const points = [
     ...map.saltJars.map((j) => ({ id: j.id, x: j.x, z: j.z })),
     ...map.tasks.map((t) => ({ id: t.id, x: t.x, z: t.z })),
-    ...map.relicSpots.map((r) => ({ id: r.id, x: r.x, z: r.z })),
+    ...map.relicSpots.flatMap((r) => searchPlaces(r).map((p) => ({ id: p.id, x: p.x, z: p.z }))),
     ...map.hidingSpots.map((h) => ({ id: h.id, x: h.exit.x, z: h.exit.z })),
     ...(map.bell ? [{ id: "bell", ...map.bell }] : []),
     ...(map.fuseBox ? [{ id: "fuse box", ...map.fuseBox }] : []),
@@ -52,8 +52,11 @@ describe.each(maps.map((m) => [m.name, m] as const))("%s", (_name, map) => {
 
   it("puts relic spots inside their rooms, never in the Main Hall, with a name for every relic", () => {
     for (const r of map.relicSpots) {
-      expect(roomAt(map, r.x, r.z)?.name, r.id).toBe(r.room);
+      for (const p of searchPlaces(r)) expect(roomAt(map, p.x, p.z)?.name, p.id).toBe(r.room);
       expect(r.room, r.id).not.toBe("Main Hall");
+      // A group (GDD 26.5) has 3 or 4 places, so the whisper must be followed to the right one.
+      if (r.places) expect(r.places.length, r.id).toBeGreaterThanOrEqual(3);
+      if (r.places) expect(r.places.length, r.id).toBeLessThanOrEqual(4);
     }
     expect(map.relicSpots.length).toBeGreaterThanOrEqual(Math.max(...config.relics.options));
     expect(map.relicNames.length).toBeGreaterThanOrEqual(Math.max(...config.relics.options));
@@ -275,6 +278,25 @@ describe.each([marrowHotelGreybox].map((m) => [m.name, m] as const))("%s follows
       const left = reachable(hubs[0]!, edges.filter((e) => e !== cut));
       for (const hub of hubs) expect(left.has(hub), `without ${cut.id}, ${hub} is cut off`).toBe(true);
     }
+  });
+
+  it("keeps doors simple: corridors join rooms, and no room is a maze of doors (GDD 26.11)", () => {
+    const ways = links().filter((e) => !map.stairs.some((s) => s.id === e.id));
+    // Where real buildings join two rooms directly: a kitchen and its dining room, and the
+    // Ritual Room's two doorways (GDD 21.1).
+    const roomToRoom = new Set(["Kitchen/Restaurant", "Ritual Room/Wine Cellar", "Ritual Room/Storage"]);
+    for (const room of rooms) {
+      const mine = ways.filter((e) => e.a === room || e.b === room);
+      const others = mine.map((e) => (e.a === room ? e.b : e.a));
+      expect(mine.length, `${room} has ${mine.length} ways in`).toBeLessThanOrEqual(2);
+      expect(new Set(others).size, `${room} has two ways into the same place`).toBe(others.length);
+      for (const other of others.filter((o) => !isCorridor(o))) {
+        expect(roomToRoom.has([room, other].sort().join("/")), `${room} opens straight into ${other}`).toBe(true);
+      }
+    }
+    // A few big rooms have two ways through, so a chase can loop instead of ending in a dead end.
+    const loops = rooms.filter((room) => ways.filter((e) => e.a === room || e.b === room).length === 2);
+    expect(loops.length).toBeGreaterThanOrEqual(3);
   });
 
   describe("walking", () => {

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { config, doorBox, furnitureBox, HIDING_SPOT_HEIGHT_M, hidingSpotBox, levelOf, toWorld, wallBox, wallFaces, type DoorDef, type MapData, type StairDef } from "@haunted/shared";
+import { config, doorBox, furnitureBox, HIDING_SPOT_HEIGHT_M, hidingSpotBox, levelOf, roomAt, toWorld, wallBox, wallFaces, type DoorDef, type MapData, type StairDef } from "@haunted/shared";
 import { liftToFloor } from "./place.ts";
 
 const WALL_COLOR = 0x8a8a8a;
@@ -14,6 +14,8 @@ const FACE_GAP_M = 0.005;
 const DOOR_COLOR = 0x6b5a45;
 const CURTAIN_COLOR = 0x4a1f24;
 const DOOR_THICKNESS = 0.08;
+/** A door panel is this much of the wall's height; the wall closes the gap above it. */
+const DOOR_HEIGHT_FRACTION = 0.9;
 const DOOR_SWING_PER_SEC = 4; // radians per second for the open/close animation
 const STAIR_COLOR = 0x5e5850;
 const STEP_RISE_M = 0.2;
@@ -24,6 +26,19 @@ const SLOT_EMPTY_COLOR = 0x140c0c;
 const SLOT_FULL_COLOR = 0xc9a640;
 const SLOT_SIZE_M = 0.2;
 const SLOT_HEIGHT_M = 1.3;
+
+// Signs over doorways (GDD 26.11): a brass plaque on each side naming the room beyond, like a
+// hotel's. Lit like everything else, so you read them by flashlight.
+const SIGN_WIDTH_M = 1.3;
+const SIGN_HEIGHT_M = 0.2;
+/** The sign's middle, on the wall between the top of the door and the ceiling. */
+const SIGN_Y_FRACTION = 0.948;
+/** Half the thickness of a sign that sticks out from a corridor wall. */
+const BLADE_GAP_M = 0.004;
+const CORRIDOR = /Corridor|Passage/;
+const SIGN_CANVAS_PX = [512, 80] as const;
+const SIGN_PLATE = "#2a2118";
+const SIGN_TEXT = "#d8b766";
 
 // Placeholder furniture colors by kind until the Phase 8 art pass.
 const FURNITURE_COLORS: Record<string, number> = {
@@ -47,7 +62,7 @@ export class DoorView {
   constructor(scene: THREE.Scene, map: MapData, private def: DoorDef, height: number) {
     const box = doorBox(def, DOOR_THICKNESS);
     const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(box.sizeX, height * 0.9, box.sizeZ),
+      new THREE.BoxGeometry(box.sizeX, height * DOOR_HEIGHT_FRACTION, box.sizeZ),
       new THREE.MeshLambertMaterial({ color: DOOR_COLOR }),
     );
     this.mesh = mesh;
@@ -55,10 +70,10 @@ export class DoorView {
     const half = def.width / 2;
     if (def.axis === "x") {
       this.pivot.position.set(def.x - half, 0, def.z);
-      mesh.position.set(half, (height * 0.9) / 2, 0);
+      mesh.position.set(half, (height * DOOR_HEIGHT_FRACTION) / 2, 0);
     } else {
       this.pivot.position.set(def.x, 0, def.z - half);
-      mesh.position.set(0, (height * 0.9) / 2, half);
+      mesh.position.set(0, (height * DOOR_HEIGHT_FRACTION) / 2, half);
     }
     if (def.id === map.relicDoor) (mesh.material as THREE.MeshLambertMaterial).color.setHex(RELIC_DOOR_COLOR);
     this.pivot.add(mesh);
@@ -169,7 +184,76 @@ export function buildWorld(scene: THREE.Scene, map: MapData): { doors: Map<strin
 
   const doors = new Map<string, DoorView>();
   for (const def of map.doors) doors.set(def.id, new DoorView(scene, map, def, h));
+  buildDoorSigns(scene, map, h);
   return { doors, ritualCircle: circle };
+}
+
+/** Over every doorway: the wall above the door, and on each side a plaque naming the room you walk into. */
+function buildDoorSigns(scene: THREE.Scene, map: MapData, wallHeight: number) {
+  const lintelMat = new THREE.MeshLambertMaterial({ color: WALL_COLOR });
+  const doorTop = wallHeight * DOOR_HEIGHT_FRACTION;
+  const materials = new Map<string, THREE.MeshLambertMaterial>();
+  const material = (name: string) => {
+    let mat = materials.get(name);
+    if (!mat) {
+      mat = new THREE.MeshLambertMaterial({ map: signTexture(name) });
+      materials.set(name, mat);
+    }
+    return mat;
+  };
+  const geometry = new THREE.PlaneGeometry(SIGN_WIDTH_M, SIGN_HEIGHT_M);
+  const off = map.wallThicknessM / 2 + FACE_GAP_M * 2;
+  for (const def of map.doors) {
+    const box = doorBox(def, map.wallThicknessM);
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(box.sizeX, wallHeight - doorTop, box.sizeZ), lintelMat);
+    lintel.position.set(def.x, (wallHeight + doorTop) / 2, def.z);
+    scene.add(liftToFloor(map, lintel));
+    // The two sides of the doorway: -1 is north (or west), +1 south (or east).
+    for (const side of [-1, 1]) {
+      const [nx, nz] = def.axis === "x" ? [0, side] : [side, 0];
+      const here = roomAt(map, def.x + nx * 0.3, def.z + nz * 0.3)?.name;
+      const beyond = roomAt(map, def.x - nx * 0.3, def.z - nz * 0.3)?.name;
+      if (!here || !beyond || here === beyond) continue;
+      const sign = new THREE.Mesh(geometry, material(beyond));
+      sign.position.set(def.x + nx * off, wallHeight * SIGN_Y_FRACTION, def.z + nz * off);
+      // A plane faces +z; turn it to face into the room it hangs in.
+      sign.rotation.y = Math.atan2(nx, nz);
+      scene.add(liftToFloor(map, sign, def.x, def.z));
+      // In a corridor a flat sign is seen edge-on, so a second one sticks out from the wall, read
+      // from both ends of the corridor (two faces back to back, so neither reads mirrored).
+      if (!CORRIDOR.test(here) || CORRIDOR.test(beyond)) continue;
+      for (const face of [-1, 1]) {
+        const blade = new THREE.Mesh(geometry, material(beyond));
+        const [tx, tz] = [nz * face, -nx * face];
+        const out = off + SIGN_WIDTH_M / 2;
+        blade.position.set(def.x + nx * out + tx * BLADE_GAP_M, wallHeight * SIGN_Y_FRACTION, def.z + nz * out + tz * BLADE_GAP_M);
+        blade.rotation.y = Math.atan2(tx, tz);
+        scene.add(liftToFloor(map, blade, def.x, def.z));
+      }
+    }
+  }
+}
+
+function signTexture(text: string): THREE.CanvasTexture {
+  const [w, hPx] = SIGN_CANVAS_PX;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = hPx;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = SIGN_PLATE;
+  ctx.fillRect(0, 0, w, hPx);
+  ctx.strokeStyle = SIGN_TEXT;
+  ctx.lineWidth = 4;
+  ctx.strokeRect(6, 6, w - 12, hPx - 12);
+  ctx.fillStyle = SIGN_TEXT;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `600 ${Math.round(hPx * 0.5)}px Georgia, serif`;
+  ctx.fillText(text.toUpperCase(), w / 2, hPx / 2 + 2, w - 40);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  return texture;
 }
 
 interface RoomMaterials {

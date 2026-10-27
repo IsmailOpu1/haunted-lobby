@@ -182,6 +182,7 @@ Everyone starts with the same three items.
 
 - Each investigator gets **3 tasks** (setting: 2 to 5) from the map's task list.
 - A player's tasks are always in **different areas**, so people must spread out.
+- Tasks are **dealt like cards**: no task is given twice while another is still free, and a **visible task goes to one player only** (26.5).
 - Each task is a **tiny minigame of 10 to 20 seconds** that **matches the task**. Never a random puzzle.
 - Leaving a minigame (or getting hit) cancels it. You must restart that task.
 - A **team task bar** at the top of the screen fills as tasks are completed. Everyone sees it.
@@ -196,18 +197,18 @@ Everyone starts with the same three items.
 | Task | Room | Minigame | Visible? | Noisy? |
 |---|---|---|---|---|
 | Light the candelabra | Restaurant | Light 5 wicks with a match. Move too fast and the match goes out | Yes | No |
-| Turn the boiler valve | Laundry | Turn the mouse slowly until the pressure needle sits in the safe zone for 3 s | No | No |
-| Repair the switchboard | Reception | Connect 4 cables by matching symbols | No | No |
-| Burn the cursed letter | Library | Hold a match under the letter until it catches fire | Yes (fireplace) | No |
-| Wind the grandfather clock | Main Hall | Turn the key in rhythm with the ticks | Yes (pendulum) | No |
+| Turn the boiler valve | Laundry | Turn the heavy valve wheel until the gauge's needle sits in the safe zone for 5 s | No | No |
+| Repair the switchboard | Reception | Plug 4 cables into the sockets of their own colour | No | No |
+| Burn the cursed letter | Library | Hold a match under the swaying letter until it catches fire | Yes (fireplace) | No |
+| Set the grandfather clock | Main Hall | Puzzle: the guest book on the hall's meeting table says when to wake the house (a different time each match). Grab the clock face and turn the hands to that time | Yes (pendulum, and the hands show the time) | No |
 | Clean the mirror | Bridal Suite | Wipe the fog away. Sometimes a face appears behind you (scare only) | No | No |
 | Seal the old trunk | Staff Quarters | Press the lid down and turn 3 latches | No | No |
-| Tune the piano | Ballroom | Press the keys shown by symbols, in order | No | Yes |
+| Tune the piano | Ballroom | Puzzle: the piano plays a short tune, its keys going down and lighting up. Play it back by ear and eye. Three rounds, each a note longer (4, 5, 6). A wrong key is a sour note and the tune plays again | No | Yes |
 | Turn off the stove | Kitchen | Turn 3 knobs to the off mark | No | No |
-| Fold the bedsheets | Guest Room | Drag the 4 corners together | No | No |
-| Rock the cradle | Nursery | Move the mouse gently in rhythm. Too fast and the baby cries | No | Yes |
-| Water the dead roses | Garden Courtyard | Pour until the line. Overflow and start again | No | No |
-| Close the shutters | Upper Corridor | Drag 3 shutters closed against the wind | Yes | No |
+| Fold the bedsheets | Guest Room | Fold the sheet in half three times | No | No |
+| Rock the cradle | Nursery | Push the cradle gently in time with its swing. Too hard and the baby cries | No | Yes |
+| Water the dead roses | Garden Courtyard | Puzzle: two jugs of different sizes (3 and 5, 5 and 7, or 4 and 9), a pump and a bucket. Get exactly the vase's number of measures into it by filling, pouring between the jugs and emptying. Too much, tip the vase out | No | No |
+| Close the shutters | Upper Corridor | Drag 3 shutters closed against the wind | Yes | Yes (a shutter let go too early bangs open) |
 
 ---
 
@@ -731,6 +732,14 @@ Real-mic ghost hearing with mic calibration, the Spirit Camera, Wisps with the O
 | 2026-10-25 | No background music or drone; footsteps are the background sound (Section 23). Volume slider added | Owner playtest: the drone caused headaches over a night; footsteps suit the game better |
 | 2026-10-26 | "Hang the room keys" removed from the task list (Section 9). The Guest Corridor gets a new task, still to be chosen | Owner playtest (Phase 4): it did not feel like a task and was not fun |
 | 2026-10-26 | Tasks and relic taking become **interactions in the 3D world**, not 2D minigame windows: you handle the real object in first person (dig the soil with a trowel, light the real candles with the match in your hand, pour into the real vases, push the real shutters shut, straighten the real paintings). Relics are found by following the whisper, which grows louder and clearer up close, among searchable spots that are mostly empty; no prompt gives a relic away. Interactions ask for skill and reading sounds and objects, not busywork. You stay in the room while you work, so the ghost can hear and reach you. The rework comes after Phase 5, on the full map's real furniture; Phase 5 builds that furniture as separate objects the interactions can attach to | Owner playtest (Phase 4): the 2D minigames were flat, too easy and not fun ("it feels stupid because it's so easy") |
+| 2026-10-27 | Owner approved the hands-on plan (`docs/plans/interaction-rework.md`). The left mouse button is your hand while you work, and the flashlight moves to key 1 only. Others see your hands mid-task only with the Phase 8 character models. Each relic spot becomes a group of 3 or 4 places to search; an empty place takes about 3 s and makes a small noise. The whisper subtitle says faint, close or very close, and its arrow (8 directions) shows only beyond 3 m. Close the shutters becomes a noisy task (Section 9) | Owner approval of the plan's four questions |
+| 2026-10-28 | Pilot of puzzle tasks: the clock, the piano and the roses become small brain games instead of hand skill (Section 9 table). A steady player takes about 8 to 25 s (more than the 20 s target in Section 9 for the piano and roses, allowed for the pilot). The rest stay as they are until the owner has tried these | Owner playtest: the hands-on tasks were too simple ("not a mind or brain game") and it was not clear how to finish them |
+| 2026-10-28 | A hidden relic now calls with a music box: a short, eerie tune on a bell-like celesta, from where the relic is. Far off it plays every few seconds, quietly; close by, more often and louder. Replaces the breathy whisper. Each task's how-to line now stays on screen the whole time you work on it, not just the first time | Owner playtest: the whisper was annoying (asked for something magical, like a film theme), and he could not tell how to finish a task |
+| 2026-10-27 | Third batch of hands-on tasks built in the 3D world: switchboard, mirror, trunk, piano, sheets, cradle, and the jewellery box and drain relic spots (details in `docs/plans/interaction-rework.md`). Every task and relic spot is now hands-on, and the 2D minigame window is removed. This replaces the earlier 2D rules for these (the cradle's pale guide, the jewellery box's 5 lifted pins, the drain's 3 s grip): the jewellery box is now a dial lock with 4 pins, and the drain grips after 2.5 s held still | Owner: build the last batch |
+| 2026-10-27 | Second batch of hands-on tasks built in the 3D world, as in the approved plan's Part 5: burn the letter, wind the clock, turn the boiler valve, straighten the portraits, water the roses (details in `docs/plans/interaction-rework.md`). The boiler holds 5 s in the safe zone (was 3 s) because its wheel is now heavy and slow | Owner: keep building before the playtest |
+| 2026-10-27 | Tasks are dealt like cards: no task is given to a second player while another is still free, and a visible task never goes to two players (unless nothing else is left). With 14 tasks, 4 of them visible, 8 players × 3 tasks fits exactly | Owner playtest: asked whether players share tasks. Two players with the same visible task would confuse the "who did it" clue |
+| 2026-10-27 | The relic whisper falls quiet once the server tells you the relic is in the place you're searching, and is softer up close | Owner playtest: the whisper kept sounding at full strength while digging out a relic already found |
+| 2026-10-27 | Fewer doors and signs over every doorway (Section 26.11) | Owner playtest: rooms with 3 or 4 doors made the hotel "a living maze" |
 | 2026-10-26 | **(Awaiting owner confirmation)** The Guest Corridor's new task is **Straighten the portraits** (visible): grab each of 3 crooked portraits and drag sideways to level it; one is haunted and swings crooked again once | The owner asked for a new Corridor task without naming one. Visible, so everyone sees the portraits hang straight |
 
 ### 26.6 Phase 2 build choices (awaiting owner confirmation)
@@ -843,3 +852,15 @@ After the Phase 5 playtest the owner found the grey map a maze where every room 
 | Tab map | Holding Tab shows every floor side by side: rooms in their colours with names, walls and doorways, stairs, your unfinished tasks' rooms outlined in gold, and you as an arrow. It never shows other players, the ghost or relics | GDD 6 calls Tab "Map and status" and says it never shows player positions; GDD 10 keeps relic places secret |
 | Sound subtitles | While you can hear a relic whisper, "A relic whispers nearby" shows with an arrow toward it. When the Bellboy's bell rings, "The bell rings" shows for 4 s with an arrow toward the room it rang in. Both say "(above)" or "(below)" when the sound is on another floor | GDD 23 asks for subtitles and direction arrows for important sounds; brought forward from Phase 8 because the whisper alone was too easy to miss |
 
+### 26.11 Doors and signs (owner approved the direction, 2026-10-27)
+
+The owner found the hotel a maze: several rooms had 3 or 4 doors, many of them straight into the next room. Cutting every room to one door would make every room a dead end, which is deadly with a ghost in the doorway. So the rule is:
+
+| Choice | Value | Why |
+|---|---|---|
+| Corridors join rooms | Rooms open onto corridors, never into each other. The only exceptions are where real buildings do it: the Kitchen into its Restaurant, and the Ritual Room's two doorways (21.1) | One clear idea of the building: the corridor ring, with rooms off it |
+| One or two doors | A small room has one door (a risky dead end with good hiding spots). A big room has two, onto different corridors, so a chase can loop through it: the Ballroom, Restaurant and Kitchen, and the Laundry upstairs. No room has more than two, or two into the same place | Loops keep chases alive; dead ends make hiding a gamble |
+| Main Hall | One wide double door, facing the courtyard across the Front Corridor. The stairs up and down are inside it. The bell moves to 4 m inside the door | The hub you always come back to |
+| Courtyard | Doors north and south only, a shortcut across the middle of the ring | Two ways round the ring, plus one risky way through |
+| Count | 37 doors became 25. Checked by a test: at most 2 ways into any room, no room-to-room doors except the ones above, at least 3 loop rooms, and still 2 routes between areas | 21.1 |
+| Signs | Over every doorway, a brass plaque on each side names the room beyond it. On the corridor side a second plaque sticks out from the wall, so it reads from down the corridor. They are lit like everything else, so you read them by flashlight | Real hotels sign their rooms; until the Phase 8 art, signs are the strongest landmark |

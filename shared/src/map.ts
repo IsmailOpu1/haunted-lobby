@@ -91,17 +91,40 @@ export interface TaskStationDef {
   visible: boolean;
   /** Noisy tasks make a sound the ghost can hear when done badly (GDD 9). */
   noisy: boolean;
+  /**
+   * Where the task's clue lies (the clock's guest book, GDD 26.5), and how high: on a table,
+   * or with stand set, on its own stand.
+   */
+  clue?: { x: number; z: number; heightM: number; stand?: boolean };
 }
 
-/** A place a relic can be hidden, and how it is taken out (GDD Section 10). */
+/** One place to search in a relic hiding spot: a pot, a patch of soil, a drawer. */
+export interface SearchPlaceDef {
+  id: string;
+  x: number;
+  z: number;
+}
+
+/**
+ * A place a relic can be hidden, and how it is taken out (GDD Section 10). A spot with
+ * `places` is a group of places to search (GDD 26.5): the relic is in one of them, and the
+ * others are empty. A spot without them is one place at x, z.
+ */
 export interface RelicSpotDef {
   id: string;
   /** What the player sees: "Search the planter". */
   label: string;
   room: string;
   minigame: RelicMinigame;
+  /** The spot's place, or its first place when it has several. */
   x: number;
   z: number;
+  places?: SearchPlaceDef[];
+}
+
+/** Every place to search in a spot: its own places, or the spot itself. */
+export function searchPlaces(spot: RelicSpotDef): SearchPlaceDef[] {
+  return spot.places ?? [{ id: spot.id, x: spot.x, z: spot.z }];
 }
 
 /**

@@ -568,69 +568,6 @@ body.looking #esc-hint {
   text-decoration: line-through;
 }
 
-/* The minigame window. */
-#task-overlay {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
-}
-
-.task-box {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 16px;
-  background: var(--panel);
-  border: 1px solid #2a2822;
-  border-radius: 6px;
-  max-width: calc(100vw - 32px);
-}
-
-.task-box h2 {
-  margin: 0;
-  font-size: 18px;
-}
-
-#task-canvas {
-  width: min(640px, calc(100vw - 64px));
-  aspect-ratio: 640 / 400;
-  border-radius: 4px;
-  cursor: crosshair;
-  touch-action: none;
-}
-
-#task-hint {
-  max-width: 600px;
-  text-align: center;
-}
-
-/* While a task is open or just closed, the room panel stays out of the way. */
-body.in-task .panel,
-body.resume .panel {
-  display: none;
-}
-
-#resume-hint {
-  display: none;
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  padding: 10px 18px;
-  font-size: 18px;
-  background: var(--panel);
-  border-radius: 6px;
-  pointer-events: none;
-}
-
-body.resume:not(.looking) #resume-hint {
-  display: block;
-}
-
 /* The relic you carry, above the item counts. */
 #carrying {
   position: fixed;
@@ -871,4 +808,19 @@ body.ended #sound-cues {
   width: 20px;
   height: 20px;
   fill: #f0ece4;
+}
+
+/* While you work with your hands (GDD 26.5): how to, or how to stop. */
+#work-hint {
+  position: fixed;
+  bottom: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 6px 12px;
+  font-size: 14px;
+  text-align: center;
+  background: var(--panel);
+  border-radius: 4px;
+  pointer-events: none;
 }

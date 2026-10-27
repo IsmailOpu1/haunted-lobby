@@ -41,12 +41,18 @@ const BASEMENT = 200;
 
 const LOCKBOX = "Open the jewellery box";
 
-function task(id: string, name: string, room: string, minigame: TaskStationDef["minigame"], x: number, z: number, visible = false, noisy = false): TaskStationDef {
-  return { id, name, room, minigame, x, z, visible, noisy };
+function task(id: string, name: string, room: string, minigame: TaskStationDef["minigame"], x: number, z: number, visible = false, noisy = false, clue?: TaskStationDef["clue"]): TaskStationDef {
+  return { id, name, room, minigame, x, z, visible, noisy, ...(clue ? { clue } : {}) };
 }
 
 function relic(id: string, label: string, room: string, minigame: RelicSpotDef["minigame"], x: number, z: number): RelicSpotDef {
   return { id, label, room, minigame, x, z };
+}
+
+/** A group of places to search (GDD 26.5): the relic hides in one of them, the rest are empty. */
+function relicGroup(id: string, label: string, room: string, minigame: RelicSpotDef["minigame"], places: [number, number][]): RelicSpotDef {
+  const [x, z] = places[0]!;
+  return { id, label, room, minigame, x, z, places: places.map(([px, pz], i) => ({ id: `${id}-${i + 1}`, x: px, z: pz })) };
 }
 
 export const marrowHotelGreybox = buildMap({
@@ -130,26 +136,21 @@ export const marrowHotelGreybox = buildMap({
         { x: 10.25, z: -14, width: 2.5, axis: "x" },
       ],
       doors: [
-        { id: "hall-front-west", x: -3, z: 4.5, width: 1.5, axis: "x" },
-        { id: "hall-front-east", x: 3, z: 4.5, width: 1.5, axis: "x" },
-        { id: "reception-hall", x: -9, z: 16.25, width: 1.5, axis: "z" },
-        { id: "restaurant-hall", x: 9, z: 16.25, width: 1.5, axis: "z" },
+        // Doors follow one rule (GDD 26.11): corridors join rooms. A small room has one door; a big
+        // room has two, onto different corridors, so a chase can loop through it. Rooms never open
+        // into each other, except the Kitchen into its Restaurant.
+        // The Main Hall's grand double door faces the courtyard across the Front Corridor.
+        { id: "hall-front", x: 0, z: 4.5, width: 2.5, axis: "x" },
         { id: "reception-front", x: -10.25, z: 4.5, width: 1.5, axis: "x" },
         { id: "restaurant-front", x: 10.25, z: 4.5, width: 1.5, axis: "x" },
-        { id: "library-reception", x: -17, z: 4.5, width: 1.5, axis: "x" },
         { id: "library-west", x: -11.5, z: -2, width: 1.5, axis: "z" },
-        { id: "ballroom-library", x: -17, z: -6, width: 1.5, axis: "x" },
         { id: "ballroom-west", x: -11.5, z: -10, width: 1.5, axis: "z" },
         { id: "ballroom-north", x: -11.5, z: -15.25, width: 1.5, axis: "z" },
         { id: "kitchen-restaurant", x: 17, z: 4.5, width: 1.5, axis: "x" },
         { id: "kitchen-east", x: 11.5, z: -2, width: 1.5, axis: "z" },
-        { id: "service-kitchen", x: 15, z: -6, width: 1.5, axis: "x" },
-        { id: "service-east", x: 11.5, z: -10, width: 1.5, axis: "z" },
         { id: "service-north", x: 11.5, z: -15.25, width: 1.5, axis: "z" },
         { id: "courtyard-front", x: 0, z: 2, width: 1.5, axis: "x" },
         { id: "courtyard-north", x: 0, z: -14, width: 1.5, axis: "x" },
-        { id: "courtyard-west", x: -9, z: -6, width: 1.5, axis: "z" },
-        { id: "courtyard-east", x: 9, z: -6, width: 1.5, axis: "z" },
       ],
       hidingSpots: [
         hide("hall-wardrobe-west", "wardrobe", -4, 18.5, "n"),
@@ -193,7 +194,8 @@ export const marrowHotelGreybox = buildMap({
         { id: "jar-service", x: 15, z: -12 },
       ],
       tasks: [
-        task("task-clock", "Wind the grandfather clock", "Main Hall", "clock", 0, 17.8, true),
+        // The guest book with the time to set lies on the meeting table.
+        task("task-clock", "Set the grandfather clock", "Main Hall", "clock", 0, 17.8, true, false, { x: 1.2, z: 11, heightM: 0.8 }),
         task("task-switchboard", "Repair the switchboard", "Reception", "switchboard", -22.2, 14),
         task("task-letter", "Burn the cursed letter", "Library", "letter", -22.3, -1, true),
         task("task-piano", "Tune the piano", "Ballroom", "piano", -21.5, -13, false, true),
@@ -204,7 +206,7 @@ export const marrowHotelGreybox = buildMap({
       relicSpots: [
         relic("relic-library", LOCKBOX, "Library", "lockbox", -22.3, 3.5),
         relic("relic-ballroom", LOCKBOX, "Ballroom", "lockbox", -22.3, -19.3),
-        relic("relic-courtyard", "Dig in the flower bed", "Garden Courtyard", "dig", 5, -10),
+        relicGroup("relic-courtyard", "Dig in the flower bed", "Garden Courtyard", "dig", [[5, -12.2], [5, -10], [5, -7.8]]),
         relic("relic-restaurant", LOCKBOX, "Restaurant", "lockbox", 22.3, 17.8),
         relic("relic-kitchen", "Reach into the drain", "Kitchen", "drain", 19, -5.3),
         relic("relic-service", "Reach into the drain", "Service Room", "drain", 19.5, -21.3),
@@ -219,7 +221,7 @@ export const marrowHotelGreybox = buildMap({
         { x: -1, z: 14 },
         { x: 1, z: 14 },
       ],
-      bell: { x: 0, z: 7 },
+      bell: { x: 0, z: 8.5 },
       fuseBox: { x: 12.2, z: -20 },
       ghostStart: { x: -17, z: -13 },
     },
@@ -254,8 +256,6 @@ export const marrowHotelGreybox = buildMap({
       doors: [
         { id: "bridal-corridor", x: -4.5, z: 4.5, width: 1.5, axis: "x" },
         { id: "nursery-corridor", x: 4, z: 4.5, width: 1.5, axis: "x" },
-        { id: "nursery-landing", x: 6.5, z: 6.25, width: 1.5, axis: "z" },
-        { id: "bridal-guest1", x: -9, z: 12, width: 1.5, axis: "z" },
         { id: "guest1-corridor", x: -10.25, z: 4.5, width: 1.5, axis: "x" },
         { id: "guest2-corridor", x: -11.5, z: -1.5, width: 1.5, axis: "z" },
         { id: "guest3-corridor", x: -11.5, z: -10, width: 1.5, axis: "z" },
@@ -263,7 +263,6 @@ export const marrowHotelGreybox = buildMap({
         { id: "staff-corridor", x: 11.5, z: -1.5, width: 1.5, axis: "z" },
         { id: "laundry-corridor", x: 11.5, z: -10, width: 1.5, axis: "z" },
         { id: "laundry-north", x: 11.5, z: -15.25, width: 1.5, axis: "z" },
-        { id: "laundry-staff", x: 15, z: -6, width: 1.5, axis: "x" },
       ],
       hidingSpots: [
         hide("upper-front-curtain", "curtain", -7, 2, "s"),
@@ -303,7 +302,7 @@ export const marrowHotelGreybox = buildMap({
         { id: "jar-laundry", x: 15, z: -12 },
       ],
       tasks: [
-        task("task-shutters", "Close the shutters", "Upper Corridor", "shutters", 0, 2.7, true),
+        task("task-shutters", "Close the shutters", "Upper Corridor", "shutters", 0, 2.7, true, true),
         task("task-portraits", "Straighten the portraits", "Guest Corridor", "portraits", -9.7, -6, true),
         task("task-mirror", "Clean the mirror", "Bridal Suite", "mirror", -0.7, 12),
         task("task-cradle", "Rock the cradle", "Nursery", "cradle", 3, 12, false, true),
@@ -313,11 +312,11 @@ export const marrowHotelGreybox = buildMap({
       ],
       relicSpots: [
         relic("relic-bridal", LOCKBOX, "Bridal Suite", "lockbox", -4.5, 17.8),
-        relic("relic-nursery", "Dig in the plant pot", "Nursery", "dig", 8.3, 17.8),
+        relicGroup("relic-nursery", "Dig in the plant pot", "Nursery", "dig", [[8.3, 17.8], [8.3, 15.5], [6, 17.8]]),
         relic("relic-guest2", LOCKBOX, "Guest Room 2", "lockbox", -22.3, 3.8),
         relic("relic-guest4", LOCKBOX, "Guest Room 4", "lockbox", 22.3, 17.8),
         relic("relic-laundry", "Reach into the drain", "Laundry", "drain", 17, -21.3),
-        relic("relic-guest-corridor", "Dig in the plant pot", "Guest Corridor", "dig", -5, -15.8),
+        relicGroup("relic-guest-corridor", "Dig in the plant pot", "Guest Corridor", "dig", [[-7.5, -15.8], [-5, -15.8], [-2.5, -15.8]]),
       ],
     },
     {

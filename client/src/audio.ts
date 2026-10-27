@@ -7,7 +7,7 @@
 // The heartbeat is deep, soft and muffled (felt more than heard); footsteps are crisp
 // wooden taps. Keeping them in different pitch ranges stops them blurring together.
 import type { WorldPoint } from "@haunted/shared";
-import type { TaskSoundKind } from "./minigames/types.ts";
+import type { TaskSoundKind } from "./hands/sounds.ts";
 
 const HEARTBEAT_RANGE_M = 12;
 const HEARTBEAT_LOWPASS_HZ = 110;
@@ -66,9 +66,31 @@ const BELL_PARTIALS = [
 const BELL_REF_DISTANCE_M = 4;
 const DOOR_REF_DISTANCE_M = 2;
 
-const WHISPER_HZ = 1400;
-const WHISPER_SWELL_HZ = 0.35;
-const WHISPER_LEVEL = 0.35;
+// A hidden relic's music box: a short, eerie tune on a celesta-like bell, played now and then.
+// Each note is [semitones from A4, beats after the phrase starts].
+const RELIC_TUNE: readonly (readonly [number, number])[] = [
+  [0, 0],
+  [3, 0.5],
+  [7, 1],
+  [11, 1.5],
+  [8, 2.5],
+  [7, 3],
+  [3, 3.5],
+  [2, 4],
+  [-1, 5],
+];
+const RELIC_BEAT_SEC = 0.32;
+const RELIC_NOTE_SEC = 1.4;
+// Its two partials: the note, and a soft bright one four times higher for the tinkle.
+const RELIC_SHINE_GAIN = 0.25;
+// Far off it plays now and then, quietly; right on top of it, often and clearly.
+const RELIC_GAP_FAR_SEC = 6;
+const RELIC_GAP_NEAR_SEC = 2.2;
+const RELIC_LEVEL = 0.16;
+const RELIC_NEAR_GAIN = 1.2;
+// A faint echo, so it sounds like it comes from inside something.
+const RELIC_ECHO_SEC = 0.27;
+const RELIC_ECHO_FEEDBACK = 0.3;
 
 export class SoundScape {
   private ctx: AudioContext | null = null;
@@ -82,7 +104,7 @@ export class SoundScape {
   private hunting = false;
   private listener = { x: 0, y: 0, z: 0 };
   private nextPhantomAt = 0;
-  private whisper: { level: GainNode; panner: PannerNode } | null = null;
+  private whisper: { panner: PannerNode; input: GainNode; nextAt: number } | null = null;
 
   /** Browsers only allow sound after a click or key press; call this from one. */
   unlock() {
@@ -330,6 +352,41 @@ export class SoundScape {
       case "thud":
         tone("sine", 90, 0.4, 0.25).frequency.exponentialRampToValueAtTime(45, t + 0.25);
         return;
+      case "bang": {
+        // A wooden shutter slamming: a deep knock with a crack of noise on top.
+        tone("sine", 110, 0.6, 0.35).frequency.exponentialRampToValueAtTime(50, t + 0.35);
+        tone("square", 70, 0.15, 0.12);
+        const src = ctx.createBufferSource();
+        src.buffer = this.noise;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.35, t);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
+        src.connect(gain).connect(out);
+        src.start(t);
+        src.stop(t + 0.15);
+        return;
+      }
+      case "whistle":
+      case "hiss": {
+        // Wind rising before a gust; gas escaping from a burner.
+        const whistle = kind === "whistle";
+        const len = whistle ? 1.1 : 0.6;
+        const src = ctx.createBufferSource();
+        src.buffer = this.noise;
+        const filter = ctx.createBiquadFilter();
+        filter.type = whistle ? "bandpass" : "highpass";
+        filter.Q.value = whistle ? 8 : 0.7;
+        filter.frequency.setValueAtTime(whistle ? 500 : 4000, t);
+        if (whistle) filter.frequency.exponentialRampToValueAtTime(1400, t + len);
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0.0001, t);
+        gain.gain.exponentialRampToValueAtTime(whistle ? 0.5 : 0.15, t + (whistle ? len * 0.85 : 0.05));
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + len);
+        src.connect(filter).connect(gain).connect(out);
+        src.start(t);
+        src.stop(t + len);
+        return;
+      }
       case "scare": {
         // A sudden dissonant swell.
         for (const f of [311, 330, 466]) {
@@ -342,44 +399,66 @@ export class SoundScape {
   }
 
   /**
-   * A hidden relic whispering (GDD 10): breathy noise that swells and fades, from where the
-   * nearest hidden relic is. null fades it out.
+   * A hidden relic calling (GDD 10): a music box playing a short tune, from where the nearest
+   * hidden relic is. Closer, it plays more often and louder. null lets it fall silent.
    */
-  relicWhisper(at: WorldPoint | null) {
+  /** closeness: 0 at the edge of its range, 1 right on top of it. */
+  relicWhisper(at: WorldPoint | null, closeness = 0) {
     const ctx = this.ctx;
     if (!ctx) return;
     if (!this.whisper) {
-      const src = ctx.createBufferSource();
-      src.buffer = this.noise;
-      src.loop = true;
-      const band = ctx.createBiquadFilter();
-      band.type = "bandpass";
-      band.frequency.value = WHISPER_HZ;
-      band.Q.value = 4;
-      // A slow swell, like breathing: the gain moves between 0 and 1.
-      const swell = ctx.createGain();
-      swell.gain.value = 0.5;
-      const lfo = ctx.createOscillator();
-      lfo.frequency.value = WHISPER_SWELL_HZ;
-      const depth = ctx.createGain();
-      depth.gain.value = 0.5;
-      lfo.connect(depth).connect(swell.gain);
-      const level = ctx.createGain();
-      level.gain.value = 0;
       const panner = ctx.createPanner();
       panner.distanceModel = "inverse";
       panner.refDistance = 1.5;
-      src.connect(band).connect(swell).connect(level).connect(panner).connect(this.master);
-      src.start();
-      lfo.start();
-      this.whisper = { level, panner };
+      const input = ctx.createGain();
+      const echo = ctx.createDelay(1);
+      echo.delayTime.value = RELIC_ECHO_SEC;
+      const feedback = ctx.createGain();
+      feedback.gain.value = RELIC_ECHO_FEEDBACK;
+      input.connect(panner);
+      input.connect(echo).connect(feedback).connect(echo);
+      feedback.connect(panner);
+      panner.connect(this.master);
+      this.whisper = { panner, input, nextAt: 0 };
     }
+    const w = this.whisper;
     const t = ctx.currentTime;
-    this.whisper.level.gain.setTargetAtTime(at ? WHISPER_LEVEL : 0, t, 0.4);
-    if (!at) return;
-    this.whisper.panner.positionX.setTargetAtTime(at.x, t, 0.05);
-    this.whisper.panner.positionY.setTargetAtTime(at.y + 0.8, t, 0.05);
-    this.whisper.panner.positionZ.setTargetAtTime(at.z, t, 0.05);
+    if (!at) {
+      // Start the tune again soon after you come back in range.
+      w.nextAt = t + 1;
+      return;
+    }
+    w.panner.positionX.setTargetAtTime(at.x, t, 0.05);
+    w.panner.positionY.setTargetAtTime(at.y + 0.8, t, 0.05);
+    w.panner.positionZ.setTargetAtTime(at.z, t, 0.05);
+    if (t < w.nextAt) return;
+    const near = Math.max(0, Math.min(1, closeness));
+    const level = RELIC_LEVEL * (1 + RELIC_NEAR_GAIN * near);
+    for (const [semitones, beat] of RELIC_TUNE) this.musicBoxNote(w.input, 440 * 2 ** (semitones / 12), t + beat * RELIC_BEAT_SEC, level);
+    const phrase = RELIC_TUNE[RELIC_TUNE.length - 1]![1] * RELIC_BEAT_SEC;
+    w.nextAt = t + phrase + RELIC_GAP_FAR_SEC - (RELIC_GAP_FAR_SEC - RELIC_GAP_NEAR_SEC) * near;
+  }
+
+  /** One plucked music-box note: a quick start and a long ring. */
+  private musicBoxNote(out: AudioNode, hz: number, at: number, level: number) {
+    const ctx = this.ctx!;
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0, at);
+    env.gain.linearRampToValueAtTime(level, at + 0.005);
+    env.gain.exponentialRampToValueAtTime(0.0001, at + RELIC_NOTE_SEC);
+    env.connect(out);
+    for (const [mult, gain] of [
+      [1, 1],
+      [4, RELIC_SHINE_GAIN],
+    ] as const) {
+      const osc = ctx.createOscillator();
+      osc.frequency.value = hz * mult;
+      const g = ctx.createGain();
+      g.gain.value = gain;
+      osc.connect(g).connect(env);
+      osc.start(at);
+      osc.stop(at + RELIC_NOTE_SEC + 0.05);
+    }
   }
 
   /** A panner at a place in the world, or the plain output when there is no place. */
