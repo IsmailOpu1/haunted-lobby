@@ -393,6 +393,7 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 - Relic door, basement, ritual, overtime, win and lose (GDD 10, 11, 18)
 - Map data format (PRD 10.8) and the Bellboy trick
 - **Done when:** a full match with no possessed can be won and lost on the full grey-box map.
+- **Passed 2026-10-27:** scripted full matches on the whole hotel won by ritual and lost at dawn and by all dying (234 tests passing), and the owner's own playtest lost to the ghost with everything working (git tag `phase-5-greybox`). Owner verdict: the grey map is hard to find your way around because every room looks the same, and a nearby relic is easy to miss, so a small grey-box readability pass comes before Phase 6.
 
 **Phase 6: The possessed, meetings and Wisps (about 4 weeks)**
 - Role assignment, private role messages, 10 s intro, fair rotation
@@ -445,7 +446,7 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 |---|---|---|
 | M0 Foundation | 0 | Two players join one room by code |
 | M1 Playable fear | 3 | Friends whisper and feel tension in grey boxes at 60 FPS. Go / no-go for the project. **Passed 2026-10-26: go** |
-| M2 Core loop | 5 | A full match without possessed can be won and lost |
+| M2 Core loop | 5 | A full match without possessed can be won and lost. **Passed 2026-10-27** |
 | M3 Social layer | 6 | The possessed can sabotage and be caught. Private alpha |
 | M4 Beta ready | 7 | Lobby, settings and rematch work for 8 players. Private beta |
 | M5 Release candidate | 9 | Release criteria met |
