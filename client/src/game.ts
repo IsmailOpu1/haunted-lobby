@@ -351,6 +351,7 @@ export class Game {
   /** Starts playing in a joined room. */
   attach(room: Room) {
     this.room = room;
+    this.stations.setSeed(room.roomId);
     room.onStateChange((state) => this.onServerState(state));
     let voiceAnswered = false;
     room.onMessage("voice", (msg: ServerMessages["voice"]) => {

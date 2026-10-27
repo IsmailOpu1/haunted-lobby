@@ -87,7 +87,7 @@ export const oneFloorTestMap: MapData = {
     { id: "task-stove", name: "Turn off the stove", room: "Kitchen", minigame: "stove", x: 5.25, z: -6.7, visible: false, noisy: false },
     { id: "task-boiler", name: "Turn the boiler valve", room: "Kitchen", minigame: "boiler", x: 8.6, z: -10, visible: false, noisy: false },
     { id: "task-trunk", name: "Seal the old trunk", room: "Kitchen", minigame: "trunk", x: 5.25, z: -9.8, visible: false, noisy: false },
-    { id: "task-clock", name: "Wind the grandfather clock", room: "Main Hall", minigame: "clock", x: 0, z: 11.5, visible: true, noisy: false },
+    { id: "task-clock", name: "Set the grandfather clock", room: "Main Hall", minigame: "clock", x: 0, z: 11.5, visible: true, noisy: false, clue: { x: 2, z: 10, heightM: 1, stand: true } },
     { id: "task-piano", name: "Tune the piano", room: "Main Hall", minigame: "piano", x: -7.2, z: 7, visible: false, noisy: true },
     { id: "task-cradle", name: "Rock the cradle", room: "Main Hall", minigame: "cradle", x: 7.2, z: 6, visible: false, noisy: true },
     { id: "task-switchboard", name: "Repair the switchboard", room: "Main Hall", minigame: "switchboard", x: -7.4, z: 1, visible: false, noisy: false },

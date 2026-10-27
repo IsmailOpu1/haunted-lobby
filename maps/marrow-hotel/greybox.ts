@@ -41,8 +41,8 @@ const BASEMENT = 200;
 
 const LOCKBOX = "Open the jewellery box";
 
-function task(id: string, name: string, room: string, minigame: TaskStationDef["minigame"], x: number, z: number, visible = false, noisy = false): TaskStationDef {
-  return { id, name, room, minigame, x, z, visible, noisy };
+function task(id: string, name: string, room: string, minigame: TaskStationDef["minigame"], x: number, z: number, visible = false, noisy = false, clue?: TaskStationDef["clue"]): TaskStationDef {
+  return { id, name, room, minigame, x, z, visible, noisy, ...(clue ? { clue } : {}) };
 }
 
 function relic(id: string, label: string, room: string, minigame: RelicSpotDef["minigame"], x: number, z: number): RelicSpotDef {
@@ -194,7 +194,8 @@ export const marrowHotelGreybox = buildMap({
         { id: "jar-service", x: 15, z: -12 },
       ],
       tasks: [
-        task("task-clock", "Wind the grandfather clock", "Main Hall", "clock", 0, 17.8, true),
+        // The guest book with the time to set lies on the meeting table.
+        task("task-clock", "Set the grandfather clock", "Main Hall", "clock", 0, 17.8, true, false, { x: 1.2, z: 11, heightM: 0.8 }),
         task("task-switchboard", "Repair the switchboard", "Reception", "switchboard", -22.2, 14),
         task("task-letter", "Burn the cursed letter", "Library", "letter", -22.3, -1, true),
         task("task-piano", "Tune the piano", "Ballroom", "piano", -21.5, -13, false, true),

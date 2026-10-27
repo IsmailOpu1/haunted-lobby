@@ -184,60 +184,6 @@ export class LetterLogic {
 }
 
 /**
- * Wind the grandfather clock: hold the key and turn it a quarter at a time, in time with the
- * ticks. A quarter finished off the beat, or a second one on the same tick, slips back.
- */
-export class ClockLogic {
-  private cfg = config.tasks.hands.clock;
-  /** Quarter turns wound so far. */
-  wound = 0;
-  /** How far into the current quarter the key is turned, 0 to 1. */
-  turn = 0;
-  private time = 0;
-  /** The tick the last quarter landed on. */
-  private lastBeat = -1;
-
-  constructor(private play: Play) {}
-
-  get done(): boolean {
-    return this.wound >= this.cfg.quarters;
-  }
-
-  /** The key's angle in degrees, for drawing. */
-  get keyDeg(): number {
-    return (this.wound + this.turn) * 90;
-  }
-
-  /** How far into the current tick, 0 to 1 (0 is the tick). */
-  get beatPhase(): number {
-    return (this.time / this.cfg.tickSec) % 1;
-  }
-
-  /** holding: the key is in your hand. dragX: pixels moved right (turning it) while holding it. */
-  update(dt: number, input: { holding: boolean; dragX: number }) {
-    const c = this.cfg;
-    const before = Math.floor(this.time / c.tickSec);
-    this.time += dt;
-    if (Math.floor(this.time / c.tickSec) > before) this.play("tick");
-    if (this.done || !input.holding || input.dragX <= 0) return;
-    this.turn += input.dragX / c.pxPerQuarter;
-    if (this.turn < 1) return;
-    this.turn = 0;
-    // Which tick is nearest, and how far off it the quarter landed.
-    const beat = Math.round(this.time / c.tickSec);
-    const off = Math.abs(this.time - beat * c.tickSec);
-    if (off <= c.beatSec && beat !== this.lastBeat) {
-      this.lastBeat = beat;
-      this.wound += 1;
-      this.play("click");
-    } else {
-      this.wound = Math.max(0, this.wound - c.slipQuarters);
-      this.play("wrong");
-    }
-  }
-}
-
-/**
  * Turn the boiler valve: turn the heavy wheel to bring the gauge's needle into the safe band,
  * and keep it there. The needle follows the wheel slowly and draughts push it about.
  */
@@ -340,52 +286,6 @@ export class PortraitsLogic {
       this.tilt[i] = 0;
       this.level[i] = true;
       this.play("click");
-    }
-  }
-}
-
-/**
- * Water the dead roses: tip the watering can into each vase and stop between the line and the
- * rim. The can tips and rights itself gradually, so water keeps coming a moment after you let
- * go. Past the rim the vase overflows and you empty it and start again.
- */
-export class RosesLogic {
-  private cfg = config.tasks.hands.roses;
-  readonly water: number[];
-  /** How far the can is tipped, 0 to 1. */
-  tilt = 0;
-  private splashWait = 0;
-
-  constructor(private play: Play) {
-    this.water = Array.from({ length: this.cfg.vases }, () => 0);
-  }
-
-  /** Done when every vase holds water between the line and the rim and the can is upright. */
-  get done(): boolean {
-    return this.tilt === 0 && this.water.every((w) => w >= this.cfg.line && w <= this.cfg.rim);
-  }
-
-  /** vase: the vase under the spout, or null. holding: the button tips the can. */
-  update(dt: number, input: { vase: number | null; holding: boolean }) {
-    const c = this.cfg;
-    if (dt <= 0) return;
-    this.tilt = Math.max(0, Math.min(1, this.tilt + ((input.holding ? 1 : -1) * dt) / c.tiltSec));
-    this.splashWait = Math.max(0, this.splashWait - dt);
-    if (this.tilt === 0) return;
-    const i = input.vase;
-    if (i === null) {
-      // Water on the floor.
-      if (this.splashWait === 0) {
-        this.splashWait = SPLASH_EVERY_SEC;
-        this.play("splash");
-      }
-      return;
-    }
-    this.water[i]! += (this.tilt * dt) / c.fillSec;
-    if (this.water[i]! > c.rim) {
-      // It overflows: tip it out and start that vase again.
-      this.water[i] = 0;
-      this.play("splash");
     }
   }
 }
@@ -870,65 +770,6 @@ export class TrunkLogic {
 }
 
 /**
- * Tune the piano: press the real keys in the order the tuning card shows. Each key rings a moment
- * before the next goes down. A wrong key is a sour note the ghost can hear, and the round restarts.
- */
-export class PianoLogic {
-  private cfg = config.tasks.hands.piano;
-  round = 0;
-  step = 0;
-  /** The keys to press this round, in order. */
-  line: number[];
-  /** Seconds until the next key can go down. */
-  ring = 0;
-  /** Seconds until the card has turned over for the next round. */
-  pause = 0;
-
-  constructor(private play: Play, private noise: () => void, private random: Random = Math.random) {
-    this.line = this.newLine();
-  }
-
-  get done(): boolean {
-    return this.round >= this.cfg.rounds;
-  }
-
-  private newLine(): number[] {
-    const c = this.cfg;
-    const line: number[] = [];
-    for (let i = 0; i < c.notesPerRound; i++) {
-      let key = Math.floor(this.random() * c.keys);
-      // Never the same key twice running, so every press is a new key to find.
-      if (key === line[i - 1]) key = (key + 1) % c.keys;
-      line.push(key);
-    }
-    return line;
-  }
-
-  /** pressed: the key pressed this frame, or null. */
-  update(dt: number, input: { pressed: number | null }) {
-    const c = this.cfg;
-    this.ring = Math.max(0, this.ring - dt);
-    this.pause = Math.max(0, this.pause - dt);
-    if (this.done || input.pressed === null || this.ring > 0 || this.pause > 0) return;
-    this.ring = c.ringSec;
-    if (input.pressed !== this.line[this.step]) {
-      this.play("badNote");
-      this.noise();
-      this.step = 0;
-      return;
-    }
-    this.play("note", input.pressed);
-    this.step += 1;
-    if (this.step < this.line.length) return;
-    this.round += 1;
-    this.step = 0;
-    if (this.done) return;
-    this.line = this.newLine();
-    this.pause = c.roundPauseSec;
-  }
-}
-
-/**
  * Fold the bedsheets: fold the sheet in half three times. Grab it and pull: toward you for the
  * first and last folds, from right to left for the middle one. Let go early and it slides back.
  */
@@ -1149,5 +990,284 @@ export class DrainLogic {
       this.gripped = true;
       this.play("thud");
     }
+  }
+}
+
+// ---------- Puzzle tasks (the pilot of GDD 26.5's brain-game tasks) ----------
+
+/**
+ * The time a station's clue gives (the clock's guest book), the same on every screen in a match:
+ * a five-minute mark, never twelve o'clock exactly. In minutes past twelve (0 to 715).
+ */
+export function clueTime(seed: string, stationId: string): number {
+  // FNV-1a.
+  let h = 0x811c9dc5;
+  for (const ch of `${seed}/${stationId}`) h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193) >>> 0;
+  const minutes = (h % 144) * 5;
+  return minutes === 0 ? 15 : minutes;
+}
+
+/** A time in minutes past twelve as a clock shows it: "7:05", "12:30". */
+export function clockText(minutes: number): string {
+  return `${Math.floor(minutes / 60) || 12}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+/** The short way between two times on a clock face, in minutes. */
+function clockGap(a: number, b: number): number {
+  const d = (((a - b) % 720) + 720) % 720;
+  return Math.min(d, 720 - d);
+}
+
+/**
+ * Set the grandfather clock: it has stopped, and the guest book in the hall says when the house
+ * must be woken. Grab the clock face and drag to turn the minute hand (the hour hand follows,
+ * as on a real clock). Let go with the hands at that time and the clock starts again.
+ */
+export class ClockLogic {
+  private cfg = config.tasks.hands.clock;
+  /** The time the hands show, in minutes past twelve (0 to 719). */
+  minutes: number;
+  /** Seconds the hands have rested on the right time. */
+  settled = 0;
+  private pace = new Pace(this.cfg.maxDegPerSec);
+
+  /** target: the time in the guest book, in minutes past twelve. */
+  constructor(private play: Play, readonly target: number) {
+    // Stopped half a day round from it, so either way round is the same long turn.
+    this.minutes = (target + 360) % 720;
+  }
+
+  get done(): boolean {
+    return this.settled >= this.cfg.settleSec;
+  }
+
+  /** The hands, in degrees clockwise from twelve. */
+  get minuteDeg(): number {
+    return (this.minutes % 60) * 6;
+  }
+
+  get hourDeg(): number {
+    return (this.minutes / 720) * 360;
+  }
+
+  /** Whether the hands show the time in the book. */
+  get right(): boolean {
+    return clockGap(this.minutes, this.target) <= this.cfg.toleranceMin;
+  }
+
+  /** held: the clock face is in your hand. dragX: pixels moved right (clockwise). */
+  update(dt: number, input: { held: boolean; dragX: number }) {
+    const c = this.cfg;
+    if (dt <= 0 || this.done) return;
+    if (!input.held) {
+      this.settled = this.right ? this.settled + dt : 0;
+      if (this.done) this.play("click");
+      return;
+    }
+    this.settled = 0;
+    const turn = this.pace.take(dt, input.dragX * c.degPerPx) / 6;
+    if (turn === 0) return;
+    const before = Math.floor(this.minutes / c.tickMin);
+    this.minutes = (((this.minutes + turn) % 720) + 720) % 720;
+    if (Math.floor(this.minutes / c.tickMin) !== before) this.play("tick");
+  }
+}
+
+/**
+ * Tune the piano by ear: it plays a short tune, its keys going down as it plays. Play it back.
+ * Each round the tune gets one note longer. A wrong key is a sour note the ghost can hear, and
+ * the piano plays the tune again.
+ */
+export class PianoLogic {
+  private cfg = config.tasks.hands.piano;
+  round = 0;
+  /** The whole tune; each round plays the first firstNotes + round notes of it. */
+  readonly tune: number[];
+  /** "listen" while the piano plays the tune, "play" while it waits for you. */
+  mode: "listen" | "play" = "listen";
+  /** The next note to sound (listening) or to press (playing). */
+  step = 0;
+  /** The key the piano is sounding now, for the keys to move. */
+  showing: number | null = null;
+  /** Seconds a pressed key still rings, before the next can go down. */
+  ring = 0;
+  /** True after a wrong note, until you play the tune through. */
+  again = false;
+  private wait: number;
+
+  constructor(private play: Play, private noise: () => void, random: Random = Math.random) {
+    const c = this.cfg;
+    this.tune = [];
+    for (let i = 0; i < c.firstNotes + c.rounds - 1; i++) {
+      let key = Math.floor(random() * c.keys);
+      // Never the same key twice running, so every note is a new key to find.
+      if (key === this.tune[i - 1]) key = (key + 1) % c.keys;
+      this.tune.push(key);
+    }
+    this.wait = c.listenPauseSec;
+  }
+
+  get done(): boolean {
+    return this.round >= this.cfg.rounds;
+  }
+
+  /** How many notes this round's tune has. */
+  get length(): number {
+    return this.cfg.firstNotes + Math.min(this.round, this.cfg.rounds - 1);
+  }
+
+  /** Plays the tune again from the start, after a pause. */
+  private listen(pauseSec: number) {
+    this.mode = "listen";
+    this.step = 0;
+    this.wait = pauseSec;
+  }
+
+  /** pressed: the key pressed this frame, or null. replay: you asked to hear the tune again. */
+  update(dt: number, input: { pressed: number | null; replay?: boolean }) {
+    const c = this.cfg;
+    if (dt <= 0 || this.done) return;
+    this.ring = Math.max(0, this.ring - dt);
+    if (this.mode === "listen") {
+      this.wait -= dt;
+      if (this.wait <= c.notePlaySec - c.noteShowSec) this.showing = null;
+      if (this.wait > 0) return;
+      if (this.step < this.length) {
+        const key = this.tune[this.step]!;
+        this.play("note", key);
+        this.showing = key;
+        this.step += 1;
+        this.wait = c.notePlaySec;
+        return;
+      }
+      this.mode = "play";
+      this.step = 0;
+      this.showing = null;
+      return;
+    }
+    if (input.replay) return this.listen(c.listenPauseSec);
+    if (input.pressed === null || this.ring > 0) return;
+    this.ring = c.ringSec;
+    if (input.pressed !== this.tune[this.step]) {
+      this.play("badNote");
+      this.noise();
+      this.again = true;
+      return this.listen(c.wrongPauseSec);
+    }
+    this.play("note", input.pressed);
+    this.step += 1;
+    if (this.step < this.length) return;
+    this.round += 1;
+    this.again = false;
+    if (!this.done) this.listen(c.listenPauseSec);
+  }
+}
+
+/** A water-jug puzzle: jugs of these sizes, and how much the vase must hold. */
+export interface JugPuzzle {
+  jugs: readonly number[];
+  target: number;
+}
+
+/** What a click does in the roses puzzle. */
+export type JugAction =
+  | { kind: "pick"; jug: number }
+  | { kind: "putDown" }
+  | { kind: "fill" }
+  | { kind: "pour"; jug: number }
+  | { kind: "pourVase" }
+  | { kind: "empty" }
+  | { kind: "tipVase" };
+
+/**
+ * Water the dead roses: a puzzle with two jugs that hold different amounts, a pump to fill them,
+ * a bucket to empty them, and a vase marked with a line. Pouring always pours all you can, so
+ * get exactly the right amount into the vase by pouring between the jugs. Past the line, tip the
+ * vase out and try again.
+ */
+export class RosesLogic {
+  private cfg = config.tasks.hands.roses;
+  readonly puzzle: JugPuzzle;
+  /** Water in each jug, and in the vase. */
+  readonly water: number[];
+  vase = 0;
+  /** The jug in your hand, or null. */
+  inHand: number | null = null;
+  /** Seconds left of the pour in progress (nothing else can be done meanwhile). */
+  busy = 0;
+
+  constructor(private play: Play, random: Random = Math.random) {
+    const list = this.cfg.puzzles;
+    this.puzzle = list[Math.floor(random() * list.length)]!;
+    this.water = this.puzzle.jugs.map(() => 0);
+  }
+
+  get done(): boolean {
+    return this.vase === this.puzzle.target && this.busy === 0;
+  }
+
+  /** Whether this would do anything now. */
+  can(a: JugAction): boolean {
+    if (this.busy > 0 || this.done) return false;
+    const h = this.inHand;
+    const caps = this.puzzle.jugs;
+    switch (a.kind) {
+      case "pick":
+        return h === null;
+      case "putDown":
+        return h !== null;
+      case "fill":
+        return h !== null && this.water[h]! < caps[h]!;
+      case "pour":
+        return h !== null && a.jug !== h && this.water[h]! > 0 && this.water[a.jug]! < caps[a.jug]!;
+      case "pourVase":
+      case "empty":
+        return h !== null && this.water[h]! > 0;
+      case "tipVase":
+        return h === null && this.vase > 0;
+    }
+  }
+
+  /** Does it, if it can. Returns whether it did. */
+  act(a: JugAction): boolean {
+    if (!this.can(a)) return false;
+    const c = this.cfg;
+    const h = this.inHand!;
+    const caps = this.puzzle.jugs;
+    switch (a.kind) {
+      case "pick":
+        this.inHand = a.jug;
+        return true;
+      case "putDown":
+        this.inHand = null;
+        return true;
+      case "fill":
+        this.water[h] = caps[h]!;
+        break;
+      case "pour": {
+        const amount = Math.min(this.water[h]!, caps[a.jug]! - this.water[a.jug]!);
+        this.water[h]! -= amount;
+        this.water[a.jug]! += amount;
+        break;
+      }
+      case "pourVase":
+        // Past the brim it runs over.
+        this.vase = Math.min(this.cfg.vaseCap, this.vase + this.water[h]!);
+        this.water[h] = 0;
+        break;
+      case "empty":
+        this.water[h] = 0;
+        break;
+      case "tipVase":
+        this.vase = 0;
+        break;
+    }
+    this.busy = c.pourSec;
+    this.play("splash");
+    return true;
+  }
+
+  update(dt: number) {
+    if (dt > 0) this.busy = Math.max(0, this.busy - dt);
   }
 }

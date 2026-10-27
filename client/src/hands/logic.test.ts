@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { config } from "@haunted/shared";
 import type { TaskSoundKind } from "./sounds.ts";
-import { BoilerLogic, CandelabraLogic, ClockLogic, CradleLogic, DigLogic, DrainLogic, type FacePoint, LetterLogic, LockboxLogic, MatchLogic, MirrorLogic, PianoLogic, PortraitsLogic, RosesLogic, SheetsLogic, ShuttersLogic, StoveLogic, SwitchboardLogic, TrunkLogic } from "./logic.ts";
+import { BoilerLogic, CandelabraLogic, ClockLogic, clockText, clueTime, CradleLogic, DigLogic, DrainLogic, type FacePoint, type JugAction, type JugPuzzle, LetterLogic, LockboxLogic, MatchLogic, MirrorLogic, PianoLogic, PortraitsLogic, RosesLogic, SheetsLogic, ShuttersLogic, StoveLogic, SwitchboardLogic, TrunkLogic } from "./logic.ts";
 
 // The hands-on tasks (GDD 26.5): each one is played here by a simulated steady player, who
 // must finish in the GDD's time, and by careless ones, who must pay for it.
@@ -307,27 +307,6 @@ describe("letter", () => {
   });
 });
 
-describe("clock", () => {
-  it("winds when each quarter turn lands on a tick", () => {
-    const s = sounds();
-    const game = new ClockLogic(s.play);
-    const perFrame = hands.clock.pxPerQuarter / (hands.clock.tickSec / DT);
-    const t = run(() => game.update(DT, { holding: true, dragX: perFrame }), () => game.done);
-    inTaskTime(t);
-    expect(s.heard).toContain("tick");
-    expect(s.heard).not.toContain("wrong");
-  });
-
-  it("slips back when wound faster than the ticks", () => {
-    const s = sounds();
-    const game = new ClockLogic(s.play);
-    const perFrame = (2.3 * hands.clock.pxPerQuarter) / (hands.clock.tickSec / DT);
-    run(() => game.update(DT, { holding: true, dragX: perFrame }), () => game.done, config.tasks.maxSec);
-    expect(game.done).toBe(false);
-    expect(s.heard).toContain("wrong");
-  });
-});
-
 describe("boiler", () => {
   const b = hands.boiler;
   /** Where the needle settles in the middle of the safe band. */
@@ -370,32 +349,6 @@ describe("portraits", () => {
     const game = new PortraitsLogic(() => {}, () => 0.5);
     for (let i = 0; i < 600; i++) game.update(DT, { held: null, dragX: 0 });
     expect(game.level.some(Boolean)).toBe(false);
-  });
-});
-
-describe("roses", () => {
-  const r = hands.roses;
-
-  it("fills each vase to the line when you stop pouring a little early", () => {
-    const game = new RosesLogic(() => {});
-    const t = run(
-      () => {
-        const i = game.water.findIndex((w) => w < r.line);
-        // Stop a little before the line: the can rights itself slowly, so water keeps coming.
-        const pour = i >= 0 && game.water[i]! < r.line - 0.03;
-        game.update(DT, { vase: i >= 0 ? i : null, holding: pour });
-      },
-      () => game.done,
-    );
-    inTaskTime(t);
-  });
-
-  it("overflows and empties the vase when you pour too long", () => {
-    const s = sounds();
-    const game = new RosesLogic(s.play);
-    run(() => game.update(DT, { vase: 0, holding: true }), () => false, r.fillSec * 1.2);
-    expect(game.water[0]).toBeLessThan(r.line);
-    expect(s.heard).toContain("splash");
   });
 });
 
@@ -572,55 +525,6 @@ describe("trunk", () => {
     expect(s.heard).toContain("thud");
     expect(game.shut).toBe(false);
     expect(game.lid).toBe(1);
-  });
-});
-
-describe("piano", () => {
-  const pi = hands.piano;
-
-  it("is tuned by playing each round's keys in order, a little under a second a key", () => {
-    for (let seed = 1; seed <= 5; seed++) {
-      const s = sounds();
-      let noise = 0;
-      const game = new PianoLogic(s.play, () => noise++, seeded(seed));
-      let wait = 0;
-      const t = run(
-        () => {
-          wait -= DT;
-          const ready = wait <= 0 && game.ring === 0 && game.pause === 0;
-          game.update(DT, { pressed: ready ? game.line[game.step]! : null });
-          if (ready) wait = 0.75;
-        },
-        () => game.done,
-      );
-      inTaskTime(t);
-      expect(noise).toBe(0);
-      expect(s.heard.filter((k) => k === "note")).toHaveLength(pi.rounds * pi.notesPerRound);
-    }
-  });
-
-  it("never asks for the same key twice running", () => {
-    const game = new PianoLogic(() => {}, () => {}, () => 0.3);
-    for (let i = 1; i < game.line.length; i++) expect(game.line[i]).not.toBe(game.line[i - 1]);
-  });
-
-  it("makes a sour, noisy note for a wrong key and starts the round again", () => {
-    const s = sounds();
-    let noise = 0;
-    const game = new PianoLogic(s.play, () => noise++, seeded(4));
-    game.update(DT, { pressed: game.line[0]! });
-    run(() => game.update(DT, { pressed: null }), () => game.ring === 0, 2);
-    game.update(DT, { pressed: (game.line[1]! + 1) % pi.keys });
-    expect(s.heard).toEqual(["note", "badNote"]);
-    expect(noise).toBe(1);
-    expect(game.step).toBe(0);
-  });
-
-  it("ignores keys pressed while the last one still rings", () => {
-    const game = new PianoLogic(() => {}, () => {}, seeded(5));
-    game.update(DT, { pressed: game.line[0]! });
-    game.update(DT, { pressed: game.line[1]! });
-    expect(game.step).toBe(1);
   });
 });
 
@@ -804,5 +708,240 @@ describe("drain", () => {
     game.update(DT, { holding: false, dragX: 0, dragY: 0 });
     expect(game.gripped).toBe(false);
     expect(game.pulled).toBe(0);
+  });
+});
+
+/** A repeatable stand-in for Math.random. */
+function seededRandom(seed: number) {
+  return () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+}
+
+describe("clock (puzzle)", () => {
+  const ck = hands.clock;
+
+  /** Turns the hands the short way to the target at a steady speed, then lets go. */
+  function steady(game: ClockLogic, degPerSec = ck.maxDegPerSec) {
+    if (game.right) return game.update(DT, { held: false, dragX: 0 });
+    const ahead = (((game.target - game.minutes) % 720) + 720) % 720;
+    const dir = ahead <= 360 ? 1 : -1;
+    const want = Math.min(Math.abs(ahead <= 360 ? ahead : 720 - ahead) * 6, degPerSec * DT);
+    game.update(DT, { held: true, dragX: (dir * want) / ck.degPerPx });
+  }
+
+  it("starts when its hands are set to the time in the guest book", () => {
+    for (const target of [0, 7 * 60 + 15, 11 * 60 + 55, 3 * 60 + 40]) {
+      const s = sounds();
+      const game = new ClockLogic(s.play, target);
+      expect(game.right).toBe(false);
+      const t = run(() => steady(game), () => game.done);
+      // Finding the time in the book comes first; turning the hands alone takes the server's minimum.
+      expect(t).toBeGreaterThanOrEqual(config.tasks.serverMinSec);
+      expect(t).toBeLessThanOrEqual(config.tasks.maxSec);
+      expect(s.heard).toContain("tick");
+      expect(s.heard.at(-1)).toBe("click");
+    }
+  });
+
+  it("moves the hour hand with the minute hand, as on a real clock", () => {
+    const game = new ClockLogic(() => {}, 0);
+    // Stopped at six o'clock.
+    expect(game.hourDeg).toBeCloseTo(180);
+    expect(game.minuteDeg).toBeCloseTo(0);
+    run(() => game.update(DT, { held: true, dragX: (ck.maxDegPerSec * DT) / ck.degPerPx }), () => false, 1);
+    expect(game.minuteDeg).toBeCloseTo((ck.maxDegPerSec * 1) % 360, 0);
+    expect(game.hourDeg).toBeCloseTo(180 + ck.maxDegPerSec / 12, 0);
+  });
+
+  it("does not start at the wrong time, nor while you still hold it", () => {
+    const game = new ClockLogic(() => {}, 7 * 60 + 15);
+    run(() => game.update(DT, { held: false, dragX: 0 }), () => false, 3);
+    expect(game.done).toBe(false);
+    game.minutes = game.target;
+    run(() => game.update(DT, { held: true, dragX: 0 }), () => false, 3);
+    expect(game.done).toBe(false);
+  });
+});
+
+describe("piano (puzzle)", () => {
+  const pi = hands.piano;
+
+  /** Listens, then plays the tune back with a little thought between keys. */
+  function player(game: PianoLogic, mistakeAt = -1) {
+    let wait = 0;
+    let presses = 0;
+    return () => {
+      wait -= DT;
+      const ready = game.mode === "play" && wait <= 0 && game.ring === 0;
+      let pressed: number | null = null;
+      if (ready) {
+        pressed = presses++ === mistakeAt ? (game.tune[game.step]! + 1) % pi.keys : game.tune[game.step]!;
+        wait = 0.5;
+      }
+      game.update(DT, { pressed });
+    };
+  }
+
+  it("plays a tune, then waits for you to play it back, one note longer each round", () => {
+    const s = sounds();
+    let noise = 0;
+    const game = new PianoLogic(s.play, () => noise++, () => 0.3);
+    expect(game.mode).toBe("listen");
+    const lengths: number[] = [];
+    const t = run(
+      (() => {
+        const step = player(game);
+        return () => {
+          if (game.mode === "play" && game.step === 0 && lengths.at(-1) !== game.length) lengths.push(game.length);
+          step();
+        };
+      })(),
+      () => game.done,
+    );
+    expect(lengths).toEqual([pi.firstNotes, pi.firstNotes + 1, pi.firstNotes + 2]);
+    inTaskTime(t);
+    expect(noise).toBe(0);
+  });
+
+  it("ignores keys while it plays the tune to you", () => {
+    const game = new PianoLogic(() => {}, () => {}, seededRandom(2));
+    game.update(DT, { pressed: game.tune[0]! });
+    expect(game.mode).toBe("listen");
+    expect(game.step).toBe(0);
+  });
+
+  it("makes a sour, noisy note for a wrong key and plays the tune again", () => {
+    const s = sounds();
+    let noise = 0;
+    const game = new PianoLogic(s.play, () => noise++, seededRandom(3));
+    const step = player(game, 1);
+    run(step, () => noise > 0);
+    expect(s.heard).toContain("badNote");
+    expect(game.mode).toBe("listen");
+    expect(game.again).toBe(true);
+    expect(game.round).toBe(0);
+    run(step, () => game.done);
+    expect(game.done).toBe(true);
+  });
+
+  it("plays the tune again when you ask", () => {
+    const game = new PianoLogic(() => {}, () => {}, seededRandom(4));
+    run(() => game.update(DT, { pressed: null }), () => game.mode === "play");
+    game.update(DT, { pressed: null, replay: true });
+    expect(game.mode).toBe("listen");
+  });
+});
+
+describe("roses (puzzle)", () => {
+  const ro = hands.roses;
+
+  /** The fewest clicks that solve a puzzle (a search over every state), or null if none do. */
+  function solve(n: number): JugAction[] | null {
+    const puzzle: JugPuzzle = ro.puzzles[n]!;
+    const game = () => new RosesLogic(() => {}, () => n / ro.puzzles.length + 0.001);
+    const key = (g: RosesLogic) => `${g.water.join(",")}|${g.vase}|${g.inHand}`;
+    const all: JugAction[] = [
+      ...puzzle.jugs.flatMap((_, j): JugAction[] => [{ kind: "pick", jug: j }, { kind: "pour", jug: j }]),
+      { kind: "putDown" },
+      { kind: "fill" },
+      { kind: "pourVase" },
+      { kind: "empty" },
+      { kind: "tipVase" },
+    ];
+    const actions = (g: RosesLogic) => all.filter((a) => g.can(a));
+    const replay = (path: JugAction[]) => {
+      const g = game();
+      for (const a of path) {
+        g.act(a);
+        g.update(ro.pourSec);
+      }
+      return g;
+    };
+    const seen = new Set([key(game())]);
+    let frontier: JugAction[][] = [[]];
+    for (let depth = 0; depth < 30 && frontier.length; depth++) {
+      const next: JugAction[][] = [];
+      for (const path of frontier) {
+        const g = replay(path);
+        if (g.done) return path;
+        for (const a of actions(g)) {
+          const h = replay([...path, a]);
+          if (seen.has(key(h))) continue;
+          seen.add(key(h));
+          next.push([...path, a]);
+        }
+      }
+      frontier = next;
+    }
+    return null;
+  }
+
+  it("has puzzles that can all be solved, none of them in a click or two", () => {
+    for (let n = 0; n < ro.puzzles.length; n++) {
+      const path = solve(n);
+      expect(path).not.toBeNull();
+      // Even someone who knows the answer pours long enough for the server's minimum.
+      const pours = path!.filter((a) => a.kind !== "pick" && a.kind !== "putDown").length;
+      expect(pours * ro.pourSec + path!.length * 0.4).toBeGreaterThanOrEqual(config.tasks.serverMinSec);
+    }
+  });
+
+  it("pours all it can: into a jug until it is full, into the vase all of it", () => {
+    const s = sounds();
+    const game = new RosesLogic(s.play, () => 0);
+    const [small, big] = game.puzzle.jugs[0]! < game.puzzle.jugs[1]! ? [0, 1] : [1, 0];
+    const act = (a: JugAction) => {
+      expect(game.act(a)).toBe(true);
+      game.update(ro.pourSec);
+    };
+    act({ kind: "pick", jug: big });
+    act({ kind: "fill" });
+    act({ kind: "pour", jug: small });
+    expect(game.water[small]).toBe(game.puzzle.jugs[small]);
+    expect(game.water[big]).toBe(game.puzzle.jugs[big]! - game.puzzle.jugs[small]!);
+    act({ kind: "pourVase" });
+    expect(game.vase).toBe(game.puzzle.jugs[big]! - game.puzzle.jugs[small]!);
+    expect(s.heard).toContain("splash");
+  });
+
+  it("is only done with exactly the right amount; past the line, tip the vase out", () => {
+    const game = new RosesLogic(() => {}, () => 0);
+    const big = game.puzzle.jugs[0]! > game.puzzle.jugs[1]! ? 0 : 1;
+    for (const a of [{ kind: "pick", jug: big }, { kind: "fill" }, { kind: "pourVase" }] as JugAction[]) {
+      game.act(a);
+      game.update(ro.pourSec);
+    }
+    expect(game.vase).toBeGreaterThan(game.puzzle.target);
+    expect(game.done).toBe(false);
+    expect(game.can({ kind: "tipVase" })).toBe(false); // hands full
+    game.act({ kind: "putDown" });
+    expect(game.act({ kind: "tipVase" })).toBe(true);
+    game.update(ro.pourSec);
+    expect(game.vase).toBe(0);
+  });
+
+  it("does nothing else while a pour is still running", () => {
+    const game = new RosesLogic(() => {}, () => 0);
+    game.act({ kind: "pick", jug: 0 });
+    game.act({ kind: "fill" });
+    expect(game.can({ kind: "pourVase" })).toBe(false);
+    game.update(ro.pourSec);
+    expect(game.can({ kind: "pourVase" })).toBe(true);
+  });
+});
+
+describe("clue time", () => {
+  it("gives every screen the same five-minute mark, never twelve o'clock", () => {
+    const seen = new Set<number>();
+    for (let i = 0; i < 300; i++) {
+      const t = clueTime(`room${i}`, "task-clock");
+      expect(t).toBe(clueTime(`room${i}`, "task-clock"));
+      expect(t % 5).toBe(0);
+      expect(t).toBeGreaterThan(0);
+      expect(t).toBeLessThan(720);
+      seen.add(t);
+    }
+    expect(seen.size).toBeGreaterThan(50);
+    expect(clockText(7 * 60 + 5)).toBe("7:05");
+    expect(clockText(30)).toBe("12:30");
   });
 });

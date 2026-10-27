@@ -85,9 +85,10 @@ export const config = {
       // within aimM under it until it has had catchSec of heat; it cools off the flame. Then it
       // burns for burnSec and drops into the grate.
       letter: { catchSec: 6, coolPerSec: 0.6, burnSec: 1.5, swayM: 0.14, swayPeriodSec: 2.6, aimM: 0.07 },
-      // Wind the clock with its key, a quarter turn (pxPerQuarter of dragging) on each tick. A
-      // quarter finished more than beatSec from a tick, or two on one tick, slips back slipQuarters.
-      clock: { quarters: 12, tickSec: 0.8, pxPerQuarter: 110, beatSec: 0.2, slipQuarters: 2 },
+      // A puzzle (GDD 26.5): set the stopped clock to the time in the guest book. Grab the face and
+      // drag to turn the minute hand (degPerPx, at most maxDegPerSec); it ticks every tickMin. Let go
+      // within toleranceMin of the time and after settleSec it starts.
+      clock: { degPerPx: 0.6, maxDegPerSec: 300, toleranceMin: 2, settleSec: 0.6, tickMin: 5 },
       // Turn the heavy valve wheel (at most maxDegPerSec) to bring the gauge's needle into the safe
       // band and keep it there holdSec. Each wheel position gives a steady pressure (fully open lowers
       // it by dropFullOpen); the needle follows with a lag and draughts wobble it.
@@ -95,10 +96,17 @@ export const config = {
       // Grab a crooked portrait and drag sideways to level it (heavy: at most maxDegPerSec). Let go
       // within levelDeg and it settles after holdSec. One is haunted and swings crooked once more.
       portraits: { count: 3, minTiltDeg: 20, maxTiltDeg: 35, degPerPx: 0.15, maxDegPerSec: 18, levelDeg: 2, holdSec: 1, hauntedReturnDeg: 25 },
-      // A watering can in your hand: hold the button to tip it (tiltSec to tip fully or back) and
-      // pour into the vase you aim at; a full pour fills one in fillSec. Stop between the line and
-      // the rim; past the rim it overflows and must be emptied (start that vase again).
-      roses: { vases: 3, fillSec: 4.5, tiltSec: 0.4, line: 0.75, rim: 0.95 },
+      // A puzzle (GDD 26.5): two jugs, a pump and a bucket. Get exactly target into the vase (it
+      // holds vaseCap). One puzzle is picked at random; each fill, pour or tip takes pourSec.
+      roses: {
+        puzzles: [
+          { jugs: [3, 5], target: 4 },
+          { jugs: [5, 7], target: 3 },
+          { jugs: [4, 9], target: 6 },
+        ],
+        vaseCap: 12,
+        pourSec: 1.2,
+      },
       // Grab a plug from its hook and drag it (mPerPx, at most maxMPerSec) onto the socket with the
       // same colour; hold it there seatSec while it seats. The wrong socket sparks and throws it back.
       switchboard: { cables: 4, mPerPx: 0.0012, maxMPerSec: 0.6, snapM: 0.05, seatSec: 1.5 },
@@ -110,10 +118,11 @@ export const config = {
       // turn each latch a quarter (degPerPx, at most maxDegPerSec), each within popSec of the last,
       // or the lid bursts open again.
       trunk: { pressPx: 160, springPerSec: 2, pressSec: 2, latches: 3, degPerPx: 0.5, maxDegPerSec: 45, popSec: 5 },
-      // Press the real keys in the order the tuning card shows. A key rings ringSec before the next
-      // one goes down; the card turns over for roundPauseSec between rounds. A wrong key is a sour,
-      // noisy note and starts the round again.
-      piano: { keys: 8, rounds: 3, notesPerRound: 5, ringSec: 0.45, roundPauseSec: 1.2 },
+      // A puzzle (GDD 26.5): the piano plays a tune (a note every notePlaySec, its key down for
+      // noteShowSec) after listenPauseSec; play it back. Each of the rounds adds a note to the
+      // firstNotes. A key rings ringSec. A wrong key is a sour, noisy note, and after wrongPauseSec
+      // the tune plays again.
+      piano: { keys: 8, rounds: 3, firstNotes: 4, notePlaySec: 0.55, noteShowSec: 0.35, ringSec: 0.3, listenPauseSec: 0.8, wrongPauseSec: 1.2 },
       // Fold the sheet in half three times: grab it and pull (pxPerFold of dragging, at most
       // maxPerSec of a fold a second). Let go short of snapAt and it slides back (dropPerSec).
       sheets: { folds: 3, pxPerFold: 500, maxPerSec: 0.35, snapAt: 0.97, dropPerSec: 3 },

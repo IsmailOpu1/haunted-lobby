@@ -91,6 +91,11 @@ export interface TaskStationDef {
   visible: boolean;
   /** Noisy tasks make a sound the ghost can hear when done badly (GDD 9). */
   noisy: boolean;
+  /**
+   * Where the task's clue lies (the clock's guest book, GDD 26.5), and how high: on a table,
+   * or with stand set, on its own stand.
+   */
+  clue?: { x: number; z: number; heightM: number; stand?: boolean };
 }
 
 /** One place to search in a relic hiding spot: a pot, a patch of soil, a drawer. */

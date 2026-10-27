@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { config } from "@haunted/shared";
 import type { TaskSoundKind } from "./sounds.ts";
-import type { HandsModel } from "../stations.ts";
+import { jugModel, type HandsModel } from "../stations.ts";
 import {
   BoilerLogic,
   CandelabraLogic,
@@ -10,6 +10,7 @@ import {
   DigLogic,
   DrainLogic,
   type FacePoint,
+  type JugAction,
   LetterLogic,
   LockboxLogic,
   MirrorLogic,
@@ -296,14 +297,14 @@ class LetterTask implements HandsTask {
 }
 
 class ClockTask implements HandsTask {
-  readonly hint = "Point at the key, hold the mouse button and drag right to turn it: one quarter turn on each tick. Off the beat, it slips back.";
+  readonly hint = "The clock has stopped. The guest book in this room says when to wake the house: grab the clock face and drag right or left to turn the hands to that time, then let go.";
   readonly parts: THREE.Object3D[];
   private logic: ClockLogic;
 
   constructor(private model: Extract<HandsModel, { kind: "clock" }>, events: HandsEvents) {
-    this.logic = new ClockLogic(events.play);
-    this.parts = [model.key];
-    model.setKey(0);
+    this.logic = new ClockLogic(events.play, model.target);
+    this.parts = [model.face];
+    model.setHands(this.logic.minuteDeg, this.logic.hourDeg);
   }
 
   get done() {
@@ -311,7 +312,7 @@ class ClockTask implements HandsTask {
   }
 
   canHold(part: string) {
-    return part === "key";
+    return part === "face" && !this.logic.done;
   }
 
   glows(part: string) {
@@ -319,8 +320,8 @@ class ClockTask implements HandsTask {
   }
 
   update(f: HandsFrame) {
-    this.logic.update(f.dt, { holding: f.held === "key", dragX: f.dragX });
-    this.model.setKey(this.logic.keyDeg);
+    this.logic.update(f.dt, { held: f.held === "face", dragX: f.dragX });
+    this.model.setHands(this.logic.minuteDeg, this.logic.hourDeg);
   }
 }
 
@@ -382,68 +383,81 @@ class PortraitsTask implements HandsTask {
   }
 }
 
-/** How far above a vase's middle the can's spout sits while you pour. */
-const SPOUT_ABOVE_M = 0.3;
-/** How far the can tips forward when fully tipped. */
-const CAN_TIP_RAD = 1.0;
+/** How far above the thing you aim at the jug in your hand hangs. */
+const JUG_ABOVE_M = 0.32;
+/** How far the jug in your hand tips while it pours. */
+const JUG_TIP_RAD = 1.6;
 
 class RosesTask implements HandsTask {
-  readonly hint = "Aim the watering can at a vase and hold the mouse button to pour. Stop between the line and the rim: water keeps coming a moment after you let go.";
+  readonly hint =
+    "Get exactly the vase's number of measures into it. Click a jug to pick it up. With a jug in hand, click the pump to fill it, the other jug or the vase to pour into it, the bucket to empty it, or its mat to put it down. Too much in the vase? Click it with empty hands to tip it out.";
   readonly parts: THREE.Object3D[];
   readonly tool: THREE.Group;
   private logic: RosesLogic;
-  private can: THREE.Group;
-  private stream: THREE.Mesh;
+  private jug = jugModel();
+  private last: string | null = null;
 
   constructor(private model: Extract<HandsModel, { kind: "roses" }>, events: HandsEvents) {
     this.logic = new RosesLogic(events.play);
-    this.parts = model.vases;
+    this.parts = [...model.jugs, ...model.mats, model.vase, model.pump, model.bucket];
     this.tool = new THREE.Group();
-    this.can = new THREE.Group();
-    const tin = new THREE.MeshLambertMaterial({ color: 0x5f6f66 });
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.16, 12), tin);
-    body.position.z = 0.1;
-    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, 0.18, 6), tin);
-    spout.rotation.x = Math.PI / 2.6;
-    spout.position.set(0, 0.04, -0.02);
-    this.can.add(body, spout);
-    this.tool.add(this.can);
-    this.stream = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 1, 6), new THREE.MeshLambertMaterial({ color: 0x5a7a98, transparent: true, opacity: 0.7 }));
-    this.stream.visible = false;
-    this.tool.add(this.stream);
-    model.setWater(this.logic.water);
+    this.tool.add(this.jug.group);
+    model.setPuzzle(this.logic.puzzle);
+    this.show();
   }
 
   get done() {
     return this.logic.done;
   }
 
-  canHold() {
-    return false;
+  /** What clicking this part does now. */
+  private action(part: string | null): JugAction | null {
+    const hand = this.logic.inHand;
+    const jug = index(part, "jug");
+    if (jug !== null) return hand === null ? { kind: "pick", jug } : { kind: "pour", jug };
+    if (index(part, "mat") !== null) return index(part, "mat") === hand ? { kind: "putDown" } : null;
+    if (part === "vase") return hand === null ? { kind: "tipVase" } : { kind: "pourVase" };
+    if (part === "pump") return { kind: "fill" };
+    if (part === "bucket") return { kind: "empty" };
+    return null;
+  }
+
+  canHold(part: string) {
+    const a = this.action(part);
+    return a !== null && this.logic.can(a);
   }
 
   glows(part: string) {
-    const i = index(part, "vase");
-    return i !== null && this.logic.water[i]! < config.tasks.hands.roses.line;
+    return this.canHold(part);
   }
 
   update(f: HandsFrame) {
-    const vase = index(f.aim, "vase");
-    this.logic.update(f.dt, { vase, holding: f.holding });
-    this.model.setWater(this.logic.water);
-    // The can hangs over the vase you aim at, or in front of you; it tips as you pour.
-    const target = vase !== null ? this.model.vases[vase]!.getWorldPosition(_v) : null;
-    if (target) this.tool.position.set(target.x, target.y + SPOUT_ABOVE_M, target.z);
+    // A click counts once, when the button goes down on a part.
+    const clicked = f.held !== null && f.held !== this.last ? f.held : null;
+    this.last = f.held;
+    const a = this.action(clicked);
+    if (a) this.logic.act(a);
+    this.logic.update(f.dt);
+    this.show();
+    // The jug in your hand hangs over what you aim at, or in front of you; it tips as it pours.
+    const hand = this.logic.done ? null : this.logic.inHand;
+    this.jug.group.visible = hand !== null;
+    if (hand === null) return;
+    const aimed = f.aim ? this.parts.find((p) => p.userData.part === f.aim) : undefined;
+    const target = aimed ? aimed.getWorldPosition(_v) : null;
+    if (target) this.tool.position.set(target.x, target.y + JUG_ABOVE_M, target.z);
     else f.ray.at(TOOL_REST_M, this.tool.position);
     this.tool.position.addScaledVector(f.ray.direction, -0.12);
     this.tool.rotation.set(0, Math.atan2(-f.ray.direction.x, -f.ray.direction.z), 0);
-    this.can.rotation.x = -this.logic.tilt * CAN_TIP_RAD;
-    this.stream.visible = this.logic.tilt > 0.3;
-    if (this.stream.visible) {
-      const fall = target ? SPOUT_ABOVE_M - 0.1 : 0.8;
-      this.stream.scale.y = fall;
-      this.stream.position.set(0, -fall / 2, -0.1);
-    }
+    const pouring = this.logic.busy > 0 ? Math.sin((this.logic.busy / config.tasks.hands.roses.pourSec) * Math.PI) : 0;
+    this.jug.group.rotation.x = -pouring * JUG_TIP_RAD;
+  }
+
+  private show() {
+    const l = this.logic;
+    // Done, the jug in your hand goes back on its mat.
+    this.model.setWater(l.water, l.vase, l.done ? null : l.inHand);
+    if (l.inHand !== null) this.jug.setJug(l.puzzle.jugs[l.inHand]!, l.water[l.inHand]!);
   }
 }
 
@@ -583,15 +597,15 @@ class TrunkTask implements HandsTask {
 }
 
 class PianoTask implements HandsTask {
-  readonly hint = "Click the piano keys in the order the card shows, waiting for each note to ring. A wrong key is a sour note the ghost can hear, and the round starts again.";
+  readonly hint = "Listen: the piano plays a tune, its keys going down as it plays. Then click the same keys in the same order. Each round adds a note. A wrong key is a sour note the ghost can hear. Click the card to hear the tune again.";
   readonly parts: THREE.Object3D[];
   private logic: PianoLogic;
-  private last: number | null = null;
+  private last: string | null = null;
   private down: number | null = null;
 
   constructor(private model: Extract<HandsModel, { kind: "piano" }>, events: HandsEvents) {
     this.logic = new PianoLogic(events.play, events.noise);
-    this.parts = model.keys;
+    this.parts = [...model.keys, model.card];
     this.show();
   }
 
@@ -600,7 +614,7 @@ class PianoTask implements HandsTask {
   }
 
   canHold(part: string) {
-    return index(part, "key") !== null && !this.logic.done;
+    return (index(part, "key") !== null || part === "card") && this.logic.mode === "play" && !this.logic.done;
   }
 
   glows(part: string) {
@@ -608,19 +622,21 @@ class PianoTask implements HandsTask {
   }
 
   update(f: HandsFrame) {
-    // A key counts once each time it goes down.
-    const key = index(f.held, "key");
-    const pressed = key !== null && key !== this.last ? key : null;
-    this.last = key;
-    this.logic.update(f.dt, { pressed });
+    // A key (or the card) counts once each time the button goes down on it.
+    const clicked = f.held !== null && f.held !== this.last ? f.held : null;
+    this.last = f.held;
+    const pressed = index(clicked, "key");
+    this.logic.update(f.dt, { pressed, replay: clicked === "card" });
     if (pressed !== null && this.logic.ring === config.tasks.hands.piano.ringSec) this.down = pressed;
     this.show();
   }
 
   private show() {
     const l = this.logic;
-    const card = { line: l.line, step: l.step, round: l.round, rounds: config.tasks.hands.piano.rounds, turning: l.pause > 0 || l.done };
-    this.model.setPiano(card, l.ring > 0 ? this.down : null);
+    const mode = l.done ? "done" : l.mode === "play" ? "play" : l.again ? "again" : "listen";
+    const card = { round: l.round, rounds: config.tasks.hands.piano.rounds, notes: l.length, played: l.mode === "play" ? l.step : 0, mode } as const;
+    // Once in tune no key stays down: the piano is left as it was.
+    this.model.setPiano(card, l.done ? null : l.mode === "listen" ? l.showing : l.ring > 0 ? this.down : null);
   }
 }
 
