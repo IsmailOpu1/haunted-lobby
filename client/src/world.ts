@@ -1,10 +1,16 @@
 import * as THREE from "three";
-import { config, doorBox, furnitureBox, HIDING_SPOT_HEIGHT_M, hidingSpotBox, toWorld, wallBox, type DoorDef, type MapData, type StairDef } from "@haunted/shared";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { config, doorBox, furnitureBox, HIDING_SPOT_HEIGHT_M, hidingSpotBox, levelOf, toWorld, wallBox, wallFaces, type DoorDef, type MapData, type StairDef } from "@haunted/shared";
 import { liftToFloor } from "./place.ts";
 
 const WALL_COLOR = 0x8a8a8a;
 const FLOOR_COLOR = 0x6f6f6f;
 const CEILING_COLOR = 0x4a4a4a;
+// A room's colour (MapData.roomColors) is its walls; its floor and ceiling are darker shades of it.
+const ROOM_FLOOR_SHADE = 0.75;
+const ROOM_CEILING_SHADE = 0.5;
+// Room colours sit just off the wall's face, so they never flicker against the grey wall box.
+const FACE_GAP_M = 0.005;
 const DOOR_COLOR = 0x6b5a45;
 const CURTAIN_COLOR = 0x4a1f24;
 const DOOR_THICKNESS = 0.08;
@@ -111,19 +117,22 @@ export function buildWorld(scene: THREE.Scene, map: MapData): { doors: Map<strin
 
   const floorMat = new THREE.MeshLambertMaterial({ color: FLOOR_COLOR });
   const ceilingMat = new THREE.MeshLambertMaterial({ color: CEILING_COLOR });
+  const roomMats = roomMaterials(map);
+  buildWallFaces(scene, map, roomMats);
   for (const room of map.rooms) {
+    const mats = roomMats.get(room.name);
     const w = room.maxX - room.minX;
     const d = room.maxZ - room.minZ;
     const cx = (room.minX + room.maxX) / 2;
     const cz = (room.minZ + room.maxZ) / 2;
 
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, d), floorMat);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mats?.floor ?? floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.position.set(cx, 0, cz);
     scene.add(liftToFloor(map, floor));
 
     if (room.outdoor) continue; // open to the night sky
-    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(w, d), ceilingMat);
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mats?.ceiling ?? ceilingMat);
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.set(cx, h - SLAB_M, cz);
     scene.add(liftToFloor(map, ceiling));
@@ -161,6 +170,52 @@ export function buildWorld(scene: THREE.Scene, map: MapData): { doors: Map<strin
   const doors = new Map<string, DoorView>();
   for (const def of map.doors) doors.set(def.id, new DoorView(scene, map, def, h));
   return { doors, ritualCircle: circle };
+}
+
+interface RoomMaterials {
+  wall: THREE.Material;
+  floor: THREE.Material;
+  ceiling: THREE.Material;
+}
+
+/** Materials for each room that has a colour in the map data. */
+function roomMaterials(map: MapData): Map<string, RoomMaterials> {
+  const mats = new Map<string, RoomMaterials>();
+  for (const [name, hex] of Object.entries(map.roomColors ?? {})) {
+    const color = new THREE.Color(hex);
+    mats.set(name, {
+      wall: new THREE.MeshLambertMaterial({ color }),
+      floor: new THREE.MeshLambertMaterial({ color: color.clone().multiplyScalar(ROOM_FLOOR_SHADE) }),
+      ceiling: new THREE.MeshLambertMaterial({ color: color.clone().multiplyScalar(ROOM_CEILING_SHADE) }),
+    });
+  }
+  return mats;
+}
+
+/** Each room's side of its walls in the room's colour, merged into one mesh per room. */
+function buildWallFaces(scene: THREE.Scene, map: MapData, mats: Map<string, RoomMaterials>) {
+  const h = map.wallHeightM;
+  const byRoom = new Map<string, THREE.BufferGeometry[]>();
+  for (const face of wallFaces(map)) {
+    if (!mats.has(face.room)) continue;
+    const level = levelOf(map, face.x, face.z);
+    const offset = map.wallThicknessM / 2 + FACE_GAP_M;
+    const geometry = new THREE.PlaneGeometry(face.length, h);
+    // A plane faces +z; turn it to look into its room.
+    const yaw = face.axis === "x" ? (face.facing === 1 ? 0 : Math.PI) : face.facing === 1 ? Math.PI / 2 : -Math.PI / 2;
+    geometry.rotateY(yaw);
+    const x = face.axis === "z" ? face.x + face.facing * offset : face.x;
+    const z = face.axis === "x" ? face.z + face.facing * offset : face.z;
+    geometry.translate(x + level.shiftX, level.y + h / 2, z + level.shiftZ);
+    const list = byRoom.get(face.room) ?? [];
+    list.push(geometry);
+    byRoom.set(face.room, list);
+  }
+  for (const [room, geometries] of byRoom) {
+    const merged = mergeGeometries(geometries);
+    for (const g of geometries) g.dispose();
+    if (merged) scene.add(new THREE.Mesh(merged, mats.get(room)!.wall));
+  }
 }
 
 /**

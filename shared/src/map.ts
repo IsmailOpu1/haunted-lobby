@@ -192,6 +192,11 @@ export interface MapData {
   altar?: { x: number; z: number };
   /** This map's ghost trick and its numbers (GDD 12.5). Rules code never names a map. */
   ghostTrick?: GhostTrickDef;
+  /**
+   * Each room's colour by room name, as "#rrggbb", so rooms look different in the grey box
+   * (GDD 26.10). Its floor, ceiling and walls are drawn in it until the Phase 8 art.
+   */
+  roomColors?: Record<string, string>;
 }
 
 export const HIDING_SPOT_HEIGHT_M = 2;
@@ -254,4 +259,44 @@ export function nearestRoom(map: MapData, x: number, z: number): RoomDef {
     }
   }
   return best;
+}
+
+/** One room's side of a wall: where its colour is drawn. */
+export interface WallFace {
+  room: string;
+  /** Middle of the face on the wall's center line. */
+  x: number;
+  z: number;
+  /** Length along the wall. */
+  length: number;
+  /** The wall runs along x (an east-west wall) or along z. */
+  axis: "x" | "z";
+  /** Which way the face looks, into its room: +1 or -1 along the other axis. */
+  facing: 1 | -1;
+}
+
+const FACE_EPS = 1e-3;
+
+/** Every room's side of every wall, so each room's walls can be drawn in its own colour. */
+export function wallFaces(map: MapData): WallFace[] {
+  const faces: WallFace[] = [];
+  for (const [x1, z1, x2, z2] of map.walls) {
+    const alongX = z1 === z2;
+    const at = alongX ? z1 : x1;
+    const from = Math.min(alongX ? x1 : z1, alongX ? x2 : z2);
+    const to = Math.max(alongX ? x1 : z1, alongX ? x2 : z2);
+    for (const r of map.rooms) {
+      const [lo, hi] = alongX ? [r.minX, r.maxX] : [r.minZ, r.maxZ];
+      const start = Math.max(from, lo);
+      const end = Math.min(to, hi);
+      if (end - start < FACE_EPS) continue;
+      // The wall is this room's edge when it lies on one of the room's two sides across it.
+      const [near, far] = alongX ? [r.minZ, r.maxZ] : [r.minX, r.maxX];
+      const facing = Math.abs(at - near) < FACE_EPS ? 1 : Math.abs(at - far) < FACE_EPS ? -1 : 0;
+      if (facing === 0) continue;
+      const mid = (start + end) / 2;
+      faces.push({ room: r.name, x: alongX ? mid : at, z: alongX ? at : mid, length: end - start, axis: alongX ? "x" : "z", facing });
+    }
+  }
+  return faces;
 }

@@ -60,6 +60,7 @@ export interface Plan {
   relicDoor?: string;
   relicNames: string[];
   ghostTrick?: GhostTrickDef;
+  roomColors?: Record<string, string>;
 }
 
 const EPS = 1e-3;
@@ -177,6 +178,7 @@ export function buildMap(plan: Plan): MapData {
     furniture: [],
     relicDoor: plan.relicDoor,
     ghostTrick: plan.ghostTrick,
+    roomColors: plan.roomColors,
   };
 
   for (const f of plan.floors) {

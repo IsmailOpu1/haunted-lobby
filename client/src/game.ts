@@ -3,6 +3,7 @@ import type { Room } from "@colyseus/sdk";
 import {
   config,
   initPhysics,
+  levelOf,
   PhysicsWorld,
   SIM_DT,
   stepMovement,
@@ -14,11 +15,13 @@ import {
   type RelicNear,
   type ServerMessages,
   type TaskEntry,
+  roomAt,
   toWorld,
   worldDistance,
   type WorldPoint,
 } from "@haunted/shared";
 import { SoundScape } from "./audio.ts";
+import { directionTo } from "./cues.ts";
 import { createFlashlight } from "./flashlight.ts";
 import { Flicker } from "./flicker.ts";
 import { playerStepKind, StepTracker } from "./footsteps.ts";
@@ -42,6 +45,19 @@ const CROUCH_LERP_PER_SEC = 10;
 const CORRECTION_FADE_PER_SEC = 20;
 const SNAP_DISTANCE = 2;
 const VOICE_ANSWER_TIMEOUT_MS = 5000;
+// Sound subtitles (GDD 23, 26.10): how long the bell's stays up, and how far above or below
+// you a sound must be to say "above" or "below".
+const BELL_CUE_SEC = 4;
+const CUE_FLOOR_DIFF_M = 1.5;
+
+/** A subtitle for an important sound, with an arrow toward it (GDD 23). */
+export interface SoundCue {
+  text: string;
+  /** Where the sound is from the way you face, in radians: 0 ahead, positive to the right. */
+  angle: number;
+  /** The sound is on another floor. */
+  vertical: "above" | "below" | null;
+}
 
 /** What the HUD should show about you. */
 export type PlayerStatus =
@@ -80,6 +96,12 @@ export interface GameHud {
   setRelics(list: { name: string; status: string }[]): void;
   /** Holding Tab shows the status panel. */
   showStatusPanel(open: boolean): void;
+  /** The room and floor you are in (room null in a doorway or on the stairs). */
+  setRoom(room: string | null, floor: string): void;
+  /** Your simulation position and facing, for the floor plan. */
+  setPlanPosition(x: number, z: number, yaw: number): void;
+  /** Subtitles for the important sounds you can hear right now. */
+  setSoundCues(cues: SoundCue[]): void;
   /** The relic you carry, or null. */
   setCarrying(name: string | null): void;
   /** The match is over (GDD 18 and 19). */
@@ -204,6 +226,8 @@ export class Game {
   /** Relics the server says are near you: hidden ones you can hear, dropped ones you can see. */
   private relicsNear: RelicNear[] = [];
   private relics = new Map<string, RelicData>();
+  /** The last bell ring, for its subtitle. */
+  private bellCue: { at: WorldPoint; until: number } | null = null;
 
   private constructor(private canvas: HTMLCanvasElement, private map: MapData, private hud: GameHud, overlay: TaskOverlayElements) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
@@ -348,7 +372,11 @@ export class Game {
       else if (msg.phase === "start") this.sound.huntStart();
       else this.sound.huntEnd();
     });
-    room.onMessage("bellRing", (msg: ServerMessages["bellRing"]) => this.sound.serviceBell(this.place(msg)));
+    room.onMessage("bellRing", (msg: ServerMessages["bellRing"]) => {
+      const at = this.place(msg);
+      this.sound.serviceBell(at);
+      this.bellCue = { at, until: performance.now() + BELL_CUE_SEC * 1000 };
+    });
     room.onMessage("matchEnd", (msg: ServerMessages["matchEnd"]) => {
       this.ended = true;
       if (this.overlay.isOpen) this.overlay.close();
@@ -541,7 +569,9 @@ export class Game {
     for (const door of this.doors.values()) door.update(dt);
     this.stations.render(now / 1000);
     this.relicsView.render(now / 1000);
-    this.sound.relicWhisper(this.nearestHiddenRelic());
+    const whisper = this.nearestHiddenRelic();
+    this.sound.relicWhisper(whisper);
+    this.updateWhereabouts(whisper, now);
     this.ghost.render(now);
     this.remotes.render(now, dt, (at) => this.ghost.distanceTo(at));
 
@@ -687,6 +717,27 @@ export class Game {
     this.hud.setAction(me.action ? (ACTION_LABELS[me.action] ?? null) : null, me.actionProgress);
     this.hud.setItems(me.salt, me.cameraShots);
     this.hud.setCarrying(me.relic ? (this.relics.get(me.relic)?.name ?? "a relic") : null);
+  }
+
+  /** The room name, the floor plan arrow and the sound subtitles. */
+  private updateWhereabouts(whisper: WorldPoint | null, now: number) {
+    const me = this.predicted;
+    if (me) {
+      this.hud.setRoom(roomAt(this.map, me.x, me.z)?.name ?? null, levelOf(this.map, me.x, me.z).name);
+      this.hud.setPlanPosition(me.x, me.z, this.input.yaw);
+    }
+    if (this.bellCue && now > this.bellCue.until) this.bellCue = null;
+    const cues: SoundCue[] = [];
+    if (whisper) cues.push(this.cue("A relic whispers nearby", whisper));
+    if (this.bellCue) cues.push(this.cue("The bell rings", this.bellCue.at));
+    this.hud.setSoundCues(this.ended ? [] : cues);
+  }
+
+  private cue(text: string, at: WorldPoint): SoundCue {
+    const cam = this.camera.position;
+    const dy = at.y - (cam.y - this.eyeHeight);
+    const vertical = dy > CUE_FLOOR_DIFF_M ? "above" : dy < -CUE_FLOOR_DIFF_M ? "below" : null;
+    return { text, angle: directionTo(cam.x, cam.z, this.input.yaw, at.x, at.z), vertical };
   }
 
   /** The closest hidden relic within whisper range, for the whisper sound. */
