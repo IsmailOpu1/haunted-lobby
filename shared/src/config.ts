@@ -70,24 +70,8 @@ export const config = {
     // for a finished minigame (a little under minSec so fast players are not refused).
     useRangeM: 1.5,
     serverMinSec: 7,
-    // Minigame tuning (chosen in Phase 4), each aimed at 10 to 20 s. Distances are in
-    // minigame units: the board is 640 wide and 400 tall, whatever the screen size.
     // How often one player's noisy fails can reach the ghost.
     noiseCooldownSec: 1,
-    minigames: {
-      // Follow the swinging guide; rocking too fast makes the baby cry (a noisy fail).
-      cradle: { periodSec: 2.2, swingUnits: 150, matchUnits: 40, minUnitsPerSec: 60, fillSec: 11, cryUnitsPerSec: 900, cryLoseSec: 2, cryPauseSec: 1.5 },
-      // Press the symbol keys in the order shown; a wrong note is a noisy fail and restarts the round.
-      piano: { keys: 8, rounds: 3, notesPerRound: 5 },
-      // Drag each cable to the socket with the same symbol and hold it in while it seats.
-      switchboard: { cables: 4, seatSec: 1.4 },
-      // Wipe the fog off; a fast wipe smears instead of cleaning. A face may appear (scare only).
-      mirror: { clearPct: 90, brushUnits: 26, maxUnitsPerSec: 300, faceChance: 0.5, faceSec: 0.9 },
-      // Hold the lid down until it clicks, then turn the latches. Wait too long and it bursts open.
-      trunk: { latches: 3, pressSec: 2, turnDegPerSec: 45, popSec: 5 },
-      // Fold the sheet in half three times by dragging corners; wet linen is heavy.
-      sheets: { folds: 3, dragUnitsPerSec: 110, snapUnits: 30 },
-    },
     // Hands-on tasks in the 3D world (GDD 26.5), each aimed at 10 to 20 s. Mouse movement is
     // in screen pixels; "Px" numbers are how far you move the mouse while holding the button.
     hands: {
@@ -115,6 +99,29 @@ export const config = {
       // pour into the vase you aim at; a full pour fills one in fillSec. Stop between the line and
       // the rim; past the rim it overflows and must be emptied (start that vase again).
       roses: { vases: 3, fillSec: 4.5, tiltSec: 0.4, line: 0.75, rim: 0.95 },
+      // Grab a plug from its hook and drag it (mPerPx, at most maxMPerSec) onto the socket with the
+      // same colour; hold it there seatSec while it seats. The wrong socket sparks and throws it back.
+      switchboard: { cables: 4, mPerPx: 0.0012, maxMPerSec: 0.6, snapM: 0.05, seatSec: 1.5 },
+      // A cloth in your hand: hold the button on the mirror and move the mouse to wipe (a brushM
+      // wide patch). Faster than maxMPerSec (judged over paceSec) only smears. Done at clearPct.
+      // Sometimes a face shows in the glass for faceSec once it is faceAtPct clear (a scare only).
+      mirror: { cols: 12, rows: 16, widthM: 0.6, heightM: 0.9, brushM: 0.08, mPerPx: 0.0012, maxMPerSec: 0.35, paceSec: 0.15, clearPct: 90, faceChance: 0.5, faceAtPct: 55, faceSec: 0.9 },
+      // Press the sprung lid down (pressPx of dragging) and hold it shut pressSec until it clicks. Then
+      // turn each latch a quarter (degPerPx, at most maxDegPerSec), each within popSec of the last,
+      // or the lid bursts open again.
+      trunk: { pressPx: 160, springPerSec: 2, pressSec: 2, latches: 3, degPerPx: 0.5, maxDegPerSec: 45, popSec: 5 },
+      // Press the real keys in the order the tuning card shows. A key rings ringSec before the next
+      // one goes down; the card turns over for roundPauseSec between rounds. A wrong key is a sour,
+      // noisy note and starts the round again.
+      piano: { keys: 8, rounds: 3, notesPerRound: 5, ringSec: 0.45, roundPauseSec: 1.2 },
+      // Fold the sheet in half three times: grab it and pull (pxPerFold of dragging, at most
+      // maxPerSec of a fold a second). Let go short of snapAt and it slides back (dropPerSec).
+      sheets: { folds: 3, pxPerFold: 500, maxPerSec: 0.35, snapAt: 0.97, dropPerSec: 3 },
+      // Rock the cradle by pushing it with the mouse (pushRadPerPx). It swings on its own with
+      // periodSec and slows by dampPerSec. While the swing stays between minAmpRad and maxAmpRad the
+      // baby calms; fillSec of that and it sleeps. Past cryAmpRad, or a push faster than
+      // cryPxPerSec, the baby cries (a noise), losing cryLoseSec and calming for none of cryPauseSec.
+      cradle: { periodSec: 2.2, pushRadPerPx: 0.002, dampPerSec: 0.25, minAmpRad: 0.12, maxAmpRad: 0.3, cryAmpRad: 0.42, cryPxPerSec: 1500, fillSec: 11, cryLoseSec: 2, cryPauseSec: 1.5 },
       // Drag each shutter shut (open 1 to shut 0) and hold it until the latch clicks. The wind
       // pulls on it, and gusts you can hear coming pull harder. Let go nearly shut and it slams.
       shutters: { count: 3, pxToClose: 420, windPerSec: 0.08, gustEverySec: [2.5, 4.5], warnSec: 0.9, gustSec: 1.1, gustPerSec: 0.9, heldGustFactor: 0.6, latchAt: 0.05, latchSec: 2.2, slamBelow: 0.4 },
@@ -140,12 +147,6 @@ export const config = {
     serverMinSec: 6,
     seeDroppedM: 15,
     nearUpdateHz: 5,
-    minigames: {
-      // Hold to lift each pin; let go while it is in the gold band.
-      lockbox: { pins: 5, riseSec: 2.4, bandMin: 0.62, bandMax: 0.8 },
-      // Feel through murky water (the hand is slow in it), hold still to grab, then pull up.
-      drain: { handUnitsPerSec: 160, feelUnits: 60, grabSec: 3, holdStillUnitsPerSec: 40, pullUnits: 220, pullUnitsPerSec: 80 },
-    },
     // Searching a group of places (GDD 26.5): an empty place takes a short search and makes a
     // small noise; the server refuses a search shorter than serverMinSec. The whisper is
     // "close" within closeM and "very close" within veryCloseM; its arrow shows only beyond closeM.
@@ -155,6 +156,14 @@ export const config = {
       // searchPx of scooping; taking the relic out takes takePx more. Faster than maxPxPerSec
       // only counts fastFactor of the extra and throws soil (a noise).
       dig: { searchPx: 1800, takePx: 4200, maxPxPerSec: 700, fastFactor: 0.3 },
+      // A dial lock: turn the dial (degPerPx) right to the first pin, left to the next, and so on.
+      // A pin clicks if the dial passes it no faster than clickDegPerSec; each is minGapDeg to
+      // maxGapDeg on from the last. The dial ticks every tickDeg so you can hear your speed.
+      lockbox: { pins: 4, degPerPx: 0.4, clickDegPerSec: 70, minGapDeg: 90, maxGapDeg: 200, tickDeg: 15 },
+      // Reach into the dark water: the hand moves mPerPx (at most maxMPerSec) in a sizeM square. Within
+      // feelM of the relic, hold still (under stillMPerSec) for grabSec to grip it, then pull up
+      // pullPx (at most pullPxPerSec). Let go while pulling and it slips back.
+      drain: { sizeM: 0.5, relicMinM: 0.18, mPerPx: 0.0008, maxMPerSec: 0.12, feelM: 0.07, stillMPerSec: 0.03, grabSec: 2.5, pullPx: 500, pullPxPerSec: 200 },
     },
   },
   ritual: {

@@ -32,12 +32,11 @@ import { createHandsTask } from "./hands/tasks.ts";
 import { HandsWork } from "./hands/work.ts";
 import { ItemsView } from "./items.ts";
 import { PlayerInput } from "./input.ts";
-import { HANDS_KINDS, MinigameOverlay, type HandsKind } from "./minigames/overlay.ts";
 import { RelicsView } from "./relicsView.ts";
 import { RemotePlayers } from "./remotePlayers.ts";
 import { StationsView } from "./stations.ts";
 import { VoiceChat } from "./voice.ts";
-import type { TaskSoundKind } from "./minigames/types.ts";
+import type { TaskSoundKind } from "./hands/sounds.ts";
 import { buildWorld, type DoorView, type RitualCircleView } from "./world.ts";
 
 // Near-zero ambient light (GDD Section 23). Press L while testing to light everything up.
@@ -104,8 +103,6 @@ export interface GameHud {
   setTeamTasks(done: number, total: number): void;
   /** The ritual bar (GDD 11): hidden until the ritual is ready. */
   setRitual(ritual: RitualHud): void;
-  /** "in-task" while a minigame is open, "resume" after it closes until the mouse is captured again. */
-  setTaskMode(mode: "none" | "in-task" | "resume"): void;
   /** Every relic's state, for the Tab panel (GDD 10). */
   setRelics(list: { name: string; status: string }[]): void;
   /** Holding Tab shows the status panel. */
@@ -131,15 +128,6 @@ export interface RitualHud {
   progress: number;
   inCircle: number;
   needed: number;
-}
-
-/** The page elements of the minigame window. */
-export interface TaskOverlayElements {
-  root: HTMLElement;
-  canvas: HTMLCanvasElement;
-  title: HTMLElement;
-  hint: HTMLElement;
-  leave: HTMLButtonElement;
 }
 
 /** What the microphone part of the room panel shows. */
@@ -212,7 +200,6 @@ export class Game {
   private items: ItemsView;
   private stations: StationsView;
   private relicsView: RelicsView;
-  private overlay: MinigameOverlay;
   private physics: PhysicsWorld;
   private collide: CollideFn;
 
@@ -254,7 +241,7 @@ export class Game {
   /** The last bell ring, for its subtitle. */
   private bellCue: { at: WorldPoint; until: number } | null = null;
 
-  private constructor(private canvas: HTMLCanvasElement, private map: MapData, private hud: GameHud, overlay: TaskOverlayElements) {
+  private constructor(private canvas: HTMLCanvasElement, private map: MapData, private hud: GameHud) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 
@@ -269,11 +256,6 @@ export class Game {
     this.items = new ItemsView(this.scene, map);
     this.stations = new StationsView(this.scene, map);
     this.relicsView = new RelicsView(this.scene, map);
-    this.overlay = new MinigameOverlay(overlay.root, overlay.canvas, overlay.title, overlay.hint, overlay.leave, (kind, pitch) => this.sound.taskSound(kind, pitch), {
-      onFinish: () => this.endTask("finished", { stationId: this.openStation }),
-      onLeave: () => this.endTask("left"),
-      onNoise: () => this.room?.send("taskNoise"),
-    });
     this.physics = new PhysicsWorld(map);
     this.hands = new HandsWork(this.scene, this.camera);
     this.collide = this.physics.addBody().collide;
@@ -308,7 +290,7 @@ export class Game {
       onHand: (down) => this.hands.press(down),
       onHandMove: (dx, dy) => this.hands.move(dx, dy),
       onStopWork: () => {
-        if (this.taskState === "open") this.endTask("left");
+        if (this.taskState === "open") this.leaveTask();
       },
     });
 
@@ -330,24 +312,16 @@ export class Game {
     });
   }
 
-  static async create(canvas: HTMLCanvasElement, map: MapData, hud: GameHud, overlay: TaskOverlayElements): Promise<Game> {
+  static async create(canvas: HTMLCanvasElement, map: MapData, hud: GameHud): Promise<Game> {
     await initPhysics();
-    return new Game(canvas, map, hud, overlay);
+    return new Game(canvas, map, hud);
   }
 
-  /** The minigame closed on this side: tell the server, and try to capture the mouse again. */
-  private endTask(state: "finished" | "left", done?: { stationId: string }) {
-    this.taskState = state;
-    if (done) this.room?.send("taskDone", done);
-    else this.room?.send("taskCancel");
-    if (this.hands.active) {
-      // Hands-on work never let go of the mouse; stopping just gives your view back.
-      if (state === "left") this.stopHands();
-      return;
-    }
-    this.hud.setTaskMode("resume");
-    // Works when the browser still counts the last click; otherwise the player clicks once.
-    Promise.resolve(this.canvas.requestPointerLock()).catch(() => {});
+  /** You stopped working: tell the server. Your hands never let go of the mouse, so you just get your view back. */
+  private leaveTask() {
+    this.taskState = "left";
+    this.room?.send("taskCancel");
+    this.stopHands();
   }
 
   /** Mute or unmute another player's voice, only for you. Returns whether they are now muted. */
@@ -415,9 +389,7 @@ export class Game {
     });
     room.onMessage("matchEnd", (msg: ServerMessages["matchEnd"]) => {
       this.ended = true;
-      if (this.overlay.isOpen) this.overlay.close();
       if (this.hands.active) this.stopHands();
-      this.hud.setTaskMode("none");
       document.exitPointerLock();
       this.hud.showEndScreen(msg);
     });
@@ -436,13 +408,7 @@ export class Game {
     room.onMessage("taskOpen", (msg: ServerMessages["taskOpen"]) => {
       this.openStation = msg.stationId;
       this.taskState = "open";
-      if (HANDS_KINDS.has(msg.minigame)) {
-        this.startHands(msg.stationId, msg.minigame as HandsKind);
-        return;
-      }
-      this.hud.setTaskMode("in-task");
-      document.exitPointerLock();
-      this.overlay.open(msg.minigame as Exclude<typeof msg.minigame, HandsKind>, msg.title);
+      this.startHands(msg.stationId, msg.minigame);
     });
     room.onMessage("searchFound", (msg: ServerMessages["searchFound"]) => {
       if (msg.stationId !== this.openStation || !this.hands.active) return;
@@ -461,11 +427,6 @@ export class Game {
       else if (msg.reason === "done") this.hud.showBanner(relic ? "You found a relic. Take it to the basement door." : `Done: ${name}`, 3);
       else if (this.taskState === "open") this.hud.showBanner(`${what} cancelled. Start it again with E.`, 3);
       else if (this.taskState === "finished") this.hud.showBanner(`${what} not accepted. Try it again.`, 3);
-      if (this.overlay.isOpen) {
-        // The server closed it (you moved, or got hurt).
-        this.overlay.close();
-        this.hud.setTaskMode("resume");
-      }
       this.taskState = "none";
     });
     room.onMessage("taskNoise", (msg: ServerMessages["taskNoise"]) => {
@@ -777,15 +738,15 @@ export class Game {
   }
 
   /** Starts hands-on work on a station or a place to search (GDD 26.5). */
-  private startHands(id: string, kind: HandsKind) {
+  private startHands(id: string, kind: MinigameKind) {
     const model = this.stations.hands(id);
     if (!model || model.kind !== kind) {
       // No parts to work on: give it up rather than leave you stuck.
-      this.endTask("left");
+      this.leaveTask();
       return;
     }
     const task = createHandsTask(model, {
-      play: (sound) => this.sound.taskSound(sound),
+      play: (sound, pitch) => this.sound.taskSound(sound, pitch),
       noise: () => {
         const now = performance.now() / 1000;
         if (now - this.handsNoiseAt < config.tasks.noiseCooldownSec) return;

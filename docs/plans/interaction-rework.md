@@ -116,5 +116,22 @@ The owner asked to keep building before playtesting the first batch. These five 
 | Water the dead roses | A watering can in your hand: aim at a vase and hold the button to tip it. The can rights itself slowly, so stop a little before the painted line; past the rim it overflows and empties | 13.9 s |
 
 - The match is shared by the candelabra and the letter (`tasks.hands.match`).
-- Their old 2D windows are removed. Still in 2D windows: switchboard, mirror, trunk, piano, sheets, cradle, and the lockbox and drain relic spots (the third batch).
+- Their old 2D windows are removed.
 
+## Third batch: as built (2026-10-27)
+
+The last six tasks and the two remaining relic spots. With these, nothing opens a 2D window any more: the minigame window and all its code are gone.
+
+| Task or spot | In the world | Steady player, in the browser |
+|---|---|---|
+| Repair the switchboard | Four coloured plugs hang on hooks; the sockets above wear the same colours in a shuffled order. Drag a plug up to its socket and hold it there 1.5 s until the socket's lamp lights. The wrong socket sparks and throws the plug back to its hook | 14.6 s |
+| Clean the mirror | A cloth in your hand: hold the button on the fogged glass and move the mouse to wipe. Faster than a steady wipe only smears (a squeak). Half the time a pale face shows in the glass once it is half clear | 14.9 s |
+| Seal the old trunk | The sprung lid pops open. Drag it down and hold it shut 2 s until it clicks, then turn each of the 3 brass latches a quarter. Each latch must come within 5 s of the last, or the lid strains, then bursts open and you start again | 15.6 s |
+| Tune the piano | The tuning card on the music stand numbers the keys to press, in order (the next one in red). Click each key and let it ring. 3 rounds of 5 notes. A wrong key is a sour note the ghost hears, and the round restarts | 15.0 s |
+| Fold the bedsheets | Grab the loose half of the sheet and pull it over: toward you, then right to left, then toward you. Let go too soon and it slides back | 9.5 s |
+| Rock the cradle | The cradle swings on its own; push it gently in time with its swing. Keep the swing in the calm band for 11 s and the mobile above turns as the baby settles. A shove or too big a swing makes the baby cry (heard by the ghost) and costs 2 s | 13.1 s |
+| Jewellery box (relic) | A dial lock: turn the dial slowly right until a pin clicks, then left to the next, 4 pins in all. A stud lights for each pin. Turned fast, the pins never catch | 10.4 s |
+| Drain (relic) | Reach into the dark water and feel about slowly; ripples spread faster near the relic. Hold still on it 2.5 s to grip it, then drag up to pull it out. Let go while pulling and it slips back | 10.7 s |
+
+- Speed limits on the new drags (plugs, latches, sheets, the hand in the drain) are judged over a fifth of a second rather than frame by frame, so mouse movement that arrives unevenly between frames still counts. Before this, a fold took twice as long in the browser as in the tests.
+- The browser times above were taken with the game's frames driven by a timer (the browser pane was hidden), so treat them as close, not exact. The tests check every task's steady time against the GDD and the server's minimum.

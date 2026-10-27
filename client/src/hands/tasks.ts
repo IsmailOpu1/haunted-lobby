@@ -1,8 +1,27 @@
 import * as THREE from "three";
 import { config } from "@haunted/shared";
-import type { TaskSoundKind } from "../minigames/types.ts";
+import type { TaskSoundKind } from "./sounds.ts";
 import type { HandsModel } from "../stations.ts";
-import { BoilerLogic, CandelabraLogic, ClockLogic, DigLogic, LetterLogic, PortraitsLogic, RosesLogic, ShuttersLogic, StoveLogic } from "./logic.ts";
+import {
+  BoilerLogic,
+  CandelabraLogic,
+  ClockLogic,
+  CradleLogic,
+  DigLogic,
+  DrainLogic,
+  type FacePoint,
+  LetterLogic,
+  LockboxLogic,
+  MirrorLogic,
+  PianoLogic,
+  PortraitsLogic,
+  RosesLogic,
+  SheetsLogic,
+  ShuttersLogic,
+  StoveLogic,
+  SwitchboardLogic,
+  TrunkLogic,
+} from "./logic.ts";
 
 // Hands-on tasks in the 3D world (GDD 26.5): each one ties its rules (logic.ts) to the real
 // parts of its station (stations.ts) and the tool in your hand.
@@ -26,7 +45,8 @@ export interface HandsFrame {
 }
 
 export interface HandsEvents {
-  play(kind: TaskSoundKind): void;
+  /** pitch is a note number for the piano (0 is the lowest key). */
+  play(kind: TaskSoundKind, pitch?: number): void;
   /** A noise the ghost can hear (the server limits how often). */
   noise(): void;
 }
@@ -427,6 +447,318 @@ class RosesTask implements HandsTask {
   }
 }
 
+class SwitchboardTask implements HandsTask {
+  readonly hint = "Point at a plug, hold the mouse button and drag it up to the socket of the same colour. Hold it there until the lamp lights. The wrong socket sparks.";
+  readonly parts: THREE.Object3D[];
+  private logic: SwitchboardLogic;
+
+  constructor(private model: Extract<HandsModel, { kind: "switchboard" }>, events: HandsEvents) {
+    this.logic = new SwitchboardLogic(events.play, model.hooks, model.sockets);
+    this.parts = model.plugs;
+    // Each socket wears the colour of the cable that belongs in it.
+    const colors: number[] = [];
+    this.logic.socketOf.forEach((socket, cable) => (colors[socket] = model.colors[cable]!));
+    model.setSockets(colors);
+    this.show();
+  }
+
+  get done() {
+    return this.logic.done;
+  }
+
+  canHold(part: string) {
+    const i = index(part, "plug");
+    return i !== null && !this.logic.plugged[i];
+  }
+
+  glows(part: string) {
+    return this.canHold(part);
+  }
+
+  update(f: HandsFrame) {
+    this.logic.update(f.dt, { held: index(f.held, "plug"), dragX: f.dragX, dragY: f.dragY });
+    this.show();
+  }
+
+  private show() {
+    const lit = this.model.sockets.map((_, j) => this.logic.plugged.some((p, i) => p && this.logic.socketOf[i] === j));
+    this.model.setPlugs(this.logic.plug, lit);
+  }
+}
+
+/** How far in front of the glass the cloth sits as you wipe. */
+const CLOTH_OFF_M = 0.02;
+const _q = new THREE.Quaternion();
+const _n = new THREE.Vector3();
+const _hit = new THREE.Vector3();
+const _plane = new THREE.Plane();
+
+class MirrorTask implements HandsTask {
+  readonly hint = "Hold the mouse button on the glass and move the mouse to wipe the fog away. Wipe slowly: scrubbing fast only smears it.";
+  readonly parts: THREE.Object3D[];
+  readonly tool: THREE.Mesh;
+  private logic: MirrorLogic;
+
+  constructor(private model: Extract<HandsModel, { kind: "mirror" }>, events: HandsEvents) {
+    this.logic = new MirrorLogic(events.play);
+    this.parts = [model.glass];
+    this.tool = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.015), new THREE.MeshLambertMaterial({ color: 0xd8d0c0 }));
+    model.setFog(this.logic.fog, 0);
+  }
+
+  get done() {
+    return this.logic.done;
+  }
+
+  canHold(part: string) {
+    return part === "glass";
+  }
+
+  glows(part: string) {
+    return this.canHold(part);
+  }
+
+  update(f: HandsFrame) {
+    const holding = f.held === "glass";
+    const grab = holding && !this.logic.cloth ? this.onGlass(f.ray) : null;
+    this.logic.update(f.dt, { grab, holding, dragX: f.dragX, dragY: f.dragY });
+    this.model.setFog(this.logic.fog, this.logic.faceLeft / config.tasks.hands.mirror.faceSec);
+    // The cloth is on the glass while you wipe, and in your hand in front of you otherwise.
+    const cloth = this.logic.cloth;
+    const glass = this.model.glass;
+    if (cloth) {
+      glass.localToWorld(this.tool.position.set(cloth.u, cloth.v, CLOTH_OFF_M));
+      this.tool.quaternion.copy(glass.getWorldQuaternion(_q));
+    } else {
+      f.ray.at(TOOL_REST_M, this.tool.position);
+      this.tool.lookAt(f.ray.origin);
+    }
+  }
+
+  /** Where the crosshair meets the glass, from the glass's middle. */
+  private onGlass(ray: THREE.Ray): FacePoint | null {
+    const glass = this.model.glass;
+    _n.set(0, 0, 1).applyQuaternion(glass.getWorldQuaternion(_q));
+    _plane.setFromNormalAndCoplanarPoint(_n, glass.getWorldPosition(_v));
+    const hit = ray.intersectPlane(_plane, _hit);
+    if (!hit) return null;
+    const local = glass.worldToLocal(hit);
+    return { u: local.x, v: local.y };
+  }
+}
+
+/** The lid strains harder this long before it bursts open. */
+const RATTLE_FROM_SEC = 2;
+
+class TrunkTask implements HandsTask {
+  readonly hint = "Point at the lid, hold the mouse button and drag down to press it shut. Hold it until it clicks, then drag each latch to the right before the lid bursts open.";
+  readonly parts: THREE.Object3D[];
+  private logic: TrunkLogic;
+
+  constructor(private model: Extract<HandsModel, { kind: "trunk" }>, events: HandsEvents) {
+    this.logic = new TrunkLogic(events.play);
+    this.parts = [model.lid, ...model.latches];
+  }
+
+  get done() {
+    return this.logic.done;
+  }
+
+  canHold(part: string) {
+    if (part === "lid") return !this.logic.shut;
+    const i = index(part, "latch");
+    return i !== null && this.logic.shut && this.logic.latch[i]! < 90;
+  }
+
+  glows(part: string) {
+    return this.canHold(part);
+  }
+
+  update(f: HandsFrame) {
+    this.logic.update(f.dt, { onLid: f.held === "lid", latch: index(f.held, "latch"), dragX: f.dragX, dragY: f.dragY });
+    const l = this.logic;
+    const rattle = l.shut && !l.done ? 1 - Math.min(1, l.popLeft / RATTLE_FROM_SEC) : 0;
+    this.model.setTrunk(l.lid, l.latch, rattle);
+  }
+}
+
+class PianoTask implements HandsTask {
+  readonly hint = "Click the piano keys in the order the card shows, waiting for each note to ring. A wrong key is a sour note the ghost can hear, and the round starts again.";
+  readonly parts: THREE.Object3D[];
+  private logic: PianoLogic;
+  private last: number | null = null;
+  private down: number | null = null;
+
+  constructor(private model: Extract<HandsModel, { kind: "piano" }>, events: HandsEvents) {
+    this.logic = new PianoLogic(events.play, events.noise);
+    this.parts = model.keys;
+    this.show();
+  }
+
+  get done() {
+    return this.logic.done;
+  }
+
+  canHold(part: string) {
+    return index(part, "key") !== null && !this.logic.done;
+  }
+
+  glows(part: string) {
+    return this.canHold(part);
+  }
+
+  update(f: HandsFrame) {
+    // A key counts once each time it goes down.
+    const key = index(f.held, "key");
+    const pressed = key !== null && key !== this.last ? key : null;
+    this.last = key;
+    this.logic.update(f.dt, { pressed });
+    if (pressed !== null && this.logic.ring === config.tasks.hands.piano.ringSec) this.down = pressed;
+    this.show();
+  }
+
+  private show() {
+    const l = this.logic;
+    const card = { line: l.line, step: l.step, round: l.round, rounds: config.tasks.hands.piano.rounds, turning: l.pause > 0 || l.done };
+    this.model.setPiano(card, l.ring > 0 ? this.down : null);
+  }
+}
+
+class SheetsTask implements HandsTask {
+  readonly hint = "Point at the loose half of the sheet, hold the mouse button and pull it over: drag down to pull it toward you, left to pull it across. Let go too soon and it slides back.";
+  readonly parts: THREE.Object3D[];
+  private logic: SheetsLogic;
+
+  constructor(private model: Extract<HandsModel, { kind: "sheets" }>, events: HandsEvents) {
+    this.logic = new SheetsLogic(events.play);
+    this.parts = [model.flap];
+    model.setSheet(0, 0);
+  }
+
+  get done() {
+    return this.logic.done;
+  }
+
+  canHold(part: string) {
+    return part === "sheet" && !this.logic.done;
+  }
+
+  glows(part: string) {
+    return this.canHold(part);
+  }
+
+  update(f: HandsFrame) {
+    this.logic.update(f.dt, { held: f.held === "sheet", dragX: f.dragX, dragY: f.dragY });
+    this.model.setSheet(this.logic.folds, this.logic.progress);
+  }
+}
+
+class CradleTask implements HandsTask {
+  readonly hint = "Hold the mouse button on the cradle and push it gently left and right in time with its swing. Push too hard and the baby cries, and the ghost hears it.";
+  readonly parts: THREE.Object3D[];
+  private logic: CradleLogic;
+
+  constructor(private model: Extract<HandsModel, { kind: "cradle" }>, events: HandsEvents) {
+    this.logic = new CradleLogic(events.play, events.noise);
+    this.parts = [model.basket];
+  }
+
+  get done() {
+    return this.logic.done;
+  }
+
+  canHold(part: string) {
+    return part === "basket";
+  }
+
+  glows(part: string) {
+    return this.canHold(part);
+  }
+
+  update(f: HandsFrame) {
+    this.logic.update(f.dt, { held: f.held === "basket", dragX: f.dragX });
+    this.model.setCradle(this.logic.angle, this.logic.calm / config.tasks.hands.cradle.fillSec, this.logic.crying > 0);
+  }
+}
+
+class LockboxTask implements HandsTask {
+  readonly hint = "Hold the dial and drag right to turn it slowly until a pin clicks, then turn it left to the next, and so on. Turned fast, the pins never catch.";
+  readonly parts: THREE.Object3D[];
+  private logic: LockboxLogic;
+
+  constructor(private model: Extract<HandsModel, { kind: "lockbox" }>, events: HandsEvents) {
+    this.logic = new LockboxLogic(events.play);
+    this.parts = [model.dial];
+    model.setDial(0, 0, false);
+  }
+
+  get done() {
+    return this.logic.done;
+  }
+
+  canHold(part: string) {
+    return part === "dial" && !this.logic.done;
+  }
+
+  glows(part: string) {
+    return this.canHold(part);
+  }
+
+  update(f: HandsFrame) {
+    this.logic.update(f.dt, { held: f.held === "dial", dragX: f.dragX });
+    this.model.setDial(this.logic.dial, this.logic.set, this.logic.done);
+  }
+}
+
+/** How often a ripple spreads from your hand: far from the relic, and right on it. */
+const RIPPLE_SLOW_PER_SEC = 0.6;
+const RIPPLE_FAST_PER_SEC = 2.5;
+
+class DrainTask implements HandsTask {
+  readonly hint = "Hold the mouse button to reach into the water, and feel about slowly. The water ripples faster near the relic. Hold still on it to grip it, then drag up to pull it out.";
+  readonly parts: THREE.Object3D[];
+  private logic: DrainLogic;
+  /** Right and away from you, in the drain's own x and z (along its sides, so your hand stays in the water). */
+  private axes: { right: { x: number; z: number }; away: { x: number; z: number } } | null = null;
+  private ripple = 0;
+
+  constructor(private model: Extract<HandsModel, { kind: "drain" }>, events: HandsEvents) {
+    this.logic = new DrainLogic(events.play);
+    this.parts = [model.water];
+  }
+
+  get done() {
+    return this.logic.done;
+  }
+
+  canHold(part: string) {
+    return part === "water";
+  }
+
+  glows(part: string) {
+    return this.canHold(part) && !this.logic.gripped;
+  }
+
+  update(f: HandsFrame) {
+    this.axes ??= this.sides(f.ray.direction);
+    const holding = f.held === "water";
+    this.logic.update(f.dt, { holding, dragX: f.dragX, dragY: f.dragY });
+    const near = this.logic.closeness;
+    this.ripple = (this.ripple + f.dt * (RIPPLE_SLOW_PER_SEC + (RIPPLE_FAST_PER_SEC - RIPPLE_SLOW_PER_SEC) * near)) % 1;
+    const { right, away } = this.axes;
+    const h = this.logic.hand;
+    const at = holding || this.logic.gripped ? { x: right.x * h.u + away.x * h.v, z: right.z * h.u + away.z * h.v } : null;
+    const lift = this.logic.pulled / config.relics.hands.drain.pullPx;
+    this.model.setDrain({ at, ripple: this.ripple, strength: near, lift, gripped: this.logic.gripped });
+  }
+
+  private sides(look: THREE.Vector3) {
+    const d = _v.copy(look).applyQuaternion(this.model.water.parent!.getWorldQuaternion(_q).invert());
+    const away = Math.abs(d.x) > Math.abs(d.z) ? { x: Math.sign(d.x), z: 0 } : { x: 0, z: Math.sign(d.z) || -1 };
+    return { right: { x: -away.z, z: away.x }, away };
+  }
+}
+
 /** The hands-on task for a station's or place's parts. */
 export function createHandsTask(model: HandsModel, events: HandsEvents): HandsTask {
   switch (model.kind) {
@@ -448,5 +780,21 @@ export function createHandsTask(model: HandsModel, events: HandsEvents): HandsTa
       return new PortraitsTask(model, events);
     case "roses":
       return new RosesTask(model, events);
+    case "switchboard":
+      return new SwitchboardTask(model, events);
+    case "mirror":
+      return new MirrorTask(model, events);
+    case "trunk":
+      return new TrunkTask(model, events);
+    case "piano":
+      return new PianoTask(model, events);
+    case "sheets":
+      return new SheetsTask(model, events);
+    case "cradle":
+      return new CradleTask(model, events);
+    case "lockbox":
+      return new LockboxTask(model, events);
+    case "drain":
+      return new DrainTask(model, events);
   }
 }

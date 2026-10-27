@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { config, searchPlaces, type MapData, type RelicMinigame, type TaskMinigame } from "@haunted/shared";
 import { liftToFloor } from "./place.ts";
+import type { FacePoint } from "./hands/logic.ts";
 
 // Placeholder task station models until the Phase 8 art pass. Visible tasks (GDD 9) show
 // their result to everyone: the candelabra stays lit, the clock's pendulum swings, the
@@ -27,6 +28,55 @@ const VASE_HEIGHT_M = 0.3;
 /** How deep a dug pot's soil goes, and how far down a searched (empty) one stays. */
 const DIG_DEPTH_M = 0.3;
 const SEARCHED_DEPTH = 0.4;
+/** The piano's keys span this much, at this height. */
+const PIANO_KEYS_M = 1.3;
+const PIANO_KEY_Y = 0.785;
+/** The tuning card stands high on the music stand, so it shows over the keys. */
+const PIANO_CARD_Y = 1.12;
+/** How fast the cradle's mobile turns once the baby is fully calm. */
+const MOBILE_TURN_RAD_PER_SEC = 1.5;
+/** The switchboard's face: its middle, its front, and the rows of hooks and sockets either side. */
+const BOARD_Y = 1.3;
+const BOARD_FRONT_Z = -0.025;
+const BOARD_ROW_M = 0.2;
+const SOCKET_GAP_M = 0.2;
+const CABLE_COLORS = [0xb03a2e, 0x2e7d4f, 0x2f5fa8, 0xc9a23a, 0x8a4aa0, 0xd8d0c0];
+const MIRROR_Y = 1.45;
+const TRUNK_LID_OPEN_RAD = 0.6;
+const TRUNK_RATTLE_RAD = 0.04;
+const LINEN = 0xd9d4c4;
+const SHEET_W_M = 0.9;
+const SHEET_D_M = 0.5;
+const SHEET_THICK_M = 0.004;
+const LOCKBOX_OPEN_RAD = 1.2;
+/** The drain: the water's width inside its stone curb, and how far the relic comes up as you pull. */
+const DRAIN_INNER_M = 0.56;
+const DRAIN_CURB_M = 0.08;
+const DRAIN_CURB_WIDTH_M = 0.07;
+const DRAIN_WATER_Y = 0.05;
+const DRAIN_HAND_DEPTH_M = 0.15;
+const DRAIN_LIFT_M = 0.35;
+
+/** What the piano's tuning card shows. */
+export interface PianoCard {
+  line: readonly number[];
+  step: number;
+  round: number;
+  rounds: number;
+  /** Between rounds the card turns over. */
+  turning: boolean;
+}
+
+/** Your arm in the drain: where (in the drain's own x and z), the ripple, and how far it is pulled up. */
+export interface DrainShow {
+  at: { x: number; z: number } | null;
+  /** Where the ripple is in its spread, 0 to 1, and how strong it is. */
+  ripple: number;
+  strength: number;
+  /** 0 in the water, 1 pulled out. */
+  lift: number;
+  gripped: boolean;
+}
 
 /**
  * The parts of a station your hands work on (GDD 26.5). Each part is a mesh named by
@@ -41,7 +91,24 @@ export type HandsModel =
   | { kind: "clock"; key: THREE.Mesh; setKey(angleDeg: number): void }
   | { kind: "boiler"; wheel: THREE.Mesh[]; setValve(openDeg: number, pressure: number): void }
   | { kind: "portraits"; frames: THREE.Mesh[]; setTilt(deg: readonly number[]): void }
-  | { kind: "roses"; vases: THREE.Mesh[]; setWater(levels: readonly number[]): void };
+  | { kind: "roses"; vases: THREE.Mesh[]; setWater(levels: readonly number[]): void }
+  | {
+      kind: "switchboard";
+      plugs: THREE.Mesh[];
+      hooks: FacePoint[];
+      sockets: FacePoint[];
+      /** The colour of each cable. */
+      colors: readonly number[];
+      setSockets(colors: readonly number[]): void;
+      setPlugs(at: readonly FacePoint[], lit: readonly boolean[]): void;
+    }
+  | { kind: "mirror"; glass: THREE.Mesh; setFog(fog: readonly number[], face: number): void }
+  | { kind: "trunk"; lid: THREE.Mesh; latches: THREE.Mesh[]; setTrunk(lid: number, latchDeg: readonly number[], rattle: number): void }
+  | { kind: "piano"; keys: THREE.Mesh[]; setPiano(card: PianoCard, down: number | null): void }
+  | { kind: "sheets"; flap: THREE.Mesh; setSheet(folds: number, progress: number): void }
+  | { kind: "cradle"; basket: THREE.Mesh; setCradle(angle: number, calm: number, crying: boolean): void }
+  | { kind: "lockbox"; dial: THREE.Mesh; setDial(deg: number, set: number, open: boolean): void }
+  | { kind: "drain"; water: THREE.Mesh; setDrain(show: DrainShow): void };
 
 interface StationView {
   group: THREE.Group;
@@ -263,21 +330,6 @@ function fireplace(): StationView {
   };
 }
 
-function piano(): StationView {
-  const group = new THREE.Group();
-  group.add(box(1.5, 1.2, 0.6, 0x1e1410, 0, 0.6, -0.05));
-  group.add(box(1.4, 0.06, 0.25, 0xe6decb, 0, 0.78, 0.35)); // keys
-  return { group, setDone() {} };
-}
-
-function cradle(): StationView {
-  const group = new THREE.Group();
-  group.add(box(0.9, 0.35, 0.5, 0x6b4a2e, 0, 0.5, 0));
-  group.add(box(1.0, 0.05, 0.08, 0x5a3a22, 0, 0.12, 0.22));
-  group.add(box(1.0, 0.05, 0.08, 0x5a3a22, 0, 0.12, -0.22));
-  return { group, setDone() {} };
-}
-
 function boiler(): StationView {
   const group = new THREE.Group();
   const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 1.8, 16), new THREE.MeshLambertMaterial({ color: 0x4a3a2a }));
@@ -315,37 +367,6 @@ function boiler(): StationView {
   };
   setValve(0, config.tasks.hands.boiler.startPressure);
   return { group, setDone() {}, hands: { kind: "boiler", wheel: [rim, spokeA, spokeB], setValve } };
-}
-
-function switchboard(): StationView {
-  const group = new THREE.Group();
-  group.add(box(1.0, 1.0, 0.15, WOOD, 0, 1.3, -0.1));
-  for (let i = 0; i < 4; i++) group.add(box(0.06, 0.06, 0.04, 0x0d0a07, -0.3 + i * 0.2, 1.4, 0));
-  group.add(box(1.0, 0.8, 0.4, WOOD, 0, 0.4, 0.05)); // desk
-  return { group, setDone() {} };
-}
-
-function mirror(): StationView {
-  const group = new THREE.Group();
-  group.add(box(0.9, 1.3, 0.06, BRASS, 0, 1.45, -0.05));
-  group.add(box(0.75, 1.15, 0.02, 0xa8b0b6, 0, 1.45, -0.01));
-  group.add(box(0.9, 0.8, 0.4, WOOD, 0, 0.4, 0.1)); // dresser
-  return { group, setDone() {} };
-}
-
-function trunk(): StationView {
-  const group = new THREE.Group();
-  group.add(box(1.0, 0.5, 0.55, 0x4b3420, 0, 0.25, 0));
-  group.add(box(1.02, 0.12, 0.57, 0x553a22, 0, 0.56, 0));
-  for (let i = -1; i <= 1; i++) group.add(box(0.06, 0.08, 0.02, BRASS, i * 0.3, 0.45, 0.29));
-  return { group, setDone() {} };
-}
-
-function sheets(): StationView {
-  const group = new THREE.Group();
-  group.add(box(1.2, 0.75, 0.7, WOOD, 0, 0.375, 0)); // table
-  group.add(box(0.9, 0.08, 0.5, 0xd9d4c4, 0, 0.79, 0));
-  return { group, setDone() {} };
 }
 
 function roses(): StationView {
@@ -453,6 +474,369 @@ function portraits(): StationView {
   };
 }
 
+/** A thin rod, one meter long, to be stretched between two points (a cable, a string). */
+function rod(radius: number, color: number): THREE.Mesh {
+  return new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 1, 6), new THREE.MeshLambertMaterial({ color }));
+}
+
+const _up = new THREE.Vector3(0, 1, 0);
+const _dir = new THREE.Vector3();
+
+/** Lays a rod from a to b. */
+function stretch(mesh: THREE.Mesh, a: THREE.Vector3, b: THREE.Vector3) {
+  mesh.position.copy(a).add(b).multiplyScalar(0.5);
+  _dir.subVectors(b, a);
+  const len = _dir.length();
+  mesh.scale.set(1, Math.max(len, 0.001), 1);
+  if (len > 0) mesh.quaternion.setFromUnitVectors(_up, _dir.divideScalar(len));
+}
+
+function piano(): StationView {
+  const group = new THREE.Group();
+  group.add(box(1.5, 1.2, 0.6, 0x1e1410, 0, 0.6, -0.05));
+  group.add(box(1.5, 0.05, 0.32, 0x1e1410, 0, 0.74, 0.39)); // keybed
+  const { keys: count } = config.tasks.hands.piano;
+  const keys: THREE.Mesh[] = [];
+  const width = PIANO_KEYS_M / count;
+  for (let i = 0; i < count; i++) {
+    const x = (i - (count - 1) / 2) * width;
+    const key = part(box(width - 0.012, 0.04, 0.26, 0xe6decb, x, PIANO_KEY_Y, 0.4), `key:${i}`);
+    group.add(key);
+    keys.push(key);
+    // The black keys between, as on a real piano (no gap after the third and seventh).
+    if (i < count - 1 && i % 7 !== 2 && i % 7 !== 6) group.add(box(width * 0.5, 0.03, 0.15, 0x0d0a08, x + width / 2, PIANO_KEY_Y + 0.03, 0.34));
+  }
+  // The tuning card on the music stand: which keys to press, in order.
+  group.add(box(0.9, 0.42, 0.02, 0x1e1410, 0, PIANO_CARD_Y, 0.24));
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 256;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const card = new THREE.Mesh(new THREE.PlaneGeometry(0.84, 0.36), new THREE.MeshBasicMaterial({ map: texture }));
+  card.position.set(0, PIANO_CARD_Y, 0.252);
+  card.rotation.x = -0.12;
+  group.add(card);
+  let shown = "";
+  const setPiano = (c: PianoCard, down: number | null) => {
+    keys.forEach((k) => (k.position.y = PIANO_KEY_Y));
+    if (down !== null) keys[down]!.position.y = PIANO_KEY_Y - 0.012;
+    const key = JSON.stringify(c);
+    if (key === shown) return;
+    shown = key;
+    drawPianoCard(canvas.getContext("2d")!, c, count);
+    texture.needsUpdate = true;
+  };
+  setPiano({ line: [], step: 0, round: 0, rounds: 0, turning: true }, null);
+  return { group, setDone() {}, hands: { kind: "piano", keys, setPiano } };
+}
+
+/** The tuning card: a little keyboard with the order to press the keys written over it. */
+function drawPianoCard(g: CanvasRenderingContext2D, c: PianoCard, keys: number) {
+  const W = g.canvas.width;
+  const H = g.canvas.height;
+  g.fillStyle = "#e8dcc0";
+  g.fillRect(0, 0, W, H);
+  g.fillStyle = "#3a2a1a";
+  g.font = "bold 30px Georgia, serif";
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  if (c.turning) {
+    const text = c.rounds === 0 ? "Tuning" : c.round >= c.rounds ? "In tune" : `Round ${c.round + 1} of ${c.rounds}`;
+    g.fillText(text, W / 2, H / 2);
+    return;
+  }
+  g.font = "bold 24px Georgia, serif";
+  g.fillText(`Round ${c.round + 1} of ${c.rounds}`, W / 2, 24);
+  const kw = (W - 40) / keys;
+  for (let i = 0; i < keys; i++) {
+    const x = 20 + i * kw;
+    g.strokeStyle = "#3a2a1a";
+    g.lineWidth = 3;
+    g.strokeRect(x + 3, 56, kw - 6, 190);
+    const steps = c.line.map((k, s) => (k === i ? s : -1)).filter((s) => s >= 0);
+    // A key pressed more than once shows its turns side by side.
+    const gap = kw / (steps.length + 1);
+    steps.forEach((s, j) => {
+      g.fillStyle = s < c.step ? "#b8a890" : s === c.step ? "#a02818" : "#3a2a1a";
+      g.font = `bold ${steps.length > 1 ? 50 : 72}px Georgia, serif`;
+      g.fillText(String(s + 1), x + gap * (j + 1), 170);
+    });
+  }
+}
+
+/** The cradle: it rocks on its rockers, the baby in it stirs and cries, and a mobile above turns as it calms. */
+function cradle(): StationView {
+  const group = new THREE.Group();
+  const rock = new THREE.Group();
+  group.add(rock);
+  rock.add(box(1.0, 0.05, 0.08, 0x5a3a22, 0, 0.12, 0.22));
+  rock.add(box(1.0, 0.05, 0.08, 0x5a3a22, 0, 0.12, -0.22));
+  const basket = part(box(0.9, 0.35, 0.5, 0x6b4a2e, 0, 0.5, 0), "basket");
+  rock.add(basket);
+  const baby = new THREE.Group();
+  baby.add(box(0.36, 0.1, 0.24, 0xd8cfc0, -0.05, 0.7, 0));
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), new THREE.MeshLambertMaterial({ color: 0xc8a890 }));
+  head.position.set(0.2, 0.72, 0);
+  baby.add(head);
+  rock.add(baby);
+  // A mobile on a post over the cradle.
+  group.add(box(0.04, 1.4, 0.04, 0x5a3a22, -0.55, 0.7, -0.3));
+  const arm = rod(0.012, 0x5a3a22);
+  stretch(arm, new THREE.Vector3(-0.55, 1.38, -0.3), new THREE.Vector3(0, 1.38, 0));
+  group.add(arm);
+  const mobile = new THREE.Group();
+  mobile.position.set(0, 1.3, 0);
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    const x = Math.cos(a) * 0.12;
+    const z = Math.sin(a) * 0.12;
+    const string = rod(0.002, 0x8a8070);
+    stretch(string, new THREE.Vector3(x, 0.08, z), new THREE.Vector3(x, -0.08, z));
+    mobile.add(string);
+    const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.035), new THREE.MeshLambertMaterial({ color: 0xc9a640 }));
+    star.position.set(x, -0.1, z);
+    mobile.add(star);
+  }
+  group.add(mobile);
+  let angle = 0;
+  let calm = 0;
+  let crying = false;
+  let last = 0;
+  return {
+    group,
+    setDone() {},
+    update(time) {
+      const dt = Math.min(0.1, Math.max(0, time - last));
+      last = time;
+      rock.rotation.z = -angle;
+      baby.position.set(crying ? Math.sin(time * 37) * 0.012 : 0, crying ? Math.abs(Math.sin(time * 23)) * 0.01 : 0, 0);
+      mobile.rotation.y += dt * calm * MOBILE_TURN_RAD_PER_SEC;
+    },
+    hands: {
+      kind: "cradle",
+      basket,
+      setCradle(a, c, cry) {
+        angle = a;
+        calm = c;
+        crying = cry;
+      },
+    },
+  };
+}
+
+/** The switchboard: plugs on hooks below, coloured sockets above, each with a lamp. */
+function switchboard(): StationView {
+  const group = new THREE.Group();
+  group.add(box(1.0, 1.0, 0.15, WOOD, 0, BOARD_Y, -0.1));
+  group.add(box(1.0, 0.8, 0.4, WOOD, 0, 0.4, 0.05)); // desk
+  const { cables } = config.tasks.hands.switchboard;
+  const hooks: FacePoint[] = [];
+  const sockets: FacePoint[] = [];
+  const rings: THREE.MeshLambertMaterial[] = [];
+  const lamps: THREE.MeshLambertMaterial[] = [];
+  const plugs: THREE.Mesh[] = [];
+  const wires: THREE.Mesh[] = [];
+  const roots: THREE.Vector3[] = [];
+  for (let i = 0; i < cables; i++) {
+    const u = (i - (cables - 1) / 2) * SOCKET_GAP_M;
+    hooks.push({ u, v: -BOARD_ROW_M });
+    sockets.push({ u, v: BOARD_ROW_M });
+    const ringMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.009, 6, 16), ringMat);
+    ring.position.set(u, BOARD_Y + BOARD_ROW_M, BOARD_FRONT_Z + 0.004);
+    group.add(ring);
+    rings.push(ringMat);
+    group.add(box(0.035, 0.035, 0.01, 0x050403, u, BOARD_Y + BOARD_ROW_M, BOARD_FRONT_Z));
+    const lampMat = new THREE.MeshLambertMaterial({ color: 0x3a3020 });
+    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 6), lampMat);
+    lamp.position.set(u, BOARD_Y + BOARD_ROW_M + 0.1, BOARD_FRONT_Z + 0.01);
+    group.add(lamp);
+    lamps.push(lampMat);
+    group.add(box(0.05, 0.012, 0.04, BRASS, u, BOARD_Y - BOARD_ROW_M - 0.035, BOARD_FRONT_Z + 0.02)); // hook
+    const plug = part(new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.024, 0.06, 10), new THREE.MeshLambertMaterial({ color: CABLE_COLORS[i] })), `plug:${i}`);
+    plug.rotation.x = Math.PI / 2;
+    group.add(plug);
+    plugs.push(plug);
+    const wire = rod(0.008, CABLE_COLORS[i]!);
+    group.add(wire);
+    wires.push(wire);
+    roots.push(new THREE.Vector3(u, BOARD_Y - 0.46, BOARD_FRONT_Z + 0.01));
+  }
+  const setPlugs = (at: readonly FacePoint[], lit: readonly boolean[]) => {
+    at.forEach((p, i) => {
+      // A seated plug sits flush in its socket; a loose one stands out from the board.
+      const seated = sockets.some((s) => s.u === p.u && s.v === p.v);
+      plugs[i]!.position.set(p.u, BOARD_Y + p.v, BOARD_FRONT_Z + (seated ? 0.02 : 0.05));
+      stretch(wires[i]!, roots[i]!, plugs[i]!.position);
+    });
+    lamps.forEach((m, j) => {
+      m.color.setHex(lit[j] ? 0xffd27a : 0x3a3020);
+      m.emissive.setHex(lit[j] ? 0x8a5a10 : 0x000000);
+    });
+  };
+  setPlugs(hooks, []);
+  return {
+    group,
+    setDone() {},
+    hands: {
+      kind: "switchboard",
+      plugs,
+      hooks,
+      sockets,
+      colors: CABLE_COLORS.slice(0, cables),
+      setSockets: (colors) => rings.forEach((m, j) => m.color.setHex(colors[j] ?? 0x555555)),
+      setPlugs,
+    },
+  };
+}
+
+/** A pale face, for the mirror. */
+function faceTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 160;
+  const g = canvas.getContext("2d")!;
+  const glow = g.createRadialGradient(64, 80, 10, 64, 80, 70);
+  glow.addColorStop(0, "rgba(220, 225, 220, 0.9)");
+  glow.addColorStop(1, "rgba(220, 225, 220, 0)");
+  g.fillStyle = glow;
+  g.beginPath();
+  g.ellipse(64, 80, 46, 64, 0, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = "rgba(10, 8, 8, 0.95)";
+  for (const x of [46, 82]) {
+    g.beginPath();
+    g.ellipse(x, 66, 9, 12, 0, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.beginPath();
+  g.ellipse(64, 112, 8, 14, 0, 0, Math.PI * 2);
+  g.fill();
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+/** The mirror over the dresser, fogged over; the glass is (0, 0) at its middle. */
+function mirror(): StationView {
+  const group = new THREE.Group();
+  const { widthM, heightM, cols, rows } = config.tasks.hands.mirror;
+  group.add(box(widthM + 0.16, heightM + 0.16, 0.05, BRASS, 0, MIRROR_Y, -0.05));
+  const glass = part(new THREE.Mesh(new THREE.PlaneGeometry(widthM, heightM), new THREE.MeshPhongMaterial({ color: 0x1c2226, specular: 0x667078, shininess: 90 })), "glass");
+  glass.position.set(0, MIRROR_Y, -0.02);
+  group.add(glass);
+  const faceMat = new THREE.MeshBasicMaterial({ map: faceTexture(), transparent: true, opacity: 0, depthWrite: false });
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.33), faceMat);
+  face.position.set(0.06, MIRROR_Y + 0.14, -0.018);
+  group.add(face);
+  // The fog: one texel for each patch of glass.
+  const data = new Uint8Array(cols * rows * 4);
+  const fogTexture = new THREE.DataTexture(data, cols, rows);
+  fogTexture.magFilter = THREE.LinearFilter;
+  const fog = new THREE.Mesh(new THREE.PlaneGeometry(widthM, heightM), new THREE.MeshLambertMaterial({ map: fogTexture, transparent: true, depthWrite: false }));
+  fog.position.set(0, MIRROR_Y, -0.016);
+  group.add(fog);
+  group.add(box(0.9, 0.8, 0.4, WOOD, 0, 0.4, 0.1)); // dresser
+  const setFog = (patches: readonly number[], showFace: number) => {
+    patches.forEach((f, i) => {
+      data.set([200, 204, 206, Math.round(225 * f)], i * 4);
+    });
+    fogTexture.needsUpdate = true;
+    faceMat.opacity = showFace * 0.85;
+  };
+  setFog(Array.from({ length: cols * rows }, () => 1), 0);
+  return { group, setDone() {}, hands: { kind: "mirror", glass, setFog } };
+}
+
+/** The old trunk: a sprung lid hinged at the back, and three latches on the front. */
+function trunk(): StationView {
+  const group = new THREE.Group();
+  group.add(box(1.0, 0.5, 0.55, 0x4b3420, 0, 0.25, 0));
+  group.add(box(0.94, 0.02, 0.49, 0x0b0807, 0, 0.495, 0)); // the dark inside
+  const hinge = new THREE.Group();
+  hinge.position.set(0, 0.5, -0.285);
+  const lid = part(box(1.02, 0.12, 0.57, 0x553a22, 0, 0.06, 0.285), "lid");
+  hinge.add(lid);
+  group.add(hinge);
+  const pivots: THREE.Group[] = [];
+  const latches: THREE.Mesh[] = [];
+  const { latches: count } = config.tasks.hands.trunk;
+  for (let i = 0; i < count; i++) {
+    const x = (i - (count - 1) / 2) * 0.3;
+    group.add(box(0.06, 0.06, 0.01, 0x2a2016, x, 0.44, 0.28)); // the catch
+    const pivot = new THREE.Group();
+    pivot.position.set(x, 0.44, 0.29);
+    const latch = part(box(0.026, 0.1, 0.016, BRASS, 0, 0, 0.006), `latch:${i}`);
+    pivot.add(latch);
+    group.add(pivot);
+    pivots.push(pivot);
+    latches.push(latch);
+  }
+  let open = 0;
+  let rattle = 0;
+  const setTrunk = (lidOpen: number, latchDeg: readonly number[], r: number) => {
+    open = lidOpen;
+    rattle = r;
+    pivots.forEach((p, i) => (p.rotation.z = (-(latchDeg[i] ?? 0) * Math.PI) / 180));
+  };
+  return {
+    group,
+    setDone() {},
+    update(time) {
+      // The lid strains against the latches when it is about to burst.
+      hinge.rotation.x = -open * TRUNK_LID_OPEN_RAD - rattle * TRUNK_RATTLE_RAD * Math.abs(Math.sin(time * 31));
+    },
+    hands: { kind: "trunk", lid, latches, setTrunk },
+  };
+}
+
+/** A sheet on the table, folded in half each time: toward you, right to left, toward you. */
+function sheets(): StationView {
+  const group = new THREE.Group();
+  group.add(box(1.2, 0.75, 0.7, WOOD, 0, 0.375, 0)); // table
+  const top = 0.75;
+  const flat = box(1, SHEET_THICK_M, 1, LINEN);
+  group.add(flat);
+  const pivot = new THREE.Group();
+  const flap = part(box(1, SHEET_THICK_M, 1, LINEN), "sheet");
+  pivot.add(flap);
+  group.add(pivot);
+  const { folds: total } = config.tasks.hands.sheets;
+  const setSheet = (folds: number, progress: number) => {
+    let r = { cx: 0, cz: 0, w: SHEET_W_M, d: SHEET_D_M };
+    for (let k = 0; k < Math.min(folds, total); k++) r = foldedHalf(r, k);
+    const layers = 2 ** Math.min(folds, total);
+    const still = folds < total ? foldedHalf(r, folds) : r;
+    flat.scale.set(still.w, layers, still.d);
+    flat.position.set(still.cx, top + (SHEET_THICK_M * layers) / 2, still.cz);
+    flap.visible = folds < total;
+    if (!flap.visible) return;
+    pivot.position.set(r.cx, top + SHEET_THICK_M * layers * 1.5, r.cz);
+    flap.scale.set(1, layers, 1);
+    if (folds % 2 === 0) {
+      // The far half lifts and comes over toward you.
+      flap.scale.x = r.w;
+      flap.scale.z = r.d / 2;
+      flap.position.set(0, 0, -r.d / 4);
+      pivot.rotation.set(progress * Math.PI, 0, 0);
+    } else {
+      // The right half lifts and goes over to the left.
+      flap.scale.x = r.w / 2;
+      flap.scale.z = r.d;
+      flap.position.set(r.w / 4, 0, 0);
+      pivot.rotation.set(0, 0, progress * Math.PI);
+    }
+  };
+  setSheet(0, 0);
+  return { group, setDone() {}, hands: { kind: "sheets", flap, setSheet } };
+}
+
+/** The half of a sheet that stays down when it is folded: the near half, or the left half. */
+function foldedHalf(r: { cx: number; cz: number; w: number; d: number }, fold: number) {
+  return fold % 2 === 0 ? { cx: r.cx, cz: r.cz + r.d / 4, w: r.w, d: r.d / 2 } : { cx: r.cx - r.w / 4, cz: r.cz, w: r.w / 2, d: r.d };
+}
+
 const MODELS: Record<TaskMinigame, () => StationView> = {
   candelabra,
   clock,
@@ -470,12 +854,48 @@ const MODELS: Record<TaskMinigame, () => StationView> = {
   portraits,
 };
 
+/** A jewellery box on a sideboard, with a dial lock on its front and a stud for each pin set. */
 function lockboxSpot(): PlaceView {
   const group = new THREE.Group();
   group.add(box(1.0, 0.85, 0.45, WOOD, 0, 0.425, 0)); // sideboard or shelf
   group.add(box(0.3, 0.16, 0.2, 0x6a4a2a, 0, 0.93, 0));
-  group.add(box(0.06, 0.06, 0.02, BRASS, 0, 0.93, 0.11));
-  return { group, setSearched() {} };
+  const hinge = new THREE.Group();
+  hinge.position.set(0, 1.01, -0.1);
+  hinge.add(box(0.31, 0.03, 0.21, 0x7a5a36, 0, 0.015, 0.1));
+  group.add(hinge);
+  const pivot = new THREE.Group();
+  pivot.position.set(0, 0.92, 0.1);
+  const dial = part(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 24), new THREE.MeshLambertMaterial({ color: BRASS })), "dial");
+  dial.rotation.x = Math.PI / 2;
+  dial.position.z = 0.01;
+  pivot.add(dial);
+  pivot.add(box(0.008, 0.035, 0.004, 0x1a1010, 0, 0.022, 0.022)); // its pointer
+  group.add(pivot);
+  group.add(box(0.012, 0.012, 0.004, 0xe9dfc6, 0, 0.976, 0.102)); // the mark at the top
+  const { pins } = config.relics.hands.lockbox;
+  const studs: THREE.MeshLambertMaterial[] = [];
+  for (let i = 0; i < pins; i++) {
+    const mat = new THREE.MeshLambertMaterial({ color: 0x2a2016 });
+    const stud = new THREE.Mesh(new THREE.SphereGeometry(0.008, 8, 6), mat);
+    stud.position.set((i - (pins - 1) / 2) * 0.03, 0.99, 0.102);
+    group.add(stud);
+    studs.push(mat);
+  }
+  const setDial = (deg: number, set: number, open: boolean) => {
+    pivot.rotation.z = (-deg * Math.PI) / 180;
+    studs.forEach((m, i) => {
+      m.color.setHex(i < set ? 0xd8b050 : 0x2a2016);
+      m.emissive.setHex(i < set ? 0x4a3008 : 0x000000);
+    });
+    hinge.rotation.x = open ? -LOCKBOX_OPEN_RAD : 0;
+  };
+  return {
+    group,
+    setSearched(searched) {
+      setDial(0, searched ? pins : 0, searched);
+    },
+    hands: { kind: "lockbox", dial, setDial },
+  };
 }
 
 function digSpot(): PlaceView {
@@ -511,11 +931,43 @@ function digSpot(): PlaceView {
   };
 }
 
+/** A drain in the floor with its grate lifted off and laid beside it: dark water in a stone curb. */
 function drainSpot(): PlaceView {
   const group = new THREE.Group();
-  group.add(box(0.7, 0.02, 0.7, 0x2b3324, 0, 0.01, 0));
-  for (let i = -2; i <= 2; i++) group.add(box(0.04, 0.03, 0.6, 0x555048, i * 0.13, 0.025, 0));
-  return { group, setSearched() {} };
+  const stone = 0x4a4a44;
+  const half = DRAIN_INNER_M / 2;
+  const t = DRAIN_CURB_WIDTH_M;
+  const outer = DRAIN_INNER_M + 2 * t;
+  for (const s of [-1, 1]) {
+    group.add(box(outer, DRAIN_CURB_M, t, stone, 0, DRAIN_CURB_M / 2, s * (half + t / 2)));
+    group.add(box(t, DRAIN_CURB_M, DRAIN_INNER_M, stone, s * (half + t / 2), DRAIN_CURB_M / 2, 0));
+  }
+  const water = part(new THREE.Mesh(new THREE.PlaneGeometry(DRAIN_INNER_M, DRAIN_INNER_M), new THREE.MeshLambertMaterial({ color: 0x10160f })), "water");
+  water.rotation.x = -Math.PI / 2;
+  water.position.y = DRAIN_WATER_Y;
+  group.add(water);
+  for (let i = -2; i <= 2; i++) group.add(box(0.03, 0.02, 0.5, 0x555048, half + t + 0.16 + i * 0.05, 0.01, 0)); // the grate
+  const ripple = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 24), new THREE.MeshBasicMaterial({ color: 0xa0b0a0, transparent: true, opacity: 0, depthWrite: false }));
+  ripple.rotation.x = -Math.PI / 2;
+  ripple.visible = false;
+  group.add(ripple);
+  // Your forearm going down into the water, and the relic in your hand once you have it.
+  const arm = new THREE.Group();
+  arm.add(box(0.07, 0.4, 0.07, 0xb8a090, 0, 0.2, 0));
+  const relic = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.08), new THREE.MeshLambertMaterial({ color: 0xc9a640, emissive: 0x3a2a08 }));
+  arm.add(relic);
+  arm.visible = false;
+  group.add(arm);
+  const setDrain = (s: DrainShow) => {
+    arm.visible = ripple.visible = s.at !== null;
+    if (!s.at) return;
+    arm.position.set(s.at.x, DRAIN_WATER_Y - DRAIN_HAND_DEPTH_M + s.lift * DRAIN_LIFT_M, s.at.z);
+    relic.visible = s.gripped;
+    ripple.position.set(s.at.x, DRAIN_WATER_Y + 0.002, s.at.z);
+    ripple.scale.setScalar(0.03 + s.ripple * 0.12);
+    (ripple.material as THREE.MeshBasicMaterial).opacity = (1 - s.ripple) * (0.12 + 0.6 * s.strength);
+  };
+  return { group, setSearched() {}, hands: { kind: "drain", water, setDrain } };
 }
 
 const RELIC_SPOTS: Record<RelicMinigame, () => PlaceView> = { lockbox: lockboxSpot, dig: digSpot, drain: drainSpot };

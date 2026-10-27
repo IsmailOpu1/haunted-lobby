@@ -7,7 +7,7 @@
 // The heartbeat is deep, soft and muffled (felt more than heard); footsteps are crisp
 // wooden taps. Keeping them in different pitch ranges stops them blurring together.
 import type { WorldPoint } from "@haunted/shared";
-import type { TaskSoundKind } from "./minigames/types.ts";
+import type { TaskSoundKind } from "./hands/sounds.ts";
 
 const HEARTBEAT_RANGE_M = 12;
 const HEARTBEAT_LOWPASS_HZ = 110;

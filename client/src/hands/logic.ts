@@ -1,11 +1,12 @@
 import { config } from "@haunted/shared";
-import type { TaskSoundKind } from "../minigames/types.ts";
+import type { TaskSoundKind } from "./sounds.ts";
 
 // The rules of the hands-on tasks (GDD 26.5), kept apart from the 3D scene so they can be
 // tested. Each one is updated every frame with what your hands are doing; mouse movement is
 // in screen pixels.
 
-export type Play = (kind: TaskSoundKind) => void;
+/** Plays a task sound. pitch is a note number for the piano (0 is the lowest key). */
+export type Play = (kind: TaskSoundKind, pitch?: number) => void;
 export type Random = () => number;
 
 /** How long, after a flick starts, its pixels still count toward a strike. */
@@ -18,6 +19,13 @@ const PACE_SEC = 0.2;
 const SPLASH_EVERY_SEC = 0.5;
 /** Scooping makes a sound every this many pixels of soil moved. */
 const SCOOP_SOUND_PX = 160;
+/** A smearing cloth squeaks at most this often. */
+const SMEAR_SOUND_SEC = 0.35;
+/** How long a moment a push (cradle) or a hand in water (drain) is judged over. */
+const PUSH_PACE_SEC = 0.15;
+/** The drain's water laps this often far from the relic, and this often right on it. */
+const LAP_SLOWEST_SEC = 0.9;
+const LAP_FASTEST_SEC = 0.25;
 
 /**
  * A match in your hand (candelabra, letter): strike it with a sharp downward flick while holding
@@ -583,6 +591,563 @@ export class DigLogic {
     if (this.scoopSound >= SCOOP_SOUND_PX) {
       this.scoopSound = 0;
       this.play("scrape");
+    }
+  }
+}
+
+/** A point on a flat face of a station (a switchboard, a mirror, a drain), in meters: u right, v up. */
+export interface FacePoint {
+  u: number;
+  v: number;
+}
+
+function faceDistance(a: FacePoint, b: FacePoint): number {
+  return Math.hypot(a.u - b.u, a.v - b.v);
+}
+
+/** Moves a point by mouse pixels (right, down), no further than maxM. */
+function dragPoint(p: FacePoint, dragX: number, dragY: number, mPerPx: number, maxM: number): number {
+  let du = dragX * mPerPx;
+  let dv = -dragY * mPerPx;
+  const d = Math.hypot(du, dv);
+  if (d > maxM && d > 0) {
+    du *= maxM / d;
+    dv *= maxM / d;
+  }
+  p.u += du;
+  p.v += dv;
+  return Math.min(d, maxM);
+}
+
+/**
+ * A speed limit judged over a short moment (PACE_SEC) rather than frame by frame, so mouse
+ * movement that arrives unevenly between frames is not thrown away.
+ */
+class Pace {
+  private left: number;
+
+  constructor(private perSec: number) {
+    this.left = perSec * PACE_SEC;
+  }
+
+  /** How much may move this frame. */
+  room(dt: number): number {
+    this.left = Math.min(this.perSec * PACE_SEC, this.left + this.perSec * Math.max(0, dt));
+    return this.left;
+  }
+
+  /** Moves `want` (either way), no further than the room left; returns how far it moved. */
+  take(dt: number, want: number): number {
+    const room = this.room(dt);
+    const got = Math.sign(want) * Math.min(Math.abs(want), room);
+    this.left -= Math.abs(got);
+    return got;
+  }
+
+  use(amount: number) {
+    this.left = Math.max(0, this.left - amount);
+  }
+}
+
+function shuffled(n: number, random: Random): number[] {
+  const out = Array.from({ length: n }, (_, i) => i);
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
+
+/**
+ * Repair the switchboard: take each plug off its hook and drag it onto the socket of the same
+ * colour, then hold it there while it seats. The wrong socket sparks and throws the plug back.
+ */
+export class SwitchboardLogic {
+  private cfg = config.tasks.hands.switchboard;
+  /** Where each plug is now. */
+  readonly plug: FacePoint[];
+  readonly plugged: boolean[];
+  /** The socket each cable belongs in (sockets are coloured in a shuffled order). */
+  readonly socketOf: number[];
+  /** How long the plug in hand has been held in its socket. */
+  seat = 0;
+  private holding: number | null = null;
+  private pace = new Pace(this.cfg.maxMPerSec);
+  /** After a spark or a seated plug, the button must be let go before grabbing again. */
+  private waitForRelease = false;
+
+  constructor(private play: Play, private hooks: readonly FacePoint[], private sockets: readonly FacePoint[], random: Random = Math.random) {
+    this.plug = hooks.map((h) => ({ ...h }));
+    this.plugged = hooks.map(() => false);
+    this.socketOf = shuffled(sockets.length, random);
+  }
+
+  get done(): boolean {
+    return this.plugged.every(Boolean);
+  }
+
+  /** held: the plug you grabbed, or null. dragX/dragY: pixels moved right and down while holding it. */
+  update(dt: number, input: { held: number | null; dragX: number; dragY: number }) {
+    const c = this.cfg;
+    if (input.held === null) this.waitForRelease = false;
+    const held = this.waitForRelease || (input.held !== null && this.plugged[input.held]) ? null : input.held;
+    if (held !== this.holding) {
+      // Let go before it seated: the cable pulls it back to its hook.
+      if (this.holding !== null && !this.plugged[this.holding]) this.toHook(this.holding);
+      this.holding = held;
+      this.seat = 0;
+    }
+    const h = this.holding;
+    if (h === null || dt <= 0) return;
+    const p = this.plug[h]!;
+    this.pace.use(dragPoint(p, input.dragX, input.dragY, c.mPerPx, this.pace.room(dt)));
+    const near = this.sockets.findIndex((s) => faceDistance(s, p) < c.snapM);
+    if (near === -1) {
+      this.seat = 0;
+      return;
+    }
+    if (near !== this.socketOf[h] || this.plugged.some((done, k) => done && this.socketOf[k] === near)) {
+      this.play("spark");
+      this.release(h);
+      this.toHook(h);
+      return;
+    }
+    Object.assign(p, this.sockets[near]);
+    this.seat += dt;
+    if (this.seat >= c.seatSec) {
+      this.plugged[h] = true;
+      this.play("click");
+      this.release(h);
+    }
+  }
+
+  private release(h: number) {
+    if (this.holding === h) this.holding = null;
+    this.waitForRelease = true;
+    this.seat = 0;
+  }
+
+  private toHook(h: number) {
+    Object.assign(this.plug[h]!, this.hooks[h]);
+  }
+}
+
+/**
+ * Clean the mirror: a cloth in your hand. Hold the button on the glass and move the mouse to
+ * wipe the fog off. Wiping too fast only smears. Sometimes a face shows in the glass.
+ */
+export class MirrorLogic {
+  private cfg = config.tasks.hands.mirror;
+  /** Fog on each patch of glass, row by row from the bottom left: 1 fogged, 0 clean. */
+  readonly fog: number[];
+  /** Where the cloth is on the glass while you wipe, or null. */
+  cloth: FacePoint | null = null;
+  /** Seconds the face still shows, or 0. */
+  faceLeft = 0;
+  /** How fast the cloth moves, smoothed, in m/s. */
+  speed = 0;
+  private faceComing: boolean;
+  private smearWait = 0;
+
+  constructor(private play: Play, random: Random = Math.random) {
+    const c = this.cfg;
+    this.fog = Array.from({ length: c.cols * c.rows }, () => 1);
+    this.faceComing = random() < c.faceChance;
+  }
+
+  get clearPct(): number {
+    return (100 * this.fog.filter((f) => f === 0).length) / this.fog.length;
+  }
+
+  get done(): boolean {
+    return this.clearPct >= this.cfg.clearPct;
+  }
+
+  /** The middle of a patch of glass, from the mirror's middle. */
+  cell(i: number): FacePoint {
+    const c = this.cfg;
+    const col = i % c.cols;
+    const row = Math.floor(i / c.cols);
+    return { u: ((col + 0.5) / c.cols - 0.5) * c.widthM, v: ((row + 0.5) / c.rows - 0.5) * c.heightM };
+  }
+
+  /** grab: where the crosshair is on the glass (null when off it). holding: the button is down. */
+  update(dt: number, input: { grab: FacePoint | null; holding: boolean; dragX: number; dragY: number }) {
+    const c = this.cfg;
+    if (dt <= 0) return;
+    this.faceLeft = Math.max(0, this.faceLeft - dt);
+    this.smearWait = Math.max(0, this.smearWait - dt);
+    if (!input.holding) {
+      this.cloth = null;
+      this.speed = 0;
+      return;
+    }
+    if (!this.cloth) {
+      if (!input.grab) return;
+      this.cloth = { ...input.grab };
+    }
+    const moved = dragPoint(this.cloth, input.dragX, input.dragY, c.mPerPx, Infinity);
+    this.cloth.u = Math.max(-c.widthM / 2, Math.min(c.widthM / 2, this.cloth.u));
+    this.cloth.v = Math.max(-c.heightM / 2, Math.min(c.heightM / 2, this.cloth.v));
+    this.speed += (moved / dt - this.speed) * Math.min(1, dt / c.paceSec);
+    if (this.speed > c.maxMPerSec) {
+      if (this.smearWait === 0) {
+        this.smearWait = SMEAR_SOUND_SEC;
+        this.play("scrape");
+      }
+      return;
+    }
+    if (moved === 0) return;
+    for (let i = 0; i < this.fog.length; i++) {
+      if (this.fog[i] !== 0 && faceDistance(this.cell(i), this.cloth) <= c.brushM) this.fog[i] = 0;
+    }
+    if (this.faceComing && this.clearPct >= c.faceAtPct) {
+      this.faceComing = false;
+      this.faceLeft = c.faceSec;
+      this.play("scare");
+    }
+  }
+}
+
+/**
+ * Seal the old trunk: press the sprung lid down and hold it until it clicks shut, then turn each
+ * latch a quarter. Dawdle between latches and the lid bursts open again.
+ */
+export class TrunkLogic {
+  private cfg = config.tasks.hands.trunk;
+  /** How far the lid is open: 1 sprung up, 0 shut. */
+  lid = 1;
+  /** Seconds the lid has been held shut. */
+  pressed = 0;
+  shut = false;
+  /** Each latch's turn, 0 to 90 degrees. */
+  readonly latch: number[];
+  /** Seconds left to turn the next latch before the lid bursts open. */
+  popLeft = 0;
+  private pace = new Pace(this.cfg.maxDegPerSec);
+
+  constructor(private play: Play) {
+    this.latch = Array.from({ length: this.cfg.latches }, () => 0);
+  }
+
+  get done(): boolean {
+    return this.latch.every((l) => l >= 90);
+  }
+
+  /** onLid: holding the lid. latch: the latch in your hand, or null. dragX/dragY: pixels right and down. */
+  update(dt: number, input: { onLid: boolean; latch: number | null; dragX: number; dragY: number }) {
+    const c = this.cfg;
+    if (dt <= 0 || this.done) return;
+    if (!this.shut) {
+      if (input.onLid) this.lid = Math.max(0, Math.min(1, this.lid - input.dragY / c.pressPx));
+      else this.lid = Math.min(1, this.lid + c.springPerSec * dt);
+      this.pressed = input.onLid && this.lid === 0 ? this.pressed + dt : 0;
+      if (this.pressed >= c.pressSec) {
+        this.shut = true;
+        this.popLeft = c.popSec;
+        this.play("click");
+      }
+      return;
+    }
+    this.popLeft -= dt;
+    if (this.popLeft <= 0) {
+      // It bursts open: start again.
+      this.shut = false;
+      this.lid = 1;
+      this.pressed = 0;
+      this.latch.fill(0);
+      this.play("thud");
+      return;
+    }
+    const i = input.latch;
+    if (i === null || this.latch[i]! >= 90) return;
+    this.latch[i] = Math.max(0, Math.min(90, this.latch[i]! + this.pace.take(dt, input.dragX * c.degPerPx)));
+    if (this.latch[i]! >= 90) {
+      this.popLeft = c.popSec;
+      this.play("click");
+    }
+  }
+}
+
+/**
+ * Tune the piano: press the real keys in the order the tuning card shows. Each key rings a moment
+ * before the next goes down. A wrong key is a sour note the ghost can hear, and the round restarts.
+ */
+export class PianoLogic {
+  private cfg = config.tasks.hands.piano;
+  round = 0;
+  step = 0;
+  /** The keys to press this round, in order. */
+  line: number[];
+  /** Seconds until the next key can go down. */
+  ring = 0;
+  /** Seconds until the card has turned over for the next round. */
+  pause = 0;
+
+  constructor(private play: Play, private noise: () => void, private random: Random = Math.random) {
+    this.line = this.newLine();
+  }
+
+  get done(): boolean {
+    return this.round >= this.cfg.rounds;
+  }
+
+  private newLine(): number[] {
+    const c = this.cfg;
+    const line: number[] = [];
+    for (let i = 0; i < c.notesPerRound; i++) {
+      let key = Math.floor(this.random() * c.keys);
+      // Never the same key twice running, so every press is a new key to find.
+      if (key === line[i - 1]) key = (key + 1) % c.keys;
+      line.push(key);
+    }
+    return line;
+  }
+
+  /** pressed: the key pressed this frame, or null. */
+  update(dt: number, input: { pressed: number | null }) {
+    const c = this.cfg;
+    this.ring = Math.max(0, this.ring - dt);
+    this.pause = Math.max(0, this.pause - dt);
+    if (this.done || input.pressed === null || this.ring > 0 || this.pause > 0) return;
+    this.ring = c.ringSec;
+    if (input.pressed !== this.line[this.step]) {
+      this.play("badNote");
+      this.noise();
+      this.step = 0;
+      return;
+    }
+    this.play("note", input.pressed);
+    this.step += 1;
+    if (this.step < this.line.length) return;
+    this.round += 1;
+    this.step = 0;
+    if (this.done) return;
+    this.line = this.newLine();
+    this.pause = c.roundPauseSec;
+  }
+}
+
+/**
+ * Fold the bedsheets: fold the sheet in half three times. Grab it and pull: toward you for the
+ * first and last folds, from right to left for the middle one. Let go early and it slides back.
+ */
+export class SheetsLogic {
+  private cfg = config.tasks.hands.sheets;
+  folds = 0;
+  /** How far through the current fold, 0 to 1. */
+  progress = 0;
+  private pace = new Pace(this.cfg.maxPerSec);
+
+  constructor(private play: Play) {}
+
+  get done(): boolean {
+    return this.folds >= this.cfg.folds;
+  }
+
+  /** Whether the current fold pulls toward you (down the screen) rather than right to left. */
+  get towardYou(): boolean {
+    return this.folds % 2 === 0;
+  }
+
+  /** held: holding the sheet. dragX/dragY: pixels moved right and down while holding it. */
+  update(dt: number, input: { held: boolean; dragX: number; dragY: number }) {
+    const c = this.cfg;
+    if (dt <= 0 || this.done) return;
+    if (!input.held) {
+      this.progress = Math.max(0, this.progress - c.dropPerSec * dt);
+      return;
+    }
+    const pull = (this.towardYou ? input.dragY : -input.dragX) / c.pxPerFold;
+    this.progress = Math.max(0, Math.min(1, this.progress + this.pace.take(dt, pull)));
+    if (this.progress >= c.snapAt) {
+      this.folds += 1;
+      this.progress = 0;
+      this.play("thud");
+    }
+  }
+}
+
+/**
+ * Rock the cradle: it swings on its own; push it gently in time with its swing to keep the
+ * baby calm. Too big a swing, or a hard shove, and the baby cries, which the ghost can hear.
+ */
+export class CradleLogic {
+  private cfg = config.tasks.hands.cradle;
+  /** The swing, in radians, and how fast it is moving. */
+  angle = 0;
+  speed = 0;
+  /** Seconds of calm so far. */
+  calm = 0;
+  /** Seconds the baby still cries. */
+  crying = 0;
+  private pushSpeed = 0;
+
+  constructor(private play: Play, private noise: () => void) {}
+
+  get done(): boolean {
+    return this.calm >= this.cfg.fillSec;
+  }
+
+  /** How far the cradle swings each way now, in radians. */
+  get amplitude(): number {
+    const w = (2 * Math.PI) / this.cfg.periodSec;
+    return Math.hypot(this.angle, this.speed / w);
+  }
+
+  /** held: your hand is on the cradle. dragX: pixels pushed right. */
+  update(dt: number, input: { held: boolean; dragX: number }) {
+    const c = this.cfg;
+    if (dt <= 0 || this.done) return;
+    const w = (2 * Math.PI) / c.periodSec;
+    const push = input.held ? input.dragX : 0;
+    this.pushSpeed += (Math.abs(push) / dt - this.pushSpeed) * Math.min(1, dt / PUSH_PACE_SEC);
+    this.speed += (-w * w * this.angle - c.dampPerSec * this.speed) * dt + push * c.pushRadPerPx;
+    this.angle += this.speed * dt;
+    this.crying = Math.max(0, this.crying - dt);
+    const amp = this.amplitude;
+    if (amp > c.cryAmpRad || this.pushSpeed > c.cryPxPerSec) {
+      if (this.crying === 0) {
+        this.play("cry");
+        this.noise();
+        this.calm = Math.max(0, this.calm - c.cryLoseSec);
+      }
+      this.crying = c.cryPauseSec;
+      return;
+    }
+    if (this.crying === 0 && amp >= c.minAmpRad && amp <= c.maxAmpRad) this.calm += dt;
+  }
+}
+
+/**
+ * Open the jewellery box (a relic spot): a dial lock. Turn the dial right until the first pin
+ * clicks, then left to the next, and so on. A pin only clicks if the dial passes it slowly; the
+ * dial's soft ticks tell you how fast you turn.
+ */
+export class LockboxLogic {
+  private cfg = config.relics.hands.lockbox;
+  /** The dial, in degrees turned right from where it started. */
+  dial = 0;
+  /** Where each pin is, in the same degrees. */
+  readonly pins: number[];
+  /** Pins set so far. */
+  set = 0;
+  /** How fast the dial turns, smoothed, in degrees a second. */
+  private speed = 0;
+
+  constructor(private play: Play, random: Random = Math.random) {
+    const c = this.cfg;
+    this.pins = [];
+    let at = 0;
+    for (let i = 0; i < c.pins; i++) {
+      // Right to the first pin, left to the second, and so on.
+      const gap = c.minGapDeg + (c.maxGapDeg - c.minGapDeg) * random();
+      at += (i % 2 === 0 ? 1 : -1) * gap;
+      this.pins.push(at);
+    }
+  }
+
+  get done(): boolean {
+    return this.set >= this.cfg.pins;
+  }
+
+  /** held: the dial is in your hand. dragX: pixels moved right (turning it right). */
+  update(dt: number, input: { held: boolean; dragX: number }) {
+    const c = this.cfg;
+    if (dt <= 0 || this.done) return;
+    const turn = input.held ? input.dragX * c.degPerPx : 0;
+    this.speed += (Math.abs(turn) / dt - this.speed) * Math.min(1, dt / PUSH_PACE_SEC);
+    if (turn === 0) return;
+    const from = this.dial;
+    const to = from + turn;
+    this.dial = to;
+    if (Math.floor(from / c.tickDeg) !== Math.floor(to / c.tickDeg)) this.play("tick");
+    const pin = this.pins[this.set]!;
+    const rightward = this.set % 2 === 0;
+    const passes = rightward ? from < pin && to >= pin : from > pin && to <= pin;
+    if (passes && this.speed <= c.clickDegPerSec) {
+      this.set += 1;
+      this.play("click");
+    }
+  }
+}
+
+/**
+ * Reach into the drain (a relic spot): feel about in the dark water for the relic. Near it the
+ * water ripples and laps louder. Hold still on it to grip it, then pull it up; let go while
+ * pulling and it slips back.
+ */
+export class DrainLogic {
+  private cfg = config.relics.hands.drain;
+  /** Your hand in the water, from the drain's middle: u to the right, v away from you. */
+  readonly hand: FacePoint = { u: 0, v: 0 };
+  readonly relic: FacePoint;
+  /** Seconds you have held still on the relic. */
+  grip = 0;
+  gripped = false;
+  /** Pixels pulled up so far. */
+  pulled = 0;
+  /** How fast the hand moves, smoothed, in m/s. */
+  private speed = 0;
+  private lapWait = 0;
+  private reach = new Pace(this.cfg.maxMPerSec);
+  private pull = new Pace(this.cfg.pullPxPerSec);
+
+  constructor(private play: Play, random: Random = Math.random) {
+    const c = this.cfg;
+    const angle = random() * Math.PI * 2;
+    const r = c.relicMinM + (c.sizeM / 2 - 0.04 - c.relicMinM) * random();
+    this.relic = { u: Math.cos(angle) * r, v: Math.sin(angle) * r };
+  }
+
+  get done(): boolean {
+    return this.pulled >= this.cfg.pullPx;
+  }
+
+  /** How near the hand is to the relic, 0 (far) to 1 (on it): the ripple you see and hear. */
+  get closeness(): number {
+    return Math.max(0, 1 - faceDistance(this.hand, this.relic) / (this.cfg.feelM * 3));
+  }
+
+  /** holding: your hand is in the water. dragX/dragY: pixels moved right and down. */
+  update(dt: number, input: { holding: boolean; dragX: number; dragY: number }) {
+    const c = this.cfg;
+    if (dt <= 0 || this.done) return;
+    this.lapWait = Math.max(0, this.lapWait - dt);
+    if (this.gripped) {
+      if (!input.holding) {
+        // It slips back into the water.
+        this.gripped = false;
+        this.grip = 0;
+        this.pulled = 0;
+        this.play("splash");
+        return;
+      }
+      this.pulled += Math.max(0, this.pull.take(dt, Math.max(0, -input.dragY)));
+      if (this.done) this.play("click");
+      return;
+    }
+    if (!input.holding) {
+      this.grip = 0;
+      this.speed = 0;
+      return;
+    }
+    const moved = dragPoint(this.hand, input.dragX, input.dragY, c.mPerPx, this.reach.room(dt));
+    this.reach.use(moved);
+    const half = c.sizeM / 2;
+    this.hand.u = Math.max(-half, Math.min(half, this.hand.u));
+    this.hand.v = Math.max(-half, Math.min(half, this.hand.v));
+    this.speed += (moved / dt - this.speed) * Math.min(1, dt / PUSH_PACE_SEC);
+    // The water laps against your hand, quicker the nearer the relic.
+    if (this.closeness > 0 && this.lapWait === 0) {
+      this.lapWait = LAP_SLOWEST_SEC - (LAP_SLOWEST_SEC - LAP_FASTEST_SEC) * this.closeness;
+      this.play("splash");
+    }
+    const on = faceDistance(this.hand, this.relic) <= c.feelM;
+    this.grip = on && this.speed <= c.stillMPerSec ? this.grip + dt : 0;
+    if (this.grip >= c.grabSec) {
+      this.gripped = true;
+      this.play("thud");
     }
   }
 }
