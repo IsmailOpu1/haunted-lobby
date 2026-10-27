@@ -1,6 +1,7 @@
 import { Room, type Client } from "colyseus";
 import {
   assignTasks,
+  takenTasks,
   calibrateNormal,
   ghostOnSalt,
   normalizeAngle,
@@ -338,7 +339,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       action: null,
       breathLeft: 0,
       flashlightBeforeDowned: true,
-      tasks: assignTasks(this.map.tasks, config.tasks.perPlayer).map((t) => ({ stationId: t.id, done: false })),
+      tasks: assignTasks(this.map.tasks, config.tasks.perPlayer, Math.random, takenTasks([...this.sims.values()].map((s) => s.tasks))).map((t) => ({
+        stationId: t.id,
+        done: false,
+      })),
       task: null,
       normalDbfs: null,
       voiceLevel: "silent",
