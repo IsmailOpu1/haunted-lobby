@@ -162,8 +162,8 @@ describe("HauntedRoom", () => {
     await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
     const me = () => room.state.players.get(room.sessionId);
 
-    // Walk north from spawn 0 toward the Main Hall's west door until within reach.
-    const def = marrowHotelGreybox.doors.find((d) => d.id === "hall-front-west")!;
+    // Walk north from spawn 0 toward the Main Hall's door until within reach.
+    const def = marrowHotelGreybox.doors.find((d) => d.id === "hall-front")!;
     await walkTo(room, { x: def.x, z: def.z + 1.5 });
     expect(Math.hypot(me().x - def.x, me().z - def.z)).toBeLessThan(config.interact.rangeM);
     const door = () => room.state.doors.get(def.id);

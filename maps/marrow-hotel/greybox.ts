@@ -136,26 +136,21 @@ export const marrowHotelGreybox = buildMap({
         { x: 10.25, z: -14, width: 2.5, axis: "x" },
       ],
       doors: [
-        { id: "hall-front-west", x: -3, z: 4.5, width: 1.5, axis: "x" },
-        { id: "hall-front-east", x: 3, z: 4.5, width: 1.5, axis: "x" },
-        { id: "reception-hall", x: -9, z: 16.25, width: 1.5, axis: "z" },
-        { id: "restaurant-hall", x: 9, z: 16.25, width: 1.5, axis: "z" },
+        // Doors follow one rule (GDD 26.11): corridors join rooms. A small room has one door; a big
+        // room has two, onto different corridors, so a chase can loop through it. Rooms never open
+        // into each other, except the Kitchen into its Restaurant.
+        // The Main Hall's grand double door faces the courtyard across the Front Corridor.
+        { id: "hall-front", x: 0, z: 4.5, width: 2.5, axis: "x" },
         { id: "reception-front", x: -10.25, z: 4.5, width: 1.5, axis: "x" },
         { id: "restaurant-front", x: 10.25, z: 4.5, width: 1.5, axis: "x" },
-        { id: "library-reception", x: -17, z: 4.5, width: 1.5, axis: "x" },
         { id: "library-west", x: -11.5, z: -2, width: 1.5, axis: "z" },
-        { id: "ballroom-library", x: -17, z: -6, width: 1.5, axis: "x" },
         { id: "ballroom-west", x: -11.5, z: -10, width: 1.5, axis: "z" },
         { id: "ballroom-north", x: -11.5, z: -15.25, width: 1.5, axis: "z" },
         { id: "kitchen-restaurant", x: 17, z: 4.5, width: 1.5, axis: "x" },
         { id: "kitchen-east", x: 11.5, z: -2, width: 1.5, axis: "z" },
-        { id: "service-kitchen", x: 15, z: -6, width: 1.5, axis: "x" },
-        { id: "service-east", x: 11.5, z: -10, width: 1.5, axis: "z" },
         { id: "service-north", x: 11.5, z: -15.25, width: 1.5, axis: "z" },
         { id: "courtyard-front", x: 0, z: 2, width: 1.5, axis: "x" },
         { id: "courtyard-north", x: 0, z: -14, width: 1.5, axis: "x" },
-        { id: "courtyard-west", x: -9, z: -6, width: 1.5, axis: "z" },
-        { id: "courtyard-east", x: 9, z: -6, width: 1.5, axis: "z" },
       ],
       hidingSpots: [
         hide("hall-wardrobe-west", "wardrobe", -4, 18.5, "n"),
@@ -225,7 +220,7 @@ export const marrowHotelGreybox = buildMap({
         { x: -1, z: 14 },
         { x: 1, z: 14 },
       ],
-      bell: { x: 0, z: 7 },
+      bell: { x: 0, z: 8.5 },
       fuseBox: { x: 12.2, z: -20 },
       ghostStart: { x: -17, z: -13 },
     },
@@ -260,8 +255,6 @@ export const marrowHotelGreybox = buildMap({
       doors: [
         { id: "bridal-corridor", x: -4.5, z: 4.5, width: 1.5, axis: "x" },
         { id: "nursery-corridor", x: 4, z: 4.5, width: 1.5, axis: "x" },
-        { id: "nursery-landing", x: 6.5, z: 6.25, width: 1.5, axis: "z" },
-        { id: "bridal-guest1", x: -9, z: 12, width: 1.5, axis: "z" },
         { id: "guest1-corridor", x: -10.25, z: 4.5, width: 1.5, axis: "x" },
         { id: "guest2-corridor", x: -11.5, z: -1.5, width: 1.5, axis: "z" },
         { id: "guest3-corridor", x: -11.5, z: -10, width: 1.5, axis: "z" },
@@ -269,7 +262,6 @@ export const marrowHotelGreybox = buildMap({
         { id: "staff-corridor", x: 11.5, z: -1.5, width: 1.5, axis: "z" },
         { id: "laundry-corridor", x: 11.5, z: -10, width: 1.5, axis: "z" },
         { id: "laundry-north", x: 11.5, z: -15.25, width: 1.5, axis: "z" },
-        { id: "laundry-staff", x: 15, z: -6, width: 1.5, axis: "x" },
       ],
       hidingSpots: [
         hide("upper-front-curtain", "curtain", -7, 2, "s"),

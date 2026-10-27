@@ -280,6 +280,25 @@ describe.each([marrowHotelGreybox].map((m) => [m.name, m] as const))("%s follows
     }
   });
 
+  it("keeps doors simple: corridors join rooms, and no room is a maze of doors (GDD 26.11)", () => {
+    const ways = links().filter((e) => !map.stairs.some((s) => s.id === e.id));
+    // Where real buildings join two rooms directly: a kitchen and its dining room, and the
+    // Ritual Room's two doorways (GDD 21.1).
+    const roomToRoom = new Set(["Kitchen/Restaurant", "Ritual Room/Wine Cellar", "Ritual Room/Storage"]);
+    for (const room of rooms) {
+      const mine = ways.filter((e) => e.a === room || e.b === room);
+      const others = mine.map((e) => (e.a === room ? e.b : e.a));
+      expect(mine.length, `${room} has ${mine.length} ways in`).toBeLessThanOrEqual(2);
+      expect(new Set(others).size, `${room} has two ways into the same place`).toBe(others.length);
+      for (const other of others.filter((o) => !isCorridor(o))) {
+        expect(roomToRoom.has([room, other].sort().join("/")), `${room} opens straight into ${other}`).toBe(true);
+      }
+    }
+    // A few big rooms have two ways through, so a chase can loop instead of ending in a dead end.
+    const loops = rooms.filter((room) => ways.filter((e) => e.a === room || e.b === room).length === 2);
+    expect(loops.length).toBeGreaterThanOrEqual(3);
+  });
+
   describe("walking", () => {
     let nav: NavMap;
     beforeAll(async () => {
