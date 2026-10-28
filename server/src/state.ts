@@ -37,6 +37,9 @@ export const Player = schema({
   bodyGone: t.boolean(),
   /** Bell rings left this match (GDD 16.1). */
   bellUses: t.uint8(),
+  // Where a dead player's body lies (GDD 16.1). Their x and z are their Wisp's from then on (GDD 17).
+  bodyX: t.float32(),
+  bodyZ: t.float32(),
 }, "Player");
 export type Player = SchemaType<typeof Player>;
 

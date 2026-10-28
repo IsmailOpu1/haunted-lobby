@@ -28,6 +28,9 @@ import {
   possessedCount,
   inPhotoFrame,
   countVotes,
+  OUIJA_UNKNOWN,
+  wispCollide,
+  wispFloor,
   meetingBlocked,
   meetingStepSec,
   nextMeetingStep,
@@ -143,6 +146,8 @@ interface PlayerSim {
   trappedAt: number;
   /** Where this player was when a meeting pulled them to the table, to go back after (GDD 16.3). */
   beforeMeeting: { x: number; z: number; hidingSpot: string } | null;
+  /** This Wisp pushed the planchette in this meeting already (GDD 17). */
+  ouijaPushed: boolean;
   /** The minigame open right now (a task, or taking a relic from a spot), and for how long. */
   /**
    * The task or search open in the player's hands. stationId is the task station, or the place
@@ -230,6 +235,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   /** Seconds each slammed door stays locked. */
   private doorLocks = new Map<string, number>();
   private powerStatusTimer = 0;
+  /** How Wisps move: through walls, kept on their floor (GDD 17). */
+  private wispCollide = wispCollide(this.map);
   // Meetings (GDD 16).
   /** Night time the last meeting ended, or null before the first. */
   private lastMeetingEnd: number | null = null;
@@ -349,6 +356,14 @@ export class HauntedRoom extends Room<{ state: GameState }> {
 
     this.onMessage("photo", (client) => this.takePhoto(client.sessionId));
     this.onMessage("start", (client) => this.startCountdown(client));
+    this.onMessage("wispFloor", (client, msg: unknown) => {
+      const dir = typeof msg === "object" && msg !== null ? (msg as { dir?: unknown }).dir : undefined;
+      if (dir === 1 || dir === -1) this.wispChangeFloor(client.sessionId, dir);
+    });
+    this.onMessage("ouija", (client, msg: unknown) => {
+      const target = typeof msg === "object" && msg !== null ? (msg as { target?: unknown }).target : undefined;
+      if (typeof target === "string") this.pushOuija(client.sessionId, target);
+    });
     this.onMessage("vote", (client, msg: unknown) => {
       const target = typeof msg === "object" && msg !== null ? (msg as { target?: unknown }).target : undefined;
       if (typeof target === "string") this.castVote(client.sessionId, target);
@@ -469,6 +484,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       hitAt: -Infinity,
       trappedAt: -Infinity,
       beforeMeeting: null,
+      ouijaPushed: false,
     });
 
     this.state.players.set(
@@ -497,6 +513,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
         voted: false,
         bodyGone: false,
         bellUses: config.meetings.bellUsesPerPlayer,
+        bodyX: 0,
+        bodyZ: 0,
       }),
     );
     this.state.tasksTotal += this.sims.get(client.sessionId)!.tasks.length;
@@ -825,7 +843,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     let best: { id: string; d: number } | null = null;
     this.state.players.forEach((p, id) => {
       if (id === sessionId || p.health !== "dead" || p.bodyGone) return;
-      const d = this.hearingDistance(here, p);
+      const d = this.hearingDistance(here, { x: p.bodyX, z: p.bodyZ });
       if (d <= config.meetings.reportRangeM && (!best || d < best.d)) best = { id, d };
     });
     return (best as { id: string } | null)?.id ?? null;
@@ -862,6 +880,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       this.closeTask(id, "cancelled");
       this.clearAction(sim, p);
       p.voted = false;
+      sim.ouijaPushed = false;
       if (p.health === "dead") continue;
       sim.beforeMeeting = { x: sim.move.x, z: sim.move.z, hidingSpot: p.hidingSpot };
       p.hidingSpot = "";
@@ -944,9 +963,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     if (removed) {
       // Voted out: a Wisp now, whatever their role (GDD 16.3, 17). No body is left behind.
       this.dropRelic(this.removedId!, false);
-      removed.health = "dead" satisfies Health;
-      removed.bleedLeft = 0;
-      removed.flashlightOn = false;
+      this.becomeWisp(removed);
       removed.bodyGone = true;
     }
     s.meeting = "" satisfies MeetingStep;
@@ -959,6 +976,39 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.lastMeetingEnd = s.nightTime;
     this.ghost.afterMeeting(config.ghost.postMeetingGraceSec);
     this.checkResult(false);
+  }
+
+  // ---------- Wisps and the Ouija board (GDD 17) ----------
+
+  /** Dead: the body stays where it fell, and the player floats on from there as a Wisp. */
+  private becomeWisp(player: Player) {
+    player.health = "dead" satisfies Health;
+    player.bleedLeft = 0;
+    player.flashlightOn = false;
+    player.bodyX = player.x;
+    player.bodyZ = player.z;
+  }
+
+  private wispChangeFloor(sessionId: string, dir: 1 | -1) {
+    const sim = this.sims.get(sessionId);
+    const player = this.state.players.get(sessionId);
+    if (!sim || !player || player.health !== "dead" || this.state.meeting) return;
+    const to = wispFloor(this.map, sim.move, dir);
+    if (!to) return;
+    this.closeTask(sessionId, "cancelled");
+    this.placePlayer(sim, player, to);
+  }
+
+  private pushOuija(sessionId: string, target: string) {
+    const sim = this.sims.get(sessionId);
+    const wisp = this.state.players.get(sessionId);
+    if (!sim || !wisp || wisp.health !== "dead" || !config.wisps.ouija) return;
+    if (this.state.meeting !== ("evidence" satisfies MeetingStep) || sim.ouijaPushed) return;
+    const onto = this.state.players.get(target);
+    if (target !== OUIJA_UNKNOWN && (!onto || onto.health === "dead")) return;
+    sim.ouijaPushed = true;
+    const msg: ServerMessages["ouijaMove"] = { target: target === OUIJA_UNKNOWN ? null : onto!.name };
+    this.broadcast("ouijaMove", msg);
   }
 
   // ---------- The ritual (GDD Section 11) ----------
@@ -1035,7 +1085,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       const input = sim.inputs.shift()!;
       if (input.seq <= player.lastSeq) continue; // duplicate or old
       const before = sim.move;
-      sim.move = stepMovement(sim.move, input, SIM_DT, sim.collide, mode);
+      sim.move = stepMovement(sim.move, input, SIM_DT, mode === "wisp" ? this.wispCollide : sim.collide, mode);
       sim.budget -= SIM_DT;
       player.lastSeq = input.seq;
       player.yaw = input.yaw;
@@ -1062,21 +1112,24 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       // A small drift (steps still on the way when E was pressed) does not count.
       const at = this.activityAt(sim.task);
       const away = !at || Math.hypot(at.x - sim.move.x, at.z - sim.move.z) > at.rangeM;
-      if (away || player.health !== "alive") this.closeTask(this.sessionOf(sim), "cancelled");
+      if (away || player.health === "downed") this.closeTask(this.sessionOf(sim), "cancelled");
     }
   }
 
   private moveMode(player: Player): MoveMode {
     // Everyone stays at the table through a meeting.
     if (this.state.meeting) return "frozen";
+    if (player.health === "dead") return "wisp";
     if (player.health === "downed") return "crawl";
-    if (player.health === "dead" || player.hidingSpot) return "frozen";
+    if (player.hidingSpot) return "frozen";
     return player.relic ? "carry" : "normal";
   }
 
   /** How far a step of movement can be heard (GDD Section 12.2). */
   private movementNoise(input: MoveInput, mode: MoveMode, before: MoveState, after: MoveState): number {
     const h = config.ghost.hearingM;
+    // A Wisp makes no sound (GDD 17).
+    if (mode === "wisp") return 0;
     if (mode === "crawl" || after.crouching) return h.crouch;
     // Same rule as stepMovement: running needs stamina left at the start of the step.
     return input.run && before.stamina > 0 ? h.run : h.walk;
@@ -1192,10 +1245,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     if (sim.immuneLeft > 0) sim.immuneLeft = Math.max(0, sim.immuneLeft - dt);
     if (player.health !== "downed") return;
     player.bleedLeft = Math.max(0, player.bleedLeft - dt);
-    if (player.bleedLeft <= 0) {
-      player.health = "dead";
-      player.flashlightOn = false;
-    }
+    if (player.bleedLeft <= 0) this.becomeWisp(player);
   }
 
   /** The ghost caught this player. */
@@ -1246,8 +1296,14 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private startUse(sessionId: string) {
     const sim = this.sims.get(sessionId);
     const player = this.state.players.get(sessionId);
-    if (!sim || !player || player.health !== "alive" || sim.action || this.state.winner || this.state.meeting) return;
+    if (!sim || !player || sim.action || this.state.winner || this.state.meeting) return;
     const here = { x: sim.move.x, z: sim.move.z };
+    // A Wisp can still do tasks, and touch nothing else (GDD 17).
+    if (player.health === "dead") {
+      if (this.playing && config.wisps.canDoTasks) this.openTask(sessionId, sim, player, here.x, here.z);
+      return;
+    }
+    if (player.health !== "alive") return;
     if (!this.playing) {
       this.toggleNearestDoor(here.x, here.z);
       return;
@@ -1480,7 +1536,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const at = this.activityAt(sim.task);
     const tooFast = sim.task.elapsed < this.taskMinSec(sim.task);
     const tooFar = !at || Math.hypot(at.x - player.x, at.z - player.z) > at.rangeM;
-    if (tooFast || tooFar || player.health !== "alive") return this.closeTask(sessionId, "cancelled");
+    if (tooFast || tooFar || player.health === "downed") return this.closeTask(sessionId, "cancelled");
     if (sim.task.kind === "relic") return this.finishSearch(sessionId, sim, player, stationId);
 
     const def = this.map.tasks.find((d) => d.id === stationId)!;
@@ -1755,7 +1811,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
 
     const subjects: DevelopedPhoto["subjects"] = [];
     this.state.players.forEach((p, id) => {
-      const spot = id !== sessionId && !p.hidingSpot ? inFrame(p) : null;
+      // Wisps are invisible to the living, and so to their cameras (GDD 17).
+      const spot = id !== sessionId && !p.hidingSpot && p.health !== "dead" ? inFrame(p) : null;
       if (!spot) return;
       // The demon face: a possessed player within their curse glow (GDD 15.2). Decided now, shown later.
       const sim = this.sims.get(id);

@@ -34,6 +34,8 @@ export interface InputActions {
   onPowerWheel(state: "open" | "use" | "cancel"): void;
   /** While the power wheel is open: the mouse moved, in pixels. */
   onWheelMove(dx: number, dy: number): void;
+  /** Space (up, 1) or C (down, -1): a Wisp floats to another floor (GDD 17). */
+  onFloorKey(dir: 1 | -1): void;
 }
 
 /** Keys that walk: pressing one while working stops the work. */
@@ -68,6 +70,8 @@ export class PlayerInput {
         return;
       }
       if (e.code === "KeyR") actions.onPowerWheel("open");
+      if (e.code === "Space") actions.onFloorKey(1);
+      if (e.code === "KeyC") actions.onFloorKey(-1);
       if (e.code === "KeyG") actions.onDropRelic();
       if (e.code === "KeyE") actions.onUse(true);
       if (e.code === "Digit1") actions.onFlashlight();

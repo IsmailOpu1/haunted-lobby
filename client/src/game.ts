@@ -25,7 +25,10 @@ import {
   toWorld,
   worldDistance,
   type WorldPoint,
+  OUIJA_UNKNOWN,
+  wispCollide,
 } from "@haunted/shared";
+import { WispsView } from "./wispsView.ts";
 import { SoundScape } from "./audio.ts";
 import { directionTo, roundDirection } from "./cues.ts";
 import { createFlashlight } from "./flashlight.ts";
@@ -48,6 +51,9 @@ const DARK_AMBIENT = 0.04;
 const DEBUG_AMBIENT = 1.6;
 // Blackout (GDD 14.2): the little light there was goes; only flashlights are left.
 const BLACKOUT_AMBIENT = 0.005;
+// A Wisp's own soft glow, so the dead can see where they float (GDD 17).
+const WISP_GLOW = 2;
+const WISP_GLOW_RANGE_M = 6;
 // The power wheel (GDD 14.2): how far the mouse moves to pick a power, in pixels.
 const WHEEL_PICK_PX = 30;
 const WHEEL_MAX_PX = 120;
@@ -141,6 +147,8 @@ export interface GameHud {
   setMeeting(meeting: MeetingView | null): void;
   /** The vote's result (GDD 16.3). */
   showMeetingResult(result: ServerMessages["meetingResult"]): void;
+  /** A Wisp pushed the Ouija planchette: onto this name, or null for "I don't know" (GDD 17). */
+  ouijaMove(target: string | null): void;
 }
 
 export interface MeetingView {
@@ -152,6 +160,9 @@ export interface MeetingView {
   players: { id: string; name: string; dead: boolean; voted: boolean; me: boolean }[];
   /** You are alive, it is the vote, and you have not voted yet. */
   canVote: boolean;
+  /** The Ouija board is up (the Evidence step, and someone is dead), and whether you may push it. */
+  ouija: boolean;
+  canOuija: boolean;
 }
 
 /** The power wheel: each power in WHEEL_ORDER (clockwise from the top), and the one the mouse points at. */
@@ -219,6 +230,8 @@ interface PlayerData {
   salt: number;
   cameraShots: number;
   relic: string;
+  bodyX: number;
+  bodyZ: number;
   voted: boolean;
   bodyGone: boolean;
   bellUses: number;
@@ -306,6 +319,12 @@ export class Game {
   private debugLights = false;
   /** The meeting's step, "" when there is none (GDD 16). */
   private meeting: MeetingStep = "";
+  /** You pushed the planchette in this meeting (GDD 17). */
+  private ouijaPushed = false;
+  // Wisps (GDD 17): how you float, the other Wisps you see once dead, and your own soft light.
+  private wispCollide: CollideFn;
+  private wisps: WispsView;
+  private wispLight = new THREE.PointLight(0xbfe3ff, WISP_GLOW, WISP_GLOW_RANGE_M);
 
   private constructor(private canvas: HTMLCanvasElement, private map: MapData, private hud: GameHud) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
@@ -322,6 +341,8 @@ export class Game {
     this.items = new ItemsView(this.scene, map);
     this.stations = new StationsView(this.scene, map);
     this.relicsView = new RelicsView(this.scene, map);
+    this.wisps = new WispsView(this.scene);
+    this.wispCollide = wispCollide(map);
     this.physics = new PhysicsWorld(map);
     this.hands = new HandsWork(this.scene, this.camera);
     this.collide = this.physics.addBody().collide;
@@ -331,6 +352,8 @@ export class Game {
     this.flashlight.light.position.set(0.25, -0.2, 0);
     this.flashlightIntensity = this.flashlight.light.intensity;
     this.camera.add(this.flashlight.light, this.flashlight.target);
+    this.wispLight.visible = false;
+    this.camera.add(this.wispLight);
     this.scene.add(this.camera);
     const spawn = map.spawns[0] ?? { x: 0, z: 0 };
     const start = toWorld(map, spawn.x, spawn.z);
@@ -361,6 +384,9 @@ export class Game {
         if (this.taskState === "open") this.leaveTask();
       },
       onPowerWheel: (state) => this.powerWheel(state),
+      onFloorKey: (dir) => {
+        if (this.me?.health === "dead" && !this.meeting) this.room?.send("wispFloor", { dir });
+      },
       onWheelMove: (dx, dy) => {
         if (!this.wheel) return;
         this.wheel.x += dx;
@@ -534,6 +560,7 @@ export class Game {
       this.hud.showBanner(`${n} photo${n === 1 ? "" : "s"} developed. Press Esc to see ${n === 1 ? "it" : "them"}.`, 4);
     });
     room.onMessage("meetingRefused", (msg: ServerMessages["meetingRefused"]) => this.hud.showBanner(msg.reason, 3));
+    room.onMessage("ouijaMove", (msg: ServerMessages["ouijaMove"]) => this.hud.ouijaMove(msg.target));
     room.onMessage("meetingResult", (msg: ServerMessages["meetingResult"]) => this.hud.showMeetingResult(msg));
     room.onMessage("powerRefused", (msg: ServerMessages["powerRefused"]) => this.hud.showBanner(`${POWER_NAMES[msg.kind]}: ${msg.reason}`, 3));
     room.onMessage("powerWhisper", (msg: ServerMessages["powerWhisper"]) => this.sound.powerWhisper(this.place(msg)));
@@ -619,6 +646,8 @@ export class Game {
 
     this.others.clear();
     const snapshots = new Map();
+    const wispsSeen = new Map<string, WorldPoint>();
+    const iAmDead = state.players?.get(room.sessionId)?.health === "dead";
     state.players?.forEach((p: PlayerData, id: string) => {
       if (id === room.sessionId) {
         this.me = p;
@@ -626,9 +655,13 @@ export class Game {
         return;
       }
       this.others.set(id, p);
+      const dead = p.health === "dead";
+      // Only the dead see Wisps (GDD 17).
+      if (dead && iAmDead) wispsSeen.set(id, this.place(p));
       snapshots.set(id, {
-        x: p.x,
-        z: p.z,
+        // The dead lie where they fell; their Wisp floats on elsewhere.
+        x: dead ? p.bodyX : p.x,
+        z: dead ? p.bodyZ : p.z,
         yaw: p.yaw,
         pitch: p.pitch,
         crouching: p.crouching,
@@ -639,6 +672,8 @@ export class Game {
       });
     });
     this.remotes.update(snapshots, now);
+    this.wisps.update(wispsSeen);
+    this.wispLight.visible = iAmDead;
     if (this.me) this.updateStatusHud(this.me);
     this.updateMeeting(state);
   }
@@ -647,8 +682,9 @@ export class Game {
     const me = this.me;
     if (!me) return "normal";
     if (this.meeting) return "frozen";
+    if (me.health === "dead") return "wisp";
     if (me.health === "downed") return "crawl";
-    if (me.health === "dead" || me.hidingSpot) return "frozen";
+    if (me.hidingSpot) return "frozen";
     return me.relic ? "carry" : "normal";
   }
 
@@ -662,7 +698,7 @@ export class Game {
     this.pending = this.pending.filter((i) => i.seq > me.lastSeq);
     const mode = this.moveMode();
     let s: MoveState = { x: me.x, z: me.z, stamina: me.stamina, regenWait: me.regenWait, crouching: me.crouching };
-    for (const input of this.pending) s = stepMovement(s, input, SIM_DT, this.collide, mode);
+    for (const input of this.pending) s = stepMovement(s, input, SIM_DT, this.collideFor(mode), mode);
     if (!this.predicted) {
       this.previous = s;
     } else {
@@ -698,6 +734,7 @@ export class Game {
     this.stations.render(now / 1000);
     this.relicsView.render(now / 1000);
     this.ritualCircle?.render(now / 1000);
+    this.wisps.render(dt, now / 1000);
     const whisper = this.nearestHiddenRelic();
     this.sound.relicWhisper(whisper, whisper ? 1 - this.distanceFromMe(whisper) / config.relics.whisperM : 0);
     this.updateWhereabouts(whisper, now);
@@ -757,7 +794,8 @@ export class Game {
     const keys = this.input.movement();
     const input: MoveInput = { seq: ++this.seq, ...keys, yaw: this.input.yaw, pitch: this.input.pitch };
     this.previous = this.predicted;
-    this.predicted = stepMovement(this.predicted!, input, SIM_DT, this.collide, this.moveMode());
+    const mode = this.moveMode();
+    this.predicted = stepMovement(this.predicted!, input, SIM_DT, this.collideFor(mode), mode);
     this.pending.push(input);
     this.room!.send("input", input);
   }
@@ -780,7 +818,8 @@ export class Game {
     const z = a.z + (b.z - a.z) * alpha + this.correctionZ;
 
     const m = config.movement;
-    const downed = this.me?.health === "downed" || this.me?.health === "dead";
+    // A Wisp floats at eye height.
+    const downed = this.me?.health === "downed";
     const targetEye = downed ? m.downedEyeHeightM : curr.crouching ? m.crouchEyeHeightM : m.eyeHeightM;
     this.eyeHeight += (targetEye - this.eyeHeight) * Math.min(1, CROUCH_LERP_PER_SEC * dt);
 
@@ -794,7 +833,8 @@ export class Game {
   /** The E prompt for where you stand. Mirrors the server's choice in HauntedRoom.startUse. */
   private promptAt(x: number, z: number): string | null {
     const me = this.me;
-    if (!me || me.health !== "alive" || me.action) return null;
+    if (!me || me.health === "downed" || me.action) return null;
+    if (me.health === "dead") return config.wisps.canDoTasks ? this.taskPrompt(x, z) : null;
     if (me.hidingSpot) return "Hold E  Step out";
 
     for (const p of this.others.values()) {
@@ -829,11 +869,8 @@ export class Game {
         if (!this.saltJarsTaken.has(jar.id) && Math.hypot(jar.x - x, jar.z - z) <= config.salt.jarRangeM) return "E  Pick up salt";
       }
     }
-    for (const task of this.myTasks) {
-      if (task.done) continue;
-      const def = this.map.tasks.find((t) => t.id === task.stationId);
-      if (def && Math.hypot(def.x - x, def.z - z) <= config.tasks.useRangeM) return `E  ${def.name}`;
-    }
+    const task = this.taskPrompt(x, z);
+    if (task) return task;
     if (!me.relic) {
       // Every unsearched place in a group can be searched, so the prompt gives nothing away (GDD 26.5).
       for (const spot of this.map.relicSpots) {
@@ -859,6 +896,20 @@ export class Game {
     return null;
   }
 
+  /** One of your unfinished tasks within reach. */
+  private taskPrompt(x: number, z: number): string | null {
+    for (const task of this.myTasks) {
+      if (task.done) continue;
+      const def = this.map.tasks.find((t) => t.id === task.stationId);
+      if (def && Math.hypot(def.x - x, def.z - z) <= config.tasks.useRangeM) return `E  ${def.name}`;
+    }
+    return null;
+  }
+
+  private collideFor(mode: MoveMode): CollideFn {
+    return mode === "wisp" ? this.wispCollide : this.collide;
+  }
+
   /** The door within reach, nearest first, never the relic door. Mirrors HauntedRoom.nearestDoor. */
   private nearestDoor(x: number, z: number): string | null {
     let best: { id: string; d: number } | null = null;
@@ -874,6 +925,7 @@ export class Game {
   private updateMeeting(state: any) {
     const step = (state.meeting ?? "") as MeetingStep;
     if (step && !this.meeting) {
+      this.ouijaPushed = false;
       // Let go of the mouse so you can vote; anything in your hands stops.
       if (this.wheel) this.powerWheel("cancel");
       if (this.taskState === "open") this.leaveTask();
@@ -897,7 +949,15 @@ export class Game {
       body: state.meetingBody ?? "",
       players,
       canVote: step === "vote" && !!me && me.health !== "dead" && !me.voted,
+      ouija: step === "evidence" && config.wisps.ouija && players.some((p) => p.dead),
+      canOuija: step === "evidence" && config.wisps.ouija && me?.health === "dead" && !this.ouijaPushed,
     });
+  }
+
+  /** As a Wisp: push the planchette to a living player's session id, or OUIJA_UNKNOWN. */
+  pushOuija(target: string) {
+    this.ouijaPushed = true;
+    this.room?.send("ouija", { target });
   }
 
   /** Your vote: a player's session id, or SKIP. */

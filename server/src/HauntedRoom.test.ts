@@ -1178,4 +1178,84 @@ describe("HauntedRoom", () => {
       await Promise.all(rooms.map((r) => r.leave()));
     }, 15000);
   });
+
+  describe("Wisps and the Ouija board (GDD 17)", () => {
+    async function trio() {
+      const a = await new Client(endpoint).create(ROOM_NAME, { name: "Rafi" });
+      const b = await new Client(endpoint).joinById(a.roomId, { name: "Mim" });
+      const c = await new Client(endpoint).joinById(a.roomId, { name: "Nila" });
+      for (const r of [a, b, c]) r.onMessage("*", () => {});
+      await night(a);
+      a.send("debug", { nightTime: 120 });
+      await new Promise((r) => setTimeout(r, 150));
+      return { a, b, c, rooms: [a, b, c] };
+    }
+    const me = (r: Room) => r.state.players.get(r.sessionId);
+    const die = async (r: Room) => {
+      r.send("debug", { down: true, bleedLeft: 0.05 });
+      await waitFor(() => me(r).health === "dead");
+    };
+
+    it("leaves the body where you fell; the Wisp floats through walls, touches no door, but can do its task", async () => {
+      const { c, rooms } = await trio();
+      // In the Main Hall, by its front door.
+      const def = marrowHotelGreybox.doors.find((d) => d.id === "hall-front")!;
+      c.send("debug", { teleport: { x: def.x + 1, z: def.z + 1.5 } });
+      await new Promise((r) => setTimeout(r, 200));
+      await die(c);
+      const body = { x: me(c).bodyX, z: me(c).bodyZ };
+      // A door in reach does not move for a Wisp.
+      c.send("use", { down: true });
+      c.send("use", { down: false });
+      await new Promise((r) => setTimeout(r, 300));
+      expect(c.state.doors.get(def.id).open).toBe(false);
+      // Straight north, through the hall's wall, at the Wisp speed.
+      const start = me(c).z;
+      for (let seq = 1; seq <= config.net.tickRate * 2; seq++) {
+        c.send("input", { seq: me(c).lastSeq + seq, forward: 1, right: 0, run: false, crouch: false, yaw: 0, pitch: 0 });
+        await new Promise((r) => setTimeout(r, 1000 / config.net.tickRate));
+      }
+      await new Promise((r) => setTimeout(r, 200));
+      expect(start - me(c).z).toBeGreaterThan(config.wisps.speed * 1.5);
+      expect([me(c).bodyX, me(c).bodyZ]).toEqual([body.x, body.z]);
+
+      // Its task still works.
+      const opened = collectMsgs(c, "taskOpen");
+      c.send("debug", { giveTask: "task-switchboard" });
+      const station = marrowHotelGreybox.tasks.find((t) => t.id === "task-switchboard")!;
+      c.send("debug", { teleport: { x: station.x + 1, z: station.z } });
+      await new Promise((r) => setTimeout(r, 200));
+      c.send("use", { down: true });
+      await waitFor(() => opened.length === 1);
+      await Promise.all(rooms.map((r) => r.leave()));
+    }, 15000);
+
+    it("floats up a floor to the same spot", async () => {
+      const { c, rooms } = await trio();
+      await die(c);
+      const before = me(c).x;
+      c.send("wispFloor", { dir: 1 });
+      await waitFor(() => Math.abs(me(c).x - before) > 50);
+      await Promise.all(rooms.map((r) => r.leave()));
+    });
+
+    it("lets each Wisp push the planchette once, only during the Evidence step, onto a living player", async () => {
+      const { a, b, c, rooms } = await trio();
+      await die(c);
+      const moves = collectMsgs(a, "ouijaMove");
+      c.send("ouija", { target: b.sessionId }); // no meeting yet
+      a.send("debug", { meeting: true });
+      await waitFor(() => a.state.meeting === "evidence");
+      a.send("ouija", { target: b.sessionId }); // the living cannot
+      c.send("ouija", { target: c.sessionId }); // not onto the dead
+      c.send("ouija", { target: b.sessionId });
+      c.send("ouija", { target: "unknown" }); // once a meeting
+      await waitFor(() => moves.length === 1);
+      await new Promise((r) => setTimeout(r, 300));
+      expect(moves).toEqual([{ target: "Mim" }]);
+      a.send("debug", { skipStep: true });
+      await waitFor(() => a.state.meeting === "discussion");
+      await Promise.all(rooms.map((r) => r.leave()));
+    }, 10000);
+  });
 });

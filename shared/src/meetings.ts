@@ -7,6 +7,8 @@ export type MeetingStep = "" | "evidence" | "discussion" | "vote" | "result";
 
 /** A vote for "skip" instead of a player. */
 export const SKIP = "skip";
+/** The Ouija board's "I don't know" (GDD 17). */
+export const OUIJA_UNKNOWN = "unknown";
 
 /** What happens next after each step, and how long a step lasts. */
 export function nextMeetingStep(step: MeetingStep): MeetingStep {

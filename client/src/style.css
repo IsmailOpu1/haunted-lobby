@@ -403,8 +403,15 @@ body[data-status="downed"] #overlay {
   background: radial-gradient(ellipse at center, transparent 30%, rgba(120, 0, 0, 0.65) 100%);
 }
 
+/* A Wisp still plays: just a line at the top. */
 body[data-status="dead"] #overlay {
-  background: rgba(0, 0, 0, 0.75);
+  justify-content: flex-start;
+  padding-top: 64px;
+  color: #bfe3ff;
+}
+
+body[data-status="dead"] #overlay-title {
+  font-size: 20px;
 }
 
 /* Inside a wardrobe: dark edges and slats to peek through. */
@@ -1088,4 +1095,62 @@ body.meeting #powers-bar {
   list-style: none;
   font-size: 13px;
   color: var(--muted);
+}
+
+/* The Ouija board (GDD 17), on the meeting screen during Evidence. */
+#ouija.hidden {
+  display: none;
+}
+
+.ouija-board {
+  position: relative;
+  padding: 14px 10px;
+  margin-bottom: 6px;
+  background: radial-gradient(ellipse at center, #5a4630 0%, #2a2016 100%);
+  border-radius: 40px / 24px;
+}
+
+#ouija-names {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 14px;
+}
+
+.ouija-slot {
+  padding: 4px 8px;
+  font-family: Georgia, serif;
+  font-size: 15px;
+  color: #1d150c;
+  background: none;
+  border: none;
+  letter-spacing: 1px;
+}
+
+.ouija-slot:not(:disabled):hover {
+  color: #000;
+  text-decoration: underline;
+}
+
+.ouija-slot:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+#planchette {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 40px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle at 50% 40%, transparent 0 7px, rgba(230, 214, 180, 0.9) 8px);
+  border-radius: 50% 50% 45% 45%;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  transition: left 1.2s ease-in-out, top 1.2s ease-in-out;
+  pointer-events: none;
+}
+
+#planchette.hidden {
+  display: none;
 }

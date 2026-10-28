@@ -68,6 +68,11 @@ export interface ServerMessages {
   eyeGlow: { id: string };
   /** A door slammed shut and locked (Slam Door, GDD 14.2): louder than a door closing. */
   doorSlam: { x: number; z: number };
+  /**
+   * A Wisp pushed the Ouija planchette during the Evidence step (GDD 17): onto a living player's
+   * name, or null for "I don't know". Everyone sees where it moves, not which Wisp pushed it.
+   */
+  ouijaMove: { target: string | null };
   /** Your bell ring or body report did not start a meeting, and why (GDD 16.1). */
   meetingRefused: { reason: string };
   /**
@@ -160,6 +165,10 @@ export interface ClientMessages {
   photo: undefined;
   /** The host starts the night: a countdown, then roles and the intro (GDD 5, 4.1). */
   start: undefined;
+  /** As a Wisp, float one floor up (1) or down (-1) (GDD 17). */
+  wispFloor: { dir: 1 | -1 };
+  /** As a Wisp in a meeting's Evidence step: push the planchette to a living player's session id, or OUIJA_UNKNOWN. */
+  ouija: { target: string };
   /** Your vote in a meeting: a player's session id, or SKIP (GDD 16.2). */
   vote: { target: string };
   /** Use a power (possessed only). target: the door for Slam Door, the player for Summon. */

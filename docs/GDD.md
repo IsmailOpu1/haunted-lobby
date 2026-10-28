@@ -757,7 +757,7 @@ Rules the GDD did not specify, chosen while building the ghost. Numbers live in 
 | Hiding spot search | Checks up to 2 spots within 6 m of where it last saw its target, 3 s each | 12.2 says "up to 2 hiding spots near the last place it saw its target" |
 | Range for ghost position updates | A player's game learns where the ghost is only within 25 m | Anti-cheat (PRD 10.3); covers sight (20 m) and flicker (15 m) |
 | When the night starts | When the first player joins the room | Until the lobby Start button exists (Phase 7) |
-| Dead players | Watch the room, cannot move or act | Until Wisps exist (Phase 6) |
+| Dead players | Watch the room, cannot move or act | Until Wisps exist (Phase 6). Replaced by Wisps (26.12) |
 
 ### 26.7 Phase 3 build choices (awaiting owner confirmation)
 
@@ -891,6 +891,13 @@ The owner found the hotel a maze: several rooms had 3 or 4 doors, many of them s
 | What freezes | The clock, the ghost, the ritual, the Bellboy, every cooldown and curse glow, the blackout's and the black flames' timers, and bleeding out. Everyone stays still. Tasks and held actions stop | 16.2 lists the clock, ghost and cooldowns; the rest freeze for the same reason |
 | Voting | One vote each, which cannot be changed. The step ends early once every living player has voted. While voting, everyone sees who has voted but not for whom | 16.2 does not say whether a vote can be changed |
 | The result | Shown for 6 s: the verdict ("MIM WAS POSSESSED." / "NOT POSSESSED." / "Nobody was removed"), the count, and who voted for whom (unless voting is anonymous). Players go back to where they were when it ends, and the removed player is out then | 16.3 gives no time for the result |
-| Voted out | The removed player is dead from then on, with no body to report, until Wisps are built. Removing the last possessed does not end the match: the investigators still have to finish the ritual (GDD 24, 6:40) | Wisps come later in Phase 6 |
+| Voted out | The removed player becomes a Wisp at their seat, with no body to report. Removing the last possessed does not end the match: the investigators still have to finish the ritual (GDD 24, 6:40) | 17 |
 | Meeting voice | During a meeting everyone living hears everyone living at full volume; the dead still hear only the dead | 12.6 and 17 |
+| Body and Wisp | When you bleed out, your body stays where you fell (that is what gets reported) and your Wisp starts there and floats free | 16.1 reports a body; 17 says you become a light, so they are two things |
+| How a Wisp moves | WASD at 3 m/s through walls and furniture, never running or crouching, making no noise. Space floats up a floor and C down, to the same spot on the next floor. A Wisp cannot leave its floor's area | 17 says Wisps fly through walls but not how they change floor |
+| What a Wisp can do | Only its own tasks (if the setting is on). E does nothing else: no doors, relics, salt, hiding, reviving, bell or reports. A possessed Wisp's tasks stay fake | 17 |
+| What a Wisp sees | Itself as a soft blue light around the camera, other Wisps as floating lights, and every body. The living never see Wisps, and Wisps never show in photos | 17: invisible to the living |
+| The Ouija board | On the meeting screen whenever anyone is dead: one slot per living player plus "I don't know". During Evidence each Wisp can push it once; everyone sees it move and a line "The planchette moves: Mim." It never says which Wisp pushed it. Later pushes move it again | 17 says everyone sees where it moves, not who moved it, so it is anonymous like a real board |
+| Wisp voice | The dead hear only the dead, in meetings too, at full volume regardless of distance | 17. Already built in Phase 3 (26.7) |
+| Known limit | Wisp positions travel in the shared room state, so a modified game could show Wisps to the living. Normal players cannot see them | Hiding them per player needs state filtering; revisit with the other anti-cheat work before public release (PRD 10.3) |
 

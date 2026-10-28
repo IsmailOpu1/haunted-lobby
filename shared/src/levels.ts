@@ -183,3 +183,27 @@ export function stairRoutes(map: MapData, fromLevel: string, toLevel: string): {
   walk(fromLevel, new Set([fromLevel]), []);
   return routes;
 }
+
+/**
+ * How a Wisp moves (GDD 17): straight through walls, but never off its floor's area, so it
+ * changes floor only with wispFloor.
+ */
+export function wispCollide(map: MapData): (from: Point, delta: Point) => Point {
+  return (from, delta) => {
+    const l = levelOf(map, from.x, from.z);
+    return { x: Math.max(l.minX, Math.min(l.maxX, from.x + delta.x)), z: Math.max(l.minZ, Math.min(l.maxZ, from.z + delta.z)) };
+  };
+}
+
+/** The same real spot one floor up (dir 1) or down (-1), for a Wisp, or null at the top or bottom. */
+export function wispFloor(map: MapData, p: Point, dir: 1 | -1): Point | null {
+  const levels = [...map.levels].sort((a, b) => a.y - b.y);
+  const here = levelOf(map, p.x, p.z);
+  const next = levels[levels.indexOf(here) + dir];
+  if (!next) return null;
+  const real = toWorld(map, p.x, p.z);
+  return {
+    x: Math.max(next.minX, Math.min(next.maxX, real.x - next.shiftX)),
+    z: Math.max(next.minZ, Math.min(next.maxZ, real.z - next.shiftZ)),
+  };
+}

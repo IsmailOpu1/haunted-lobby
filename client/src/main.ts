@@ -8,6 +8,7 @@ import {
   type PowerStatus,
   type ServerMessages,
   SKIP,
+  OUIJA_UNKNOWN,
 } from "@haunted/shared";
 import { defaultMap } from "@haunted/maps";
 import { FloorPlan } from "./floorplan.ts";
@@ -95,6 +96,23 @@ let newPhotos: ServerMessages["photosDeveloped"]["photos"] = [];
 /** Which meeting the screen shows (its players and photos are built once, then updated). */
 let meetingKey = "";
 let meetingPlayers = "";
+/** Where the planchette last moved: a name, "" for "I don't know", null before it moves. */
+let ouijaTarget: string | null = null;
+
+/** Puts the planchette over its name. Called with every meeting update, so it follows any rebuild or resize. */
+function placePlanchette() {
+  const planchette = el("planchette");
+  planchette.classList.toggle("hidden", ouijaTarget === null);
+  const slot = [...el("ouija-names").children].find((c) => (c as HTMLElement).dataset.name === ouijaTarget) as HTMLElement | undefined;
+  const board = planchette.parentElement!.getBoundingClientRect();
+  const at = slot?.getBoundingClientRect();
+  // Not laid out yet (the board is hidden): try again on the next update.
+  if (!at || at.width === 0) return;
+  const left = `${Math.round(at.left - board.left + at.width / 2)}px`;
+  const top = `${Math.round(at.top - board.top + at.height / 2)}px`;
+  if (planchette.style.left !== left) planchette.style.left = left;
+  if (planchette.style.top !== top) planchette.style.top = top;
+}
 const powerWheel = el("power-wheel");
 el("floor-plan").append(floorPlan.element);
 
@@ -143,8 +161,8 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
       overlayTitle.textContent = "You are down";
       overlayText.textContent = `A friend must hold E on you within ${Math.ceil(status.bleedLeft)} s. You can crawl.`;
     } else if (status.kind === "dead") {
-      overlayTitle.textContent = "You died";
-      overlayText.textContent = "Dead players will become Wisps in a later update.";
+      overlayTitle.textContent = "You are a Wisp";
+      overlayText.textContent = `Fly with W A S D, through walls. Space and C float up and down a floor.${config.wisps.canDoTasks ? " You can still do your tasks." : ""} Only other Wisps can hear you.`;
     } else if (status.kind === "hidden") {
       overlayTitle.textContent = "";
       overlayText.textContent = status.holdingBreath
@@ -195,6 +213,8 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
       meetingKey = key;
       el("meeting-title").textContent = m.body ? `${m.caller} reported ${m.body}'s body` : `${m.caller} rang the bell`;
       el("meeting-result").classList.add("hidden");
+      el("ouija-log").textContent = "";
+      ouijaTarget = null;
       // The photos shown are the ones that developed as this meeting began.
       if (newPhotos.length === 0) el("meeting-photos").replaceChildren();
       newPhotos = [];
@@ -202,9 +222,23 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     el("meeting-step").textContent = `${MEETING_STEP_TEXT[m.step] ?? ""}  ${Math.ceil(m.secondsLeft)} s`;
     // Rebuilt only when it changes: the state comes 20 times a second, and a button replaced
     // between press and release loses the click.
-    const players = JSON.stringify([m.players, m.canVote]);
-    if (players === meetingPlayers) return;
+    const players = JSON.stringify([m.players, m.canVote, m.ouija, m.canOuija]);
+    if (players === meetingPlayers) return placePlanchette();
     meetingPlayers = players;
+    // The Ouija board: one slot per living player and "I don't know"; a Wisp clicks one (GDD 17).
+    el("ouija").classList.toggle("hidden", !m.ouija);
+    el("ouija-names").replaceChildren(
+      ...[...m.players.filter((p) => !p.dead).map((p) => ({ id: p.id, label: p.name })), { id: OUIJA_UNKNOWN, label: "I don't know" }].map((slot) => {
+        const b = document.createElement("button");
+        b.className = "ouija-slot";
+        b.dataset.name = slot.id === OUIJA_UNKNOWN ? "" : slot.label;
+        b.textContent = slot.label;
+        b.disabled = !m.canOuija;
+        b.onclick = () => game.pushOuija(slot.id);
+        return b;
+      }),
+    );
+    placePlanchette();
     el("meeting-players").replaceChildren(
       ...m.players.map((p) => {
         const li = document.createElement("li");
@@ -222,6 +256,13 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
       }),
     );
     el("meeting-skip").classList.toggle("hidden", !m.canVote);
+  },
+  ouijaMove: (target) => {
+    // The planchette slides onto the name (or "I don't know").
+    ouijaTarget = target ?? "";
+    placePlanchette();
+    const log = el("ouija-log");
+    log.textContent = `${log.textContent ? `${log.textContent}  ` : "The planchette moves: "}${target ?? "I don't know"}.`;
   },
   showMeetingResult: (r) => {
     const box = el("meeting-result");
