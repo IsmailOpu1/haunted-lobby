@@ -13,7 +13,10 @@ import {
   type MoveInput,
   type MoveMode,
   type MoveState,
+  type PowerKind,
+  type PowerStatus,
   type RelicNear,
+  type Role,
   type ServerMessages,
   type TaskEntry,
   roomAt,
@@ -42,6 +45,16 @@ import { buildWorld, type DoorView, type RitualCircleView } from "./world.ts";
 // Near-zero ambient light (GDD Section 23). Press L while testing to light everything up.
 const DARK_AMBIENT = 0.04;
 const DEBUG_AMBIENT = 1.6;
+// Blackout (GDD 14.2): the little light there was goes; only flashlights are left.
+const BLACKOUT_AMBIENT = 0.005;
+// The power wheel (GDD 14.2): how far the mouse moves to pick a power, in pixels.
+const WHEEL_PICK_PX = 30;
+const WHEEL_MAX_PX = 120;
+// Which way each power sits on the wheel, clockwise from the top.
+const WHEEL_ORDER: PowerKind[] = ["slamDoor", "summon", "blackout", "taint"];
+// What you aim at for Slam Door and Summon: within this angle of the crosshair.
+const AIM_DOOR_RAD = (35 * Math.PI) / 180;
+const AIM_PLAYER_RAD = (20 * Math.PI) / 180;
 const FOG_NEAR = 1;
 const FOG_FAR = 18;
 const CROUCH_LERP_PER_SEC = 10;
@@ -117,6 +130,16 @@ export interface GameHud {
   setCarrying(name: string | null): void;
   /** The match is over (GDD 18 and 19). */
   showEndScreen(end: ServerMessages["matchEnd"]): void;
+  /** Your powers and curse glow (possessed only), or null for an investigator. */
+  setPowers(list: PowerStatus[] | null, curseLeft: number): void;
+  /** The power wheel while R is held, or null when it is closed. */
+  showPowerWheel(wheel: PowerWheelView | null): void;
+}
+
+/** The power wheel: each power in WHEEL_ORDER (clockwise from the top), and the one the mouse points at. */
+export interface PowerWheelView {
+  powers: PowerStatus[];
+  selected: PowerKind | null;
 }
 
 export interface RitualHud {
@@ -141,7 +164,18 @@ export type VoiceUiState =
 /** What a noisy task or a search sounds like to players nearby. */
 const TASK_NOISES: Partial<Record<MinigameKind, TaskSoundKind>> = { cradle: "cry", piano: "badNote", shutters: "bang", dig: "scrape" };
 
-const ACTION_LABELS: Record<string, string> = { revive: "Reviving", hide: "Hiding", unhide: "Stepping out", salt: "Pouring salt", placeRelic: "Placing relic" };
+const ACTION_LABELS: Record<string, string> = {
+  revive: "Reviving",
+  hide: "Hiding",
+  unhide: "Stepping out",
+  salt: "Pouring salt",
+  placeRelic: "Placing relic",
+  breakDoor: `Pushing the door (needs ${config.powers.slamDoor.breakPushers})`,
+  fixFuse: "Fixing the fuse box",
+  cleanse: "Putting out the flames",
+};
+
+export const POWER_NAMES: Record<PowerKind, string> = { slamDoor: "Slam Door", summon: "Summon", blackout: "Blackout", taint: "Taint" };
 
 /** The parts of a player's server state this client reads. */
 interface PlayerData {
@@ -238,6 +272,15 @@ export class Game {
   private foundAt: { x: number; z: number } | null = null;
   /** The last bell ring, for its subtitle. */
   private bellCue: { at: WorldPoint; until: number } | null = null;
+  // The possessed's powers (GDD 14). Only you know your role.
+  private role: Role = "investigator";
+  private powers: PowerStatus[] = [];
+  /** Where the mouse has moved since the wheel opened, or null when it is closed. */
+  private wheel: { x: number; y: number } | null = null;
+  private doorsLocked = new Set<string>();
+  private blackout = false;
+  private taintLeft = 0;
+  private debugLights = false;
 
   private constructor(private canvas: HTMLCanvasElement, private map: MapData, private hud: GameHud) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
@@ -281,7 +324,8 @@ export class Game {
       },
       onStatusPanel: (open) => hud.showStatusPanel(open),
       onToggleDebugLights: () => {
-        this.ambient.intensity = this.ambient.intensity === DARK_AMBIENT ? DEBUG_AMBIENT : DARK_AMBIENT;
+        this.debugLights = !this.debugLights;
+        this.updateAmbient();
       },
       onToggleGhost: () => this.room?.send("debug", { toggleGhost: true }),
       onLookChange: (looking) => hud.setLooking(looking),
@@ -290,6 +334,18 @@ export class Game {
       onHandMove: (dx, dy) => this.hands.move(dx, dy),
       onStopWork: () => {
         if (this.taskState === "open") this.leaveTask();
+      },
+      onPowerWheel: (state) => this.powerWheel(state),
+      onWheelMove: (dx, dy) => {
+        if (!this.wheel) return;
+        this.wheel.x += dx;
+        this.wheel.y += dy;
+        const len = Math.hypot(this.wheel.x, this.wheel.y);
+        if (len > WHEEL_MAX_PX) {
+          this.wheel.x *= WHEEL_MAX_PX / len;
+          this.wheel.y *= WHEEL_MAX_PX / len;
+        }
+        this.showWheel();
       },
     });
 
@@ -441,6 +497,15 @@ export class Game {
       this.relicsView.setDropped(msg.list);
     });
     room.onMessage("relicDrop", (msg: ServerMessages["relicDrop"]) => this.sound.taskSound("thud", 0, this.place(msg)));
+    room.onMessage("powers", (msg: ServerMessages["powers"]) => {
+      this.powers = msg.list;
+      this.hud.setPowers(msg.list, msg.curseLeft);
+      if (this.wheel) this.showWheel();
+    });
+    room.onMessage("powerRefused", (msg: ServerMessages["powerRefused"]) => this.hud.showBanner(`${POWER_NAMES[msg.kind]}: ${msg.reason}`, 3));
+    room.onMessage("powerWhisper", (msg: ServerMessages["powerWhisper"]) => this.sound.powerWhisper(this.place(msg)));
+    room.onMessage("eyeGlow", (msg: ServerMessages["eyeGlow"]) => this.remotes.glowEyes(msg.id, performance.now()));
+    room.onMessage("doorSlam", (msg: ServerMessages["doorSlam"]) => this.sound.doorSlam(this.place(msg)));
     room.send("tasksRequest");
 
     // Every handler is registered, so now ask for the voice pass; the answer cannot be missed.
@@ -469,7 +534,9 @@ export class Game {
     const now = performance.now();
     const room = this.room!;
 
-    state.doors?.forEach((door: { open: boolean }, id: string) => {
+    this.doorsLocked.clear();
+    state.doors?.forEach((door: { open: boolean; locked: boolean }, id: string) => {
+      if (door.locked) this.doorsLocked.add(id);
       // Every door that moves is heard, including the ones the ghost swings open (GDD 12.5).
       const was = this.doorsOpen.get(id);
       const def = this.map.doors.find((d) => d.id === id);
@@ -498,7 +565,16 @@ export class Game {
       needed: state.circleNeeded ?? 0,
     };
     this.hud.setRitual(ritual);
-    this.ritualCircle?.setState(ritual.started ? "running" : ritual.ready ? "ready" : "waiting");
+    const taintLeft = state.taintLeft ?? 0;
+    if (taintLeft > 0 && this.taintLeft === 0) this.hud.showBanner("Black flames on the altar! Hold E in the circle to put them out with salt.", 4);
+    this.taintLeft = taintLeft;
+    this.ritualCircle?.setState(taintLeft > 0 ? "tainted" : ritual.started ? "running" : ritual.ready ? "ready" : "waiting");
+    const blackout = !!state.blackout;
+    if (blackout !== this.blackout) {
+      this.blackout = blackout;
+      this.updateAmbient();
+      this.hud.showBanner(blackout ? "The lights went out. The fuse box is in the Service Room." : "The lights are back.", 4);
+    }
     this.saltJarsTaken = new Set();
     state.saltJars?.forEach((jar: { taken: boolean }, id: string) => {
       if (jar.taken) this.saltJarsTaken.add(id);
@@ -585,6 +661,7 @@ export class Game {
     for (const door of this.doors.values()) door.update(dt);
     this.stations.render(now / 1000);
     this.relicsView.render(now / 1000);
+    this.ritualCircle?.render(now / 1000);
     const whisper = this.nearestHiddenRelic();
     this.sound.relicWhisper(whisper, whisper ? 1 - this.distanceFromMe(whisper) / config.relics.whisperM : 0);
     this.updateWhereabouts(whisper, now);
@@ -687,6 +764,14 @@ export class Game {
     for (const p of this.others.values()) {
       if (p.health === "downed" && Math.hypot(p.x - x, p.z - z) <= config.interact.reviveRangeM) return `Hold E  Revive ${p.name}`;
     }
+    const altar = this.map.altar;
+    if (this.taintLeft > 0 && altar && Math.hypot(altar.x - x, altar.z - z) <= config.ritual.circleRadiusM) {
+      return me.salt >= config.taint.cleanseSaltCost ? `Hold E  Put out the black flames (${config.taint.cleanseSaltCost} salt)` : "You need salt to put out the flames";
+    }
+    const fuse = this.map.fuseBox;
+    if (this.blackout && fuse && Math.hypot(fuse.x - x, fuse.z - z) <= config.interact.rangeM) return "Hold E  Fix the fuse box";
+    const near = this.nearestDoor(x, z);
+    if (near && this.doorsLocked.has(near)) return `Hold E  Push the door open (${config.powers.slamDoor.breakPushers} people)`;
     if (!me.relic) {
       const dropped = this.relicsNear.find((r) => !r.hidden && Math.hypot(r.x - x, r.z - z) <= config.relics.useRangeM);
       if (dropped) return `E  Pick up ${this.relics.get(dropped.id)?.name ?? "the relic"}`;
@@ -725,9 +810,98 @@ export class Game {
       // Once every slot is full the door stays open, and there is nothing to do here.
       if (placed < relics.length) return `Locked: ${placed} of ${relics.length} relics placed`;
     }
-    const doors = this.map.doors.filter((d) => d.id !== this.map.relicDoor);
-    if (doors.some((d) => Math.hypot(d.x - x, d.z - z) <= config.interact.rangeM)) return "E  Open / close door";
+    if (near) return "E  Open / close door";
     return null;
+  }
+
+  /** The door within reach, nearest first, never the relic door. Mirrors HauntedRoom.nearestDoor. */
+  private nearestDoor(x: number, z: number): string | null {
+    let best: { id: string; d: number } | null = null;
+    for (const door of this.map.doors) {
+      if (door.id === this.map.relicDoor) continue;
+      const d = Math.hypot(door.x - x, door.z - z);
+      if (d <= config.interact.rangeM && (!best || d < best.d)) best = { id: door.id, d };
+    }
+    return best?.id ?? null;
+  }
+
+  /** Tells the game your role once it is dealt (GDD 4.1). */
+  setRole(role: Role) {
+    this.role = role;
+    if (role !== "possessed") this.hud.setPowers(null, 0);
+  }
+
+  private updateAmbient() {
+    this.ambient.intensity = this.debugLights ? DEBUG_AMBIENT : this.blackout ? BLACKOUT_AMBIENT : DARK_AMBIENT;
+  }
+
+  // ---------- The power wheel (GDD 14.2) ----------
+
+  private powerWheel(state: "open" | "use" | "cancel") {
+    if (state === "open") {
+      if (this.role !== "possessed" || this.me?.health !== "alive" || this.ended) return;
+      this.wheel = { x: 0, y: 0 };
+      this.input.wheelOpen = true;
+      this.showWheel();
+      return;
+    }
+    const picked = state === "use" ? this.wheelPick() : null;
+    this.wheel = null;
+    this.input.wheelOpen = false;
+    this.hud.showPowerWheel(null);
+    if (picked) this.usePower(picked);
+  }
+
+  /** The power the mouse points at: up is Slam Door, then clockwise. */
+  private wheelPick(): PowerKind | null {
+    const w = this.wheel;
+    if (!w || Math.hypot(w.x, w.y) < WHEEL_PICK_PX) return null;
+    // Angle clockwise from straight up (screen y grows downward).
+    const a = Math.atan2(w.x, -w.y);
+    const turn = (a + Math.PI * 2 + Math.PI / 4) % (Math.PI * 2);
+    return WHEEL_ORDER[Math.floor(turn / (Math.PI / 2))]!;
+  }
+
+  private showWheel() {
+    const powers = WHEEL_ORDER.map((kind) => this.powers.find((p) => p.kind === kind) ?? { kind, state: "locked" as const, cooldownLeft: 0 });
+    this.hud.showPowerWheel({ powers, selected: this.wheelPick() });
+  }
+
+  /** Slam Door takes the door you look at, Summon the player you look at. The server checks the rest. */
+  private usePower(kind: PowerKind) {
+    const target = kind === "slamDoor" ? this.aimedDoor() : kind === "summon" ? this.aimedPlayer() : null;
+    this.room?.send("power", target ? { kind, target } : { kind });
+  }
+
+  /** How far off the crosshair a point is, in radians, and how far away. */
+  private aim(at: { x: number; z: number }): { off: number; dist: number } | null {
+    const here = this.predicted;
+    if (!here) return null;
+    const dx = at.x - here.x;
+    const dz = at.z - here.z;
+    // Facing yaw looks along (-sin, -cos).
+    const off = Math.abs(Math.atan2(Math.sin(Math.atan2(-dx, -dz) - this.input.yaw), Math.cos(Math.atan2(-dx, -dz) - this.input.yaw)));
+    return { off, dist: Math.hypot(dx, dz) };
+  }
+
+  private aimedDoor(): string | null {
+    let best: { id: string; off: number } | null = null;
+    for (const door of this.map.doors) {
+      if (door.id === this.map.relicDoor) continue;
+      const a = this.aim(door);
+      if (a && a.dist <= config.powers.slamDoor.rangeM && a.off <= AIM_DOOR_RAD && (!best || a.off < best.off)) best = { id: door.id, off: a.off };
+    }
+    return best?.id ?? null;
+  }
+
+  private aimedPlayer(): string | null {
+    let best: { id: string; off: number } | null = null;
+    for (const [id, p] of this.others) {
+      if (p.health !== "alive" || p.hidingSpot) continue;
+      const a = this.aim(p);
+      if (a && a.dist <= config.powers.summon.targetRangeM && a.off <= AIM_PLAYER_RAD && (!best || a.off < best.off)) best = { id, off: a.off };
+    }
+    return best?.id ?? null;
   }
 
   private updateStatusHud(me: PlayerData) {

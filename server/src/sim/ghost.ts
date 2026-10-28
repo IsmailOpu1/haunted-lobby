@@ -38,11 +38,15 @@ export interface GhostWorld {
   ritualAt(): Point | null;
   /** If a salt line is under the ghost, removes it and returns true (GDD 8.3). */
   takeSaltAt(x: number, z: number): boolean;
+  /** How much faster than usual the ghost moves (in a blackout, GDD 14.2). */
+  speedMult(): number;
 }
 
 const ARRIVE_M = 0.15;
 const SIGHT_HEIGHT_M = 1.5;
 const WANDER_PAUSE_SEC = 1.5;
+/** A Summon spot counts only if the walkable floor is this close to it (not inside a wall or another room). */
+const SUMMON_SNAP_M = 0.75;
 
 export class Ghost {
   state: GhostState = "asleep";
@@ -71,6 +75,8 @@ export class Ghost {
   private betweenHuntsSec: number = config.ghost.parts.calm.betweenHuntsSec;
   private progressAnchor: Point;
   private progressTimer = 0;
+  /** How long a hunt lasts in the current part of the night, set every update (for a Summon). */
+  private huntSec: number = config.ghost.parts.calm.huntSec;
 
   constructor(private nav: NavMap, private world: GhostWorld, start: Point, private difficulty: GhostDifficulty = "normal") {
     const p = nav.closest(start);
@@ -104,7 +110,10 @@ export class Ghost {
       this.state = "asleep";
       return;
     }
-    const params = ghostParams(part, this.difficulty, playerCount);
+    const base = ghostParams(part, this.difficulty, playerCount);
+    const mult = this.world.speedMult();
+    const params = { ...base, wander: base.wander * mult, hunt: base.hunt * mult };
+    this.huntSec = params.huntSec;
     // During the ritual it hunts with only short breaks, whatever the part of the night (GDD 12.4).
     const ritual = this.world.ritualAt();
     this.betweenHuntsSec = ritual ? config.ghost.ritualBetweenHuntsSec : params.betweenHuntsSec;
@@ -161,6 +170,36 @@ export class Ghost {
   /** True while frozen by salt. */
   get frozen(): boolean {
     return this.frozenLeft > 0;
+  }
+
+  /** Whether a possessed player can Summon it now: only while it wanders, not mid-hunt or away (GDD 14.2). */
+  get summonable(): boolean {
+    return this.state === "wander" || this.state === "investigate";
+  }
+
+  /**
+   * Summoned on a victim (GDD 14.2): it appears at the first of `spots` it can stand on and reach
+   * the victim from, and hunts straight away, with no silence before. Returns false if no spot works.
+   */
+  summon(victim: { id: string; x: number; z: number }, spots: Point[]): boolean {
+    if (!this.summonable) return false;
+    for (const spot of spots) {
+      const p = this.nav.closest(spot);
+      if (Math.hypot(p.x - spot.x, p.z - spot.z) > SUMMON_SNAP_M) continue;
+      const path = this.nav.path(p, this.nav.closest(victim));
+      if (path.length === 0) continue;
+      this.x = p.x;
+      this.z = p.z;
+      this.yaw = Math.atan2(-(victim.x - p.x), -(victim.z - p.z));
+      this.progressAnchor = { ...p };
+      this.progressTimer = 0;
+      this.startHunt(this.huntSec);
+      this.targetId = victim.id;
+      this.lastKnown = { x: victim.x, z: victim.z };
+      this.setGoal(this.lastKnown);
+      return true;
+    }
+    return false;
   }
 
   /** Test shortcut (HAUNTED_DEBUG only): send the ghost away (ending any hunt), or let it come back. */

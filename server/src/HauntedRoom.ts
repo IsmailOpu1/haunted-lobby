@@ -26,6 +26,12 @@ import {
   matchResult,
   pickPossessed,
   possessedCount,
+  POWER_KINDS,
+  powerCooldownSec,
+  powerUnlocked,
+  summonSpots,
+  type PowerKind,
+  type PowerStatus,
   type Role,
   type Stage,
   worldDistance,
@@ -68,6 +74,9 @@ function uniqueRoomCode(): string {
   return code;
 }
 
+/** Line of sight for a Summon and for a light on the possessed's eyes: eye height. */
+const SUMMON_SIGHT_HEIGHT_M = 1.5;
+
 /** Test-only shortcuts (skip time, get downed). Enabled only when the server is started with HAUNTED_DEBUG=1. */
 const DEBUG = process.env.HAUNTED_DEBUG === "1";
 
@@ -77,6 +86,9 @@ type Action =
   | { kind: "hide"; spotId: string; elapsed: number }
   | { kind: "unhide"; elapsed: number }
   | { kind: "salt"; elapsed: number }
+  | { kind: "breakDoor"; doorId: string; elapsed: number }
+  | { kind: "fixFuse"; elapsed: number }
+  | { kind: "cleanse"; elapsed: number }
   | { kind: "placeRelic"; elapsed: number };
 
 /** Server-only data for one connected player. */
@@ -111,6 +123,14 @@ interface PlayerSim {
   role: Role;
   /** Debug servers only: possessed whatever the count, to test alone. */
   wantsPossessed: boolean;
+  // The possessed's powers (GDD 14). Private, like the role.
+  /** Seconds of cooldown left for each power. */
+  cooldowns: Record<PowerKind, number>;
+  /** Seconds of curse glow left: a photo now would show the demon face (GDD 15.2). */
+  curseLeft: number;
+  /** Night time this player was last hit by the ghost, and last trapped by a slammed door (GDD 14.3). */
+  hitAt: number;
+  trappedAt: number;
   /** The minigame open right now (a task, or taking a relic from a spot), and for how long. */
   /**
    * The task or search open in the player's hands. stationId is the task station, or the place
@@ -148,6 +168,9 @@ const ACTION_SECONDS: Record<Action["kind"], number> = {
   unhide: config.movement.hideEnterExitSec,
   salt: config.salt.placeSec,
   placeRelic: config.relics.placeSec,
+  breakDoor: config.powers.slamDoor.breakSec,
+  fixFuse: config.powers.blackout.fuseFixSec,
+  cleanse: config.taint.cleanseSec,
 };
 
 export class HauntedRoom extends Room<{ state: GameState }> {
@@ -185,6 +208,15 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private timesPossessed = new Map<string, number>();
   /** Debug servers only: everyone is possessed, so counting the living cannot end the match. */
   private noInvestigators = false;
+  // Powers shared by the possessed team (GDD 14.2, 11).
+  private blackoutUsed = false;
+  private blackoutLeft = 0;
+  private taintsUsed = 0;
+  /** Night time of the last Taint, or -Infinity. */
+  private lastTaintAt = -Infinity;
+  /** Seconds each slammed door stays locked. */
+  private doorLocks = new Map<string, number>();
+  private powerStatusTimer = 0;
 
   async onCreate() {
     // The 5-letter room code is the Colyseus room id, so friends join with joinById(code).
@@ -203,7 +235,9 @@ export class HauntedRoom extends Room<{ state: GameState }> {
 
     await initPhysics();
     this.physics = new PhysicsWorld(this.map);
-    for (const door of this.map.doors) this.state.doors.set(door.id, new Door({ open: false }));
+    for (const door of this.map.doors) this.state.doors.set(door.id, new Door({ open: false, locked: false }));
+    this.state.blackout = false;
+    this.state.taintLeft = 0;
     // Every jar spot is stocked until the lobby decides the player count (Phase 7).
     for (const jar of this.map.saltJars) this.state.saltJars.set(jar.id, new SaltJar({ taken: false }));
     for (const station of this.map.tasks) this.state.stations.set(station.id, new TaskStation({ done: false }));
@@ -289,6 +323,12 @@ export class HauntedRoom extends Room<{ state: GameState }> {
 
     this.onMessage("photo", (client) => this.takePhoto(client.sessionId));
     this.onMessage("start", (client) => this.startCountdown(client));
+    this.onMessage("power", (client, msg: unknown) => {
+      const m = typeof msg === "object" && msg !== null ? (msg as { kind?: unknown; target?: unknown }) : {};
+      if (typeof m.kind === "string" && (POWER_KINDS as readonly string[]).includes(m.kind)) {
+        this.usePower(client, m.kind as PowerKind, typeof m.target === "string" ? m.target : undefined);
+      }
+    });
 
     this.onMessage("tasksRequest", (client) => this.sendTasks(client.sessionId));
     this.onMessage("taskDone", (client, msg: unknown) => {
@@ -388,6 +428,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       micCheck: null,
       role: "investigator",
       wantsPossessed: false,
+      cooldowns: { slamDoor: 0, summon: 0, blackout: 0, taint: 0 },
+      curseLeft: 0,
+      hitAt: -Infinity,
+      trappedAt: -Infinity,
     });
 
     this.state.players.set(
@@ -472,6 +516,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     }
 
     if (this.nightStarted) {
+      this.tickPowers(elapsedSec);
       this.tickRitual(elapsedSec);
       this.state.nightTime = Math.min(this.state.nightTime + elapsedSec, this.state.nightLength);
       let part = nightPart(this.state.nightTime, this.state.nightLength);
@@ -558,6 +603,174 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   /** Tasks, relics, items and hiding wait for the night; before it you can only walk about and use doors. */
   private get playing(): boolean {
     return this.state.stage === "night" && !this.state.winner;
+  }
+
+  // ---------- The possessed's powers (GDD 14) ----------
+
+  private usePower(client: Client, kind: PowerKind, target: string | undefined) {
+    const sim = this.sims.get(client.sessionId);
+    const player = this.state.players.get(client.sessionId);
+    if (!sim || !player || sim.role !== "possessed") return;
+    const refuse = (reason: string) => {
+      const msg: ServerMessages["powerRefused"] = { kind, reason };
+      client.send("powerRefused", msg);
+    };
+    // No powers before the night, while downed, or in Quiet (GDD 14.3). Meetings will stop them too.
+    if (!this.playing || player.health !== "alive") return refuse("Not now.");
+    const status = this.powerStatus(sim, kind);
+    if (status.state === "locked") return refuse(kind === "taint" ? "Only during the ritual." : "Not yet.");
+    if (status.state === "used") return refuse("Already used.");
+    if (status.state === "cooldown") return refuse(`Ready in ${Math.ceil(status.cooldownLeft)} s.`);
+    const result =
+      kind === "slamDoor" ? this.slamDoor(sim, target) : kind === "summon" ? this.summon(client.sessionId, sim, target) : kind === "blackout" ? this.startBlackout() : this.taint(sim);
+    if (result) return refuse(result);
+    sim.cooldowns[kind] = powerCooldownSec(kind);
+    // Every power leaves the curse glow (GDD 14.2, 15.2).
+    sim.curseLeft = config.camera.curseGlowSec;
+    this.sendPowerStatus();
+  }
+
+  private powerStatus(sim: PlayerSim, kind: PowerKind): PowerStatus {
+    const clock = { nightTime: this.state.nightTime, nightLength: this.state.nightLength, ritualStarted: this.state.ritualStarted };
+    const cooldownLeft = sim.cooldowns[kind];
+    let state: PowerStatus["state"] = cooldownLeft > 0 ? "cooldown" : "ready";
+    if (kind === "blackout" && this.blackoutUsed) state = "used";
+    else if (kind === "taint" && this.taintsUsed >= config.taint.maxPerMatch) state = "used";
+    else if (!powerUnlocked(kind, clock)) state = "locked";
+    // The team waits taint.cooldownSec between Taints, whoever used the last one (GDD 11).
+    const teamWait = kind === "taint" ? this.lastTaintAt + config.taint.cooldownSec - this.state.nightTime : 0;
+    if (state === "ready" && teamWait > 0) return { kind, state: "cooldown", cooldownLeft: teamWait };
+    return { kind, state, cooldownLeft };
+  }
+
+  /** Slam Door: the door slams and locks (GDD 14.2). Returns why it failed, or null. */
+  private slamDoor(sim: PlayerSim, doorId: string | undefined): string | null {
+    const c = config.powers.slamDoor;
+    const def = this.map.doors.find((d) => d.id === doorId);
+    if (!def || def.id === this.map.relicDoor) return "No door there.";
+    if (this.hearingDistance(sim.move, def) > c.rangeM) return `Too far from the door (${c.rangeM} m at most).`;
+    const door = this.state.doors.get(def.id)!;
+    if (door.locked) return "That door is already locked.";
+    // Players close to the door are the ones it traps; nobody is trapped twice in sameVictimSec (GDD 14.3).
+    const trapped: PlayerSim[] = [];
+    this.state.players.forEach((p, id) => {
+      const other = this.sims.get(id);
+      if (other && other !== sim && p.health === "alive" && this.hearingDistance(p, def) <= c.rangeM) trapped.push(other);
+    });
+    if (trapped.some((t) => this.state.nightTime - t.trappedAt < c.sameVictimSec)) return "Someone there was trapped too recently.";
+    for (const t of trapped) t.trappedAt = this.state.nightTime;
+    this.setDoor(def.id, false);
+    door.locked = true;
+    this.doorLocks.set(def.id, c.lockSec);
+    // Loud: the ghost hears it from far away (GDD 14.2).
+    this.noises.push({ x: def.x, z: def.z, radiusM: c.ghostHearM });
+    const msg: ServerMessages["doorSlam"] = { x: def.x, z: def.z };
+    this.broadcast("doorSlam", msg);
+    return null;
+  }
+
+  private unlockDoor(id: string, open: boolean) {
+    const door = this.state.doors.get(id);
+    if (!door?.locked) return;
+    door.locked = false;
+    this.doorLocks.delete(id);
+    if (open) this.setDoor(id, true);
+  }
+
+  /** How many players are pushing on this door right now. */
+  private pushers(doorId: string): number {
+    let n = 0;
+    for (const sim of this.sims.values()) if (sim.action?.kind === "breakDoor" && sim.action.doorId === doorId) n++;
+    return n;
+  }
+
+  /** Summon: the ghost appears near a player you can see and hunts them (GDD 14.2). */
+  private summon(sessionId: string, sim: PlayerSim, targetId: string | undefined): string | null {
+    const c = config.powers.summon;
+    const victim = targetId ? this.state.players.get(targetId) : undefined;
+    const victimSim = targetId ? this.sims.get(targetId) : undefined;
+    if (!victim || !victimSim || targetId === sessionId || victim.health !== "alive" || victim.hidingSpot) return "Look at a player first.";
+    const me = { x: sim.move.x, z: sim.move.z };
+    if (this.hearingDistance(me, victim) > c.targetRangeM) return `Too far (${c.targetRangeM} m at most).`;
+    if (!this.physics.lineOfSight(me, victim, SUMMON_SIGHT_HEIGHT_M)) return "You must see them.";
+    if (this.state.nightTime - victimSim.hitAt < c.protectAfterHitSec) return "They were hit too recently.";
+    if (!this.ghost.summonable) return "The ghost does not answer right now.";
+    if (!this.ghost.summon({ id: targetId!, x: victim.x, z: victim.z }, summonSpots(victim))) return "The ghost cannot reach them.";
+    // The clues: a whisper near you, and your eyes glow in anyone's light (GDD 14.2).
+    const whisper: ServerMessages["powerWhisper"] = { x: me.x, z: me.z };
+    const glow: ServerMessages["eyeGlow"] = { id: sessionId };
+    const halfCone = (config.flashlight.coneHalfAngleDeg * Math.PI) / 180;
+    for (const client of this.clients) {
+      const p = this.state.players.get(client.sessionId);
+      if (!p) continue;
+      if (this.hearingDistance(p, me) <= c.whisperM) client.send("powerWhisper", whisper);
+      if (client.sessionId === sessionId || !p.flashlightOn || p.health !== "alive") continue;
+      const d = this.hearingDistance(p, me);
+      // Facing yaw looks along (-sin, -cos).
+      const toMe = Math.atan2(-(me.x - p.x), -(me.z - p.z));
+      const off = Math.abs(normalizeAngle(toMe - p.yaw));
+      if (d <= config.flashlight.coneM && off <= halfCone && this.physics.lineOfSight(p, me, SUMMON_SIGHT_HEIGHT_M)) client.send("eyeGlow", glow);
+    }
+    return null;
+  }
+
+  /** Blackout: every light on the map goes out (GDD 14.2). */
+  private startBlackout(): string | null {
+    this.blackoutUsed = true;
+    this.blackoutLeft = config.powers.blackout.autoRestoreSec;
+    this.state.blackout = true;
+    return null;
+  }
+
+  private endBlackout() {
+    this.state.blackout = false;
+    this.blackoutLeft = 0;
+  }
+
+  /** Taint: black flames on the altar (GDD 11). */
+  private taint(sim: PlayerSim): string | null {
+    const altar = this.map.altar;
+    if (!altar || this.hearingDistance(sim.move, altar) > config.ritual.circleRadiusM) return "Stand in the circle.";
+    if (this.state.ritualProgress < config.taint.minProgressPct) return `Only once the ritual is ${config.taint.minProgressPct}% done.`;
+    if (this.state.taintLeft > 0) return "The flames already burn.";
+    this.taintsUsed += 1;
+    this.lastTaintAt = this.state.nightTime;
+    this.state.taintLeft = config.taint.windowSec;
+    return null;
+  }
+
+  /** Cooldowns, curse glow, locked doors, the blackout and the flames, each tick of the night. */
+  private tickPowers(dt: number) {
+    for (const sim of this.sims.values()) {
+      for (const kind of POWER_KINDS) sim.cooldowns[kind] = Math.max(0, sim.cooldowns[kind] - dt);
+      sim.curseLeft = Math.max(0, sim.curseLeft - dt);
+    }
+    for (const [id, left] of this.doorLocks) {
+      if (left - dt <= 0) this.unlockDoor(id, false);
+      else this.doorLocks.set(id, left - dt);
+    }
+    if (this.state.blackout) {
+      this.blackoutLeft -= dt;
+      if (this.blackoutLeft <= 0) this.endBlackout();
+    }
+    if (this.state.taintLeft > 0) {
+      this.state.taintLeft = Math.max(0, this.state.taintLeft - dt);
+      // Not put out in time: the ritual loses half its progress (GDD 11).
+      if (this.state.taintLeft === 0) this.state.ritualProgress *= config.taint.progressMultiplier;
+    }
+    this.powerStatusTimer += dt;
+    if (this.powerStatusTimer >= config.powers.statusEverySec) this.sendPowerStatus();
+  }
+
+  /** Each possessed player's cooldowns and curse glow, to them only (PRD 10.3). */
+  private sendPowerStatus() {
+    this.powerStatusTimer = 0;
+    for (const client of this.clients) {
+      const sim = this.sims.get(client.sessionId);
+      if (sim?.role !== "possessed") continue;
+      const msg: ServerMessages["powers"] = { list: POWER_KINDS.map((k) => this.powerStatus(sim, k)), curseLeft: sim.curseLeft };
+      client.send("powers", msg);
+    }
   }
 
   // ---------- The ritual (GDD Section 11) ----------
@@ -800,6 +1013,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     }
     player.health = "downed" satisfies Health;
     player.bleedLeft = config.health.bleedOutSec;
+    sim.hitAt = this.state.nightTime;
     sim.flashlightBeforeDowned = player.flashlightOn;
     player.flashlightOn = false;
     player.holdingBreath = false;
@@ -857,6 +1071,25 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     });
     if (reviveId) {
       this.setAction(sim, player, { kind: "revive", targetId: reviveId, elapsed: 0 });
+      return;
+    }
+
+    // Put out black flames on the altar with a handful of salt (GDD 11).
+    const altar = this.map.altar;
+    if (this.state.taintLeft > 0 && altar && player.salt >= config.taint.cleanseSaltCost && this.hearingDistance(here, altar) <= config.ritual.circleRadiusM) {
+      this.setAction(sim, player, { kind: "cleanse", elapsed: 0 });
+      return;
+    }
+    // Fix the fuse box in a blackout (GDD 14.2).
+    const fuse = this.map.fuseBox;
+    if (this.state.blackout && fuse && this.hearingDistance(here, fuse) <= config.interact.rangeM) {
+      this.setAction(sim, player, { kind: "fixFuse", elapsed: 0 });
+      return;
+    }
+    // Push on a slammed door; it breaks open when enough players push together (GDD 14.2).
+    const locked = this.nearestDoor(here.x, here.z);
+    if (locked && this.state.doors.get(locked)?.locked) {
+      this.setAction(sim, player, { kind: "breakDoor", doorId: locked, elapsed: 0 });
       return;
     }
 
@@ -927,6 +1160,12 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       if (!target || target.health !== "downed" || !near) return this.clearAction(sim, player);
     }
 
+    if (action.kind === "breakDoor" && !this.state.doors.get(action.doorId)?.locked) return this.clearAction(sim, player);
+    if (action.kind === "fixFuse" && !this.state.blackout) return this.clearAction(sim, player);
+    if (action.kind === "cleanse" && this.state.taintLeft <= 0) return this.clearAction(sim, player);
+    // A slammed door gives only to enough players pushing together.
+    if (action.kind === "breakDoor" && this.pushers(action.doorId) < config.powers.slamDoor.breakPushers) return;
+
     action.elapsed += dt;
     const duration = ACTION_SECONDS[action.kind];
     player.actionProgress = Math.min(1, action.elapsed / duration);
@@ -937,7 +1176,12 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     else if (action.kind === "hide") this.hide(sim, player, action.spotId);
     else if (action.kind === "salt") this.pourSalt(player);
     else if (action.kind === "placeRelic") this.placeRelic(player);
-    else this.unhide(sim, player);
+    else if (action.kind === "breakDoor") this.unlockDoor(action.doorId, true);
+    else if (action.kind === "fixFuse") this.endBlackout();
+    else if (action.kind === "cleanse") {
+      player.salt -= config.taint.cleanseSaltCost;
+      this.state.taintLeft = 0;
+    } else this.unhide(sim, player);
   }
 
   private revive(targetId: string) {
@@ -1318,16 +1562,21 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.clients.find((cl) => cl.sessionId === sessionId)?.send("photoTaken", taken);
   }
 
-  private toggleNearestDoor(x: number, z: number) {
+  /** The door within reach of a player, nearest first. Never the relic door, which cannot be worked by hand. */
+  private nearestDoor(x: number, z: number): string | null {
     let nearest: { id: string; dist: number } | undefined;
     for (const door of this.map.doors) {
-      // The relic door cannot be worked by hand: it is locked, then open for good.
       if (door.id === this.map.relicDoor) continue;
       const dist = Math.hypot(door.x - x, door.z - z);
       if (dist <= config.interact.rangeM && (!nearest || dist < nearest.dist)) nearest = { id: door.id, dist };
     }
-    if (!nearest) return;
-    const door = this.map.doors.find((d) => d.id === nearest!.id)!;
+    return nearest?.id ?? null;
+  }
+
+  private toggleNearestDoor(x: number, z: number) {
+    const id = this.nearestDoor(x, z);
+    if (!id || this.state.doors.get(id)!.locked) return;
+    const door = this.map.doors.find((d) => d.id === id)!;
     this.setDoor(door.id, !this.state.doors.get(door.id)!.open);
     // Opening or closing a door can be heard (GDD Section 12.2).
     this.noises.push({ x: door.x, z: door.z, radiusM: config.ghost.hearingM.door });
@@ -1375,8 +1624,12 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       ritualAt: () => (this.state.ritualStarted && this.map.altar ? this.map.altar : null),
       isDoorOpen: (id) => this.state.doors.get(id)?.open ?? true,
       openDoor: (id) => {
-        if (id !== this.map.relicDoor || !this.relicDoorLocked()) this.setDoor(id, true);
+        if (id === this.map.relicDoor && this.relicDoorLocked()) return;
+        // A slammed door locks players in, not the ghost (GDD 26.13).
+        this.unlockDoor(id, false);
+        this.setDoor(id, true);
       },
+      speedMult: () => (this.state.blackout ? config.ghost.blackoutSpeedMult : 1),
       hidingSpots: this.map.hidingSpots,
       takeNoises: () => this.noises.slice(),
       takeSaltAt: (x, z) => {

@@ -5,11 +5,12 @@ import {
   isValidRoomCode,
   normalizeRoomCode,
   type EndReason,
+  type PowerStatus,
   type ServerMessages,
 } from "@haunted/shared";
 import { defaultMap } from "@haunted/maps";
 import { FloorPlan } from "./floorplan.ts";
-import { Game } from "./game.ts";
+import { Game, POWER_NAMES } from "./game.ts";
 import { createRoom, joinRoom } from "./network.ts";
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -85,6 +86,8 @@ const introExtra = el("intro-extra");
 /** Your role once it is dealt (GDD 4.1), or null before. Only you are told it. */
 let myRole: ServerMessages["role"] | null = null;
 const floorPlan = new FloorPlan(defaultMap);
+const powersBar = el("powers-bar");
+const powerWheel = el("power-wheel");
 el("floor-plan").append(floorPlan.element);
 
 /** How long the room name stays up after you walk into a room. */
@@ -147,6 +150,40 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     actionBox.classList.toggle("hidden", !label);
     actionLabel.textContent = label ?? "";
     actionFill.style.width = `${Math.round(progress * 100)}%`;
+  },
+  setPowers: (list, curseLeft) => {
+    powersBar.classList.toggle("hidden", !list);
+    if (!list) return;
+    const chips = list.map((p) => {
+      const chip = document.createElement("span");
+      chip.className = `power ${p.state}`;
+      chip.textContent = `${POWER_NAMES[p.kind]} ${powerStateText(p)}`;
+      return chip;
+    });
+    if (curseLeft > 0) {
+      const curse = document.createElement("span");
+      curse.className = "power curse";
+      curse.textContent = `Curse glow ${Math.ceil(curseLeft)} s`;
+      chips.push(curse);
+    }
+    powersBar.replaceChildren(...chips);
+  },
+  showPowerWheel: (wheel) => {
+    powerWheel.classList.toggle("hidden", !wheel);
+    if (!wheel) return;
+    powerWheel.replaceChildren(
+      ...wheel.powers.map((p, i) => {
+        const sector = document.createElement("div");
+        sector.className = `sector at-${i} ${p.state}${wheel.selected === p.kind ? " selected" : ""}`;
+        const name = document.createElement("strong");
+        name.textContent = POWER_NAMES[p.kind];
+        const state = document.createElement("span");
+        state.textContent = powerStateText(p) || "Ready";
+        sector.append(name, state);
+        return sector;
+      }),
+      Object.assign(document.createElement("div"), { className: "wheel-hint", textContent: "Move the mouse, let go of R" }),
+    );
   },
   showBanner: (text, seconds) => {
     banner.textContent = text;
@@ -475,6 +512,7 @@ function enterLobby(room: Room) {
   });
   room.onMessage("role", (msg: ServerMessages["role"]) => {
     myRole = msg;
+    game.setRole(msg.role);
     // Your task list now shows whether it is real.
     room.send("tasksRequest");
   });
@@ -492,6 +530,14 @@ function enterLobby(room: Room) {
   });
 }
 
+/** A power's state in a few words: "" when ready. */
+function powerStateText(p: PowerStatus): string {
+  if (p.state === "cooldown") return `${Math.ceil(p.cooldownLeft)} s`;
+  if (p.state === "locked") return p.kind === "taint" ? "(ritual)" : "(not yet)";
+  if (p.state === "used") return "(used)";
+  return "";
+}
+
 /** The countdown, then your role for the intro's 10 seconds (GDD 4.1). */
 function showIntro(stage: string, secondsLeft: number) {
   intro.classList.toggle("hidden", stage !== "countdown" && stage !== "intro");
@@ -505,7 +551,8 @@ function showIntro(stage: string, secondsLeft: number) {
     if (myRole.role === "possessed") {
       introTitle.textContent = "YOU ARE POSSESSED";
       introText.textContent = "Stop the ritual. Do not get caught.";
-      introExtra.textContent = myRole.partners.length ? `Also possessed: ${myRole.partners.join(", ")}` : "";
+      const partners = myRole.partners.length ? `Also possessed: ${myRole.partners.join(", ")}. ` : "";
+      introExtra.textContent = `${partners}Hold R for your powers.`;
     } else {
       introTitle.textContent = "INVESTIGATOR";
       introText.textContent = "Do your tasks, find the relics, finish the ritual before dawn.";

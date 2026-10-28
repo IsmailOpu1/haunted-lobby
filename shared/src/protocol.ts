@@ -52,6 +52,19 @@ export interface ServerMessages {
    * players' names, if you are possessed and Possessed know each other is on.
    */
   role: { role: Role; partners: string[] };
+  /**
+   * Your powers (possessed only, private, sent statusEverySec): each one's state and seconds of
+   * cooldown left, and how long your curse glow lasts (GDD 14.2, 15.2).
+   */
+  powers: { list: PowerStatus[]; curseLeft: number };
+  /** Your power did not work, and why (possessed only). */
+  powerRefused: { kind: import("./powers.ts").PowerKind; reason: string };
+  /** A whisper close by: someone within whisperM of here just Summoned the ghost (GDD 14.2). */
+  powerWhisper: { x: number; z: number };
+  /** This player's eyes glow red for a moment in your light (they just Summoned, GDD 14.2). */
+  eyeGlow: { id: string };
+  /** A door slammed shut and locked (Slam Door, GDD 14.2): louder than a door closing. */
+  doorSlam: { x: number; z: number };
   /** The host's Start was refused (too few players). */
   startRefused: { reason: string };
   /** Test shortcut (debug servers only): the ghost was sent away or brought back. */
@@ -131,6 +144,15 @@ export interface ClientMessages {
   photo: undefined;
   /** The host starts the night: a countdown, then roles and the intro (GDD 5, 4.1). */
   start: undefined;
+  /** Use a power (possessed only). target: the door for Slam Door, the player for Summon. */
+  power: { kind: import("./powers.ts").PowerKind; target?: string };
+}
+
+export interface PowerStatus {
+  kind: import("./powers.ts").PowerKind;
+  /** locked: not yet, or not now. used: Blackout or Taint, all used up. */
+  state: "ready" | "cooldown" | "locked" | "used";
+  cooldownLeft: number;
 }
 
 /**
@@ -143,7 +165,7 @@ export type Stage = "waiting" | "countdown" | "intro" | "night";
 export type Health = "alive" | "downed" | "dead";
 
 /** A timed action a player is doing (holding E, pouring salt, or a task minigame). */
-export type PlayerAction = "" | "revive" | "hide" | "unhide" | "salt" | "task" | "placeRelic";
+export type PlayerAction = "" | "revive" | "hide" | "unhide" | "salt" | "task" | "placeRelic" | "breakDoor" | "fixFuse" | "cleanse";
 
 /** One of your tasks, as only you see it. The possessed's are fake: doing them moves no bar (GDD 9). */
 export interface TaskEntry {

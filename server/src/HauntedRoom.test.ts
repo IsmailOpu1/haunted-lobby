@@ -881,4 +881,134 @@ describe("HauntedRoom", () => {
     expect(ends[0]!.roles.filter((r) => r.role === "possessed")).toHaveLength(1);
     await Promise.all(rooms.map((r) => r.leave()));
   });
+
+  describe("the possessed's powers (GDD 14)", () => {
+    /** A host made possessed and two friends, in the night at `time`. */
+    async function possessedPair(time: number) {
+      const ghoul = await new Client(endpoint).create(ROOM_NAME, { name: "Ghoul" });
+      const friend = await new Client(endpoint).joinById(ghoul.roomId, { name: "Mim" });
+      // A third player: one possessed against one investigator would end the match at once.
+      const third = await new Client(endpoint).joinById(ghoul.roomId, { name: "Nila" });
+      for (const r of [ghoul, friend, third]) r.onMessage("*", () => {});
+      ghoul.send("debug", { possessed: true });
+      await new Promise((r) => setTimeout(r, 100));
+      await night(ghoul);
+      ghoul.send("debug", { nightTime: time });
+      await new Promise((r) => setTimeout(r, 100));
+      return { ghoul, friend, third, server: matchMaker.getLocalRoomById(ghoul.roomId) as any };
+    }
+    const place = async (room: Room, at: { x: number; z: number }) => {
+      room.send("debug", { teleport: at });
+      await new Promise((r) => setTimeout(r, 200));
+    };
+
+    it("tells only the possessed their powers, and refuses one used too early or by an investigator", async () => {
+      const { ghoul, friend, third } = await possessedPair(config.match.quietSec + 1);
+      const status = collectMsgs(ghoul, "powers");
+      const friendStatus = collectMsgs(friend, "powers");
+      const refused = collectMsgs(ghoul, "powerRefused");
+      await waitFor(() => status.length > 0);
+      const summon = status.at(-1)!.list.find((p) => p.kind === "summon")!;
+      expect(summon.state).toBe("locked");
+      ghoul.send("power", { kind: "summon", target: friend.sessionId });
+      await waitFor(() => refused.length > 0);
+      expect(refused[0]!.reason).toBe("Not yet.");
+      // An investigator's request is ignored.
+      friend.send("power", { kind: "blackout" });
+      await new Promise((r) => setTimeout(r, 300));
+      expect(friend.state.blackout).toBe(false);
+      expect(friendStatus).toHaveLength(0);
+      await Promise.all([ghoul.leave(), friend.leave(), third.leave()]);
+    });
+
+    it("slams and locks a door, which two players break open together; then it cools down (GDD 14.2)", async () => {
+      const { ghoul, friend, third } = await possessedPair(config.powers.slamDoor.unlockSec + 1);
+      const def = marrowHotelGreybox.doors.find((d) => d.id === "hall-front")!;
+      const door = () => ghoul.state.doors.get(def.id);
+      const slams = collectMsgs(friend, "doorSlam");
+      await place(ghoul, { x: def.x, z: def.z + 3 });
+      await place(friend, { x: def.x, z: def.z + 1.5 });
+      ghoul.send("power", { kind: "slamDoor", target: def.id });
+      await waitFor(() => door().locked === true);
+      expect(door().open).toBe(false);
+      await waitFor(() => slams.length === 1);
+      const status = collectMsgs(ghoul, "powers");
+      await waitFor(() => status.length > 0);
+      const slam = status.at(-1)!.list.find((p) => p.kind === "slamDoor")!;
+      expect(slam.state).toBe("cooldown");
+      expect(status.at(-1)!.curseLeft).toBeGreaterThan(0);
+
+      // One player alone cannot open it.
+      friend.send("use", { down: true });
+      await new Promise((r) => setTimeout(r, (config.powers.slamDoor.breakSec + 0.5) * 1000));
+      expect(door().locked).toBe(true);
+      // With a second pusher it gives.
+      await place(ghoul, { x: def.x + 0.4, z: def.z + 1.5 });
+      ghoul.send("use", { down: true });
+      await waitFor(() => door().locked === false && door().open === true, (config.powers.slamDoor.breakSec + 1.5) * 1000);
+      await Promise.all([ghoul.leave(), friend.leave(), third.leave()]);
+    }, 15000);
+
+    it("puts every light out once per match, until the fuse box is fixed (GDD 14.2)", async () => {
+      const night = config.match.lengthMin * 60;
+      const { ghoul, friend, third } = await possessedPair(night * 0.5);
+      const refused = collectMsgs(ghoul, "powerRefused");
+      ghoul.send("power", { kind: "blackout" });
+      await waitFor(() => friend.state.blackout === true);
+      await place(friend, marrowHotelGreybox.fuseBox!);
+      friend.send("use", { down: true });
+      await waitFor(() => friend.state.blackout === false, (config.powers.blackout.fuseFixSec + 1.5) * 1000);
+      friend.send("use", { down: false });
+      ghoul.send("power", { kind: "blackout" });
+      await waitFor(() => refused.length > 0);
+      expect(refused[0]!.reason).toBe("Already used.");
+      await Promise.all([ghoul.leave(), friend.leave(), third.leave()]);
+    }, 15000);
+
+    it("refuses a Summon on a player out of sight or too far (GDD 14.2)", async () => {
+      const { ghoul, friend, third } = await possessedPair(config.powers.summon.unlockSec + 1);
+      const refused = collectMsgs(ghoul, "powerRefused");
+      const altar = marrowHotelGreybox.altar!;
+      await place(friend, { x: altar.x, z: altar.z });
+      ghoul.send("power", { kind: "summon", target: friend.sessionId });
+      await waitFor(() => refused.length > 0);
+      expect(refused[0]!.reason).toMatch(/Too far|You must see them/);
+      await Promise.all([ghoul.leave(), friend.leave(), third.leave()]);
+    });
+
+    it("taints the ritual: black flames that halve progress unless cleansed with salt (GDD 11)", async () => {
+      const { ghoul, friend, third, server } = await possessedPair(300);
+      const altar = marrowHotelGreybox.altar!;
+      const refused = collectMsgs(ghoul, "powerRefused");
+      await place(ghoul, { x: altar.x + 2, z: altar.z });
+      ghoul.send("power", { kind: "taint" });
+      await waitFor(() => refused.length > 0);
+      expect(refused[0]!.reason).toBe("Only during the ritual.");
+
+      // The test starts the ritual by hand.
+      server.state.ritualStarted = true;
+      server.state.ritualProgress = 50;
+      ghoul.send("power", { kind: "taint" });
+      await waitFor(() => ghoul.state.taintLeft > 0);
+      // Cleansed in time: nothing lost but the salt.
+      await place(friend, { x: altar.x - 2, z: altar.z });
+      const salt = friend.state.players.get(friend.sessionId).salt;
+      friend.send("use", { down: true });
+      await waitFor(() => ghoul.state.taintLeft === 0, (config.taint.cleanseSec + 1.5) * 1000);
+      friend.send("use", { down: false });
+      expect(server.state.ritualProgress).toBeGreaterThan(40);
+      await waitFor(() => friend.state.players.get(friend.sessionId).salt === salt - config.taint.cleanseSaltCost);
+
+      // Left alone, the next one halves the ritual.
+      // The test skips both waits: the team's and the player's own cooldown.
+      server.lastTaintAt = -Infinity;
+      server.sims.get(ghoul.sessionId).cooldowns.taint = 0;
+      const before = server.state.ritualProgress;
+      ghoul.send("power", { kind: "taint" });
+      await waitFor(() => ghoul.state.taintLeft > 0);
+      await waitFor(() => ghoul.state.taintLeft === 0, (config.taint.windowSec + 1.5) * 1000);
+      expect(server.state.ritualProgress).toBeLessThan(before * 0.6 + 2);
+      await Promise.all([ghoul.leave(), friend.leave(), third.leave()]);
+    }, 20000);
+  });
 });

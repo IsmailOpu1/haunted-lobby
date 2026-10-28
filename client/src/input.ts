@@ -30,6 +30,10 @@ export interface InputActions {
   onHandMove(dx: number, dy: number): void;
   /** While working: E, a movement key or Esc stops the work. */
   onStopWork(): void;
+  /** R pressed (open), released (use) or the mouse let go (cancel): the possessed's power wheel (GDD 14.2). */
+  onPowerWheel(state: "open" | "use" | "cancel"): void;
+  /** While the power wheel is open: the mouse moved, in pixels. */
+  onWheelMove(dx: number, dy: number): void;
 }
 
 /** Keys that walk: pressing one while working stops the work. */
@@ -46,6 +50,8 @@ export class PlayerInput {
    * flashlight, holding it moves the mouse into the task, and you cannot walk.
    */
   working = false;
+  /** The power wheel is open: the mouse picks a power instead of turning your head. */
+  wheelOpen = false;
   private handDown = false;
 
   constructor(private canvas: HTMLCanvasElement, private actions: InputActions) {
@@ -61,6 +67,7 @@ export class PlayerInput {
         if (e.code === "Digit1") actions.onFlashlight();
         return;
       }
+      if (e.code === "KeyR") actions.onPowerWheel("open");
       if (e.code === "KeyG") actions.onDropRelic();
       if (e.code === "KeyE") actions.onUse(true);
       if (e.code === "Digit1") actions.onFlashlight();
@@ -76,9 +83,11 @@ export class PlayerInput {
       this.keys.delete(e.code);
       if (e.code === "KeyE") actions.onUse(false);
       if (e.code === "Tab") actions.onStatusPanel(false);
+      if (e.code === "KeyR" && this.wheelOpen) actions.onPowerWheel("use");
     });
     window.addEventListener("blur", () => {
       this.keys.clear();
+      if (this.wheelOpen) actions.onPowerWheel("cancel");
       actions.onUse(false);
       actions.onStatusPanel(false);
     });
@@ -119,6 +128,7 @@ export class PlayerInput {
         if (this.working) actions.onStopWork();
         this.keys.clear();
         actions.onUse(false);
+        if (this.wheelOpen) actions.onPowerWheel("cancel");
         if (this.cameraRaised) {
           this.cameraRaised = false;
           actions.onCameraToggle(false);
@@ -131,6 +141,10 @@ export class PlayerInput {
       if (!this.looking) return;
       if (this.working && this.handDown) {
         actions.onHandMove(e.movementX, e.movementY);
+        return;
+      }
+      if (this.wheelOpen) {
+        actions.onWheelMove(e.movementX, e.movementY);
         return;
       }
       this.yaw -= e.movementX * MOUSE_SENSITIVITY;

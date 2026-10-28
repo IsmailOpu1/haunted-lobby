@@ -103,6 +103,7 @@ describe("floors and stairs", () => {
       huntEvent: () => {},
       ritualAt: () => null,
       takeSaltAt: () => false,
+      speedMult: () => 1,
     };
     const ghost = new Ghost(nav, world, { x: -4, z: 4 });
     const g = ghost as any; // drive its private movement directly

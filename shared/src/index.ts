@@ -13,3 +13,4 @@ export * from "./levels.ts";
 export * from "./sim/movement.ts";
 export * from "./sim/physics.ts";
 export * from "./roles.ts";
+export * from "./powers.ts";

@@ -36,6 +36,8 @@ export type Player = SchemaType<typeof Player>;
 
 export const Door = schema({
   open: t.boolean(),
+  /** Slammed and locked by a possessed player (GDD 14.2). */
+  locked: t.boolean(),
 }, "Door");
 export type Door = SchemaType<typeof Door>;
 
@@ -103,6 +105,10 @@ export const GameState = schema({
   /** Living, standing players in the circle, and how many it needs. */
   circleCount: t.uint8(),
   circleNeeded: t.uint8(),
+  /** Every light is out until someone fixes the fuse box or it comes back by itself (GDD 14.2). */
+  blackout: t.boolean(),
+  /** Black flames on the altar: seconds left to put them out, or 0 (GDD 11). */
+  taintLeft: t.float32(),
   /** "" while the match goes on, then "investigators" or "possessed" (GDD 18). */
   winner: t.string(),
   endReason: t.string(),

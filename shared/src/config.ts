@@ -37,7 +37,8 @@ export const config = {
   body: { radiusM: 0.3, heightM: 1.8 },
   interact: { rangeM: 2, reviveRangeM: 1.5, hideRangeM: 1.5 },
   health: { reviveSec: 5, bleedOutSec: 30, postReviveImmunitySec: 3 },
-  flashlight: { coneM: 12, darkVisionM: 2, flickerGhostM: 15, deadGhostM: 5, deadSec: 2 },
+  // coneHalfAngleDeg: how wide the beam is, for what it lights (the client's beam and a possessed's glowing eyes).
+  flashlight: { coneM: 12, coneHalfAngleDeg: 26, darkVisionM: 2, flickerGhostM: 15, deadGhostM: 5, deadSec: 2 },
   camera: {
     shotsPerPlayer: 1,
     shotOptions: [0, 1, 2, 3],
@@ -262,6 +263,8 @@ export const config = {
     summon: { unlockSec: 120, cooldownSec: 60, targetRangeM: 15, spawnMinM: 6, spawnMaxM: 10, whisperM: 5, eyeGlowSec: 1, protectAfterHitSec: 30 },
     blackout: { unlockAtPart: "restless", usesPerMatch: 1, fuseFixSec: 5, autoRestoreSec: 60 },
     cooldownSpeed: { slow: 1.25, normal: 1.0, fast: 0.75 },
+    // How often a possessed player is told their cooldowns and curse glow.
+    statusEverySec: 0.5,
   },
   meetings: {
     bellUsesPerPlayer: 1,

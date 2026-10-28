@@ -368,21 +368,52 @@ function fuseBoxModel(): THREE.Group {
 }
 
 /** The chalk circle around the altar (GDD 11): stand inside it to do the ritual. */
-const CIRCLE_COLORS = { waiting: 0x8a1c1c, ready: 0xd04a2a, running: 0xe0b25a };
+const CIRCLE_COLORS = { waiting: 0x8a1c1c, ready: 0xd04a2a, running: 0xe0b25a, tainted: 0x3a1048 };
+// Black flames on the altar while the ritual is Tainted (GDD 11). Visual tuning only.
+const FLAME_COUNT = 5;
+const FLAME_RING_M = 0.35;
+const FLAME_HEIGHT_M = 0.7;
+const ALTAR_TOP_M = 1;
+const FLAME_COLOR = 0x0b0410;
 
-/** The circle on the floor around the altar: dull red, brighter once the ritual is ready, gold while it runs. */
+/**
+ * The circle on the floor around the altar: dull red, brighter once the ritual is ready, gold while
+ * it runs, and dark purple with black flames on the altar while it is Tainted.
+ */
 export class RitualCircleView {
-  readonly mesh: THREE.Mesh;
+  readonly mesh = new THREE.Group();
   private material = new THREE.MeshBasicMaterial({ color: CIRCLE_COLORS.waiting });
+  private flames: THREE.Mesh[] = [];
 
   constructor() {
     const r = config.ritual.circleRadiusM;
-    this.mesh = new THREE.Mesh(new THREE.RingGeometry(r - 0.08, r, 64), this.material);
-    this.mesh.rotation.x = -Math.PI / 2;
-    this.mesh.position.y = 0.012;
+    const ring = new THREE.Mesh(new THREE.RingGeometry(r - 0.08, r, 64), this.material);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.012;
+    this.mesh.add(ring);
+    const flameMat = new THREE.MeshBasicMaterial({ color: FLAME_COLOR, transparent: true, opacity: 0.92 });
+    for (let i = 0; i < FLAME_COUNT; i++) {
+      const a = (i / FLAME_COUNT) * Math.PI * 2;
+      const flame = new THREE.Mesh(new THREE.ConeGeometry(0.09, FLAME_HEIGHT_M, 7), flameMat);
+      flame.position.set(Math.sin(a) * FLAME_RING_M, ALTAR_TOP_M + FLAME_HEIGHT_M / 2, Math.cos(a) * FLAME_RING_M);
+      flame.visible = false;
+      this.flames.push(flame);
+      this.mesh.add(flame);
+    }
   }
 
   setState(state: keyof typeof CIRCLE_COLORS) {
     this.material.color.setHex(CIRCLE_COLORS[state]);
+    for (const f of this.flames) f.visible = state === "tainted";
+  }
+
+  /** The flames lick up and down. */
+  render(time: number) {
+    this.flames.forEach((f, i) => {
+      if (!f.visible) return;
+      const s = 0.75 + 0.35 * Math.abs(Math.sin(time * 6 + i * 1.7));
+      f.scale.set(1, s, 1);
+      f.position.y = ALTAR_TOP_M + (FLAME_HEIGHT_M * s) / 2;
+    });
   }
 }

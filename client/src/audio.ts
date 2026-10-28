@@ -65,6 +65,10 @@ const BELL_PARTIALS = [
 ];
 const BELL_REF_DISTANCE_M = 4;
 const DOOR_REF_DISTANCE_M = 2;
+// The whisper you hear near someone who Summons (GDD 14.2).
+const WHISPER_SYLLABLES = 5;
+const WHISPER_SYLLABLE_SEC = 0.22;
+const WHISPER_LEVEL = 0.5;
 
 // A hidden relic's music box: a short, eerie tune on a celesta-like bell, played now and then.
 // Each note is [semitones from A4, beats after the phrase starts].
@@ -515,6 +519,60 @@ export class SoundScape {
     noise.connect(band).connect(gain).connect(out);
     noise.start(t);
     noise.stop(t + seconds);
+  }
+
+  /** A door slammed shut and locked (Slam Door, GDD 14.2): a heavy bang, then a latch. */
+  doorSlam(at: WorldPoint) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const out = this.placed(at, 1, DOOR_REF_DISTANCE_M * 3);
+    for (const [start, hz, q, level, seconds] of [
+      [0, 90, 0.8, 1.2, 0.4],
+      [0.22, 1600, 6, 0.35, 0.06],
+    ] as const) {
+      const noise = ctx.createBufferSource();
+      noise.buffer = this.noise;
+      const band = ctx.createBiquadFilter();
+      band.type = "bandpass";
+      band.Q.value = q;
+      band.frequency.value = hz;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(level, t + start);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + start + seconds);
+      noise.connect(band).connect(gain).connect(out);
+      noise.start(t + start);
+      noise.stop(t + start + seconds);
+    }
+  }
+
+  /** A breathy whisper close by: someone here just Summoned the ghost (GDD 14.2). */
+  powerWhisper(at: WorldPoint) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const out = this.placed(at, 1.5, 1);
+    const noise = ctx.createBufferSource();
+    noise.buffer = this.noise;
+    noise.loop = true;
+    const band = ctx.createBiquadFilter();
+    band.type = "bandpass";
+    band.Q.value = 3;
+    band.frequency.setValueAtTime(2600, t);
+    // Syllables: the pitch and the loudness wobble like speech.
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0, t);
+    for (let i = 0; i < WHISPER_SYLLABLES; i++) {
+      const s = t + i * WHISPER_SYLLABLE_SEC;
+      gain.gain.linearRampToValueAtTime(WHISPER_LEVEL, s + WHISPER_SYLLABLE_SEC * 0.3);
+      gain.gain.linearRampToValueAtTime(WHISPER_LEVEL * 0.15, s + WHISPER_SYLLABLE_SEC);
+      band.frequency.linearRampToValueAtTime(i % 2 ? 2200 : 3400, s + WHISPER_SYLLABLE_SEC);
+    }
+    const end = t + WHISPER_SYLLABLES * WHISPER_SYLLABLE_SEC;
+    gain.gain.linearRampToValueAtTime(0, end + 0.1);
+    noise.connect(band).connect(gain).connect(out);
+    noise.start(t);
+    noise.stop(end + 0.15);
   }
 
   /** A camera shutter and flash whine. With a position it comes from there; without, it is yours. */

@@ -868,3 +868,98 @@ body.ended #sound-cues {
 #start-box {
   margin: 10px 0 4px;
 }
+
+/* The possessed's powers (GDD 14.2): cooldowns along the bottom, and the wheel while R is held. */
+#powers-bar {
+  position: fixed;
+  /* Above the Esc hint. */
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: calc(100vw - 32px);
+  pointer-events: none;
+}
+
+.power {
+  padding: 3px 8px;
+  font-size: 13px;
+  background: var(--panel);
+  border: 1px solid #5a2a2a;
+  border-radius: 4px;
+  color: #e08a7e;
+}
+
+.power.cooldown,
+.power.locked,
+.power.used {
+  color: var(--muted);
+  border-color: #333;
+}
+
+.power.curse {
+  color: #ff5a4a;
+  border-color: #ff5a4a;
+}
+
+#power-wheel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 300px;
+  height: 300px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(40, 6, 6, 0.55) 0 22%, rgba(12, 6, 8, 0.82) 23% 100%);
+  pointer-events: none;
+}
+
+#power-wheel .sector {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 110px;
+  padding: 6px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  border-radius: 6px;
+  transform: translate(-50%, -50%);
+}
+
+#power-wheel .sector strong {
+  font-size: 15px;
+  color: #e08a7e;
+}
+
+#power-wheel .sector.cooldown strong,
+#power-wheel .sector.locked strong,
+#power-wheel .sector.used strong {
+  color: var(--muted);
+}
+
+#power-wheel .sector.selected {
+  background: rgba(196, 85, 74, 0.35);
+  outline: 1px solid #c4554a;
+}
+
+#power-wheel .at-0 { left: 50%; top: 17%; }
+#power-wheel .at-1 { left: 80%; top: 50%; }
+#power-wheel .at-2 { left: 50%; top: 83%; }
+#power-wheel .at-3 { left: 20%; top: 50%; }
+
+#power-wheel .wheel-hint {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 8px);
+  width: 220px;
+  transform: translateX(-50%);
+  font-size: 11px;
+  text-align: center;
+  color: var(--muted);
+}
