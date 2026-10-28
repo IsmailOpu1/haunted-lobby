@@ -31,7 +31,8 @@ export interface ServerMessages {
   /** The ghost's service bell rang in a room (the Bellboy, GDD 12.5). Everyone hears it, from the room's middle. */
   bellRing: { x: number; z: number };
   /** The match is over (GDD 18): who won, why, and every player's role, now shown to all (GDD 19). */
-  matchEnd: { winner: Team; reason: EndReason; roles: { name: string; role: Role }[] };
+  /** Every photo of the night is shown on the end screen, developed or not (GDD 19). */
+  matchEnd: { winner: Team; reason: EndReason; roles: { name: string; role: Role }[]; photos: DevelopedPhoto[] };
   /** How to join the voice room, or disabled when this server has no voice keys. */
   voice: { url: string; token: string } | { disabled: true };
   /**
@@ -47,6 +48,8 @@ export interface ServerMessages {
   flash: { x: number; z: number; by: string };
   /** Your photo was taken. It develops by the next meeting; nobody sees it before then. */
   photoTaken: { shotsLeft: number };
+  /** The photos taken since the last meeting, shown to everyone as the meeting starts (GDD 15.2). */
+  photosDeveloped: { photos: DevelopedPhoto[] };
   /**
    * Your role, sent only to you when the countdown ends (GDD 4.1). partners: the other possessed
    * players' names, if you are possessed and Possessed know each other is on.
@@ -146,6 +149,20 @@ export interface ClientMessages {
   start: undefined;
   /** Use a power (possessed only). target: the door for Slam Door, the player for Summon. */
   power: { kind: import("./powers.ts").PowerKind; target?: string };
+}
+
+/** A Spirit Camera photo as everyone sees it once it develops (GDD 15.2). */
+export interface DevelopedPhoto {
+  /** The photographer's name, and the night time the photo was taken. */
+  by: string;
+  nightTime: number;
+  /**
+   * Who is in it: frameX from -1 (left edge) to 1 (right edge), dist in metres. demon: a possessed
+   * player with the curse glow, who shows a demon face.
+   */
+  subjects: { name: string; frameX: number; dist: number; demon: boolean }[];
+  /** The ghost, if it was in the frame: scary, but it tells nothing about roles. */
+  ghost: { frameX: number; dist: number } | null;
 }
 
 export interface PowerStatus {

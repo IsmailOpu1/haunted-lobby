@@ -11,6 +11,7 @@ import {
 import { defaultMap } from "@haunted/maps";
 import { FloorPlan } from "./floorplan.ts";
 import { Game, POWER_NAMES } from "./game.ts";
+import { photoCard } from "./photoView.ts";
 import { createRoom, joinRoom } from "./network.ts";
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -168,6 +169,10 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     }
     powersBar.replaceChildren(...chips);
   },
+  addPhotos: (photos) => {
+    el("photos-box").classList.remove("hidden");
+    el("photo-list").append(...photos.map(photoCard));
+  },
   showPowerWheel: (wheel) => {
     powerWheel.classList.toggle("hidden", !wheel);
     if (!wheel) return;
@@ -305,6 +310,8 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
         return li;
       }),
     );
+    el("end-photos-box").classList.toggle("hidden", end.photos.length === 0);
+    el("end-photos").replaceChildren(...end.photos.map(photoCard));
   },
   showStatusPanel: (open) => statusPanel.classList.toggle("hidden", !open),
   setWorkHint: (text) => {

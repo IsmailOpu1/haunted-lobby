@@ -26,6 +26,8 @@ import {
   matchResult,
   pickPossessed,
   possessedCount,
+  inPhotoFrame,
+  type DevelopedPhoto,
   POWER_KINDS,
   powerCooldownSec,
   powerUnlocked,
@@ -155,11 +157,10 @@ interface RelicSim {
 const VOICE_SIGHT_HEIGHT_M = 1.6;
 
 /** A Spirit Camera photo: who was in the frame and whether each shows as cursed. */
+/** A photo as taken: names are kept, so it still develops if someone leaves or dies (GDD 15.2). */
 interface PhotoRecord {
-  by: string;
-  nightTime: number;
-  subjects: { id: string; cursed: boolean }[];
-  ghostInFrame: boolean;
+  photo: DevelopedPhoto;
+  developed: boolean;
 }
 
 const ACTION_SECONDS: Record<Action["kind"], number> = {
@@ -350,7 +351,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     });
 
     if (DEBUG) {
-      this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number; teleport?: { x: number; z: number }; giveTask?: string; hideRelicAt?: string; toggleGhost?: boolean; possessed?: boolean; startNow?: boolean }) => {
+      this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number; teleport?: { x: number; z: number }; giveTask?: string; hideRelicAt?: string; toggleGhost?: boolean; possessed?: boolean; startNow?: boolean; developPhotos?: boolean; curse?: boolean }) => {
         if (typeof msg?.nightTime === "number") this.state.nightTime = msg.nightTime;
         // Swap your first task for this station's (to try a particular task).
         const mine = this.sims.get(client.sessionId);
@@ -378,6 +379,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
           this.dealRoles();
           this.startNight();
         }
+        // Stands in for a meeting starting, until meetings are built.
+        if (msg?.developPhotos) this.developPhotos();
+        // Start your curse glow without using a power (to try the camera).
+        if (mine && msg?.curse) mine.curseLeft = config.camera.curseGlowSec;
         if (msg?.down) this.downPlayer(client.sessionId);
         const player = this.state.players.get(client.sessionId);
         if (player && typeof msg?.bleedLeft === "number") player.bleedLeft = msg.bleedLeft;
@@ -819,7 +824,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.ghost.update(0, "dawn", this.state.players.size);
     const roles: ServerMessages["matchEnd"]["roles"] = [];
     this.state.players.forEach((p, id) => roles.push({ name: p.name, role: this.sims.get(id)?.role ?? "investigator" }));
-    const msg: ServerMessages["matchEnd"] = { ...result, roles };
+    const msg: ServerMessages["matchEnd"] = { ...result, roles, photos: this.photos.map((p) => p.photo) };
     this.broadcast("matchEnd", msg);
   }
 
@@ -1531,26 +1536,24 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     if (!player || player.health !== "alive" || player.cameraShots <= 0 || !this.playing) return;
     player.cameraShots -= 1;
     const c = config.camera;
-    const halfFov = ((c.photoFovDeg / 2) * Math.PI) / 180;
-    const inFrame = (x: number, z: number) => {
-      const dist = Math.hypot(x - player.x, z - player.z);
-      if (dist > c.captureRangeM || dist < 1e-6) return false;
-      const angleTo = Math.atan2(-(x - player.x), -(z - player.z));
-      if (Math.abs(normalizeAngle(angleTo - player.yaw)) > halfFov) return false;
-      return this.physics.lineOfSight(player, { x, z }, VOICE_SIGHT_HEIGHT_M);
+    // In the frame, within captureRangeM, and not behind a wall.
+    const inFrame = (at: { x: number; z: number }) => {
+      const spot = inPhotoFrame(player, at);
+      return spot && this.physics.lineOfSight(player, at, VOICE_SIGHT_HEIGHT_M) ? spot : null;
     };
 
-    const subjects: PhotoRecord["subjects"] = [];
+    const subjects: DevelopedPhoto["subjects"] = [];
     this.state.players.forEach((p, id) => {
-      if (id !== sessionId && !p.hidingSpot && inFrame(p.x, p.z)) subjects.push({ id, cursed: false });
+      const spot = id !== sessionId && !p.hidingSpot ? inFrame(p) : null;
+      if (!spot) return;
+      // The demon face: a possessed player within their curse glow (GDD 15.2). Decided now, shown later.
+      const sim = this.sims.get(id);
+      subjects.push({ name: p.name, ...spot, demon: sim?.role === "possessed" && sim.curseLeft > 0 });
     });
+    subjects.sort((a, b) => a.frameX - b.frameX);
     const ghostPresent = this.ghost.state !== "asleep" && this.ghost.state !== "gone" && this.ghost.state !== "retreat";
-    this.photos.push({
-      by: sessionId,
-      nightTime: this.state.nightTime,
-      subjects,
-      ghostInFrame: ghostPresent && this.ghost.visible && inFrame(this.ghost.x, this.ghost.z),
-    });
+    const ghost = ghostPresent && this.ghost.visible ? inFrame(this.ghost) : null;
+    this.photos.push({ photo: { by: player.name, nightTime: this.state.nightTime, subjects, ghost }, developed: false });
 
     const flash: ServerMessages["flash"] = { x: player.x, z: player.z, by: sessionId };
     for (const client of this.clients) {
@@ -1560,6 +1563,17 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.noises.push({ x: player.x, z: player.z, radiusM: c.flashGhostHearM });
     const taken: ServerMessages["photoTaken"] = { shotsLeft: player.cameraShots };
     this.clients.find((cl) => cl.sessionId === sessionId)?.send("photoTaken", taken);
+  }
+
+  /**
+   * The photos taken since the last meeting develop and are shown to everyone (GDD 15.2). The
+   * meeting calls this as it starts; until meetings are built, a debug message does.
+   */
+  private developPhotos() {
+    const fresh = this.photos.filter((p) => !p.developed);
+    for (const p of fresh) p.developed = true;
+    const msg: ServerMessages["photosDeveloped"] = { photos: fresh.map((p) => p.photo) };
+    this.broadcast("photosDeveloped", msg);
   }
 
   /** The door within reach of a player, nearest first. Never the relic door, which cannot be worked by hand. */

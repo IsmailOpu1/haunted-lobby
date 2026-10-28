@@ -882,5 +882,8 @@ The owner found the hotel a maze: several rooms had 3 or 4 doors, many of them s
 | The eye glow | Players whose lit flashlight points at the Summoner (12 m, 26° half-angle) see their eyes glow red for 1 s | 14.2 says "in light"; the beam is the only light that moves |
 | Blackout | Once per match for the whole possessed team, not once each | One blackout per possessed player would make it common with 2 possessed |
 | Taint | Only from inside the circle, once the ritual is 20% done; 2 per match for the team, 45 s apart. The flames last 5 s. Any player in the circle with salt can hold E for 2 s to put them out, using 1 salt. Not put out: progress halves | 11 gives the numbers; these are how they meet |
-| Curse glow | Tracked on the server for 10 s after any power, and shown privately to the possessed. The camera's demon face uses it once photos develop (later in Phase 6) | 15.2 |
+| Curse glow | Tracked on the server for 10 s after any power, and shown privately to the possessed | 15.2 |
+| The demon face | Decided the moment the shutter clicks: a possessed player in the frame (60°), within 10 m, not behind a wall, with curse glow left. The photo keeps names, so it still develops if the photographer or the subject dies or leaves | 15.2 |
+| What a photo shows | A drawn print: each player in the frame as a dark figure with their name under it (everyone looks alike until characters come), the demon face on a cursed one, the ghost as a pale shape. Caption: the photographer and the clock time | Every body is the same grey shape for now, so a name is the only way to tell who is in it |
+| Where photos are seen | When they develop, everyone gets a banner and the prints appear in the room panel (Esc), where they stay for the rest of the night. Until meetings are built, a debug message stands in for "the next meeting". Every photo, developed or not, is on the end screen | The meeting screen does not exist yet |
 

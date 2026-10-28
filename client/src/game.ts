@@ -134,6 +134,8 @@ export interface GameHud {
   setPowers(list: PowerStatus[] | null, curseLeft: number): void;
   /** The power wheel while R is held, or null when it is closed. */
   showPowerWheel(wheel: PowerWheelView | null): void;
+  /** Photos that just developed, for everyone (GDD 15.2). */
+  addPhotos(photos: ServerMessages["photosDeveloped"]["photos"]): void;
 }
 
 /** The power wheel: each power in WHEEL_ORDER (clockwise from the top), and the one the mouse points at. */
@@ -501,6 +503,12 @@ export class Game {
       this.powers = msg.list;
       this.hud.setPowers(msg.list, msg.curseLeft);
       if (this.wheel) this.showWheel();
+    });
+    room.onMessage("photosDeveloped", (msg: ServerMessages["photosDeveloped"]) => {
+      if (msg.photos.length === 0) return;
+      this.hud.addPhotos(msg.photos);
+      const n = msg.photos.length;
+      this.hud.showBanner(`${n} photo${n === 1 ? "" : "s"} developed. Press Esc to see ${n === 1 ? "it" : "them"}.`, 4);
     });
     room.onMessage("powerRefused", (msg: ServerMessages["powerRefused"]) => this.hud.showBanner(`${POWER_NAMES[msg.kind]}: ${msg.reason}`, 3));
     room.onMessage("powerWhisper", (msg: ServerMessages["powerWhisper"]) => this.sound.powerWhisper(this.place(msg)));

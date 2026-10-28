@@ -963,3 +963,34 @@ body.ended #sound-cues {
   text-align: center;
   color: var(--muted);
 }
+
+/* Developed Spirit Camera photos (GDD 15.2): in the room panel and on the end screen. */
+.photo-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.photo {
+  margin: 0;
+  padding: 6px 6px 4px;
+  background: #e9e1d0;
+  border-radius: 2px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+
+.photo canvas {
+  display: block;
+  width: 100%;
+  max-width: 280px;
+  height: auto;
+}
+
+.photo figcaption {
+  padding-top: 4px;
+  font-size: 12px;
+  color: #2a241c;
+  text-align: center;
+}

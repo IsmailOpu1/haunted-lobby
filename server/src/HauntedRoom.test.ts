@@ -369,6 +369,48 @@ describe("HauntedRoom", () => {
     await Promise.all([a.leave(), b.leave()]);
   });
 
+  it("shows a demon face only on a possessed player photographed in their curse glow, once the photos develop (GDD 15.2)", async () => {
+    const ghoul = await new Client(endpoint).create(ROOM_NAME, { name: "Ghoul" });
+    const a = await new Client(endpoint).joinById(ghoul.roomId, { name: "Rafi" });
+    const c = await new Client(endpoint).joinById(ghoul.roomId, { name: "Mim" });
+    for (const r of [ghoul, a, c]) r.onMessage("*", () => {});
+    ghoul.send("debug", { possessed: true });
+    await new Promise((r) => setTimeout(r, 100));
+    await night(ghoul);
+    const developed = [ghoul, a, c].map((r) => collectMsgs(r, "photosDeveloped"));
+    // Two photographers side by side, looking north (yaw 0) at the possessed 4 m away.
+    const at = marrowHotelGreybox.spawns[0]!;
+    const place = (r: Room, x: number, z: number) => r.send("debug", { teleport: { x, z } });
+    place(a, at.x, at.z);
+    place(c, at.x + 0.6, at.z);
+    place(ghoul, at.x + 0.3, at.z - 4);
+    await new Promise((r) => setTimeout(r, 300));
+
+    c.send("photo"); // no curse glow yet
+    await waitFor(() => c.state.players.get(c.sessionId).cameraShots === 0);
+    ghoul.send("debug", { curse: true });
+    await new Promise((r) => setTimeout(r, 150));
+    a.send("photo");
+    await waitFor(() => a.state.players.get(a.sessionId).cameraShots === 0);
+    // Nobody sees a photo before it develops, not even the photographer.
+    await new Promise((r) => setTimeout(r, 300));
+    expect(developed.every((d) => d.length === 0)).toBe(true);
+
+    a.send("debug", { developPhotos: true });
+    await waitFor(() => developed.every((d) => d.length === 1));
+    const photos = developed[1]![0]!.photos;
+    expect(photos.map((p) => p.by)).toEqual(["Mim", "Rafi"]);
+    expect(photos[0]!.subjects.find((s) => s.name === "Ghoul")).toMatchObject({ demon: false });
+    expect(photos[1]!.subjects.find((s) => s.name === "Ghoul")).toMatchObject({ demon: true });
+    // The investigators in the frame never show one.
+    expect(photos[1]!.subjects.filter((s) => s.name !== "Ghoul").every((s) => !s.demon)).toBe(true);
+    // A photo develops once.
+    a.send("debug", { developPhotos: true });
+    await waitFor(() => developed[1]!.length === 2);
+    expect(developed[1]![1]!.photos).toHaveLength(0);
+    await Promise.all([ghoul.leave(), a.leave(), c.leave()]);
+  });
+
   it("gives 3 tasks in different rooms, refuses a too-fast finish, and counts a real one", async () => {
     // Use the clock, in the Main Hall where players start (no doors to open).
     const { room, tasks } = await createWithTask((id) => id === "task-clock");
@@ -749,7 +791,7 @@ describe("HauntedRoom", () => {
     server.state.ritualProgress = 99;
 
     await waitFor(() => ends.length === 1);
-    expect(ends[0]).toEqual({ winner: "investigators", reason: "ritual", roles: [{ name: "Sam", role: "investigator" }, { name: "Mim", role: "investigator" }] });
+    expect(ends[0]).toEqual({ winner: "investigators", reason: "ritual", roles: [{ name: "Sam", role: "investigator" }, { name: "Mim", role: "investigator" }], photos: [] });
     await waitFor(() => a.state.winner === "investigators");
     expect(a.state.part).toBe("dawn");
 

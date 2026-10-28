@@ -403,7 +403,7 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 - Bell, body reports, meeting steps, voting, removal (GDD 16)
 - Wisps, Wisp voice, Ouija board (GDD 17)
 - **Done when:** a possessed player can sabotage, a careful team can catch them with clues or a photo, and a vote removes them.
-- **Progress:** role assignment, private role messages, the 10 s intro and fair rotation built 2026-10-28, with a host Start button ahead of Phase 7 (GDD 26.12). The power wheel and the four powers (Slam Door, Summon, Blackout, Taint) built 2026-10-28 (GDD 26.12).
+- **Progress:** role assignment, private role messages, the 10 s intro and fair rotation built 2026-10-28, with a host Start button ahead of Phase 7 (GDD 26.12). The power wheel and the four powers (Slam Door, Summon, Blackout, Taint) built 2026-10-28 (GDD 26.12). The camera's curse-glow check and photos that develop at the next meeting built 2026-10-28; until meetings exist, a debug message develops them (GDD 26.12).
 
 **Phase 7: Lobby, settings and stability (about 3 weeks)**
 - Lobby: code, link, characters, mic check, ready, host controls (GDD 5)
