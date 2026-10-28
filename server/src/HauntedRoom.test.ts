@@ -1258,4 +1258,56 @@ describe("HauntedRoom", () => {
       await Promise.all(rooms.map((r) => r.leave()));
     }, 10000);
   });
+
+  // PRD Phase 6 "Done when": a possessed player sabotages, the team catches them with a photo, and a vote removes them.
+  it("catches the possessed: a slammed door, a photo with the demon face, a vote, and the ghost turns Furious (GDD 14 to 18)", async () => {
+    const ghoul = await new Client(endpoint).create(ROOM_NAME, { name: "Ghoul" });
+    const mim = await new Client(endpoint).joinById(ghoul.roomId, { name: "Mim" });
+    const nila = await new Client(endpoint).joinById(ghoul.roomId, { name: "Nila" });
+    const rooms = [ghoul, mim, nila];
+    for (const r of rooms) r.onMessage("*", () => {});
+    ghoul.send("debug", { possessed: true });
+    await new Promise((r) => setTimeout(r, 100));
+    await night(ghoul);
+    ghoul.send("debug", { nightTime: config.powers.slamDoor.unlockSec + 1 });
+    const me = (r: Room) => r.state.players.get(r.sessionId);
+    const place = (r: Room, x: number, z: number) => r.send("debug", { teleport: { x, z } });
+
+    // The possessed slams the Main Hall's front door. Mim stands behind them, looking north (yaw 0) at them.
+    const def = marrowHotelGreybox.doors.find((d) => d.id === "hall-front")!;
+    place(ghoul, def.x, def.z + 2);
+    place(mim, def.x, def.z + 5);
+    await new Promise((r) => setTimeout(r, 300));
+    ghoul.send("power", { kind: "slamDoor", target: def.id });
+    await waitFor(() => ghoul.state.doors.get(def.id).locked === true);
+    mim.send("photo");
+    await waitFor(() => me(mim).cameraShots === 0);
+
+    // The bell: the photo develops for everyone with the demon face on the Ghoul.
+    const developed = collectMsgs(nila, "photosDeveloped");
+    const results = collectMsgs(nila, "meetingResult");
+    ghoul.send("debug", { meeting: true });
+    await waitFor(() => developed.length === 1);
+    expect(developed[0]!.photos[0]!.by).toBe("Mim");
+    expect(developed[0]!.photos[0]!.subjects.find((s) => s.name === "Ghoul")).toMatchObject({ demon: true });
+
+    // The vote removes them, and their role is shown.
+    for (const step of ["discussion", "vote"]) {
+      ghoul.send("debug", { skipStep: true });
+      await waitFor(() => ghoul.state.meeting === step);
+    }
+    mim.send("vote", { target: ghoul.sessionId });
+    nila.send("vote", { target: ghoul.sessionId });
+    ghoul.send("vote", { target: "skip" });
+    await waitFor(() => results.length === 1);
+    expect(results[0]).toMatchObject({ removed: "Ghoul", role: "possessed" });
+    ghoul.send("debug", { skipStep: true });
+    await waitFor(() => ghoul.state.meeting === "");
+    expect(me(ghoul).health).toBe("dead");
+
+    // The match goes on: the investigators must still finish the ritual, against a Furious ghost.
+    await waitFor(() => nila.state.part === "furious");
+    expect(nila.state.winner).toBe("");
+    await Promise.all(rooms.map((r) => r.leave()));
+  }, 15000);
 });

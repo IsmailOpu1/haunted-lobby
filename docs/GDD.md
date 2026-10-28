@@ -899,5 +899,6 @@ The owner found the hotel a maze: several rooms had 3 or 4 doors, many of them s
 | What a Wisp sees | Itself as a soft blue light around the camera, other Wisps as floating lights, and every body. The living never see Wisps, and Wisps never show in photos | 17: invisible to the living |
 | The Ouija board | On the meeting screen whenever anyone is dead: one slot per living player plus "I don't know". During Evidence each Wisp can push it once; everyone sees it move and a line "The planchette moves: Mim." It never says which Wisp pushed it. Later pushes move it again | 17 says everyone sees where it moves, not who moved it, so it is anonymous like a real board |
 | Wisp voice | The dead hear only the dead, in meetings too, at full volume regardless of distance | 17. Already built in Phase 3 (26.7) |
+| Every possessed gone | Once every player dealt the possessed role is dead (voted out, bled out) or has left, the ghost is Furious for the rest of the night, and the night bar says so. Not at dawn | 18 says the ghost becomes Furious but not for how long |
 | Known limit | Wisp positions travel in the shared room state, so a modified game could show Wisps to the living. Normal players cannot see them | Hiding them per player needs state filtering; revisit with the other anti-cheat work before public release (PRD 10.3) |
 

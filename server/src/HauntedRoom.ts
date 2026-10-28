@@ -226,6 +226,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private timesPossessed = new Map<string, number>();
   /** Debug servers only: everyone is possessed, so counting the living cannot end the match. */
   private noInvestigators = false;
+  /** Someone was dealt the possessed role this night. */
+  private possessedDealt = false;
   // Powers shared by the possessed team (GDD 14.2, 11).
   private blackoutUsed = false;
   private blackoutLeft = 0;
@@ -583,6 +585,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       this.tickRitual(elapsedSec);
       this.state.nightTime = Math.min(this.state.nightTime + elapsedSec, this.state.nightLength);
       let part = nightPart(this.state.nightTime, this.state.nightLength);
+      // With every possessed player gone, the ghost turns Furious for the rest of the night (GDD 18).
+      if (part !== "dawn" && this.possessedGone()) part = "furious";
       if (part === "dawn" && this.overtimeHolds()) {
         // Overtime: the night waits while the ritual can still finish (GDD 4). The ghost stays furious.
         this.overtimeUsed += elapsedSec;
@@ -647,6 +651,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       this.state.tasksTotal -= sim.tasks.filter((t) => !t.done).length;
     }
     this.noInvestigators = picked.length === ids.length;
+    this.possessedDealt = picked.length > 0;
     const names = (list: string[]) => list.map((id) => this.state.players.get(id)?.name ?? "");
     for (const client of this.clients) {
       const sim = this.sims.get(client.sessionId);
@@ -1035,6 +1040,13 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       if (p.health === "alive" && !p.hidingSpot && this.hearingDistance(p, altar) <= config.ritual.circleRadiusM) count++;
     });
     return count;
+  }
+
+  /** Every player dealt the possessed role is dead or has left. */
+  private possessedGone(): boolean {
+    if (!this.possessedDealt) return false;
+    for (const [id, p] of this.state.players) if (p.health !== "dead" && this.sims.get(id)?.role === "possessed") return false;
+    return true;
   }
 
   /** Ends the match once someone has won (GDD 18). Checked after the ritual, so finishing at dawn wins. */
