@@ -24,6 +24,10 @@ import {
   ritualRatePct,
   nearestRoom,
   matchResult,
+  pickPossessed,
+  possessedCount,
+  type Role,
+  type Stage,
   worldDistance,
   PhysicsWorld,
   sanitizeInput,
@@ -103,6 +107,10 @@ interface PlayerSim {
   micCheck: { samples: number[]; elapsed: number } | null;
   // Tasks (GDD Section 9).
   tasks: { stationId: string; done: boolean }[];
+  /** Private (PRD 10.3): never put in the shared state. Everyone is an investigator until the countdown ends. */
+  role: Role;
+  /** Debug servers only: possessed whatever the count, to test alone. */
+  wantsPossessed: boolean;
   /** The minigame open right now (a task, or taking a relic from a spot), and for how long. */
   /**
    * The task or search open in the player's hands. stationId is the task station, or the place
@@ -173,6 +181,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private relicTimer = 0;
   /** Test shortcut (debug servers only): the ghost is sent away. */
   private ghostPaused = false;
+  /** How often each player has been possessed this session, for fair rotation (GDD 19). */
+  private timesPossessed = new Map<string, number>();
+  /** Debug servers only: everyone is possessed, so counting the living cannot end the match. */
+  private noInvestigators = false;
 
   async onCreate() {
     // The 5-letter room code is the Colyseus room id, so friends join with joinById(code).
@@ -207,6 +219,9 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       this.relics.push({ id, spotId: spot.id, placeId: place.id, x: place.x, z: place.z, status: "hidden" });
       this.state.relics.set(id, new Relic({ name: this.map.relicNames[i] ?? `Relic ${i + 1}`, status: "hidden", carrier: "" }));
     });
+    this.state.stage = "waiting" satisfies Stage;
+    this.state.stageLeft = 0;
+    this.state.host = "";
     this.state.tasksDone = 0;
     this.state.tasksTotal = 0;
     this.state.nightLength = config.match.lengthMin * 60;
@@ -267,12 +282,13 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.onMessage("pourSalt", (client) => {
       const sim = this.sims.get(client.sessionId);
       const player = this.state.players.get(client.sessionId);
-      if (!sim || !player || sim.action) return;
+      if (!sim || !player || sim.action || !this.playing) return;
       if (player.health !== "alive" || player.hidingSpot || player.salt <= 0) return;
       this.setAction(sim, player, { kind: "salt", elapsed: 0 });
     });
 
     this.onMessage("photo", (client) => this.takePhoto(client.sessionId));
+    this.onMessage("start", (client) => this.startCountdown(client));
 
     this.onMessage("tasksRequest", (client) => this.sendTasks(client.sessionId));
     this.onMessage("taskDone", (client, msg: unknown) => {
@@ -294,7 +310,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     });
 
     if (DEBUG) {
-      this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number; teleport?: { x: number; z: number }; giveTask?: string; hideRelicAt?: string; toggleGhost?: boolean }) => {
+      this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number; teleport?: { x: number; z: number }; giveTask?: string; hideRelicAt?: string; toggleGhost?: boolean; possessed?: boolean; startNow?: boolean }) => {
         if (typeof msg?.nightTime === "number") this.state.nightTime = msg.nightTime;
         // Swap your first task for this station's (to try a particular task).
         const mine = this.sims.get(client.sessionId);
@@ -313,6 +329,14 @@ export class HauntedRoom extends Room<{ state: GameState }> {
           this.ghost.debugPause(this.ghostPaused);
           const paused: ServerMessages["debugGhost"] = { paused: this.ghostPaused };
           this.broadcast("debugGhost", paused);
+        }
+        // Be possessed whatever the player count (set before the night starts).
+        const me = this.sims.get(client.sessionId);
+        if (me && msg?.possessed && this.state.stage === "waiting") me.wantsPossessed = true;
+        // Skip the countdown and intro: roles are dealt and the night starts now.
+        if (msg?.startNow && (this.state.stage === "waiting" || this.state.stage === "countdown")) {
+          this.dealRoles();
+          this.startNight();
         }
         if (msg?.down) this.downPlayer(client.sessionId);
         const player = this.state.players.get(client.sessionId);
@@ -333,6 +357,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   onJoin(client: Client, options?: JoinOptions) {
     const name = cleanPlayerName(options?.name);
     if (!name) throw new Error(`Name must be 1 to ${config.room.nameMaxLength} characters`);
+    // Nobody can join after the countdown starts (GDD 5).
+    if (this.state.stage !== "waiting") throw new Error("This night has already started");
 
     const spawn = this.map.spawns[this.spawnIndex++ % this.map.spawns.length]!;
     const body = this.physics.addBody();
@@ -360,6 +386,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       micDeadSec: 0,
       micLost: false,
       micCheck: null,
+      role: "investigator",
+      wantsPossessed: false,
     });
 
     this.state.players.set(
@@ -388,8 +416,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       }),
     );
     this.state.tasksTotal += this.sims.get(client.sessionId)!.tasks.length;
-    // The night starts when the first player arrives. The lobby and Start button come in Phase 7.
-    this.nightStarted = true;
+    if (!this.state.host) this.state.host = client.sessionId;
     this.announce("join", name, `${name} joined the room`);
     // The voice pass is sent when the client asks ("voiceRequest"), not here: a message sent
     // during the join can reach the client before it has started listening, and be lost.
@@ -419,6 +446,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
     this.state.players.delete(client.sessionId);
+    // The host's rights pass to whoever has waited longest (GDD 5).
+    if (this.state.host === client.sessionId) this.state.host = this.state.players.keys().next().value ?? "";
     this.announce("leave", player.name, `${player.name} left the room`);
   }
 
@@ -435,6 +464,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     }
     // The match is over: everything stops but voice, so everyone can talk it over.
     if (this.state.winner) return;
+    this.tickStage(elapsedSec);
 
     for (const [sessionId, sim] of this.sims) {
       const player = this.state.players.get(sessionId);
@@ -465,6 +495,69 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       this.relicTimer = 0;
       this.sendRelicsNear();
     }
+  }
+
+  // ---------- Starting the night (GDD 4.1 and 5) ----------
+
+  private startCountdown(client: Client) {
+    if (client.sessionId !== this.state.host || this.state.stage !== "waiting") return;
+    // Debug servers may start with fewer players, to test alone.
+    if (this.state.players.size < config.players.min && !DEBUG) {
+      const msg: ServerMessages["startRefused"] = { reason: `At least ${config.players.min} players are needed to start.` };
+      client.send("startRefused", msg);
+      return;
+    }
+    this.state.stage = "countdown" satisfies Stage;
+    this.state.stageLeft = config.match.countdownSec;
+  }
+
+  /** The countdown, then roles and the intro, then the night. */
+  private tickStage(dt: number) {
+    if (this.state.stage !== "countdown" && this.state.stage !== "intro") return;
+    this.state.stageLeft = Math.max(0, this.state.stageLeft - dt);
+    if (this.state.stageLeft > 0) return;
+    if (this.state.stage === "countdown") {
+      this.dealRoles();
+      this.state.stage = "intro" satisfies Stage;
+      this.state.stageLeft = config.match.introSec;
+    } else {
+      this.startNight();
+    }
+  }
+
+  /** Picks the possessed (GDD 3, 19) and tells each player their role, privately. */
+  private dealRoles() {
+    const ids = [...this.sims.keys()];
+    const forced = ids.filter((id) => this.sims.get(id)!.wantsPossessed);
+    const count = Math.max(0, possessedCount(ids.length) - forced.length);
+    const picked = [...forced, ...pickPossessed(ids.filter((id) => !forced.includes(id)), this.timesPossessed, count)];
+    for (const id of picked) {
+      const sim = this.sims.get(id)!;
+      sim.role = "possessed";
+      this.timesPossessed.set(id, (this.timesPossessed.get(id) ?? 0) + 1);
+      // The possessed's tasks are fake: they leave the team bar (GDD 9).
+      this.state.tasksTotal -= sim.tasks.filter((t) => !t.done).length;
+    }
+    this.noInvestigators = picked.length === ids.length;
+    const names = (list: string[]) => list.map((id) => this.state.players.get(id)?.name ?? "");
+    for (const client of this.clients) {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) continue;
+      const partners = sim.role === "possessed" && config.possessed.knowEachOther ? names(picked.filter((id) => id !== client.sessionId)) : [];
+      const msg: ServerMessages["role"] = { role: sim.role, partners };
+      client.send("role", msg);
+    }
+  }
+
+  private startNight() {
+    this.state.stage = "night" satisfies Stage;
+    this.state.stageLeft = 0;
+    this.nightStarted = true;
+  }
+
+  /** Tasks, relics, items and hiding wait for the night; before it you can only walk about and use doors. */
+  private get playing(): boolean {
+    return this.state.stage === "night" && !this.state.winner;
   }
 
   // ---------- The ritual (GDD Section 11) ----------
@@ -499,8 +592,12 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.state.players.forEach((p) => {
       if (p.health !== "dead") living++;
     });
-    // Everyone is an investigator until the possessed come in Phase 6.
-    const result = matchResult({ ritualComplete: this.state.ritualProgress >= 100, dawn, livingInvestigators: living, livingPossessed: 0 });
+    let livingPossessed = 0;
+    this.state.players.forEach((p, id) => {
+      if (p.health !== "dead" && this.sims.get(id)?.role === "possessed") livingPossessed++;
+    });
+    const counted = this.noInvestigators ? { livingInvestigators: 1, livingPossessed: 0 } : { livingInvestigators: living - livingPossessed, livingPossessed };
+    const result = matchResult({ ritualComplete: this.state.ritualProgress >= 100, dawn, ...counted });
     if (!result) return;
     this.state.winner = result.winner;
     this.state.endReason = result.reason;
@@ -508,7 +605,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.state.overtime = false;
     this.ghost.update(0, "dawn", this.state.players.size);
     const roles: ServerMessages["matchEnd"]["roles"] = [];
-    this.state.players.forEach((p) => roles.push({ name: p.name, role: "investigator" }));
+    this.state.players.forEach((p, id) => roles.push({ name: p.name, role: this.sims.get(id)?.role ?? "investigator" }));
     const msg: ServerMessages["matchEnd"] = { ...result, roles };
     this.broadcast("matchEnd", msg);
   }
@@ -739,6 +836,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const player = this.state.players.get(sessionId);
     if (!sim || !player || player.health !== "alive" || sim.action || this.state.winner) return;
     const here = { x: sim.move.x, z: sim.move.z };
+    if (!this.playing) {
+      this.toggleNearestDoor(here.x, here.z);
+      return;
+    }
 
     if (player.hidingSpot) {
       this.setAction(sim, player, { kind: "unhide", elapsed: 0 });
@@ -927,7 +1028,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const task = sim.tasks.find((t) => t.stationId === stationId);
     if (task && !task.done) {
       task.done = true;
-      this.state.tasksDone += 1;
+      // A possessed player's task is fake: it looks done to them, but the bar does not move (GDD 9).
+      if (sim.role === "investigator") this.state.tasksDone += 1;
       if (def.visible) this.state.stations.get(stationId)!.done = true;
     }
     this.closeTask(sessionId, "done");
@@ -1182,7 +1284,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
    */
   private takePhoto(sessionId: string) {
     const player = this.state.players.get(sessionId);
-    if (!player || player.health !== "alive" || player.cameraShots <= 0) return;
+    if (!player || player.health !== "alive" || player.cameraShots <= 0 || !this.playing) return;
     player.cameraShots -= 1;
     const c = config.camera;
     const halfFov = ((c.photoFovDeg / 2) * Math.PI) / 180;

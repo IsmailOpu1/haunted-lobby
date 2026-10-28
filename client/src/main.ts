@@ -76,6 +76,14 @@ const roomNameRoom = el("room-name-room");
 const roomNameFloor = el("room-name-floor");
 const soundCues = el("sound-cues");
 const workHint = el("work-hint");
+const startBtn = el<HTMLButtonElement>("start-night");
+const startHint = el("start-hint");
+const intro = el("intro");
+const introTitle = el("intro-title");
+const introText = el("intro-text");
+const introExtra = el("intro-extra");
+/** Your role once it is dealt (GDD 4.1), or null before. Only you are told it. */
+let myRole: ServerMessages["role"] | null = null;
 const floorPlan = new FloorPlan(defaultMap);
 el("floor-plan").append(floorPlan.element);
 
@@ -198,7 +206,12 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
   setTasks: (list) => {
     floorPlan.setTaskRooms(list.filter((t) => !t.done).map((t) => t.room));
     taskList.classList.toggle("hidden", list.length === 0);
+    // The possessed's list is fake (GDD 9): a reminder that only they see.
+    const note = document.createElement("li");
+    note.className = "role-note";
+    note.textContent = "Fake tasks: pretend to do them";
     taskList.replaceChildren(
+      ...(myRole?.role === "possessed" ? [note] : []),
       ...list.map((t) => {
         const li = document.createElement("li");
         li.classList.toggle("done", t.done);
@@ -454,4 +467,49 @@ function enterLobby(room: Room) {
   room.onLeave(() => {
     addLogLine("Disconnected from the server.");
   });
+
+  // Starting the night: the host's button, the countdown, then your role (GDD 4.1 and 5).
+  startBtn.onclick = () => room.send("start");
+  room.onMessage("startRefused", (msg: ServerMessages["startRefused"]) => {
+    startHint.textContent = msg.reason;
+  });
+  room.onMessage("role", (msg: ServerMessages["role"]) => {
+    myRole = msg;
+    // Your task list now shows whether it is real.
+    room.send("tasksRequest");
+  });
+  room.onStateChange((state: { stage?: string; stageLeft?: number; host?: string; players?: { size: number } }) => {
+    const waiting = state.stage === "waiting";
+    const isHost = state.host === room.sessionId;
+    el("start-box").classList.toggle("hidden", !waiting);
+    startBtn.classList.toggle("hidden", !isHost);
+    if (waiting && !startHint.textContent?.startsWith("At least")) {
+      startHint.textContent = isHost
+        ? `You are the host. Start when everyone is here (${config.players.min} to ${config.players.max} players). Until then, walk around and try your mic.`
+        : "Waiting for the host to start the night.";
+    }
+    showIntro(state.stage ?? "", state.stageLeft ?? 0);
+  });
+}
+
+/** The countdown, then your role for the intro's 10 seconds (GDD 4.1). */
+function showIntro(stage: string, secondsLeft: number) {
+  intro.classList.toggle("hidden", stage !== "countdown" && stage !== "intro");
+  if (stage === "countdown") {
+    delete intro.dataset.role;
+    introTitle.textContent = String(Math.max(1, Math.ceil(secondsLeft)));
+    introText.textContent = "The night begins";
+    introExtra.textContent = "";
+  } else if (stage === "intro" && myRole) {
+    intro.dataset.role = myRole.role;
+    if (myRole.role === "possessed") {
+      introTitle.textContent = "YOU ARE POSSESSED";
+      introText.textContent = "Stop the ritual. Do not get caught.";
+      introExtra.textContent = myRole.partners.length ? `Also possessed: ${myRole.partners.join(", ")}` : "";
+    } else {
+      introTitle.textContent = "INVESTIGATOR";
+      introText.textContent = "Do your tasks, find the relics, finish the ritual before dawn.";
+      introExtra.textContent = "";
+    }
+  }
 }

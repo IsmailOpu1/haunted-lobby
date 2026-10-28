@@ -54,6 +54,12 @@ async function waitFor(check: () => boolean, timeoutMs = 2000) {
   }
 }
 
+/** Skips the host's countdown and the intro (debug servers only): roles are dealt and the night starts. */
+async function night(host: Room) {
+  host.send("debug", { startNow: true });
+  await waitFor(() => host.state.stage === "night");
+}
+
 /** Creates rooms until the player is given a task matching `want` (tasks are random). */
 async function createWithTask(want: (stationId: string) => boolean) {
   for (let attempt = 0; attempt < 30; attempt++) {
@@ -179,6 +185,7 @@ describe("HauntedRoom", () => {
 
   it("downs a player, who bleeds out and dies unless revived", async () => {
     const room = await new Client(endpoint).create(ROOM_NAME, { name: "Victim" });
+    await night(room);
     room.onMessage("*", () => {});
     await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
     const me = () => room.state.players.get(room.sessionId);
@@ -202,6 +209,7 @@ describe("HauntedRoom", () => {
     helper.onMessage("*", () => {});
     const victim = await new Client(endpoint).joinById(helper.roomId, { name: "Hurt" });
     victim.onMessage("*", () => {});
+    await night(helper);
     await waitFor(() => helper.state.players?.size === 2);
     const hurt = () => helper.state.players.get(victim.sessionId);
 
@@ -222,6 +230,7 @@ describe("HauntedRoom", () => {
 
   it("hides in a wardrobe, holds breath, and steps out again", async () => {
     const room = await new Client(endpoint).create(ROOM_NAME, { name: "Hider" });
+    await night(room);
     room.onMessage("*", () => {});
     await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
     const me = () => room.state.players.get(room.sessionId);
@@ -249,6 +258,7 @@ describe("HauntedRoom", () => {
 
   it("starts the night, wakes the ghost after the quiet part, and tells only nearby players where it is", async () => {
     const room = await new Client(endpoint).create(ROOM_NAME, { name: "Watcher" });
+    await night(room);
     const ghostMsgs: unknown[] = [];
     room.onMessage("*", () => {});
     room.onMessage("ghost", (m: unknown) => ghostMsgs.push(m));
@@ -271,6 +281,7 @@ describe("HauntedRoom", () => {
 
   it("sends the ghost away and brings it back with the debug key (debug servers only)", async () => {
     const room = await new Client(endpoint).create(ROOM_NAME, { name: "Tester" });
+    await night(room);
     const ghostMsgs: unknown[] = [];
     const pauses: boolean[] = [];
     room.onMessage("*", () => {});
@@ -309,6 +320,7 @@ describe("HauntedRoom", () => {
 
   it("pours salt in front of you (1 s, uses a handful) and refills from a jar", async () => {
     const room = await new Client(endpoint).create(ROOM_NAME, { name: "Salter" });
+    await night(room);
     room.onMessage("*", () => {});
     await waitFor(() => room.state.players?.get(room.sessionId) !== undefined);
     const me = () => room.state.players.get(room.sessionId);
@@ -341,6 +353,7 @@ describe("HauntedRoom", () => {
     const taken = collectMsgs(a, "photoTaken");
     const b = await new Client(endpoint).joinById(a.roomId, { name: "Model" });
     b.onMessage("*", () => {});
+    await night(a);
     const flashes = collectMsgs(b, "flash");
     await waitFor(() => a.state.players?.size === 2);
 
@@ -359,6 +372,7 @@ describe("HauntedRoom", () => {
   it("gives 3 tasks in different rooms, refuses a too-fast finish, and counts a real one", async () => {
     // Use the clock, in the Main Hall where players start (no doors to open).
     const { room, tasks } = await createWithTask((id) => id === "task-clock");
+    await night(room);
     const list = tasks[0]!.list;
     expect(list).toHaveLength(config.tasks.perPlayer);
     expect(new Set(list.map((t) => t.room)).size).toBe(list.length);
@@ -408,6 +422,7 @@ describe("HauntedRoom", () => {
     const station = marrowHotelGreybox.tasks.find((t) => t.id === id)!;
     const friend = await new Client(endpoint).joinById(room.roomId, { name: "Listener" });
     friend.onMessage("*", () => {});
+    await night(room);
     const heard = collectMsgs(friend, "taskNoise");
     await waitFor(() => room.state.players.size === 2);
     // Both jump to the station's room: the friend a few metres away, well inside the 10 m the
@@ -433,6 +448,7 @@ describe("HauntedRoom", () => {
 
   it("hides relics, and lets a player take, carry, drop and pick one up (GDD 10)", async () => {
     const room = await new Client(endpoint).create(ROOM_NAME, { name: "Seeker" });
+    await night(room);
     room.onMessage("*", () => {});
     const near = collectMsgs(room, "relicsNear");
     const opened = collectMsgs(room, "taskOpen");
@@ -525,6 +541,7 @@ describe("HauntedRoom", () => {
 
   it("searches a group of places: empty ones are quick and stay searched, the relic's place is found, then taken (GDD 26.5)", async () => {
     const room = await new Client(endpoint).create(ROOM_NAME, { name: "Digger" });
+    await night(room);
     room.onMessage("*", () => {});
     const opened = collectMsgs(room, "taskOpen");
     const closed = collectMsgs(room, "taskClosed");
@@ -593,6 +610,7 @@ describe("HauntedRoom", () => {
 
   it("places relics in the locked relic door, which opens for good when every slot is full (GDD 10)", async () => {
     const room = await new Client(endpoint).create(ROOM_NAME, { name: "Keeper" });
+    await night(room);
     room.onMessage("*", () => {});
     await waitFor(() => room.state.relics?.size === config.relics.count);
     const me = () => room.state.players.get(room.sessionId);
@@ -657,6 +675,7 @@ describe("HauntedRoom", () => {
     const a = await new Client(endpoint).create(ROOM_NAME, { name: "Rafi" });
     const b = await new Client(endpoint).joinById(a.roomId, { name: "Mim" });
     for (const r of [a, b]) r.onMessage("*", () => {});
+    await night(a);
     const server = matchMaker.getLocalRoomById(a.roomId) as any;
     const s = () => a.state;
     const altar = marrowHotelGreybox.altar!;
@@ -719,6 +738,7 @@ describe("HauntedRoom", () => {
     const a = await new Client(endpoint).create(ROOM_NAME, { name: "Sam" });
     const b = await new Client(endpoint).joinById(a.roomId, { name: "Mim" });
     for (const r of [a, b]) r.onMessage("*", () => {});
+    await night(a);
     const ends = collectMsgs(b, "matchEnd");
     const server = matchMaker.getLocalRoomById(a.roomId) as any;
     const altar = marrowHotelGreybox.altar!;
@@ -749,6 +769,7 @@ describe("HauntedRoom", () => {
     const a = await new Client(endpoint).create(ROOM_NAME, { name: "Rafi" });
     const b = await new Client(endpoint).joinById(a.roomId, { name: "Mim" });
     for (const r of [a, b]) r.onMessage("*", () => {});
+    await night(a);
     const rings = [collectMsgs(a, "bellRing"), collectMsgs(b, "bellRing")];
     a.send("debug", { nightTime: config.match.quietSec + 1 });
     await waitFor(() => a.state.part === "calm");
@@ -784,6 +805,80 @@ describe("HauntedRoom", () => {
       rooms.push(await new Client(endpoint).joinById(code, { name: `P${i}` }));
     }
     await expect(new Client(endpoint).joinById(code, { name: "Extra" })).rejects.toThrow();
+    await Promise.all(rooms.map((r) => r.leave()));
+  });
+
+  /** A room of this many players, each listening for its role. */
+  async function fullRoom(players: number) {
+    const host = await new Client(endpoint).create(ROOM_NAME, { name: "P1" });
+    const rooms: Room[] = [host];
+    for (let i = 2; i <= players; i++) rooms.push(await new Client(endpoint).joinById(host.roomId, { name: `P${i}` }));
+    const roles = rooms.map((r) => {
+      r.onMessage("*", () => {});
+      return collectMsgs(r, "role");
+    });
+    return { host, rooms, roles };
+  }
+
+  it("starts only for the host: a countdown, then each player privately learns their role (GDD 4.1, 5)", async () => {
+    const { host, rooms, roles } = await fullRoom(5);
+    await waitFor(() => host.state.host === host.sessionId);
+    expect(host.state.stage).toBe("waiting");
+    // Someone else pressing Start does nothing.
+    rooms[1]!.send("start");
+    await new Promise((r) => setTimeout(r, 300));
+    expect(host.state.stage).toBe("waiting");
+    host.send("start");
+    await waitFor(() => host.state.stage === "countdown");
+    // Nobody can join once the countdown starts.
+    await expect(new Client(endpoint).joinById(host.roomId, { name: "Late" })).rejects.toThrow();
+    await waitFor(() => host.state.stage === "intro", (config.match.countdownSec + 2) * 1000);
+    await waitFor(() => roles.every((r) => r.length === 1));
+    const dealt = roles.map((r) => r[0]!.role);
+    expect(dealt.filter((r) => r === "possessed")).toHaveLength(1);
+    // One possessed has no partner, and nobody else learns anything.
+    for (const r of roles) expect(r[0]!.partners).toEqual([]);
+    // Roles are never in the shared state (PRD 10.3).
+    expect(JSON.stringify(host.state.toJSON())).not.toContain("possessed");
+    // The possessed's tasks are fake and leave the team bar (GDD 9).
+    expect(host.state.tasksTotal).toBe(4 * config.tasks.perPlayer);
+    await Promise.all(rooms.map((r) => r.leave()));
+   }, (config.match.countdownSec + 10) * 1000);
+
+  it("possesses two of seven, who know each other (GDD 3, 14.1)", async () => {
+    const { host, rooms, roles } = await fullRoom(7);
+    host.send("debug", { startNow: true });
+    await waitFor(() => roles.every((r) => r.length === 1));
+    const names = rooms.map((r) => r.state.players.get(r.sessionId).name as string);
+    const possessed = names.filter((_, i) => roles[i]![0]!.role === "possessed");
+    expect(possessed).toHaveLength(2);
+    roles.forEach((r, i) => {
+      const expected = r[0]!.role === "possessed" ? possessed.filter((n) => n !== names[i]) : [];
+      expect(r[0]!.partners).toEqual(expected);
+    });
+    await Promise.all(rooms.map((r) => r.leave()));
+  });
+
+  it("passes the host to whoever has waited longest when the host leaves (GDD 5)", async () => {
+    const { host, rooms } = await fullRoom(3);
+    await host.leave();
+    await waitFor(() => rooms[1]!.state.host === rooms[1]!.sessionId);
+    await Promise.all(rooms.slice(1).map((r) => r.leave()));
+  });
+
+  it("ends the match when the possessed equal the living investigators (GDD 18)", async () => {
+    const { host, rooms, roles } = await fullRoom(4);
+    const ends = collectMsgs(host, "matchEnd");
+    host.send("debug", { startNow: true });
+    await waitFor(() => roles.every((r) => r.length === 1));
+    // Two investigators die: one possessed against one investigator.
+    const investigators = rooms.filter((_, i) => roles[i]![0]!.role === "investigator");
+    for (const r of investigators.slice(0, 2)) {
+      r.send("debug", { down: true, bleedLeft: 0.05 });
+    }
+    await waitFor(() => ends.length > 0, 3000);
+    expect(ends[0]).toMatchObject({ winner: "possessed", reason: "outnumbered" });
+    expect(ends[0]!.roles.filter((r) => r.role === "possessed")).toHaveLength(1);
     await Promise.all(rooms.map((r) => r.leave()));
   });
 });

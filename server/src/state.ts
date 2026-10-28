@@ -83,6 +83,12 @@ export const GameState = schema({
   // The team task bar (GDD 9). Only real tasks count.
   tasksDone: t.uint16(),
   tasksTotal: t.uint16(),
+  /** Stage (shared Stage): waiting, countdown, intro or night. */
+  stage: t.string(),
+  /** Seconds left in the countdown or the intro. */
+  stageLeft: t.float32(),
+  /** The host's session id: the room's creator, or whoever has waited longest after them (GDD 5). */
+  host: t.string(),
   // Night clock (GDD Section 4.2).
   nightTime: t.float32(),
   nightLength: t.float32(),

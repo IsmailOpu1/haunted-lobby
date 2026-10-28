@@ -24,7 +24,9 @@ Open http://localhost:5173. See [docs/DEPLOY.md](docs/DEPLOY.md) for testing wit
 
 **Controls:** mouse to look, WASD to move, Shift to run, C to crouch, E to open doors, hold E to revive a friend or hide (and to step out), Shift while hidden to hold your breath, click or 1 for the flashlight, L for test lights, Esc for the room panel.
 
-**Testing in peace:** start the server in debug mode with `HAUNTED_DEBUG=1` set (the "server-debug" entry in `.claude/launch.json` does this). Then K sends the ghost away for everyone in the room, and K again brings it back. A normal server ignores the key.
+**Starting a night:** the room waits until the host (whoever made it) opens the room panel with Esc and presses **Start the night**. It needs 4 to 8 players. After a 5 s countdown everyone privately sees their role for 10 s, then the night begins.
+
+**Testing in peace:** start the server in debug mode with `HAUNTED_DEBUG=1` set (the "server-debug" entry in `.claude/launch.json` does this). Then K sends the ghost away for everyone in the room, and K again brings it back. On a debug server the host can start alone; to be possessed, run `__game.room.send('debug', { possessed: true })` in the browser console before starting. A normal server ignores all of this.
 
 ## Documents
 

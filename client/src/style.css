@@ -824,3 +824,47 @@ body.ended #sound-cues {
   border-radius: 4px;
   pointer-events: none;
 }
+
+/* The countdown and the role reveal (GDD 4.1). */
+#intro {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 16px;
+  text-align: center;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.55) 20%, rgba(0, 0, 0, 0.9) 100%);
+}
+
+#intro-title {
+  font-size: clamp(30px, 6vw, 56px);
+  letter-spacing: 6px;
+  color: var(--accent);
+}
+
+#intro[data-role="possessed"] #intro-title {
+  color: #c4554a;
+}
+
+#intro-text {
+  max-width: 640px;
+  font-size: clamp(17px, 2.4vw, 22px);
+}
+
+#intro-extra {
+  font-size: 16px;
+  color: var(--muted);
+}
+
+#task-list .role-note {
+  color: #c4554a;
+  font-style: italic;
+}
+
+#start-box {
+  margin: 10px 0 4px;
+}

@@ -864,3 +864,15 @@ The owner found the hotel a maze: several rooms had 3 or 4 doors, many of them s
 | Courtyard | Doors north and south only, a shortcut across the middle of the ring | Two ways round the ring, plus one risky way through |
 | Count | 37 doors became 25. Checked by a test: at most 2 ways into any room, no room-to-room doors except the ones above, at least 3 loop rooms, and still 2 routes between areas | 21.1 |
 | Signs | Over every doorway, a brass plaque on each side names the room beyond it. On the corridor side a second plaque sticks out from the wall, so it reads from down the corridor. They are lit like everything else, so you read them by flashlight | Real hotels sign their rooms; until the Phase 8 art, signs are the strongest landmark |
+
+### 26.12 Phase 6 build choices (awaiting owner confirmation)
+
+| Choice | Value | Why |
+|---|---|---|
+| A Start button now | The room waits until the host presses **Start the night** in the room panel. Then a 5 s countdown, the 10 s role reveal (4.1), and the night. Nobody can join after the countdown starts. The full lobby (presets, settings, Ready, characters) still comes in Phase 7 | Roles must be dealt to a fixed group at one moment. Before, the night began when the first player arrived |
+| Before the night | You can walk around and open doors, and do the mic check. Tasks, relics, salt, the camera and hiding wait for the night | Friends gather and test their mics without using up items |
+| Host | The room's creator. If they leave, whoever has waited longest (5) | |
+| Fair rotation | Players possessed the fewest times this session are picked first, each with the 1 / (1 + times) weight (19) | The weight alone can pick the same player twice in a row. This keeps 19's promise that nobody is possessed twice before everyone has been once |
+| The possessed's tasks | The tasks they were dealt become their fake list. They leave the team bar, and doing them moves nothing (9). Their task list shows "Fake tasks: pretend to do them" | They must blend in, but must not be able to hold the bar back |
+| Testing alone | On debug servers the host can start with fewer than 4 players. Below 4 nobody is possessed unless a tester asks to be (a debug message). A night where everyone is possessed never ends by counting the living | So one person can try both roles |
+

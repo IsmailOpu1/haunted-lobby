@@ -47,6 +47,13 @@ export interface ServerMessages {
   flash: { x: number; z: number; by: string };
   /** Your photo was taken. It develops by the next meeting; nobody sees it before then. */
   photoTaken: { shotsLeft: number };
+  /**
+   * Your role, sent only to you when the countdown ends (GDD 4.1). partners: the other possessed
+   * players' names, if you are possessed and Possessed know each other is on.
+   */
+  role: { role: Role; partners: string[] };
+  /** The host's Start was refused (too few players). */
+  startRefused: { reason: string };
   /** Test shortcut (debug servers only): the ghost was sent away or brought back. */
   debugGhost: { paused: boolean };
   /** Your task list (private). Sent on request and whenever it changes. */
@@ -122,7 +129,15 @@ export interface ClientMessages {
   dropRelic: undefined;
   /** Take a Spirit Camera photo in the direction you are looking. */
   photo: undefined;
+  /** The host starts the night: a countdown, then roles and the intro (GDD 5, 4.1). */
+  start: undefined;
 }
+
+/**
+ * Where the room is (GDD 4.1 and 5): waiting for the host to start, counting down, showing
+ * everyone their role, then the night itself.
+ */
+export type Stage = "waiting" | "countdown" | "intro" | "night";
 
 /** Player health (GDD Section 7). */
 export type Health = "alive" | "downed" | "dead";
@@ -130,7 +145,7 @@ export type Health = "alive" | "downed" | "dead";
 /** A timed action a player is doing (holding E, pouring salt, or a task minigame). */
 export type PlayerAction = "" | "revive" | "hide" | "unhide" | "salt" | "task" | "placeRelic";
 
-/** One of your tasks, as only you see it (the possessed get a fake list in Phase 6). */
+/** One of your tasks, as only you see it. The possessed's are fake: doing them moves no bar (GDD 9). */
 export interface TaskEntry {
   stationId: string;
   name: string;
