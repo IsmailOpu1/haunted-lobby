@@ -68,6 +68,19 @@ export interface ServerMessages {
   eyeGlow: { id: string };
   /** A door slammed shut and locked (Slam Door, GDD 14.2): louder than a door closing. */
   doorSlam: { x: number; z: number };
+  /** Your bell ring or body report did not start a meeting, and why (GDD 16.1). */
+  meetingRefused: { reason: string };
+  /**
+   * The vote's result, to everyone (GDD 16.3). votes: who voted for whom (null when voting is
+   * anonymous). role: the removed player's role, or null when Reveal role is off or nobody was removed.
+   */
+  meetingResult: {
+    removed: string | null;
+    role: Role | null;
+    tally: { name: string; votes: number }[];
+    skip: number;
+    votes: { voter: string; target: string }[] | null;
+  };
   /** The host's Start was refused (too few players). */
   startRefused: { reason: string };
   /** Test shortcut (debug servers only): the ghost was sent away or brought back. */
@@ -147,6 +160,8 @@ export interface ClientMessages {
   photo: undefined;
   /** The host starts the night: a countdown, then roles and the intro (GDD 5, 4.1). */
   start: undefined;
+  /** Your vote in a meeting: a player's session id, or SKIP (GDD 16.2). */
+  vote: { target: string };
   /** Use a power (possessed only). target: the door for Slam Door, the player for Summon. */
   power: { kind: import("./powers.ts").PowerKind; target?: string };
 }
@@ -182,7 +197,7 @@ export type Stage = "waiting" | "countdown" | "intro" | "night";
 export type Health = "alive" | "downed" | "dead";
 
 /** A timed action a player is doing (holding E, pouring salt, or a task minigame). */
-export type PlayerAction = "" | "revive" | "hide" | "unhide" | "salt" | "task" | "placeRelic" | "breakDoor" | "fixFuse" | "cleanse";
+export type PlayerAction = "" | "revive" | "hide" | "unhide" | "salt" | "task" | "placeRelic" | "breakDoor" | "fixFuse" | "cleanse" | "ringBell" | "report";
 
 /** One of your tasks, as only you see it. The possessed's are fake: doing them moves no bar (GDD 9). */
 export interface TaskEntry {

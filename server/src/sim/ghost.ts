@@ -209,6 +209,16 @@ export class Ghost {
   }
 
   /** Test shortcut (HAUNTED_DEBUG only): start the hunt countdown from this many seconds. */
+  /** The ghost is hunting or about to (the silence before a hunt): no meeting may start (GDD 16.1). */
+  get huntingOrAbout(): boolean {
+    return this.state === "hunt" || this.state === "prehunt";
+  }
+
+  /** After a meeting: no hunt for graceSec (GDD 12). */
+  afterMeeting(graceSec: number) {
+    this.huntTimer = Math.max(this.huntTimer, graceSec);
+  }
+
   debugHuntIn(seconds: number) {
     this.huntTimer = seconds;
   }

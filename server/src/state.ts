@@ -31,6 +31,12 @@ export const Player = schema({
   cameraShots: t.uint8(),
   // The relic this player carries (a key of GameState.relics), or "" (GDD Section 10).
   relic: t.string(),
+  // Meetings (GDD 16): voted in this meeting (not for whom), and a body that is no longer there
+  // (reported, or a player voted out).
+  voted: t.boolean(),
+  bodyGone: t.boolean(),
+  /** Bell rings left this match (GDD 16.1). */
+  bellUses: t.uint8(),
 }, "Player");
 export type Player = SchemaType<typeof Player>;
 
@@ -107,6 +113,12 @@ export const GameState = schema({
   circleNeeded: t.uint8(),
   /** Every light is out until someone fixes the fuse box or it comes back by itself (GDD 14.2). */
   blackout: t.boolean(),
+  /** The meeting's step (shared MeetingStep), "" when there is none, and seconds left in it (GDD 16). */
+  meeting: t.string(),
+  meetingLeft: t.float32(),
+  /** Who called it, and the body they reported ("" for the bell). */
+  meetingCaller: t.string(),
+  meetingBody: t.string(),
   /** Black flames on the altar: seconds left to put them out, or 0 (GDD 11). */
   taintLeft: t.float32(),
   /** "" while the match goes on, then "investigators" or "possessed" (GDD 18). */

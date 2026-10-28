@@ -7,6 +7,7 @@ import {
   type EndReason,
   type PowerStatus,
   type ServerMessages,
+  SKIP,
 } from "@haunted/shared";
 import { defaultMap } from "@haunted/maps";
 import { FloorPlan } from "./floorplan.ts";
@@ -88,6 +89,12 @@ const introExtra = el("intro-extra");
 let myRole: ServerMessages["role"] | null = null;
 const floorPlan = new FloorPlan(defaultMap);
 const powersBar = el("powers-bar");
+const meetingBox = el("meeting");
+/** The photos that developed last: the meeting's evidence. */
+let newPhotos: ServerMessages["photosDeveloped"]["photos"] = [];
+/** Which meeting the screen shows (its players and photos are built once, then updated). */
+let meetingKey = "";
+let meetingPlayers = "";
 const powerWheel = el("power-wheel");
 el("floor-plan").append(floorPlan.element);
 
@@ -170,8 +177,65 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     powersBar.replaceChildren(...chips);
   },
   addPhotos: (photos) => {
+    newPhotos = photos;
+    el("meeting-photos").replaceChildren(...photos.map(photoCard));
     el("photos-box").classList.remove("hidden");
     el("photo-list").append(...photos.map(photoCard));
+  },
+  setMeeting: (m) => {
+    document.body.classList.toggle("meeting", !!m);
+    meetingBox.classList.toggle("hidden", !m);
+    if (!m) {
+      meetingKey = "";
+      meetingPlayers = "";
+      return;
+    }
+    const key = `${m.caller}|${m.body}`;
+    if (key !== meetingKey) {
+      meetingKey = key;
+      el("meeting-title").textContent = m.body ? `${m.caller} reported ${m.body}'s body` : `${m.caller} rang the bell`;
+      el("meeting-result").classList.add("hidden");
+      // The photos shown are the ones that developed as this meeting began.
+      if (newPhotos.length === 0) el("meeting-photos").replaceChildren();
+      newPhotos = [];
+    }
+    el("meeting-step").textContent = `${MEETING_STEP_TEXT[m.step] ?? ""}  ${Math.ceil(m.secondsLeft)} s`;
+    // Rebuilt only when it changes: the state comes 20 times a second, and a button replaced
+    // between press and release loses the click.
+    const players = JSON.stringify([m.players, m.canVote]);
+    if (players === meetingPlayers) return;
+    meetingPlayers = players;
+    el("meeting-players").replaceChildren(
+      ...m.players.map((p) => {
+        const li = document.createElement("li");
+        li.classList.toggle("dead", p.dead);
+        li.textContent = p.me ? `${p.name} (you)` : p.name;
+        if (p.voted) li.append(Object.assign(document.createElement("span"), { className: "stamp", textContent: "Voted" }));
+        if (m.canVote && !p.dead) {
+          const btn = document.createElement("button");
+          btn.className = "small";
+          btn.textContent = "Vote";
+          btn.onclick = () => game.vote(p.id);
+          li.append(btn);
+        }
+        return li;
+      }),
+    );
+    el("meeting-skip").classList.toggle("hidden", !m.canVote);
+  },
+  showMeetingResult: (r) => {
+    const box = el("meeting-result");
+    box.classList.remove("hidden");
+    const verdict = document.createElement("strong");
+    verdict.className = r.role === "possessed" ? "possessed" : "";
+    if (!r.removed) verdict.textContent = r.skip > 0 ? "Nobody was removed." : "Nobody was removed: a tie.";
+    else if (r.role) verdict.textContent = `${r.removed.toUpperCase()} WAS ${r.role === "possessed" ? "" : "NOT "}POSSESSED.`;
+    else verdict.textContent = `${r.removed} is gone.`;
+    const counts = document.createElement("p");
+    counts.textContent = [...r.tally.map((t) => `${t.name} ${t.votes}`), `Skip ${r.skip}`].join(" · ");
+    const votes = document.createElement("ul");
+    for (const v of r.votes ?? []) votes.append(Object.assign(document.createElement("li"), { textContent: `${v.voter} voted ${v.target}` }));
+    box.replaceChildren(verdict, counts, votes);
   },
   showPowerWheel: (wheel) => {
     powerWheel.classList.toggle("hidden", !wheel);
@@ -536,6 +600,15 @@ function enterLobby(room: Room) {
     showIntro(state.stage ?? "", state.stageLeft ?? 0);
   });
 }
+
+const MEETING_STEP_TEXT: Record<string, string> = {
+  evidence: "Evidence: look at the new photos.",
+  discussion: "Discussion: talk it over.",
+  vote: "Vote: pick a player, or skip.",
+  result: "The vote is in.",
+};
+
+el("meeting-skip").onclick = () => game.vote(SKIP);
 
 /** A power's state in a few words: "" when ready. */
 function powerStateText(p: PowerStatus): string {

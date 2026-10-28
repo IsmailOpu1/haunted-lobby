@@ -271,6 +271,9 @@ export const config = {
     bellOptions: [0, 1, 2, 3],
     bellHoldSec: 2,
     reportRangeM: 3,
+    // How long to hold E on a body to report it, and how long the vote's result stays up (GDD 26.12).
+    reportHoldSec: 1,
+    resultSec: 6,
     minGapSec: 30,
     evidenceSec: 30,
     evidenceOptions: [15, 30, 45, 60],

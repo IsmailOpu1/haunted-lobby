@@ -13,6 +13,7 @@ import {
   type MoveInput,
   type MoveMode,
   type MoveState,
+  type MeetingStep,
   type PowerKind,
   type PowerStatus,
   type RelicNear,
@@ -136,6 +137,21 @@ export interface GameHud {
   showPowerWheel(wheel: PowerWheelView | null): void;
   /** Photos that just developed, for everyone (GDD 15.2). */
   addPhotos(photos: ServerMessages["photosDeveloped"]["photos"]): void;
+  /** The meeting screen, or null when there is no meeting (GDD 16). */
+  setMeeting(meeting: MeetingView | null): void;
+  /** The vote's result (GDD 16.3). */
+  showMeetingResult(result: ServerMessages["meetingResult"]): void;
+}
+
+export interface MeetingView {
+  step: MeetingStep;
+  secondsLeft: number;
+  caller: string;
+  /** The reported body's name, or "" for the bell. */
+  body: string;
+  players: { id: string; name: string; dead: boolean; voted: boolean; me: boolean }[];
+  /** You are alive, it is the vote, and you have not voted yet. */
+  canVote: boolean;
 }
 
 /** The power wheel: each power in WHEEL_ORDER (clockwise from the top), and the one the mouse points at. */
@@ -175,6 +191,8 @@ const ACTION_LABELS: Record<string, string> = {
   breakDoor: `Pushing the door (needs ${config.powers.slamDoor.breakPushers})`,
   fixFuse: "Fixing the fuse box",
   cleanse: "Putting out the flames",
+  ringBell: "Ringing the bell",
+  report: "Reporting the body",
 };
 
 export const POWER_NAMES: Record<PowerKind, string> = { slamDoor: "Slam Door", summon: "Summon", blackout: "Blackout", taint: "Taint" };
@@ -201,6 +219,9 @@ interface PlayerData {
   salt: number;
   cameraShots: number;
   relic: string;
+  voted: boolean;
+  bodyGone: boolean;
+  bellUses: number;
 }
 
 /** A relic as the server shares it with everyone. */
@@ -283,6 +304,8 @@ export class Game {
   private blackout = false;
   private taintLeft = 0;
   private debugLights = false;
+  /** The meeting's step, "" when there is none (GDD 16). */
+  private meeting: MeetingStep = "";
 
   private constructor(private canvas: HTMLCanvasElement, private map: MapData, private hud: GameHud) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
@@ -510,6 +533,8 @@ export class Game {
       const n = msg.photos.length;
       this.hud.showBanner(`${n} photo${n === 1 ? "" : "s"} developed. Press Esc to see ${n === 1 ? "it" : "them"}.`, 4);
     });
+    room.onMessage("meetingRefused", (msg: ServerMessages["meetingRefused"]) => this.hud.showBanner(msg.reason, 3));
+    room.onMessage("meetingResult", (msg: ServerMessages["meetingResult"]) => this.hud.showMeetingResult(msg));
     room.onMessage("powerRefused", (msg: ServerMessages["powerRefused"]) => this.hud.showBanner(`${POWER_NAMES[msg.kind]}: ${msg.reason}`, 3));
     room.onMessage("powerWhisper", (msg: ServerMessages["powerWhisper"]) => this.sound.powerWhisper(this.place(msg)));
     room.onMessage("eyeGlow", (msg: ServerMessages["eyeGlow"]) => this.remotes.glowEyes(msg.id, performance.now()));
@@ -609,16 +634,19 @@ export class Game {
         crouching: p.crouching,
         flashlightOn: p.flashlightOn,
         health: p.health,
-        hidden: !!p.hidingSpot,
+        // A reported body, or a player voted out, is no longer there.
+        hidden: !!p.hidingSpot || p.bodyGone,
       });
     });
     this.remotes.update(snapshots, now);
     if (this.me) this.updateStatusHud(this.me);
+    this.updateMeeting(state);
   }
 
   private moveMode(): MoveMode {
     const me = this.me;
     if (!me) return "normal";
+    if (this.meeting) return "frozen";
     if (me.health === "downed") return "crawl";
     if (me.health === "dead" || me.hidingSpot) return "frozen";
     return me.relic ? "carry" : "normal";
@@ -772,6 +800,15 @@ export class Game {
     for (const p of this.others.values()) {
       if (p.health === "downed" && Math.hypot(p.x - x, p.z - z) <= config.interact.reviveRangeM) return `Hold E  Revive ${p.name}`;
     }
+    // Report a body or ring the bell (GDD 16.1). Mirrors HauntedRoom.startUse.
+    let body: { name: string; d: number } | null = null;
+    for (const p of this.others.values()) {
+      const d = Math.hypot(p.x - x, p.z - z);
+      if (p.health === "dead" && !p.bodyGone && d <= config.meetings.reportRangeM && (!body || d < body.d)) body = { name: p.name, d };
+    }
+    if (body) return `Hold E  Report ${body.name}'s body`;
+    const bell = this.map.bell;
+    if (bell && me.bellUses > 0 && Math.hypot(bell.x - x, bell.z - z) <= config.interact.rangeM) return `Hold E  Ring the bell for a meeting (${me.bellUses} left)`;
     const altar = this.map.altar;
     if (this.taintLeft > 0 && altar && Math.hypot(altar.x - x, altar.z - z) <= config.ritual.circleRadiusM) {
       return me.salt >= config.taint.cleanseSaltCost ? `Hold E  Put out the black flames (${config.taint.cleanseSaltCost} salt)` : "You need salt to put out the flames";
@@ -831,6 +868,41 @@ export class Game {
       if (d <= config.interact.rangeM && (!best || d < best.d)) best = { id: door.id, d };
     }
     return best?.id ?? null;
+  }
+
+  /** The meeting from the server's state: everyone stops, and you need the mouse to vote (GDD 16). */
+  private updateMeeting(state: any) {
+    const step = (state.meeting ?? "") as MeetingStep;
+    if (step && !this.meeting) {
+      // Let go of the mouse so you can vote; anything in your hands stops.
+      if (this.wheel) this.powerWheel("cancel");
+      if (this.taskState === "open") this.leaveTask();
+      document.exitPointerLock();
+    }
+    this.meeting = step;
+    if (!step) {
+      this.hud.setMeeting(null);
+      return;
+    }
+    const players: MeetingView["players"] = [];
+    state.players?.forEach((p: PlayerData, id: string) => {
+      // Someone voted out before is gone; the dead are listed, greyed out.
+      players.push({ id, name: p.name, dead: p.health === "dead", voted: p.voted, me: id === this.room?.sessionId });
+    });
+    const me = this.me;
+    this.hud.setMeeting({
+      step,
+      secondsLeft: state.meetingLeft ?? 0,
+      caller: state.meetingCaller ?? "",
+      body: state.meetingBody ?? "",
+      players,
+      canVote: step === "vote" && !!me && me.health !== "dead" && !me.voted,
+    });
+  }
+
+  /** Your vote: a player's session id, or SKIP. */
+  vote(target: string) {
+    this.room?.send("vote", { target });
   }
 
   /** Tells the game your role once it is dealt (GDD 4.1). */

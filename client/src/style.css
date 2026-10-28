@@ -994,3 +994,98 @@ body.ended #sound-cues {
   color: #2a241c;
   text-align: center;
 }
+
+/* Meetings (GDD 16): the table screen, over everything, with the mouse free to vote. */
+body.meeting .panel,
+body.meeting #esc-hint,
+body.meeting #crosshair,
+body.meeting #prompt,
+body.meeting #powers-bar {
+  display: none;
+}
+
+#meeting {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+  overflow-y: auto;
+}
+
+#meeting.hidden {
+  display: none;
+}
+
+.meeting-box {
+  width: min(560px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 18px 22px;
+  background: rgba(12, 12, 16, 0.95);
+  border-radius: 6px;
+  text-align: center;
+}
+
+#meeting-title {
+  margin: 0 0 4px;
+  color: var(--accent);
+}
+
+#meeting-step {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+
+#meeting-players {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+#meeting-players li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  border-bottom: 1px solid #222;
+}
+
+#meeting-players li.dead {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+#meeting-players button {
+  margin-left: auto;
+}
+
+#meeting-players .stamp {
+  padding: 1px 6px;
+  font-size: 11px;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+}
+
+#meeting-result strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 22px;
+  letter-spacing: 2px;
+}
+
+#meeting-result strong.possessed {
+  color: #c4554a;
+}
+
+#meeting-result ul {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--muted);
+}

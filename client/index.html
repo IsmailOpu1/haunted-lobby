@@ -71,7 +71,7 @@
         <tr><td>Mouse button (at a task)</td><td>Your hand: point at a part, hold to grab it, move the mouse to work it. E or a step stops</td></tr>
         <tr><td>G</td><td>Drop the relic you carry (the ghost hears it)</td></tr>
         <tr><td>Hold Tab</td><td>Map and relic status</td></tr>
-        <tr><td>Hold E</td><td>Revive a downed friend (5 s), hide in a wardrobe or curtain, step out</td></tr>
+        <tr><td>Hold E</td><td>Revive a downed friend (5 s), hide in a wardrobe or curtain, step out, report a body, ring the Main Hall bell for a meeting (once)</td></tr>
         <tr><td>Shift (hidden)</td><td>Hold your breath (6 s)</td></tr>
         <tr><td>Click or 1</td><td>Flashlight on / off (only 1 while your hands are busy at a task)</td></tr>
         <tr><td>2, then click</td><td>Raise the Spirit Camera and take a photo (1 shot)</td></tr>
@@ -125,6 +125,16 @@
     <div id="banner" class="hidden"></div>
     <div id="powers-bar" class="hidden"></div>
     <div id="power-wheel" class="hidden"></div>
+    <div id="meeting" class="hidden">
+      <div class="meeting-box">
+        <h2 id="meeting-title"></h2>
+        <p id="meeting-step"></p>
+        <div id="meeting-photos" class="photo-list"></div>
+        <ul id="meeting-players"></ul>
+        <button id="meeting-skip" class="hidden">Skip vote</button>
+        <div id="meeting-result" class="hidden"></div>
+      </div>
+    </div>
     <div id="intro" class="hidden">
       <div id="intro-title"></div>
       <div id="intro-text"></div>

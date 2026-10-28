@@ -1053,4 +1053,129 @@ describe("HauntedRoom", () => {
       await Promise.all([ghoul.leave(), friend.leave(), third.leave()]);
     }, 20000);
   });
+
+  describe("meetings (GDD 16)", () => {
+    /** Three players in the night at `time`, every message type collected. */
+    async function trio(time: number) {
+      const a = await new Client(endpoint).create(ROOM_NAME, { name: "Rafi" });
+      const b = await new Client(endpoint).joinById(a.roomId, { name: "Mim" });
+      const c = await new Client(endpoint).joinById(a.roomId, { name: "Nila" });
+      for (const r of [a, b, c]) r.onMessage("*", () => {});
+      await night(a);
+      a.send("debug", { nightTime: time });
+      await new Promise((r) => setTimeout(r, 150));
+      return { a, b, c, rooms: [a, b, c], server: matchMaker.getLocalRoomById(a.roomId) as any };
+    }
+    const place = async (r: Room, at: { x: number; z: number }) => {
+      r.send("debug", { teleport: at });
+      await new Promise((res) => setTimeout(res, 200));
+    };
+    const me = (r: Room) => r.state.players.get(r.sessionId);
+    const skipStep = async (r: Room, step: string) => {
+      r.send("debug", { skipStep: true });
+      await waitFor(() => r.state.meeting === step);
+    };
+
+    it("rings the bell (not in the first minute): everyone goes to the table and the night waits", async () => {
+      const { a, rooms } = await trio(30);
+      const refused = collectMsgs(a, "meetingRefused");
+      const bell = marrowHotelGreybox.bell!;
+      await place(a, { x: bell.x, z: bell.z - 1 });
+      a.send("use", { down: true });
+      await waitFor(() => refused.length === 1);
+      expect(a.state.meeting).toBe("");
+
+      a.send("debug", { nightTime: config.match.quietSec + 10 });
+      const far = { x: -17, z: -1 };
+      await place(rooms[1]!, far);
+      await new Promise((r) => setTimeout(r, 100));
+      a.send("use", { down: true });
+      await waitFor(() => a.state.meeting === "evidence", (config.meetings.bellHoldSec + 1) * 1000);
+      expect(a.state.meetingCaller).toBe("Rafi");
+      // Pulled to a seat around the table.
+      const seats = marrowHotelGreybox.spawns;
+      await waitFor(() => seats.some((s) => Math.hypot(s.x - me(rooms[1]!).x, s.z - me(rooms[1]!).z) < 0.01));
+      const time = a.state.nightTime;
+      await new Promise((r) => setTimeout(r, 400));
+      expect(a.state.nightTime).toBe(time);
+
+      // To the end: everyone goes back where they were.
+      await skipStep(a, "discussion");
+      await skipStep(a, "vote");
+      await skipStep(a, "result");
+      await skipStep(a, "");
+      await waitFor(() => Math.hypot(me(rooms[1]!).x - far.x, me(rooms[1]!).z - far.z) < 0.01);
+      // Too soon for another meeting.
+      const mimRefused = collectMsgs(rooms[1]!, "meetingRefused");
+      await place(rooms[1]!, { x: bell.x + 0.5, z: bell.z - 1 });
+      rooms[1]!.send("use", { down: true });
+      await waitFor(() => mimRefused.length === 1);
+      expect(mimRefused[0]!.reason).toMatch(/Too soon/);
+      await Promise.all(rooms.map((r) => r.leave()));
+    }, 15000);
+
+    it("removes the player with the most votes, shows the votes and the role, and they leave no body (GDD 16.3)", async () => {
+      const { a, b, c, rooms } = await trio(120);
+      const results = collectMsgs(b, "meetingResult");
+      a.send("debug", { meeting: true });
+      await waitFor(() => a.state.meeting === "evidence");
+      await skipStep(a, "discussion");
+      // No votes before the vote step.
+      a.send("vote", { target: c.sessionId });
+      await new Promise((r) => setTimeout(r, 200));
+      expect(me(a).voted).toBe(false);
+      await skipStep(a, "vote");
+      a.send("vote", { target: c.sessionId });
+      b.send("vote", { target: c.sessionId });
+      await waitFor(() => me(a).voted && me(b).voted);
+      a.send("vote", { target: b.sessionId }); // one vote each: ignored
+      // The last vote ends the step early.
+      c.send("vote", { target: "skip" });
+      await waitFor(() => results.length === 1);
+      expect(a.state.meeting).toBe("result");
+      expect(results[0]).toMatchObject({ removed: "Nila", role: "investigator", skip: 1, tally: [{ name: "Nila", votes: 2 }] });
+      expect(results[0]!.votes).toEqual(expect.arrayContaining([{ voter: "Rafi", target: "Nila" }, { voter: "Nila", target: "Skip" }]));
+      await skipStep(a, "");
+      await waitFor(() => me(c).health === "dead");
+      expect(me(c).bodyGone).toBe(true);
+      await Promise.all(rooms.map((r) => r.leave()));
+    }, 15000);
+
+    it("removes nobody on a tie", async () => {
+      const { a, b, c, rooms } = await trio(120);
+      const results = collectMsgs(a, "meetingResult");
+      a.send("debug", { meeting: true });
+      await waitFor(() => a.state.meeting === "evidence");
+      await skipStep(a, "discussion");
+      await skipStep(a, "vote");
+      a.send("vote", { target: b.sessionId });
+      b.send("vote", { target: a.sessionId });
+      c.send("vote", { target: "skip" });
+      await waitFor(() => results.length === 1);
+      expect(results[0]!.removed).toBeNull();
+      await skipStep(a, "");
+      expect([me(a), me(b), me(c)].every((p) => p.health === "alive")).toBe(true);
+      await Promise.all(rooms.map((r) => r.leave()));
+    }, 15000);
+
+    it("reports a body: the meeting names it, and the body is gone after (GDD 16.1)", async () => {
+      const { a, c, rooms } = await trio(120);
+      const spot = { x: -17, z: -1 };
+      await place(c, spot);
+      c.send("debug", { down: true, bleedLeft: 0.05 });
+      await waitFor(() => me(c).health === "dead");
+      await place(a, { x: spot.x + 1.5, z: spot.z });
+      a.send("use", { down: true });
+      await waitFor(() => a.state.meeting === "evidence", (config.meetings.reportHoldSec + 1.5) * 1000);
+      expect(a.state.meetingBody).toBe("Nila");
+      // The dead stay where they fell.
+      expect(Math.hypot(me(c).x - spot.x, me(c).z - spot.z)).toBeLessThan(0.01);
+      await skipStep(a, "discussion");
+      await skipStep(a, "vote");
+      await skipStep(a, "result");
+      await skipStep(a, "");
+      await waitFor(() => me(c).bodyGone === true);
+      await Promise.all(rooms.map((r) => r.leave()));
+    }, 15000);
+  });
 });
