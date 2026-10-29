@@ -101,8 +101,8 @@ export interface GameHud {
   setLooking(looking: boolean): void;
   setStamina(fraction: number): void;
   setPrompt(text: string | null): void;
-  /** fractionLeft: 1 at dusk, 0 at dawn. */
-  setNight(part: string, fractionLeft: number): void;
+  /** fractionLeft: 1 at dusk, 0 at dawn. marks: where Calm, Restless and Furious begin, as fractions of the night. */
+  setNight(part: string, fractionLeft: number, secLeft: number, marks: number[]): void;
   setStatus(status: PlayerStatus): void;
   setAction(label: string | null, progress: number): void;
   showBanner(text: string, seconds: number): void;
@@ -110,7 +110,8 @@ export interface GameHud {
   /** Your microphone's loudness, 0 to 1, for the meter. */
   setMicLevel(level: number): void;
   setMicLost(lost: boolean): void;
-  setItems(salt: number, cameraShots: number): void;
+  /** bellUses: your own rings of the meeting bell left (GDD 16.1). */
+  setItems(salt: number, cameraShots: number, bellUses: number): void;
   /** The Spirit Camera viewfinder is up (key 2). */
   setCameraRaised(raised: boolean): void;
   /** Your own camera flash: a brief white screen. */
@@ -641,7 +642,8 @@ export class Game {
     });
 
     if (typeof state.nightLength === "number" && state.nightLength > 0) {
-      this.hud.setNight(state.part ?? "", 1 - state.nightTime / state.nightLength);
+      const marks = [config.match.quietSec / state.nightLength, ...config.match.partSplitsPct.map((pct) => pct / 100)];
+      this.hud.setNight(state.part ?? "", 1 - state.nightTime / state.nightLength, state.nightLength - state.nightTime, marks);
     }
 
     this.others.clear();
@@ -848,7 +850,9 @@ export class Game {
     }
     if (body) return `Hold E  Report ${body.name}'s body`;
     const bell = this.map.bell;
-    if (bell && me.bellUses > 0 && Math.hypot(bell.x - x, bell.z - z) <= config.interact.rangeM) return `Hold E  Ring the bell for a meeting (${me.bellUses} left)`;
+    if (bell && Math.hypot(bell.x - x, bell.z - z) <= config.interact.rangeM) {
+      return me.bellUses > 0 ? `Hold E  Ring the bell for a meeting (${me.bellUses} left)` : "You have used your bell. Each player has their own";
+    }
     const altar = this.map.altar;
     if (this.taintLeft > 0 && altar && Math.hypot(altar.x - x, altar.z - z) <= config.ritual.circleRadiusM) {
       return me.salt >= config.taint.cleanseSaltCost ? `Hold E  Put out the black flames (${config.taint.cleanseSaltCost} salt)` : "You need salt to put out the flames";
@@ -1050,7 +1054,7 @@ export class Game {
     else if (me.hidingSpot) this.hud.setStatus({ kind: "hidden", holdingBreath: me.holdingBreath, breathCooldown: me.breathCooldown });
     else this.hud.setStatus({ kind: "alive" });
     this.hud.setAction(me.action ? (ACTION_LABELS[me.action] ?? null) : null, me.actionProgress);
-    this.hud.setItems(me.salt, me.cameraShots);
+    this.hud.setItems(me.salt, me.cameraShots, me.bellUses ?? 0);
     this.hud.setCarrying(me.relic ? (this.relics.get(me.relic)?.name ?? "a relic") : null);
   }
 

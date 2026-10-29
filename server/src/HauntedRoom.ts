@@ -1358,7 +1358,13 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     // Report a body, or ring the bell: both call a meeting (GDD 16.1).
     const bodyId = this.bodyNear(sessionId, here);
     const bell = this.map.bell;
-    const atBell = !!bell && player.bellUses > 0 && this.hearingDistance(here, bell) <= config.interact.rangeM;
+    const nearBell = !!bell && this.hearingDistance(here, bell) <= config.interact.rangeM;
+    if (!bodyId && nearBell && player.bellUses <= 0) {
+      const msg: ServerMessages["meetingRefused"] = { reason: "You have used your bell. Each player has their own." };
+      this.clients.find((c) => c.sessionId === sessionId)?.send("meetingRefused", msg);
+      return;
+    }
+    const atBell = nearBell && player.bellUses > 0;
     if (bodyId || atBell) {
       if (this.refuseMeeting(sessionId)) return;
       this.setAction(sim, player, bodyId ? { kind: "report", targetId: bodyId, elapsed: 0 } : { kind: "ringBell", elapsed: 0 });

@@ -1126,6 +1126,33 @@ describe("HauntedRoom", () => {
       await Promise.all(rooms.map((r) => r.leave()));
     }, 15000);
 
+    it("gives every player their own ring of the bell (GDD 16.1)", async () => {
+      const { a, b, rooms } = await trio(config.match.quietSec + 10);
+      const bell = marrowHotelGreybox.bell!;
+      const ring = async (r: Room) => {
+        await place(r, { x: bell.x, z: bell.z - 1 });
+        r.send("use", { down: true });
+      };
+      const toEnd = async () => {
+        for (const step of ["discussion", "vote", "result", ""]) await skipStep(a, step);
+      };
+      await ring(a);
+      await waitFor(() => a.state.meeting === "evidence", (config.meetings.bellHoldSec + 1) * 1000);
+      await toEnd();
+      a.send("debug", { nightTime: config.match.quietSec + 10 + config.meetings.minGapSec + 5 });
+      // Rafi's ring is used up, and he is told so.
+      const refused = collectMsgs(a, "meetingRefused");
+      await ring(a);
+      await waitFor(() => refused.length === 1);
+      expect(refused[0]!.reason).toMatch(/used your bell/);
+      // Mim still has hers.
+      a.send("use", { down: false });
+      await ring(b);
+      await waitFor(() => a.state.meeting === "evidence", (config.meetings.bellHoldSec + 1) * 1000);
+      expect(a.state.meetingCaller).toBe("Mim");
+      await Promise.all(rooms.map((r) => r.leave()));
+    }, 20000);
+
     it("removes the player with the most votes, shows the votes and the role, and they leave no body (GDD 16.3)", async () => {
       const { a, b, c, rooms } = await trio(120);
       const results = collectMsgs(b, "meetingResult");

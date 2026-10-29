@@ -363,12 +363,33 @@ button.mute {
   color: var(--text);
 }
 
+/* The part's name gets hotter as the ghost does. */
+#night[data-part="calm"] #night-part { color: #9fb4d8; }
+#night[data-part="restless"] #night-part { color: #e0a24a; }
+#night[data-part="furious"] #night-part,
+#night[data-part="overtime"] #night-part { color: #e2523e; font-weight: bold; }
+
+#night-left {
+  min-width: 92px;
+}
+
 #night-bar {
-  width: 220px;
-  height: 6px;
+  position: relative;
+  width: 260px;
+  height: 8px;
   background: rgba(255, 255, 255, 0.12);
   border-radius: 3px;
   overflow: hidden;
+}
+
+/* Where Calm, Restless and Furious begin. */
+.night-mark {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(255, 255, 255, 0.55);
 }
 
 /* The bar fills from night (dark blue) toward dawn (warm orange). */

@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { config } from "./config.ts";
 import { powerCooldownSec, powerUnlocked, summonSpots } from "./powers.ts";
 
-const night = config.match.lengthMin * 60;
+// The GDD's power table is written for a 12-minute night.
+const night = 12 * 60;
 const at = (nightTime: number, ritualStarted = false) => ({ nightTime, nightLength: night, ritualStarted });
 
 describe("when powers unlock (GDD 4.2, 14.2)", () => {

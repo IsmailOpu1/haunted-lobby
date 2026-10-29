@@ -42,6 +42,9 @@ const relicList = el("relic-list");
 const night = el("night");
 const nightPartText = el("night-part");
 const nightFill = el("night-fill");
+const nightBar = el("night-bar");
+const nightLeft = el("night-left");
+let nightPartShown = "";
 const overlay = el("overlay");
 const overlayTitle = el("overlay-title");
 const overlayText = el("overlay-text");
@@ -138,6 +141,22 @@ const NIGHT_PART_NAMES: Record<string, string> = {
   overtime: "Overtime",
 };
 
+/** Said once as the night moves on, so nobody misses the ghost getting worse. */
+const NIGHT_PART_BANNERS: Record<string, string> = {
+  calm: "The ghost wakes.",
+  restless: "The ghost grows restless. It hunts more often.",
+  furious: "The ghost is furious. It hunts fast and often.",
+  overtime: "Overtime: hold the circle and finish the ritual.",
+};
+const NIGHT_BANNER_SEC = 4;
+
+function showBanner(text: string, seconds: number) {
+  banner.textContent = text;
+  banner.classList.remove("hidden");
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => banner.classList.add("hidden"), seconds * 1000);
+}
+
 const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
   // While the mouse is captured, hide the lobby panel so the 3D view is clear.
   setLooking: (looking) => document.body.classList.toggle("looking", looking),
@@ -149,10 +168,26 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     prompt.classList.toggle("hidden", !text);
     prompt.textContent = text ?? "";
   },
-  setNight: (part, fractionLeft) => {
+  setNight: (part, fractionLeft, secLeft, marks) => {
     night.classList.remove("hidden");
+    night.dataset.part = part;
     nightPartText.textContent = NIGHT_PART_NAMES[part] ?? part;
     nightFill.style.width = `${Math.round((1 - fractionLeft) * 100)}%`;
+    const left = Math.max(0, Math.ceil(secLeft));
+    nightLeft.textContent = part === "dawn" ? "Dawn" : part === "overtime" ? "Dawn is here" : `Dawn in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+    if (nightBar.querySelectorAll(".night-mark").length !== marks.length) {
+      nightBar.querySelectorAll(".night-mark").forEach((m) => m.remove());
+      for (const at of marks) {
+        const mark = Object.assign(document.createElement("div"), { className: "night-mark" });
+        mark.style.left = `${(at * 100).toFixed(1)}%`;
+        nightBar.append(mark);
+      }
+    }
+    if (part !== nightPartShown) {
+      // Not on joining mid-night: only when the part changes while you watch.
+      if (nightPartShown && NIGHT_PART_BANNERS[part]) showBanner(NIGHT_PART_BANNERS[part]!, NIGHT_BANNER_SEC);
+      nightPartShown = part;
+    }
   },
   setStatus: (status) => {
     document.body.dataset.status = status.kind;
@@ -295,12 +330,7 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
       Object.assign(document.createElement("div"), { className: "wheel-hint", textContent: "Move the mouse, let go of R" }),
     );
   },
-  showBanner: (text, seconds) => {
-    banner.textContent = text;
-    banner.classList.remove("hidden");
-    clearTimeout(bannerTimer);
-    bannerTimer = setTimeout(() => banner.classList.add("hidden"), seconds * 1000);
-  },
+  showBanner,
   setVoice: (state) => {
     micBox.classList.toggle("hidden", state.kind === "off");
     micStatus.classList.remove("error");
@@ -340,8 +370,8 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     micFill.style.width = `${Math.round(level * 100)}%`;
   },
   setMicLost: (lost) => micLost.classList.toggle("hidden", !lost),
-  setItems: (salt, shots) => {
-    const text = `Salt <strong>&times;${salt}</strong> (3) &nbsp; Camera <strong>&times;${shots}</strong> (2)`;
+  setItems: (salt, shots, bellUses) => {
+    const text = `Salt <strong>&times;${salt}</strong> (3) &nbsp; Camera <strong>&times;${shots}</strong> (2) &nbsp; Bell <strong>&times;${bellUses}</strong>`;
     if (itemsBox.innerHTML !== text) itemsBox.innerHTML = text;
   },
   setCameraRaised: (raised) => viewfinder.classList.toggle("hidden", !raised),
