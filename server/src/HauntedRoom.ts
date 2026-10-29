@@ -222,6 +222,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private relicTimer = 0;
   /** Test shortcut (debug servers only): the ghost is sent away. */
   private ghostPaused = false;
+  /** Debug: the night clock stands still, so dawn never comes. */
+  private clockFrozen = false;
   /** How often each player has been possessed this session, for fair rotation (GDD 19). */
   private timesPossessed = new Map<string, number>();
   /** Debug servers only: everyone is possessed, so counting the living cannot end the match. */
@@ -397,8 +399,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     });
 
     if (DEBUG) {
-      this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number; teleport?: { x: number; z: number }; giveTask?: string; hideRelicAt?: string; toggleGhost?: boolean; possessed?: boolean; startNow?: boolean; developPhotos?: boolean; curse?: boolean; meeting?: boolean; skipStep?: boolean }) => {
+      this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number; teleport?: { x: number; z: number }; giveTask?: string; hideRelicAt?: string; toggleGhost?: boolean; possessed?: boolean; startNow?: boolean; developPhotos?: boolean; curse?: boolean; meeting?: boolean; skipStep?: boolean; freezeClock?: boolean }) => {
         if (typeof msg?.nightTime === "number") this.state.nightTime = msg.nightTime;
+        // Stop the night clock (to try things without dawn coming), or start it again.
+        if (typeof msg?.freezeClock === "boolean") this.clockFrozen = msg.freezeClock;
         // Swap your first task for this station's (to try a particular task).
         const mine = this.sims.get(client.sessionId);
         if (mine && typeof msg?.giveTask === "string" && this.map.tasks.some((t) => t.id === msg.giveTask)) {
@@ -583,7 +587,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     } else if (this.nightStarted) {
       this.tickPowers(elapsedSec);
       this.tickRitual(elapsedSec);
-      this.state.nightTime = Math.min(this.state.nightTime + elapsedSec, this.state.nightLength);
+      if (this.clockFrozen) this.backdateClockTimers(elapsedSec);
+      else this.state.nightTime = Math.min(this.state.nightTime + elapsedSec, this.state.nightLength);
       let part = nightPart(this.state.nightTime, this.state.nightLength);
       // With every possessed player gone, the ghost turns Furious for the rest of the night (GDD 18).
       if (part !== "dawn" && this.possessedGone()) part = "furious";
@@ -1040,6 +1045,16 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       if (p.health === "alive" && !p.hidingSpot && this.hearingDistance(p, altar) <= config.ritual.circleRadiusM) count++;
     });
     return count;
+  }
+
+  /** With the clock frozen, gaps measured on it (meetings, Taint, same victim) still run out. */
+  private backdateClockTimers(sec: number) {
+    this.lastTaintAt -= sec;
+    if (this.lastMeetingEnd !== null) this.lastMeetingEnd -= sec;
+    for (const sim of this.sims.values()) {
+      sim.hitAt -= sec;
+      sim.trappedAt -= sec;
+    }
   }
 
   /** Every player dealt the possessed role is dead or has left. */

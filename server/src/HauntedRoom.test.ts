@@ -279,6 +279,18 @@ describe("HauntedRoom", () => {
     await room.leave();
   });
 
+  it("freezes the night clock and starts it again (debug servers only)", async () => {
+    const host = await new Client(endpoint).create(ROOM_NAME, { name: "Rafi" });
+    host.onMessage("*", () => {});
+    await night(host);
+    host.send("debug", { nightTime: 100, freezeClock: true });
+    await new Promise((r) => setTimeout(r, 400));
+    expect(host.state.nightTime).toBe(100);
+    host.send("debug", { freezeClock: false });
+    await waitFor(() => host.state.nightTime > 100.2);
+    await host.leave();
+  });
+
   it("sends the ghost away and brings it back with the debug key (debug servers only)", async () => {
     const room = await new Client(endpoint).create(ROOM_NAME, { name: "Tester" });
     await night(room);
