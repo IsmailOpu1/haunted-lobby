@@ -636,20 +636,27 @@ describe("lockbox", () => {
     }
   });
 
-  it("never sets a pin when the dial is spun fast", () => {
-    const game = new LockboxLogic(() => {}, seeded(2));
-    run(() => steady(game, lb.clickDegPerSec * 3), () => false, 10);
-    expect(game.set).toBe(0);
+  it("is stiff: a wild drag turns it no faster, still sets every pin, and still takes relic time", () => {
+    for (let seed = 1; seed <= 8; seed++) {
+      const game = new LockboxLogic(() => {}, seeded(seed));
+      let last = game.dial;
+      const t = run(() => {
+        steady(game, lb.maxDegPerSec * 10);
+        expect(Math.abs(game.dial - last)).toBeLessThanOrEqual(lb.maxDegPerSec * 0.2 + 1e-9);
+        last = game.dial;
+      }, () => game.done);
+      inRelicTime(t);
+    }
   });
 
-  it("lets you go back and pass a missed pin again slowly", () => {
-    const game = new LockboxLogic(() => {}, seeded(3));
-    // Spin past the first pin too fast.
-    run(() => steady(game, lb.clickDegPerSec * 3), () => game.dial > game.pins[0]! + 30, 10);
-    expect(game.set).toBe(0);
-    run(() => game.update(DT, { held: true, dragX: (-60 * DT) / lb.degPerPx }), () => game.dial < game.pins[0]! - 10, 10);
-    run(() => steady(game), () => game.set > 0, 10);
-    expect(game.set).toBe(1);
+  it("will not turn the wrong way past the last pin set", () => {
+    const game = new LockboxLogic(() => {}, seeded(2));
+    const back = (sign: number) => run(() => game.update(DT, { held: true, dragX: (sign * 60 * DT) / lb.degPerPx }), () => false, 3);
+    back(-1);
+    expect(game.dial).toBe(0);
+    run(() => steady(game), () => game.set === 1);
+    back(1); // the second pin is to the left: right is the wrong way now
+    expect(game.dial).toBe(game.pins[0]);
   });
 });
 

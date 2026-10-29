@@ -862,8 +862,8 @@ export class CradleLogic {
 
 /**
  * Open the jewellery box (a relic spot): a dial lock. Turn the dial right until the first pin
- * clicks, then left to the next, and so on. A pin only clicks if the dial passes it slowly; the
- * dial's soft ticks tell you how fast you turn.
+ * clicks, then left to the next, and so on. The dial is stiff, so dragging faster does not turn
+ * it faster, and it can never skip a pin.
  */
 export class LockboxLogic {
   private cfg = config.relics.hands.lockbox;
@@ -873,8 +873,7 @@ export class LockboxLogic {
   readonly pins: number[];
   /** Pins set so far. */
   set = 0;
-  /** How fast the dial turns, smoothed, in degrees a second. */
-  private speed = 0;
+  private stiff = new Pace(this.cfg.maxDegPerSec);
 
   constructor(private play: Play, random: Random = Math.random) {
     const c = this.cfg;
@@ -896,17 +895,19 @@ export class LockboxLogic {
   update(dt: number, input: { held: boolean; dragX: number }) {
     const c = this.cfg;
     if (dt <= 0 || this.done) return;
-    const turn = input.held ? input.dragX * c.degPerPx : 0;
-    this.speed += (Math.abs(turn) / dt - this.speed) * Math.min(1, dt / PUSH_PACE_SEC);
+    const turn = this.stiff.take(dt, input.held ? input.dragX * c.degPerPx : 0);
     if (turn === 0) return;
     const from = this.dial;
-    const to = from + turn;
+    // The last pin set stops the dial turning back the wrong way, so no turning is wasted.
+    const stop = this.set === 0 ? 0 : this.pins[this.set - 1]!;
+    const to = this.set % 2 === 0 ? Math.max(stop, from + turn) : Math.min(stop, from + turn);
+    if (to === from) return;
     this.dial = to;
     if (Math.floor(from / c.tickDeg) !== Math.floor(to / c.tickDeg)) this.play("tick");
     const pin = this.pins[this.set]!;
     const rightward = this.set % 2 === 0;
     const passes = rightward ? from < pin && to >= pin : from > pin && to <= pin;
-    if (passes && this.speed <= c.clickDegPerSec) {
+    if (passes) {
       this.set += 1;
       this.play("click");
     }

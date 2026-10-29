@@ -130,7 +130,7 @@ The last six tasks and the two remaining relic spots. With these, nothing opens 
 | Tune the piano | The tuning card on the music stand numbers the keys to press, in order (the next one in red). Click each key and let it ring. 3 rounds of 5 notes. A wrong key is a sour note the ghost hears, and the round restarts | 15.0 s |
 | Fold the bedsheets | Grab the loose half of the sheet and pull it over: toward you, then right to left, then toward you. Let go too soon and it slides back | 9.5 s |
 | Rock the cradle | The cradle swings on its own; push it gently in time with its swing. Keep the swing in the calm band for 11 s and the mobile above turns as the baby settles. A shove or too big a swing makes the baby cry (heard by the ghost) and costs 2 s | 13.1 s |
-| Jewellery box (relic) | A dial lock: turn the dial slowly right until a pin clicks, then left to the next, 4 pins in all. A stud lights for each pin. Turned fast, the pins never catch | 10.4 s |
+| Jewellery box (relic) | A dial lock: turn the dial right until a pin clicks, then left to the next, 4 pins in all. A stud lights for each pin. The dial is stiff (80° a second at most), so turning fast never skips a pin (changed 2026-10-29, GDD 26.5) | 7 to 11 s |
 | Drain (relic) | Reach into the dark water and feel about slowly; ripples spread faster near the relic. Hold still on it 2.5 s to grip it, then drag up to pull it out. Let go while pulling and it slips back | 10.7 s |
 
 - Speed limits on the new drags (plugs, latches, sheets, the hand in the drain) are judged over a fifth of a second rather than frame by frame, so mouse movement that arrives unevenly between frames still counts. Before this, a fold took twice as long in the browser as in the tests.

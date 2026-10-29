@@ -698,7 +698,7 @@ class CradleTask implements HandsTask {
 }
 
 class LockboxTask implements HandsTask {
-  readonly hint = "Hold the dial and drag right to turn it slowly until a pin clicks, then turn it left to the next, and so on. Turned fast, the pins never catch.";
+  readonly hint = "Hold the dial and drag right until a pin clicks, then drag left until the next one clicks, then right, then left. A stud lights up for each pin.";
   readonly parts: THREE.Object3D[];
   private logic: LockboxLogic;
 

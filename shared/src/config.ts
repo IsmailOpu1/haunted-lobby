@@ -167,9 +167,9 @@ export const config = {
       // only counts fastFactor of the extra and throws soil (a noise).
       dig: { searchPx: 1800, takePx: 4200, maxPxPerSec: 700, fastFactor: 0.3 },
       // A dial lock: turn the dial (degPerPx) right to the first pin, left to the next, and so on.
-      // A pin clicks if the dial passes it no faster than clickDegPerSec; each is minGapDeg to
-      // maxGapDeg on from the last. The dial ticks every tickDeg so you can hear your speed.
-      lockbox: { pins: 4, degPerPx: 0.4, clickDegPerSec: 70, minGapDeg: 90, maxGapDeg: 200, tickDeg: 15 },
+      // The dial is stiff: it turns at most maxDegPerSec however fast you drag, and every pin clicks
+      // as it passes. Each pin is minGapDeg to maxGapDeg on from the last. The dial ticks every tickDeg.
+      lockbox: { pins: 4, degPerPx: 0.4, maxDegPerSec: 80, minGapDeg: 140, maxGapDeg: 220, tickDeg: 15 },
       // Reach into the dark water: the hand moves mPerPx (at most maxMPerSec) in a sizeM square. Within
       // feelM of the relic, hold still (under stillMPerSec) for grabSec to grip it, then pull up
       // pullPx (at most pullPxPerSec). Let go while pulling and it slips back.
