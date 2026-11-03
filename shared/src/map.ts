@@ -98,6 +98,22 @@ export interface TaskStationDef {
   clue?: { x: number; z: number; heightM: number; stand?: boolean };
 }
 
+/**
+ * Someone who died in the hotel: tonight's ghost may be them (the mystery pilot, GDD 26.13).
+ * Each clue task shows one of these pictures, picked by the task's minigame.
+ */
+export interface SuspectDef {
+  id: string;
+  /** "the Bride" */
+  name: string;
+  /** Their belonging, one of the map's relic names: the right offering on the altar. */
+  belonging: string;
+  /** Their sign on a clue's picture, until the Phase 8 art: one emoji. */
+  icon: string;
+  /** What each clue task shows when it points at them, by minigame: "a face in a veil". */
+  clues: Partial<Record<TaskMinigame, string>>;
+}
+
 /** One place to search in a relic hiding spot: a pot, a patch of soil, a drawer. */
 export interface SearchPlaceDef {
   id: string;
@@ -200,6 +216,8 @@ export interface MapData {
   relicSpots: RelicSpotDef[];
   /** This map's relic names, used in order for the relics of a match. */
   relicNames: string[];
+  /** Who the ghost may have been (GDD 26.13). Without them, the map has no mystery. */
+  suspects?: SuspectDef[];
   spawns: { x: number; z: number }[];
   /** Solid furniture that is not a hiding spot. */
   furniture: FurnitureDef[];

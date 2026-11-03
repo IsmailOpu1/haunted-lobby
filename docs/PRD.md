@@ -566,6 +566,7 @@ export const config = {
     whisperM: 8, extractMinSec: 10, extractMaxSec: 15,
     placeSec: 3, carryHearingBonusPct: 25, dropGhostHearM: 8,
   },
+  mystery: { offerHoldSec: 3, wrongWaitSec: 30, standSpacingM: 0.6 },   // pilot, GDD 26.13
   ritual: {
     baseSec: 45, options: [30, 45, 60], circleRadiusM: 4,
     circleMinByPlayers: { 4: 2, 5: 2, 6: 2, 7: 3, 8: 3 },
@@ -606,6 +607,7 @@ export const config = {
     slamDoor: { unlockSec: 60,  cooldownSec: 30, rangeM: 6, lockSec: 15, breakPushers: 2, breakSec: 2, ghostHearM: 12, sameVictimSec: 60 },
     summon:   { unlockSec: 120, cooldownSec: 60, targetRangeM: 15, spawnMinM: 6, spawnMaxM: 10, whisperM: 5, eyeGlowSec: 1, protectAfterHitSec: 30 },
     blackout: { unlockAtPart: "restless", usesPerMatch: 1, fuseFixSec: 5, autoRestoreSec: 60 },
+    alterClue: { unlockSec: 60, usesPerMatch: 1, rangeM: 3 },   // mystery pilot, GDD 26.13
     cooldownSpeed: { slow: 1.25, normal: 1.0, fast: 0.75 },
   },
   meetings: {

@@ -1,6 +1,6 @@
 # Mystery pilot: who was the ghost?
 
-**Status:** draft for the owner to read and change. Nothing is built until the owner approves it.
+**Status:** approved by the owner with the suggested answers, and built on 2026-11-04 (branch `mystery-pilot`). What was built, and where it differs from this plan, is in GDD 26.13. Next: the owner plays it with friends.
 
 ## Why
 

@@ -952,7 +952,7 @@ body.meeting #sound-cues {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  width: 110px;
+  width: 96px;
   padding: 6px;
   text-align: center;
   font-size: 12px;
@@ -976,11 +976,6 @@ body.meeting #sound-cues {
   background: rgba(196, 85, 74, 0.35);
   outline: 1px solid #c4554a;
 }
-
-#power-wheel .at-0 { left: 50%; top: 17%; }
-#power-wheel .at-1 { left: 80%; top: 50%; }
-#power-wheel .at-2 { left: 50%; top: 83%; }
-#power-wheel .at-3 { left: 20%; top: 50%; }
 
 #power-wheel .wheel-hint {
   position: absolute;

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Client, type Room } from "@colyseus/sdk";
 import { matchMaker } from "colyseus";
-import { config, isValidRoomCode, ROOM_NAME, type ServerMessages } from "@haunted/shared";
+import { altarStands, clueStations, config, isValidRoomCode, ROOM_NAME, type ServerMessages } from "@haunted/shared";
 import { createGameServer } from "./app.ts";
 import { marrowHotelGreybox } from "@haunted/maps";
 
@@ -54,8 +54,12 @@ async function waitFor(check: () => boolean, timeoutMs = 2000) {
   }
 }
 
-/** Skips the host's countdown and the intro (debug servers only): roles are dealt and the night starts. */
-async function night(host: Room) {
+/**
+ * Skips the host's countdown and the intro (debug servers only): roles are dealt and the night
+ * starts. With mystery false, the night has no "who was the ghost?" (GDD 26.13).
+ */
+async function night(host: Room, mystery = true) {
+  if (!mystery) host.send("debug", { mystery: false });
   host.send("debug", { startNow: true });
   await waitFor(() => host.state.stage === "night");
 }
@@ -426,7 +430,7 @@ describe("HauntedRoom", () => {
   it("gives 3 tasks in different rooms, refuses a too-fast finish, and counts a real one", async () => {
     // Use the clock, in the Main Hall where players start (no doors to open).
     const { room, tasks } = await createWithTask((id) => id === "task-clock");
-    await night(room);
+    await night(room, false); // without the mystery, which deals clue tasks and waits for an offering
     const list = tasks[0]!.list;
     expect(list).toHaveLength(config.tasks.perPlayer);
     expect(new Set(list.map((t) => t.room)).size).toBe(list.length);
@@ -476,7 +480,7 @@ describe("HauntedRoom", () => {
     const station = marrowHotelGreybox.tasks.find((t) => t.id === id)!;
     const friend = await new Client(endpoint).joinById(room.roomId, { name: "Listener" });
     friend.onMessage("*", () => {});
-    await night(room);
+    await night(room, false); // without the mystery, which deals clue tasks and waits for an offering
     const heard = collectMsgs(friend, "taskNoise");
     await waitFor(() => room.state.players.size === 2);
     // Both jump to the station's room: the friend a few metres away, well inside the 10 m the
@@ -729,7 +733,7 @@ describe("HauntedRoom", () => {
     const a = await new Client(endpoint).create(ROOM_NAME, { name: "Rafi" });
     const b = await new Client(endpoint).joinById(a.roomId, { name: "Mim" });
     for (const r of [a, b]) r.onMessage("*", () => {});
-    await night(a);
+    await night(a, false); // without the mystery, which deals clue tasks and waits for an offering
     const server = matchMaker.getLocalRoomById(a.roomId) as any;
     const s = () => a.state;
     const altar = marrowHotelGreybox.altar!;
@@ -792,7 +796,7 @@ describe("HauntedRoom", () => {
     const a = await new Client(endpoint).create(ROOM_NAME, { name: "Sam" });
     const b = await new Client(endpoint).joinById(a.roomId, { name: "Mim" });
     for (const r of [a, b]) r.onMessage("*", () => {});
-    await night(a);
+    await night(a, false); // without the mystery, which deals clue tasks and waits for an offering
     const ends = collectMsgs(b, "matchEnd");
     const server = matchMaker.getLocalRoomById(a.roomId) as any;
     const altar = marrowHotelGreybox.altar!;
@@ -1365,4 +1369,115 @@ describe("HauntedRoom", () => {
     expect(nila.state.winner).toBe("");
     await Promise.all(rooms.map((r) => r.leave()));
   }, 15000);
+
+  // The mystery pilot's "Done when" (docs/plans/mystery-pilot.md, GDD 26.13).
+  it("who was the ghost: the clues point at it, the possessed alters one, a wrong offering is punished, the right one starts the ritual", async () => {
+    const map = marrowHotelGreybox;
+    const ghoul = await new Client(endpoint).create(ROOM_NAME, { name: "Ghoul" });
+    const others = await Promise.all(["Mim", "Nila", "Rafi"].map((name) => new Client(endpoint).joinById(ghoul.roomId, { name })));
+    const [mim, nila, rafi] = others as [Room, Room, Room];
+    const rooms = [ghoul, ...others];
+    for (const r of rooms) r.onMessage("*", () => {});
+    const server = matchMaker.getLocalRoomById(ghoul.roomId) as any;
+    const roles = collectMsgs(ghoul, "role");
+    const lists = new Map(rooms.map((r) => [r, collectMsgs(r, "tasks")]));
+    ghoul.send("debug", { possessed: true });
+    await new Promise((r) => setTimeout(r, 100));
+    await night(ghoul);
+    ghoul.send("debug", { nightTime: config.powers.alterClue.unlockSec + 1, freezeClock: true });
+    await waitFor(() => roles.length === 1);
+    // Only the possessed is told who the ghost was.
+    const ghost = map.suspects!.find((s) => s.name === roles[0]!.ghost)!;
+    expect(ghost).toBeDefined();
+    for (const r of rooms) r.send("tasksRequest");
+    await waitFor(() => rooms.every((r) => lists.get(r)!.length > 0));
+    await new Promise((r) => setTimeout(r, 200));
+    const tasksOf = (r: Room) => lists.get(r)!.at(-1)!.list.map((t) => t.stationId);
+
+    // Every clue task is dealt to an investigator, none to the possessed.
+    const clueIds = clueStations(map).map((s) => s.id);
+    expect(tasksOf(ghoul).some((id) => clueIds.includes(id))).toBe(false);
+    const jobs = new Map<Room, string[]>();
+    for (const id of clueIds) {
+      const holder = others.find((r) => tasksOf(r).includes(id));
+      expect(holder, id).toBeDefined();
+      jobs.set(holder!, [...(jobs.get(holder!) ?? []), id]);
+    }
+    // Each clue shows the ghost, for everyone, once its task is done.
+    const doTask = async (r: Room, id: string) => {
+      const st = map.tasks.find((t) => t.id === id)!;
+      r.send("debug", { teleport: { x: st.x, z: st.z } });
+      await new Promise((res) => setTimeout(res, 300));
+      const opened = collectMsgs(r, "taskOpen");
+      r.send("use", { down: true });
+      r.send("use", { down: false });
+      await waitFor(() => opened.length === 1);
+      await new Promise((res) => setTimeout(res, (config.tasks.serverMinSec + 0.5) * 1000));
+      r.send("taskDone", { stationId: id });
+      await waitFor(() => r.state.stations.get(id).clue !== "");
+    };
+    await Promise.all([...jobs].map(async ([r, ids]) => {
+      for (const id of ids) await doTask(r, id);
+    }));
+    for (const id of clueIds) expect(nila.state.stations.get(id).clue).toBe(ghost.id);
+
+    // The possessed alters the mirror's clue to someone else, once per match.
+    const refused = collectMsgs(ghoul, "powerRefused");
+    const mirror = map.tasks.find((t) => t.minigame === "mirror")!;
+    ghoul.send("debug", { teleport: { x: mirror.x, z: mirror.z } });
+    await new Promise((r) => setTimeout(r, 300));
+    ghoul.send("power", { kind: "alterClue" });
+    await waitFor(() => mim.state.stations.get(mirror.id).clue !== ghost.id);
+    ghoul.send("power", { kind: "alterClue" });
+    await waitFor(() => refused.length === 1);
+    expect(refused[0]!.reason).toBe("Already used.");
+
+    // The basement opens. Everyone stands in the circle and the task bar is full, but the ritual
+    // waits for the offering.
+    ghoul.send("debug", { openBasement: true });
+    await waitFor(() => ghoul.state.doors.get(map.relicDoor!).open === true);
+    server.state.tasksDone = server.state.tasksTotal;
+    const altar = map.altar!;
+    const stands = altarStands(altar, 3);
+    const relicIds = ["R1", "R2", "R3"];
+    const rightAt = relicIds.findIndex((id) => ghoul.state.relics.get(id).name === ghost.belonging);
+    expect(rightAt).toBeGreaterThanOrEqual(0);
+    const wrongAt = (rightAt + 1) % 3;
+    const front = (i: number) => ({ x: stands[i]!.x, z: stands[i]!.z + 1 });
+    ghoul.send("debug", { teleport: { x: altar.x + 2, z: altar.z - 2 } });
+    rafi.send("debug", { teleport: { x: altar.x - 2, z: altar.z - 2 } });
+    mim.send("debug", { teleport: front(wrongAt) });
+    nila.send("debug", { teleport: front(rightAt) });
+    await new Promise((r) => setTimeout(r, 500));
+    expect(ghoul.state.ritualStarted).toBe(false);
+    expect(ghoul.state.ritualReady).toBe(false);
+
+    // A wrong offering: it crumbles, the ghost hunts at once, and the altar waits 30 s.
+    const offerings = collectMsgs(rafi, "offering");
+    const hunts = collectMsgs(rafi, "hunt");
+    mim.send("use", { down: true });
+    await waitFor(() => offerings.length === 1, (config.mystery.offerHoldSec + 1) * 1000);
+    mim.send("use", { down: false });
+    expect(offerings[0]).toMatchObject({ by: "Mim", relic: ghoul.state.relics.get(relicIds[wrongAt]).name, right: false, ghost: null });
+    await waitFor(() => ghoul.state.relics.get(relicIds[wrongAt]).status === "crumbled");
+    expect(hunts.some((h) => h.phase === "start")).toBe(true);
+    expect(ghoul.state.altarWait).toBeGreaterThan(config.mystery.wrongWaitSec - 2);
+    // Send the ghost away so the test can go on, and hold E at the right relic: nothing yet.
+    ghoul.send("debug", { toggleGhost: true });
+    nila.send("use", { down: true });
+    await new Promise((r) => setTimeout(r, 300));
+    expect(nila.state.players.get(nila.sessionId).action).toBe("");
+    nila.send("use", { down: false });
+
+    // After the wait, the right relic names the ghost, and the ritual starts.
+    server.state.altarWait = 0;
+    await new Promise((r) => setTimeout(r, 100));
+    nila.send("use", { down: true });
+    await waitFor(() => offerings.length === 2, (config.mystery.offerHoldSec + 1) * 1000);
+    nila.send("use", { down: false });
+    expect(offerings[1]).toMatchObject({ by: "Nila", relic: ghost.belonging, right: true, ghost: ghost.name });
+    expect(ghoul.state.ghostNamed).toBe(ghost.name);
+    await waitFor(() => ghoul.state.ritualStarted === true);
+    await Promise.all(rooms.map((r) => r.leave()));
+  }, 45000);
 });

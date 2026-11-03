@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import type { Room } from "@colyseus/sdk";
 import {
+  altarStands,
+  clueLabel,
   config,
   initPhysics,
   levelOf,
@@ -40,6 +42,7 @@ import { HandsWork } from "./hands/work.ts";
 import { ItemsView } from "./items.ts";
 import { PlayerInput } from "./input.ts";
 import { RelicsView } from "./relicsView.ts";
+import { MysteryView } from "./mysteryView.ts";
 import { RemotePlayers } from "./remotePlayers.ts";
 import { StationsView } from "./stations.ts";
 import { VoiceChat } from "./voice.ts";
@@ -58,7 +61,7 @@ const WISP_GLOW_RANGE_M = 6;
 const WHEEL_PICK_PX = 30;
 const WHEEL_MAX_PX = 120;
 // Which way each power sits on the wheel, clockwise from the top.
-const WHEEL_ORDER: PowerKind[] = ["slamDoor", "summon", "blackout", "taint"];
+export const WHEEL_ORDER: PowerKind[] = ["slamDoor", "summon", "blackout", "taint", "alterClue"];
 // What you aim at for Slam Door and Summon: within this angle of the crosshair.
 const AIM_DOOR_RAD = (35 * Math.PI) / 180;
 const AIM_PLAYER_RAD = (20 * Math.PI) / 180;
@@ -179,6 +182,8 @@ export interface RitualHud {
   progress: number;
   inCircle: number;
   needed: number;
+  /** The basement is open but nobody has offered the ghost's belonging yet (GDD 26.13). */
+  offering: boolean;
 }
 
 /** What the microphone part of the room panel shows. */
@@ -205,9 +210,10 @@ const ACTION_LABELS: Record<string, string> = {
   cleanse: "Putting out the flames",
   ringBell: "Ringing the bell",
   report: "Reporting the body",
+  offer: "Offering the relic",
 };
 
-export const POWER_NAMES: Record<PowerKind, string> = { slamDoor: "Slam Door", summon: "Summon", blackout: "Blackout", taint: "Taint" };
+export const POWER_NAMES: Record<PowerKind, string> = { slamDoor: "Slam Door", summon: "Summon", blackout: "Blackout", taint: "Taint", alterClue: "Alter a clue" };
 
 /** The parts of a player's server state this client reads. */
 interface PlayerData {
@@ -317,6 +323,12 @@ export class Game {
   private doorsLocked = new Set<string>();
   private blackout = false;
   private taintLeft = 0;
+  // Who was the ghost? (GDD 26.13): the ghost's name once offered right, the altar's wait, and each station's clue.
+  private mystery: MysteryView;
+  private ghostNamed = "";
+  private altarWait = 0;
+  private ritualStarted = false;
+  private clues = new Map<string, string>();
   private debugLights = false;
   /** The meeting's step, "" when there is none (GDD 16). */
   private meeting: MeetingStep = "";
@@ -342,6 +354,7 @@ export class Game {
     this.items = new ItemsView(this.scene, map);
     this.stations = new StationsView(this.scene, map);
     this.relicsView = new RelicsView(this.scene, map);
+    this.mystery = new MysteryView(this.scene, map);
     this.wisps = new WispsView(this.scene);
     this.wispCollide = wispCollide(map);
     this.physics = new PhysicsWorld(map);
@@ -490,6 +503,14 @@ export class Game {
       else if (msg.phase === "start") this.sound.huntStart();
       else this.sound.huntEnd();
     });
+    room.onMessage("offering", (msg: ServerMessages["offering"]) => {
+      this.hud.showBanner(
+        msg.right
+          ? `${msg.by} offered ${msg.relic}. It glows: the ghost was ${msg.ghost}! Gather in the circle.`
+          : `${msg.by} offered ${msg.relic}. It crumbles to dust, and the ghost is coming!`,
+        6,
+      );
+    });
     room.onMessage("bellRing", (msg: ServerMessages["bellRing"]) => {
       const at = this.place(msg);
       this.sound.serviceBell(at);
@@ -624,8 +645,17 @@ export class Game {
       progress: state.ritualProgress ?? 0,
       inCircle: state.circleCount ?? 0,
       needed: state.circleNeeded ?? 0,
+      offering: !!this.map.suspects?.length && this.basementOpen() && !state.ghostNamed,
     };
     this.hud.setRitual(ritual);
+    this.ritualStarted = ritual.started;
+    this.ghostNamed = state.ghostNamed ?? "";
+    this.altarWait = state.altarWait ?? 0;
+    this.clues.clear();
+    state.stations?.forEach((s: { clue?: string }, id: string) => {
+      if (s.clue) this.clues.set(id, s.clue);
+    });
+    this.mystery.update(state, [...this.relics.keys()].sort(), this.basementOpen(), this.ghostNamed);
     const taintLeft = state.taintLeft ?? 0;
     if (taintLeft > 0 && this.taintLeft === 0) this.hud.showBanner("Black flames on the altar! Hold E in the circle to put them out with salt.", 4);
     this.taintLeft = taintLeft;
@@ -857,6 +887,8 @@ export class Game {
     if (this.taintLeft > 0 && altar && Math.hypot(altar.x - x, altar.z - z) <= config.ritual.circleRadiusM) {
       return me.salt >= config.taint.cleanseSaltCost ? `Hold E  Put out the black flames (${config.taint.cleanseSaltCost} salt)` : "You need salt to put out the flames";
     }
+    const offer = this.offerPrompt(x, z);
+    if (offer) return offer;
     const fuse = this.map.fuseBox;
     if (this.blackout && fuse && Math.hypot(fuse.x - x, fuse.z - z) <= config.interact.rangeM) return "Hold E  Fix the fuse box";
     const near = this.nearestDoor(x, z);
@@ -889,6 +921,11 @@ export class Game {
     const taken = new Set([...this.others.values()].map((p) => p.hidingSpot).filter(Boolean));
     for (const spot of this.map.hidingSpots) {
       if (!taken.has(spot.id) && Math.hypot(spot.exit.x - x, spot.exit.z - z) <= config.interact.hideRangeM) return "Hold E  Hide";
+    }
+    // A clue that is showing: what it says, for anyone who walks up (GDD 26.13).
+    for (const [id, suspect] of this.clues) {
+      const def = this.map.tasks.find((t) => t.id === id);
+      if (def && Math.hypot(def.x - x, def.z - z) <= config.interact.rangeM) return `Clue: ${clueLabel(this.map, id, suspect) ?? ""}`;
     }
     if (atRelicDoor) {
       const relics = [...this.relics.values()];
@@ -996,14 +1033,42 @@ export class Game {
     if (picked) this.usePower(picked);
   }
 
-  /** The power the mouse points at: up is Slam Door, then clockwise. */
+  /** The power the mouse points at: up is Slam Door, then clockwise, one equal slice each. */
   private wheelPick(): PowerKind | null {
     const w = this.wheel;
     if (!w || Math.hypot(w.x, w.y) < WHEEL_PICK_PX) return null;
     // Angle clockwise from straight up (screen y grows downward).
     const a = Math.atan2(w.x, -w.y);
-    const turn = (a + Math.PI * 2 + Math.PI / 4) % (Math.PI * 2);
-    return WHEEL_ORDER[Math.floor(turn / (Math.PI / 2))]!;
+    const slice = (Math.PI * 2) / WHEEL_ORDER.length;
+    const turn = (a + Math.PI * 2 + slice / 2) % (Math.PI * 2);
+    return WHEEL_ORDER[Math.floor(turn / slice) % WHEEL_ORDER.length]!;
+  }
+
+  /** Every relic slot on the basement door is filled (a crumbled relic was placed first). */
+  private basementOpen(): boolean {
+    const relics = [...this.relics.values()];
+    return relics.length > 0 && relics.every((r) => r.status === "placed" || r.status === "crumbled");
+  }
+
+  /** The offering at the altar (GDD 26.13). Mirrors HauntedRoom.relicToOffer. */
+  private offerPrompt(x: number, z: number): string | null {
+    const altar = this.map.altar;
+    if (!this.map.suspects?.length || !altar || this.ghostNamed || this.ritualStarted || !this.basementOpen()) return null;
+    if (Math.hypot(altar.x - x, altar.z - z) > config.ritual.circleRadiusM) return null;
+    if (this.altarWait > 0) return `The altar takes no offering for ${Math.ceil(this.altarWait)} s`;
+    const ids = [...this.relics.keys()].sort();
+    const stands = altarStands(altar, ids.length);
+    let found: string | null = null;
+    let best: number = config.interact.rangeM;
+    ids.forEach((id, i) => {
+      const d = Math.hypot(stands[i]!.x - x, stands[i]!.z - z);
+      if (this.relics.get(id)?.status === "placed" && d <= best) {
+        best = d;
+        found = id;
+      }
+    });
+    if (!found) return null;
+    return `Hold E  Offer ${this.relics.get(found)!.name}: was it the ghost's?`;
   }
 
   private showWheel() {
@@ -1174,6 +1239,8 @@ function relicStatusText(r: RelicData): string {
       return `Dropped (last carried by ${r.carrier})`;
     case "placed":
       return "Placed";
+    case "crumbled":
+      return "Crumbled to dust on the altar";
     default:
       return "Hidden";
   }

@@ -736,6 +736,7 @@ Real-mic ghost hearing with mic calibration, the Spirit Camera, Wisps with the O
 | 2026-11-04 | The cursed letter sways less (12 cm each way, was 14) and slower (3.4 s, was 2.6), and the flame counts within 9 cm of it (was 7). A flame held still under it now burns it slowly; following the sway burns it fast | Owner playtest: the letter would not burn. Holding a match within 7 cm of a fast, uneven swing was nearly impossible by hand |
 | 2026-11-04 | Sound subtitles (relic music box, bell) are hidden during meetings | Test run: "A faint music box" covered the vote result |
 | 2026-11-04 | Wisps float at 4 m/s (17 said 3) | Walking became 2.6 m/s, so a Wisp at 3 was barely faster than the living |
+| 2026-11-04 | **Pilot: who was the ghost?** Each night the ghost was one of 4 people who died in the hotel. The mirror, the portraits and the switchboard show a clue about who; the possessed knows and lies; the team offers the ghost's belonging on the altar before the ritual can start. Rules in 26.13, plan in `docs/plans/mystery-pilot.md` | Owner playtest: "It works, but it isn't fun. It feels scattered." Tasks, relics, the ritual and the possessed never touched. Owner: "Yes, build it" |
 | 2026-10-29 | Everyone moves 1.25× faster: walk 2.6, run 4.1, crouch 1.4, crawl 0.75 m/s, and the ghost with them (wander 1.4 / 1.75 / 2.25, hunt 2.4 / 2.75 / 3.1 m/s in Calm / Restless / Furious), so chases stay fair. Stamina refills in 8 s (was 15 s). Walking end to end now takes about 38 s, so 21.1's 45 to 60 s becomes 35 to 60 s | Owner playtest: too slow, and the big map took too long to learn |
 | 2026-10-29 | Default match length 15 minutes (was 12); the choices stay 10, 12, 15 and 20. The night bar marks where Calm, Restless and Furious begin, colours the part's name, shows the time left to dawn, and a banner says when the ghost wakes, turns Restless or Furious | Owner playtest: the night felt like one short block with no time to learn the map |
 | 2026-10-29 | The bell is already one ring per player (16.1); now the item bar shows yours ("Bell ×1"), and once it is used, E at the bell says "You have used your bell. Each player has their own" | Owner playtest: it looked like one bell for everyone, because the 30 s gap after a meeting refuses everyone |
@@ -908,4 +909,22 @@ The owner found the hotel a maze: several rooms had 3 or 4 doors, many of them s
 | Wisp voice | The dead hear only the dead, in meetings too, at full volume regardless of distance | 17. Already built in Phase 3 (26.7) |
 | Every possessed gone | Once every player dealt the possessed role is dead (voted out, bled out) or has left, the ghost is Furious for the rest of the night, and the night bar says so. Not at dawn | 18 says the ghost becomes Furious but not for how long |
 | Known limit | Wisp positions travel in the shared room state, so a modified game could show Wisps to the living. Normal players cannot see them | Hiding them per player needs state filtering; revisit with the other anti-cheat work before public release (PRD 10.3) |
+
+### 26.13 Who was the ghost? (pilot, built 2026-11-04, awaiting the owner's playtest)
+
+The owner approved `docs/plans/mystery-pilot.md` with the suggested answers. What was built, including where it differs from the plan:
+
+| Rule | Value | Why |
+|---|---|---|
+| Suspects | The Bride, the Bellboy, the Founder and the Child, in the map data with their belonging and what each clue task shows for them. A map without suspects has no mystery | Plan, question 1. Maps are data |
+| Tonight's ghost | Picked at random when the room is made, known only to the server. The 3 relics are the ghost's own belonging and 2 other suspects' belongings, in random spots. The Brass Key sits out | Plan |
+| Clue tasks | The mirror, the portraits and the switchboard. When the night starts, each goes to an investigator (the one with the fewest clue tasks, swapped for an ordinary task, one task per room as before), and the possessed's are swapped for ordinary fake ones | The plan said a clue task on the possessed's list would show a clue of their choice. Simpler: they lie by talking and with Alter a clue |
+| The clue | Finishing a clue task shows a picture above the station (the suspect's sign and a few words: "a face under a top hat"), and it stays for everyone. Walking up to it shows the words as the E line. Grey-box pictures until Phase 8 | Plan, question 4 |
+| The possessed know | Their role reveal says who the ghost was | Plan |
+| Alter a clue | A new power on the wheel, from 1:00 into the night, once per match for each possessed player: the nearest clue showing within 3 m changes to another suspect at once. Curse glow as with every power | The plan said hold E for 3 s at the clue. E at a station opens its task, so it became a power on the wheel, used instantly |
+| The offering | Once the basement is open, the relics stand in a row on the altar. Hold E for 3 s in the circle, next to one, to offer it. Everyone gets a banner naming who offered what. Until the right one is offered, the ritual cannot start | Plan |
+| Wrong offering | The relic crumbles to dust, the ghost hunts the one who offered at once (if it is awake), and the altar takes no offering for 30 s | Plan, question 2 |
+| Right offering | It glows, the banner names the ghost, and the ritual starts as before once the circle is full | Plan |
+| Ghost behaviour | The same for every suspect | Plan, question 5 |
+| Debug | `{ openBasement: true }` places every relic and opens the basement; `{ mystery: false }` before the night plays without the mystery | To try it alone, and for the older tests |
 

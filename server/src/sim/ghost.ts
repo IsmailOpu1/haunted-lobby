@@ -183,6 +183,20 @@ export class Ghost {
    */
   summon(victim: { id: string; x: number; z: number }, spots: Point[]): boolean {
     if (!this.summonable) return false;
+    return this.appearAndHunt(victim, spots);
+  }
+
+  /**
+   * A wrong offering on the altar (GDD 26.13): the ghost hunts the one who offered at once,
+   * whatever it was doing, unless it sleeps, has gone at dawn, or already hunts.
+   */
+  huntNow(victim: { id: string; x: number; z: number }, spots: Point[]): boolean {
+    if (this.state === "hunt") return true;
+    if (this.state === "asleep" || this.state === "gone") return false;
+    return this.appearAndHunt(victim, spots);
+  }
+
+  private appearAndHunt(victim: { id: string; x: number; z: number }, spots: Point[]): boolean {
     for (const spot of spots) {
       const p = this.nav.closest(spot);
       if (Math.hypot(p.x - spot.x, p.z - spot.z) > SUMMON_SNAP_M) continue;

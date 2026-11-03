@@ -177,6 +177,14 @@ export const config = {
       drain: { sizeM: 0.5, relicMinM: 0.18, mPerPx: 0.0008, maxMPerSec: 0.12, feelM: 0.07, stillMPerSec: 0.03, grabSec: 2.5, pullPx: 500, pullPxPerSec: 200 },
     },
   },
+  // Who was the ghost? (GDD 26.13): the offering on the altar before the ritual.
+  mystery: {
+    offerHoldSec: 3,
+    // A wrong offering: the relic crumbles, the ghost hunts at once, and the altar waits this long.
+    wrongWaitSec: 30,
+    // The relics stand in a row on the altar, this far apart.
+    standSpacingM: 0.6,
+  },
   ritual: {
     baseSec: 45,
     options: [30, 45, 60],
@@ -263,6 +271,8 @@ export const config = {
     slamDoor: { unlockSec: 60, cooldownSec: 30, rangeM: 6, lockSec: 15, breakPushers: 2, breakSec: 2, ghostHearM: 12, sameVictimSec: 60 },
     summon: { unlockSec: 120, cooldownSec: 60, targetRangeM: 15, spawnMinM: 6, spawnMaxM: 10, whisperM: 5, eyeGlowSec: 1, protectAfterHitSec: 30 },
     blackout: { unlockAtPart: "restless", usesPerMatch: 1, fuseFixSec: 5, autoRestoreSec: 60 },
+    // Alter a clue (GDD 26.13): a showing clue within rangeM changes to point at someone else.
+    alterClue: { unlockSec: 60, usesPerMatch: 1, rangeM: 3 },
     cooldownSpeed: { slow: 1.25, normal: 1.0, fast: 0.75 },
     // How often a possessed player is told their cooldowns and curse glow.
     statusEverySec: 0.5,

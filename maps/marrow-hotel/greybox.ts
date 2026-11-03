@@ -61,6 +61,13 @@ export const marrowHotelGreybox = buildMap({
   wallHeightM: WALL,
   wallThicknessM: 0.2,
   relicNames: ["the Founder's Ring", "the Silver Bell", "the Music Box", "the Wedding Portrait", "the Brass Key"],
+  // Who the ghost may have been, and what each clue task shows for them (GDD 26.13).
+  suspects: [
+    { id: "bride", icon: "👰", name: "the Bride", belonging: "the Wedding Portrait", clues: { mirror: "a face in a veil", portraits: "a woman in a wedding dress", switchboard: "a call from the Bridal Suite" } },
+    { id: "bellboy", icon: "🛎️", name: "the Bellboy", belonging: "the Silver Bell", clues: { mirror: "a face under a pillbox cap", portraits: "a boy in a bellboy's uniform", switchboard: "a call from the Staff Quarters" } },
+    { id: "founder", icon: "🎩", name: "the Founder", belonging: "the Founder's Ring", clues: { mirror: "a face under a top hat", portraits: "an old man with a ring", switchboard: "a call from the Library" } },
+    { id: "child", icon: "🎀", name: "the Child", belonging: "the Music Box", clues: { mirror: "a small face with ribbons", portraits: "a girl holding a music box", switchboard: "a call from the Nursery" } },
+  ],
   relicDoor: "relic-door",
   // The Bellboy (GDD 12.5): rings every 40 to 60 s; how often it swings doors is a Phase 5 choice (GDD 26.9).
   ghostTrick: { kind: "bellboy", ringEverySec: [40, 60], swingEverySec: [25, 45], swingRangeM: 6 },
