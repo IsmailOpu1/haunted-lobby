@@ -84,8 +84,9 @@ export const config = {
       candelabra: { wicks: 5, lightSec: 1.5, coolPerSec: 1, aimM: 0.045 },
       // The letter hangs from the mantel and sways in the draught (swayM each way). Keep the flame
       // within aimM under it until it has had catchSec of heat; it cools off the flame. Then it
-      // burns for burnSec and drops into the grate.
-      letter: { catchSec: 6, coolPerSec: 0.6, burnSec: 1.5, swayM: 0.14, swayPeriodSec: 2.6, aimM: 0.07 },
+      // burns for burnSec and drops into the grate. A held-still flame catches it slowly; following
+      // the sway catches it fast.
+      letter: { catchSec: 6, coolPerSec: 0.6, burnSec: 1.5, swayM: 0.12, swayPeriodSec: 3.4, aimM: 0.09 },
       // A puzzle (GDD 26.5): set the stopped clock to the time in the guest book. Grab the face and
       // drag to turn the minute hand (degPerPx, at most maxDegPerSec); it ticks every tickMin. Let go
       // within toleranceMin of the time and after settleSec it starts.
@@ -284,7 +285,7 @@ export const config = {
     revealRole: true,
     anonymousVoting: false,
   },
-  wisps: { speed: 3, canDoTasks: true, ouija: true },
+  wisps: { speed: 4, canDoTasks: true, ouija: true },
   identity: { nameLitRangeM: 10, nameAlwaysWithinM: 2 },
   disconnect: { holdSec: 60 },
   // Possessed draw weight is 1 / (1 + timesPossessedThisSession) (GDD Section 19).

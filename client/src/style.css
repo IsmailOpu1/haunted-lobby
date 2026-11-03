@@ -805,7 +805,8 @@ body.ended #crosshair {
 }
 
 body.ended #room-name,
-body.ended #sound-cues {
+body.ended #sound-cues,
+body.meeting #sound-cues {
   display: none;
 }
 
