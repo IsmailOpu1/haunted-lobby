@@ -78,7 +78,8 @@ describe("voice in a room", () => {
     expect(passes).toEqual([]);
     a.send("voiceRequest");
     await waitFor(() => passes.length > 0);
-    expect(passes[0]).toEqual({ url: "wss://fake.livekit", token: `token-for-${a.sessionId}` });
+    // Test servers run in debug mode, where the mic is optional.
+    expect(passes[0]).toEqual({ url: "wss://fake.livekit", token: `token-for-${a.sessionId}`, micOptional: true });
     await a.leave();
   });
 
