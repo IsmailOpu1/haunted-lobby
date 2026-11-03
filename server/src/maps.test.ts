@@ -305,7 +305,7 @@ describe.each([marrowHotelGreybox].map((m) => [m.name, m] as const))("%s follows
       nav = await NavMap.create(map);
     }, 60_000);
 
-    it("reaches every room, and takes 45 to 60 seconds to walk from one end to the other", () => {
+    it("reaches every room, and takes 35 to 60 seconds to walk from one end to the other", () => {
       // One point per room: the middle of its biggest rectangle.
       const centers = names.map((name) => {
         const r = map.rooms.filter((r) => r.name === name).reduce((a, b) => ((b.maxX - b.minX) * (b.maxZ - b.minZ) > (a.maxX - a.minX) * (a.maxZ - a.minZ) ? b : a));
@@ -323,7 +323,7 @@ describe.each([marrowHotelGreybox].map((m) => [m.name, m] as const))("%s follows
         }
       }
       const seconds = longest.m / config.movement.walk;
-      expect(seconds, `${longest.from} to ${longest.to}: ${longest.m.toFixed(0)} m`).toBeGreaterThanOrEqual(45);
+      expect(seconds, `${longest.from} to ${longest.to}: ${longest.m.toFixed(0)} m`).toBeGreaterThanOrEqual(35); // 45 before walking got faster (GDD 26.5, 2026-10-29)
       expect(seconds, `${longest.from} to ${longest.to}: ${longest.m.toFixed(0)} m`).toBeLessThanOrEqual(60);
     });
   });

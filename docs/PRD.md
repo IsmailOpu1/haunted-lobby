@@ -403,6 +403,7 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 - Bell, body reports, meeting steps, voting, removal (GDD 16)
 - Wisps, Wisp voice, Ouija board (GDD 17)
 - **Done when:** a possessed player can sabotage, a careful team can catch them with clues or a photo, and a vote removes them.
+- **Progress:** role assignment, private role messages, the 10 s intro and fair rotation built 2026-10-28, with a host Start button ahead of Phase 7 (GDD 26.12). The power wheel and the four powers (Slam Door, Summon, Blackout, Taint) built 2026-10-28 (GDD 26.12). The camera's curse-glow check and photos that develop at the next meeting built 2026-10-28; they develop as a meeting starts (GDD 26.12). The bell, body reports, the meeting steps, voting and removal built 2026-10-28 (GDD 26.12). Wisps (moving through walls, changing floor, doing tasks), Wisp voice and the Ouija board built 2026-10-28 (GDD 26.12). The ghost turns Furious once every possessed is gone (GDD 18, 26.12). Every Phase 6 item is built, and a scripted match passes the "Done when" story (the possessed slams a door, is photographed with the demon face, voted out, and the ghost turns Furious). Waiting for the owner's playtest.
 
 **Phase 7: Lobby, settings and stability (about 3 weeks)**
 - Lobby: code, link, characters, mic check, ready, host controls (GDD 5)
@@ -539,15 +540,15 @@ export const config = {
     knowEachOther: true,
   },
   match: {
-    lengthMin: 12, lengthOptionsMin: [10, 12, 15, 20],
+    lengthMin: 15, lengthOptionsMin: [10, 12, 15, 20],
     introSec: 10, countdownSec: 5,
     quietSec: 60,                 // ghost asleep, no powers, no meetings
     partSplitsPct: [33.3, 66.7],  // Calm | Restless | Furious after Quiet
     overtimeSec: 30,
   },
   movement: {
-    walk: 2.1, run: 3.3, crouch: 1.1, crawl: 0.6,
-    staminaSec: 5, staminaRegenDelaySec: 3, staminaRefillSec: 15,
+    walk: 2.6, run: 4.1, crouch: 1.4, crawl: 0.75,
+    staminaSec: 5, staminaRegenDelaySec: 3, staminaRefillSec: 8,
     relicSlowPct: 15,
     hideEnterExitSec: 1, breathHoldSec: 6, breathCooldownSec: 12,
   },
@@ -578,9 +579,9 @@ export const config = {
     preHuntSilenceSec: 2,
     hidingChecks: 2, hidingCheckSec: 3,
     parts: {
-      calm:     { wander: 1.1, hunt: 1.9, betweenHuntsSec: 75, huntSec: 20 },
-      restless: { wander: 1.4, hunt: 2.2, betweenHuntsSec: 50, huntSec: 25 },
-      furious:  { wander: 1.8, hunt: 2.5, betweenHuntsSec: 30, huntSec: 30 },
+      calm:     { wander: 1.4, hunt: 2.4, betweenHuntsSec: 75, huntSec: 20 },
+      restless: { wander: 1.75, hunt: 2.75, betweenHuntsSec: 50, huntSec: 25 },
+      furious:  { wander: 2.25, hunt: 3.1, betweenHuntsSec: 30, huntSec: 30 },
     },
     difficulty: {
       easy:   { intervalMult: 1.25, speedMult: 0.9 },

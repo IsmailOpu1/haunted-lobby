@@ -200,6 +200,9 @@ async function main() {
   await b.connect(joinCode ?? a.room.roomId);
   log("room", `code ${a.room.roomId}; mode ${mode}; ${a.state.players.size} players, ${a.state.tasksTotal} tasks`);
   const bots = [a, b];
+  // In their own room the bots skip the host's countdown and the intro (in a joined room, the host starts).
+  if (!joinCode) a.room.send("debug", { startNow: true });
+  await until(() => a.state.stage === "night", 30, "night start");
 
   let hunts = 0;
   a.room.onMessage("hunt", (m: ServerMessages["hunt"]) => {

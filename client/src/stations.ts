@@ -1069,7 +1069,7 @@ function lockboxSpot(): PlaceView {
   group.add(hinge);
   const pivot = new THREE.Group();
   pivot.position.set(0, 0.92, 0.1);
-  const dial = part(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 24), new THREE.MeshLambertMaterial({ color: BRASS })), "dial");
+  const dial = part(new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.02, 24), new THREE.MeshLambertMaterial({ color: BRASS })), "dial");
   dial.rotation.x = Math.PI / 2;
   dial.position.z = 0.01;
   pivot.add(dial);

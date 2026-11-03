@@ -10,6 +10,7 @@ import {
   PhysicsWorld,
   SIM_DT,
   stepMovement,
+  summonSpots,
   worldDistance,
   type MapData,
   type MoveInput,
@@ -42,6 +43,8 @@ function makeWorld(players: GhostTarget[], m: MapData = map, walls: PhysicsWorld
     salt: [] as SaltLineDef[],
     /** Set to the altar to have the ritual running. */
     ritual: null as { x: number; z: number } | null,
+    /** Set above 1 for a blackout. */
+    speed: 1,
   };
   const world: GhostWorld = {
     players: () => players,
@@ -65,6 +68,7 @@ function makeWorld(players: GhostTarget[], m: MapData = map, walls: PhysicsWorld
       log.salt.splice(i, 1);
       return true;
     },
+    speedMult: () => log.speed,
   };
   return { world, log, open };
 }
@@ -218,6 +222,38 @@ describe("ghost", () => {
     expect(Math.hypot(ghost.x - altar.x, ghost.z - altar.z)).toBeLessThan(1);
     run(ghost, 1.5, "calm");
     expect(log.events).toEqual(["warning"]);
+  });
+
+  it("appears 6 to 10 m from a Summoned victim and hunts at once, with no silence first (GDD 14.2)", () => {
+    const victim = player({ id: "a", x: 3, z: 6, flashlightOn: true });
+    const { world, log } = makeWorld([victim]);
+    const ghost = new Ghost(nav, world, { x: -5, z: 9 });
+    run(ghost, 1, "calm");
+    expect(ghost.summonable).toBe(true);
+    expect(ghost.summon(victim, summonSpots({ ...victim, yaw: 0 }))).toBe(true);
+    const d = Math.hypot(ghost.x - victim.x, ghost.z - victim.z);
+    expect(d).toBeGreaterThan(config.powers.summon.spawnMinM - 1);
+    expect(d).toBeLessThan(config.powers.summon.spawnMaxM + 1);
+    expect(log.events).toEqual(["start"]);
+    expect(ghost.summonable).toBe(false);
+    for (let t = 0; t < 15 && log.hits.length === 0; t += SIM_DT) ghost.update(SIM_DT, "calm", 4);
+    expect(log.hits).toEqual(["a"]);
+  });
+
+  it("moves faster in a blackout (GDD 14.2)", () => {
+    const far = { x: 6, z: -11 };
+    const timeTo = (speed: number) => {
+      const victim = player({ id: "a", x: far.x, z: far.z, noiseM: 100 });
+      const { world, log } = makeWorld([victim]);
+      log.speed = speed;
+      const ghost = new Ghost(nav, world, { x: -5, z: 9 });
+      run(ghost, 0.1, "calm");
+      expect(ghost.summon(victim, [{ x: -5, z: 9 }])).toBe(true);
+      let t = 0;
+      for (; t < 30 && log.hits.length === 0; t += SIM_DT) ghost.update(SIM_DT, "calm", 4);
+      return t;
+    };
+    expect(timeTo(config.ghost.blackoutSpeedMult)).toBeLessThan(timeTo(1));
   });
 
   it("is gone at dawn", () => {

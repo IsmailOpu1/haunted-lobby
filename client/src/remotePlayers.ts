@@ -27,6 +27,8 @@ function lerpAngle(a: number, b: number, t: number): number {
   return a + diff * t;
 }
 
+const EYE_COLOR = 0xff2a1a;
+
 /** Another player's body and flashlight, drawn 100 ms in the past so movement is smooth. */
 class RemotePlayer {
   private snapshots: Snapshot[] = [];
@@ -39,6 +41,9 @@ class RemotePlayer {
   private flicker = new Flicker();
   private baseIntensity: number;
   private latest: Snapshot | null = null;
+  /** Red eyes, lit for a moment after this player Summons the ghost in your light (GDD 14.2). */
+  private eyes = new THREE.Group();
+  private eyesUntil = 0;
 
   constructor(private scene: THREE.Scene) {
     const { radiusM, heightM } = config.body;
@@ -59,7 +64,24 @@ class RemotePlayer {
     this.lens.position.copy(light.position);
     this.head.add(this.lens);
 
+    const eyeMat = new THREE.MeshBasicMaterial({ color: EYE_COLOR });
+    for (const side of [-1, 1]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), eyeMat);
+      eye.position.set(side * 0.08, 0, -config.body.radiusM - 0.01);
+      this.eyes.add(eye);
+    }
+    this.eyes.visible = false;
+    this.head.add(this.eyes);
+
     scene.add(this.root);
+  }
+
+  glowEyes(until: number) {
+    this.eyesUntil = until;
+  }
+
+  showEyes(now: number) {
+    this.eyes.visible = now < this.eyesUntil;
   }
 
   push(s: Snapshot) {
@@ -171,6 +193,12 @@ export class RemotePlayers {
     for (const p of this.players.values()) {
       p.render(renderTime);
       p.applyFlicker(dt, ghostDistanceFrom);
+      p.showEyes(now);
     }
+  }
+
+  /** This player's eyes glow red for config.powers.summon.eyeGlowSec. */
+  glowEyes(id: string, now: number) {
+    this.players.get(id)?.glowEyes(now + config.powers.summon.eyeGlowSec * 1000);
   }
 }

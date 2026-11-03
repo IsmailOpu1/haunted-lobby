@@ -31,11 +31,22 @@ export const Player = schema({
   cameraShots: t.uint8(),
   // The relic this player carries (a key of GameState.relics), or "" (GDD Section 10).
   relic: t.string(),
+  // Meetings (GDD 16): voted in this meeting (not for whom), and a body that is no longer there
+  // (reported, or a player voted out).
+  voted: t.boolean(),
+  bodyGone: t.boolean(),
+  /** Bell rings left this match (GDD 16.1). */
+  bellUses: t.uint8(),
+  // Where a dead player's body lies (GDD 16.1). Their x and z are their Wisp's from then on (GDD 17).
+  bodyX: t.float32(),
+  bodyZ: t.float32(),
 }, "Player");
 export type Player = SchemaType<typeof Player>;
 
 export const Door = schema({
   open: t.boolean(),
+  /** Slammed and locked by a possessed player (GDD 14.2). */
+  locked: t.boolean(),
 }, "Door");
 export type Door = SchemaType<typeof Door>;
 
@@ -83,6 +94,12 @@ export const GameState = schema({
   // The team task bar (GDD 9). Only real tasks count.
   tasksDone: t.uint16(),
   tasksTotal: t.uint16(),
+  /** Stage (shared Stage): waiting, countdown, intro or night. */
+  stage: t.string(),
+  /** Seconds left in the countdown or the intro. */
+  stageLeft: t.float32(),
+  /** The host's session id: the room's creator, or whoever has waited longest after them (GDD 5). */
+  host: t.string(),
   // Night clock (GDD Section 4.2).
   nightTime: t.float32(),
   nightLength: t.float32(),
@@ -97,6 +114,16 @@ export const GameState = schema({
   /** Living, standing players in the circle, and how many it needs. */
   circleCount: t.uint8(),
   circleNeeded: t.uint8(),
+  /** Every light is out until someone fixes the fuse box or it comes back by itself (GDD 14.2). */
+  blackout: t.boolean(),
+  /** The meeting's step (shared MeetingStep), "" when there is none, and seconds left in it (GDD 16). */
+  meeting: t.string(),
+  meetingLeft: t.float32(),
+  /** Who called it, and the body they reported ("" for the bell). */
+  meetingCaller: t.string(),
+  meetingBody: t.string(),
+  /** Black flames on the altar: seconds left to put them out, or 0 (GDD 11). */
+  taintLeft: t.float32(),
   /** "" while the match goes on, then "investigators" or "possessed" (GDD 18). */
   winner: t.string(),
   endReason: t.string(),

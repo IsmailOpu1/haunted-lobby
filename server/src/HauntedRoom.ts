@@ -24,6 +24,27 @@ import {
   ritualRatePct,
   nearestRoom,
   matchResult,
+  pickPossessed,
+  possessedCount,
+  inPhotoFrame,
+  countVotes,
+  OUIJA_UNKNOWN,
+  wispCollide,
+  wispFloor,
+  meetingBlocked,
+  meetingStepSec,
+  nextMeetingStep,
+  SKIP,
+  type MeetingStep,
+  type DevelopedPhoto,
+  POWER_KINDS,
+  powerCooldownSec,
+  powerUnlocked,
+  summonSpots,
+  type PowerKind,
+  type PowerStatus,
+  type Role,
+  type Stage,
   worldDistance,
   PhysicsWorld,
   sanitizeInput,
@@ -64,6 +85,9 @@ function uniqueRoomCode(): string {
   return code;
 }
 
+/** Line of sight for a Summon and for a light on the possessed's eyes: eye height. */
+const SUMMON_SIGHT_HEIGHT_M = 1.5;
+
 /** Test-only shortcuts (skip time, get downed). Enabled only when the server is started with HAUNTED_DEBUG=1. */
 const DEBUG = process.env.HAUNTED_DEBUG === "1";
 
@@ -73,6 +97,11 @@ type Action =
   | { kind: "hide"; spotId: string; elapsed: number }
   | { kind: "unhide"; elapsed: number }
   | { kind: "salt"; elapsed: number }
+  | { kind: "breakDoor"; doorId: string; elapsed: number }
+  | { kind: "fixFuse"; elapsed: number }
+  | { kind: "cleanse"; elapsed: number }
+  | { kind: "ringBell"; elapsed: number }
+  | { kind: "report"; targetId: string; elapsed: number }
   | { kind: "placeRelic"; elapsed: number };
 
 /** Server-only data for one connected player. */
@@ -103,6 +132,22 @@ interface PlayerSim {
   micCheck: { samples: number[]; elapsed: number } | null;
   // Tasks (GDD Section 9).
   tasks: { stationId: string; done: boolean }[];
+  /** Private (PRD 10.3): never put in the shared state. Everyone is an investigator until the countdown ends. */
+  role: Role;
+  /** Debug servers only: possessed whatever the count, to test alone. */
+  wantsPossessed: boolean;
+  // The possessed's powers (GDD 14). Private, like the role.
+  /** Seconds of cooldown left for each power. */
+  cooldowns: Record<PowerKind, number>;
+  /** Seconds of curse glow left: a photo now would show the demon face (GDD 15.2). */
+  curseLeft: number;
+  /** Night time this player was last hit by the ghost, and last trapped by a slammed door (GDD 14.3). */
+  hitAt: number;
+  trappedAt: number;
+  /** Where this player was when a meeting pulled them to the table, to go back after (GDD 16.3). */
+  beforeMeeting: { x: number; z: number; hidingSpot: string } | null;
+  /** This Wisp pushed the planchette in this meeting already (GDD 17). */
+  ouijaPushed: boolean;
   /** The minigame open right now (a task, or taking a relic from a spot), and for how long. */
   /**
    * The task or search open in the player's hands. stationId is the task station, or the place
@@ -127,11 +172,10 @@ interface RelicSim {
 const VOICE_SIGHT_HEIGHT_M = 1.6;
 
 /** A Spirit Camera photo: who was in the frame and whether each shows as cursed. */
+/** A photo as taken: names are kept, so it still develops if someone leaves or dies (GDD 15.2). */
 interface PhotoRecord {
-  by: string;
-  nightTime: number;
-  subjects: { id: string; cursed: boolean }[];
-  ghostInFrame: boolean;
+  photo: DevelopedPhoto;
+  developed: boolean;
 }
 
 const ACTION_SECONDS: Record<Action["kind"], number> = {
@@ -140,6 +184,11 @@ const ACTION_SECONDS: Record<Action["kind"], number> = {
   unhide: config.movement.hideEnterExitSec,
   salt: config.salt.placeSec,
   placeRelic: config.relics.placeSec,
+  breakDoor: config.powers.slamDoor.breakSec,
+  fixFuse: config.powers.blackout.fuseFixSec,
+  cleanse: config.taint.cleanseSec,
+  ringBell: config.meetings.bellHoldSec,
+  report: config.meetings.reportHoldSec,
 };
 
 export class HauntedRoom extends Room<{ state: GameState }> {
@@ -173,6 +222,34 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private relicTimer = 0;
   /** Test shortcut (debug servers only): the ghost is sent away. */
   private ghostPaused = false;
+  /** Debug: the night clock stands still, so dawn never comes. */
+  private clockFrozen = false;
+  /** How often each player has been possessed this session, for fair rotation (GDD 19). */
+  private timesPossessed = new Map<string, number>();
+  /** Debug servers only: everyone is possessed, so counting the living cannot end the match. */
+  private noInvestigators = false;
+  /** Someone was dealt the possessed role this night. */
+  private possessedDealt = false;
+  // Powers shared by the possessed team (GDD 14.2, 11).
+  private blackoutUsed = false;
+  private blackoutLeft = 0;
+  private taintsUsed = 0;
+  /** Night time of the last Taint, or -Infinity. */
+  private lastTaintAt = -Infinity;
+  /** Seconds each slammed door stays locked. */
+  private doorLocks = new Map<string, number>();
+  private powerStatusTimer = 0;
+  /** How Wisps move: through walls, kept on their floor (GDD 17). */
+  private wispCollide = wispCollide(this.map);
+  // Meetings (GDD 16).
+  /** Night time the last meeting ended, or null before the first. */
+  private lastMeetingEnd: number | null = null;
+  /** The reported body's session id, which disappears after the meeting. */
+  private meetingBodyId: string | null = null;
+  /** This meeting's votes: voter -> player voted for, or SKIP. */
+  private votes = new Map<string, string>();
+  /** Who the vote removed, out at the end of the meeting. */
+  private removedId: string | null = null;
 
   async onCreate() {
     // The 5-letter room code is the Colyseus room id, so friends join with joinById(code).
@@ -191,7 +268,13 @@ export class HauntedRoom extends Room<{ state: GameState }> {
 
     await initPhysics();
     this.physics = new PhysicsWorld(this.map);
-    for (const door of this.map.doors) this.state.doors.set(door.id, new Door({ open: false }));
+    for (const door of this.map.doors) this.state.doors.set(door.id, new Door({ open: false, locked: false }));
+    this.state.blackout = false;
+    this.state.taintLeft = 0;
+    this.state.meeting = "" satisfies MeetingStep;
+    this.state.meetingLeft = 0;
+    this.state.meetingCaller = "";
+    this.state.meetingBody = "";
     // Every jar spot is stocked until the lobby decides the player count (Phase 7).
     for (const jar of this.map.saltJars) this.state.saltJars.set(jar.id, new SaltJar({ taken: false }));
     for (const station of this.map.tasks) this.state.stations.set(station.id, new TaskStation({ done: false }));
@@ -207,6 +290,9 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       this.relics.push({ id, spotId: spot.id, placeId: place.id, x: place.x, z: place.z, status: "hidden" });
       this.state.relics.set(id, new Relic({ name: this.map.relicNames[i] ?? `Relic ${i + 1}`, status: "hidden", carrier: "" }));
     });
+    this.state.stage = "waiting" satisfies Stage;
+    this.state.stageLeft = 0;
+    this.state.host = "";
     this.state.tasksDone = 0;
     this.state.tasksTotal = 0;
     this.state.nightLength = config.match.lengthMin * 60;
@@ -267,12 +353,31 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.onMessage("pourSalt", (client) => {
       const sim = this.sims.get(client.sessionId);
       const player = this.state.players.get(client.sessionId);
-      if (!sim || !player || sim.action) return;
+      if (!sim || !player || sim.action || !this.playing) return;
       if (player.health !== "alive" || player.hidingSpot || player.salt <= 0) return;
       this.setAction(sim, player, { kind: "salt", elapsed: 0 });
     });
 
     this.onMessage("photo", (client) => this.takePhoto(client.sessionId));
+    this.onMessage("start", (client) => this.startCountdown(client));
+    this.onMessage("wispFloor", (client, msg: unknown) => {
+      const dir = typeof msg === "object" && msg !== null ? (msg as { dir?: unknown }).dir : undefined;
+      if (dir === 1 || dir === -1) this.wispChangeFloor(client.sessionId, dir);
+    });
+    this.onMessage("ouija", (client, msg: unknown) => {
+      const target = typeof msg === "object" && msg !== null ? (msg as { target?: unknown }).target : undefined;
+      if (typeof target === "string") this.pushOuija(client.sessionId, target);
+    });
+    this.onMessage("vote", (client, msg: unknown) => {
+      const target = typeof msg === "object" && msg !== null ? (msg as { target?: unknown }).target : undefined;
+      if (typeof target === "string") this.castVote(client.sessionId, target);
+    });
+    this.onMessage("power", (client, msg: unknown) => {
+      const m = typeof msg === "object" && msg !== null ? (msg as { kind?: unknown; target?: unknown }) : {};
+      if (typeof m.kind === "string" && (POWER_KINDS as readonly string[]).includes(m.kind)) {
+        this.usePower(client, m.kind as PowerKind, typeof m.target === "string" ? m.target : undefined);
+      }
+    });
 
     this.onMessage("tasksRequest", (client) => this.sendTasks(client.sessionId));
     this.onMessage("taskDone", (client, msg: unknown) => {
@@ -294,8 +399,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     });
 
     if (DEBUG) {
-      this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number; teleport?: { x: number; z: number }; giveTask?: string; hideRelicAt?: string; toggleGhost?: boolean }) => {
+      this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number; teleport?: { x: number; z: number }; giveTask?: string; hideRelicAt?: string; toggleGhost?: boolean; possessed?: boolean; startNow?: boolean; developPhotos?: boolean; curse?: boolean; meeting?: boolean; skipStep?: boolean; freezeClock?: boolean }) => {
         if (typeof msg?.nightTime === "number") this.state.nightTime = msg.nightTime;
+        // Stop the night clock (to try things without dawn coming), or start it again.
+        if (typeof msg?.freezeClock === "boolean") this.clockFrozen = msg.freezeClock;
         // Swap your first task for this station's (to try a particular task).
         const mine = this.sims.get(client.sessionId);
         if (mine && typeof msg?.giveTask === "string" && this.map.tasks.some((t) => t.id === msg.giveTask)) {
@@ -314,6 +421,20 @@ export class HauntedRoom extends Room<{ state: GameState }> {
           const paused: ServerMessages["debugGhost"] = { paused: this.ghostPaused };
           this.broadcast("debugGhost", paused);
         }
+        // Be possessed whatever the player count (set before the night starts).
+        const me = this.sims.get(client.sessionId);
+        if (me && msg?.possessed && this.state.stage === "waiting") me.wantsPossessed = true;
+        // Skip the countdown and intro: roles are dealt and the night starts now.
+        if (msg?.startNow && (this.state.stage === "waiting" || this.state.stage === "countdown")) {
+          this.dealRoles();
+          this.startNight();
+        }
+        if (msg?.developPhotos) this.developPhotos();
+        // Call a meeting whatever the rules say, and skip to the end of a meeting's step.
+        if (msg?.meeting && this.playing) this.startMeeting(client.sessionId, null);
+        if (msg?.skipStep && this.state.meeting) this.state.meetingLeft = 0;
+        // Start your curse glow without using a power (to try the camera).
+        if (mine && msg?.curse) mine.curseLeft = config.camera.curseGlowSec;
         if (msg?.down) this.downPlayer(client.sessionId);
         const player = this.state.players.get(client.sessionId);
         if (player && typeof msg?.bleedLeft === "number") player.bleedLeft = msg.bleedLeft;
@@ -333,6 +454,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   onJoin(client: Client, options?: JoinOptions) {
     const name = cleanPlayerName(options?.name);
     if (!name) throw new Error(`Name must be 1 to ${config.room.nameMaxLength} characters`);
+    // Nobody can join after the countdown starts (GDD 5).
+    if (this.state.stage !== "waiting") throw new Error("This night has already started");
 
     const spawn = this.map.spawns[this.spawnIndex++ % this.map.spawns.length]!;
     const body = this.physics.addBody();
@@ -360,6 +483,14 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       micDeadSec: 0,
       micLost: false,
       micCheck: null,
+      role: "investigator",
+      wantsPossessed: false,
+      cooldowns: { slamDoor: 0, summon: 0, blackout: 0, taint: 0 },
+      curseLeft: 0,
+      hitAt: -Infinity,
+      trappedAt: -Infinity,
+      beforeMeeting: null,
+      ouijaPushed: false,
     });
 
     this.state.players.set(
@@ -385,11 +516,15 @@ export class HauntedRoom extends Room<{ state: GameState }> {
         salt: config.salt.perPlayer,
         cameraShots: config.camera.shotsPerPlayer,
         relic: "",
+        voted: false,
+        bodyGone: false,
+        bellUses: config.meetings.bellUsesPerPlayer,
+        bodyX: 0,
+        bodyZ: 0,
       }),
     );
     this.state.tasksTotal += this.sims.get(client.sessionId)!.tasks.length;
-    // The night starts when the first player arrives. The lobby and Start button come in Phase 7.
-    this.nightStarted = true;
+    if (!this.state.host) this.state.host = client.sessionId;
     this.announce("join", name, `${name} joined the room`);
     // The voice pass is sent when the client asks ("voiceRequest"), not here: a message sent
     // during the join can reach the client before it has started listening, and be lost.
@@ -414,11 +549,15 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.dropRelic(client.sessionId, false);
     leaving?.removeBody();
     this.sims.delete(client.sessionId);
+    this.votes.delete(client.sessionId);
+    if (this.removedId === client.sessionId) this.removedId = null;
     this.seesGhost.delete(client.sessionId);
     this.voice.remove(client.sessionId);
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
     this.state.players.delete(client.sessionId);
+    // The host's rights pass to whoever has waited longest (GDD 5).
+    if (this.state.host === client.sessionId) this.state.host = this.state.players.keys().next().value ?? "";
     this.announce("leave", player.name, `${player.name} left the room`);
   }
 
@@ -435,16 +574,24 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     }
     // The match is over: everything stops but voice, so everyone can talk it over.
     if (this.state.winner) return;
+    this.tickStage(elapsedSec);
 
     for (const [sessionId, sim] of this.sims) {
       const player = this.state.players.get(sessionId);
       if (player) this.tickPlayer(sim, player, elapsedSec);
     }
 
-    if (this.nightStarted) {
+    if (this.nightStarted && this.state.meeting) {
+      // The clock, the ghost, the ritual and every cooldown wait for the meeting (GDD 16.2).
+      this.tickMeeting(elapsedSec);
+    } else if (this.nightStarted) {
+      this.tickPowers(elapsedSec);
       this.tickRitual(elapsedSec);
-      this.state.nightTime = Math.min(this.state.nightTime + elapsedSec, this.state.nightLength);
+      if (this.clockFrozen) this.backdateClockTimers(elapsedSec);
+      else this.state.nightTime = Math.min(this.state.nightTime + elapsedSec, this.state.nightLength);
       let part = nightPart(this.state.nightTime, this.state.nightLength);
+      // With every possessed player gone, the ghost turns Furious for the rest of the night (GDD 18).
+      if (part !== "dawn" && this.possessedGone()) part = "furious";
       if (part === "dawn" && this.overtimeHolds()) {
         // Overtime: the night waits while the ritual can still finish (GDD 4). The ghost stays furious.
         this.overtimeUsed += elapsedSec;
@@ -465,6 +612,413 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       this.relicTimer = 0;
       this.sendRelicsNear();
     }
+  }
+
+  // ---------- Starting the night (GDD 4.1 and 5) ----------
+
+  private startCountdown(client: Client) {
+    if (client.sessionId !== this.state.host || this.state.stage !== "waiting") return;
+    // Debug servers may start with fewer players, to test alone.
+    if (this.state.players.size < config.players.min && !DEBUG) {
+      const msg: ServerMessages["startRefused"] = { reason: `At least ${config.players.min} players are needed to start.` };
+      client.send("startRefused", msg);
+      return;
+    }
+    this.state.stage = "countdown" satisfies Stage;
+    this.state.stageLeft = config.match.countdownSec;
+  }
+
+  /** The countdown, then roles and the intro, then the night. */
+  private tickStage(dt: number) {
+    if (this.state.stage !== "countdown" && this.state.stage !== "intro") return;
+    this.state.stageLeft = Math.max(0, this.state.stageLeft - dt);
+    if (this.state.stageLeft > 0) return;
+    if (this.state.stage === "countdown") {
+      this.dealRoles();
+      this.state.stage = "intro" satisfies Stage;
+      this.state.stageLeft = config.match.introSec;
+    } else {
+      this.startNight();
+    }
+  }
+
+  /** Picks the possessed (GDD 3, 19) and tells each player their role, privately. */
+  private dealRoles() {
+    const ids = [...this.sims.keys()];
+    const forced = ids.filter((id) => this.sims.get(id)!.wantsPossessed);
+    const count = Math.max(0, possessedCount(ids.length) - forced.length);
+    const picked = [...forced, ...pickPossessed(ids.filter((id) => !forced.includes(id)), this.timesPossessed, count)];
+    for (const id of picked) {
+      const sim = this.sims.get(id)!;
+      sim.role = "possessed";
+      this.timesPossessed.set(id, (this.timesPossessed.get(id) ?? 0) + 1);
+      // The possessed's tasks are fake: they leave the team bar (GDD 9).
+      this.state.tasksTotal -= sim.tasks.filter((t) => !t.done).length;
+    }
+    this.noInvestigators = picked.length === ids.length;
+    this.possessedDealt = picked.length > 0;
+    const names = (list: string[]) => list.map((id) => this.state.players.get(id)?.name ?? "");
+    for (const client of this.clients) {
+      const sim = this.sims.get(client.sessionId);
+      if (!sim) continue;
+      const partners = sim.role === "possessed" && config.possessed.knowEachOther ? names(picked.filter((id) => id !== client.sessionId)) : [];
+      const msg: ServerMessages["role"] = { role: sim.role, partners };
+      client.send("role", msg);
+    }
+  }
+
+  private startNight() {
+    this.state.stage = "night" satisfies Stage;
+    this.state.stageLeft = 0;
+    this.nightStarted = true;
+  }
+
+  /** Tasks, relics, items and hiding wait for the night; before it you can only walk about and use doors. */
+  private get playing(): boolean {
+    return this.state.stage === "night" && !this.state.winner && !this.state.meeting;
+  }
+
+  // ---------- The possessed's powers (GDD 14) ----------
+
+  private usePower(client: Client, kind: PowerKind, target: string | undefined) {
+    const sim = this.sims.get(client.sessionId);
+    const player = this.state.players.get(client.sessionId);
+    if (!sim || !player || sim.role !== "possessed") return;
+    const refuse = (reason: string) => {
+      const msg: ServerMessages["powerRefused"] = { kind, reason };
+      client.send("powerRefused", msg);
+    };
+    // No powers before the night, while downed, or in Quiet (GDD 14.3). Meetings will stop them too.
+    if (!this.playing || player.health !== "alive") return refuse("Not now.");
+    const status = this.powerStatus(sim, kind);
+    if (status.state === "locked") return refuse(kind === "taint" ? "Only during the ritual." : "Not yet.");
+    if (status.state === "used") return refuse("Already used.");
+    if (status.state === "cooldown") return refuse(`Ready in ${Math.ceil(status.cooldownLeft)} s.`);
+    const result =
+      kind === "slamDoor" ? this.slamDoor(sim, target) : kind === "summon" ? this.summon(client.sessionId, sim, target) : kind === "blackout" ? this.startBlackout() : this.taint(sim);
+    if (result) return refuse(result);
+    sim.cooldowns[kind] = powerCooldownSec(kind);
+    // Every power leaves the curse glow (GDD 14.2, 15.2).
+    sim.curseLeft = config.camera.curseGlowSec;
+    this.sendPowerStatus();
+  }
+
+  private powerStatus(sim: PlayerSim, kind: PowerKind): PowerStatus {
+    const clock = { nightTime: this.state.nightTime, nightLength: this.state.nightLength, ritualStarted: this.state.ritualStarted };
+    const cooldownLeft = sim.cooldowns[kind];
+    let state: PowerStatus["state"] = cooldownLeft > 0 ? "cooldown" : "ready";
+    if (kind === "blackout" && this.blackoutUsed) state = "used";
+    else if (kind === "taint" && this.taintsUsed >= config.taint.maxPerMatch) state = "used";
+    else if (!powerUnlocked(kind, clock)) state = "locked";
+    // The team waits taint.cooldownSec between Taints, whoever used the last one (GDD 11).
+    const teamWait = kind === "taint" ? this.lastTaintAt + config.taint.cooldownSec - this.state.nightTime : 0;
+    if (state === "ready" && teamWait > 0) return { kind, state: "cooldown", cooldownLeft: teamWait };
+    return { kind, state, cooldownLeft };
+  }
+
+  /** Slam Door: the door slams and locks (GDD 14.2). Returns why it failed, or null. */
+  private slamDoor(sim: PlayerSim, doorId: string | undefined): string | null {
+    const c = config.powers.slamDoor;
+    const def = this.map.doors.find((d) => d.id === doorId);
+    if (!def || def.id === this.map.relicDoor) return "No door there.";
+    if (this.hearingDistance(sim.move, def) > c.rangeM) return `Too far from the door (${c.rangeM} m at most).`;
+    const door = this.state.doors.get(def.id)!;
+    if (door.locked) return "That door is already locked.";
+    // Players close to the door are the ones it traps; nobody is trapped twice in sameVictimSec (GDD 14.3).
+    const trapped: PlayerSim[] = [];
+    this.state.players.forEach((p, id) => {
+      const other = this.sims.get(id);
+      if (other && other !== sim && p.health === "alive" && this.hearingDistance(p, def) <= c.rangeM) trapped.push(other);
+    });
+    if (trapped.some((t) => this.state.nightTime - t.trappedAt < c.sameVictimSec)) return "Someone there was trapped too recently.";
+    for (const t of trapped) t.trappedAt = this.state.nightTime;
+    this.setDoor(def.id, false);
+    door.locked = true;
+    this.doorLocks.set(def.id, c.lockSec);
+    // Loud: the ghost hears it from far away (GDD 14.2).
+    this.noises.push({ x: def.x, z: def.z, radiusM: c.ghostHearM });
+    const msg: ServerMessages["doorSlam"] = { x: def.x, z: def.z };
+    this.broadcast("doorSlam", msg);
+    return null;
+  }
+
+  private unlockDoor(id: string, open: boolean) {
+    const door = this.state.doors.get(id);
+    if (!door?.locked) return;
+    door.locked = false;
+    this.doorLocks.delete(id);
+    if (open) this.setDoor(id, true);
+  }
+
+  /** How many players are pushing on this door right now. */
+  private pushers(doorId: string): number {
+    let n = 0;
+    for (const sim of this.sims.values()) if (sim.action?.kind === "breakDoor" && sim.action.doorId === doorId) n++;
+    return n;
+  }
+
+  /** Summon: the ghost appears near a player you can see and hunts them (GDD 14.2). */
+  private summon(sessionId: string, sim: PlayerSim, targetId: string | undefined): string | null {
+    const c = config.powers.summon;
+    const victim = targetId ? this.state.players.get(targetId) : undefined;
+    const victimSim = targetId ? this.sims.get(targetId) : undefined;
+    if (!victim || !victimSim || targetId === sessionId || victim.health !== "alive" || victim.hidingSpot) return "Look at a player first.";
+    const me = { x: sim.move.x, z: sim.move.z };
+    if (this.hearingDistance(me, victim) > c.targetRangeM) return `Too far (${c.targetRangeM} m at most).`;
+    if (!this.physics.lineOfSight(me, victim, SUMMON_SIGHT_HEIGHT_M)) return "You must see them.";
+    if (this.state.nightTime - victimSim.hitAt < c.protectAfterHitSec) return "They were hit too recently.";
+    if (!this.ghost.summonable) return "The ghost does not answer right now.";
+    if (!this.ghost.summon({ id: targetId!, x: victim.x, z: victim.z }, summonSpots(victim))) return "The ghost cannot reach them.";
+    // The clues: a whisper near you, and your eyes glow in anyone's light (GDD 14.2).
+    const whisper: ServerMessages["powerWhisper"] = { x: me.x, z: me.z };
+    const glow: ServerMessages["eyeGlow"] = { id: sessionId };
+    const halfCone = (config.flashlight.coneHalfAngleDeg * Math.PI) / 180;
+    for (const client of this.clients) {
+      const p = this.state.players.get(client.sessionId);
+      if (!p) continue;
+      if (this.hearingDistance(p, me) <= c.whisperM) client.send("powerWhisper", whisper);
+      if (client.sessionId === sessionId || !p.flashlightOn || p.health !== "alive") continue;
+      const d = this.hearingDistance(p, me);
+      // Facing yaw looks along (-sin, -cos).
+      const toMe = Math.atan2(-(me.x - p.x), -(me.z - p.z));
+      const off = Math.abs(normalizeAngle(toMe - p.yaw));
+      if (d <= config.flashlight.coneM && off <= halfCone && this.physics.lineOfSight(p, me, SUMMON_SIGHT_HEIGHT_M)) client.send("eyeGlow", glow);
+    }
+    return null;
+  }
+
+  /** Blackout: every light on the map goes out (GDD 14.2). */
+  private startBlackout(): string | null {
+    this.blackoutUsed = true;
+    this.blackoutLeft = config.powers.blackout.autoRestoreSec;
+    this.state.blackout = true;
+    return null;
+  }
+
+  private endBlackout() {
+    this.state.blackout = false;
+    this.blackoutLeft = 0;
+  }
+
+  /** Taint: black flames on the altar (GDD 11). */
+  private taint(sim: PlayerSim): string | null {
+    const altar = this.map.altar;
+    if (!altar || this.hearingDistance(sim.move, altar) > config.ritual.circleRadiusM) return "Stand in the circle.";
+    if (this.state.ritualProgress < config.taint.minProgressPct) return `Only once the ritual is ${config.taint.minProgressPct}% done.`;
+    if (this.state.taintLeft > 0) return "The flames already burn.";
+    this.taintsUsed += 1;
+    this.lastTaintAt = this.state.nightTime;
+    this.state.taintLeft = config.taint.windowSec;
+    return null;
+  }
+
+  /** Cooldowns, curse glow, locked doors, the blackout and the flames, each tick of the night. */
+  private tickPowers(dt: number) {
+    for (const sim of this.sims.values()) {
+      for (const kind of POWER_KINDS) sim.cooldowns[kind] = Math.max(0, sim.cooldowns[kind] - dt);
+      sim.curseLeft = Math.max(0, sim.curseLeft - dt);
+    }
+    for (const [id, left] of this.doorLocks) {
+      if (left - dt <= 0) this.unlockDoor(id, false);
+      else this.doorLocks.set(id, left - dt);
+    }
+    if (this.state.blackout) {
+      this.blackoutLeft -= dt;
+      if (this.blackoutLeft <= 0) this.endBlackout();
+    }
+    if (this.state.taintLeft > 0) {
+      this.state.taintLeft = Math.max(0, this.state.taintLeft - dt);
+      // Not put out in time: the ritual loses half its progress (GDD 11).
+      if (this.state.taintLeft === 0) this.state.ritualProgress *= config.taint.progressMultiplier;
+    }
+    this.powerStatusTimer += dt;
+    if (this.powerStatusTimer >= config.powers.statusEverySec) this.sendPowerStatus();
+  }
+
+  /** Each possessed player's cooldowns and curse glow, to them only (PRD 10.3). */
+  private sendPowerStatus() {
+    this.powerStatusTimer = 0;
+    for (const client of this.clients) {
+      const sim = this.sims.get(client.sessionId);
+      if (sim?.role !== "possessed") continue;
+      const msg: ServerMessages["powers"] = { list: POWER_KINDS.map((k) => this.powerStatus(sim, k)), curseLeft: sim.curseLeft };
+      client.send("powers", msg);
+    }
+  }
+
+  // ---------- Meetings (GDD 16) ----------
+
+  /** A dead body within reach that is still there, nearest first. */
+  private bodyNear(sessionId: string, here: { x: number; z: number }): string | null {
+    let best: { id: string; d: number } | null = null;
+    this.state.players.forEach((p, id) => {
+      if (id === sessionId || p.health !== "dead" || p.bodyGone) return;
+      const d = this.hearingDistance(here, { x: p.bodyX, z: p.bodyZ });
+      if (d <= config.meetings.reportRangeM && (!best || d < best.d)) best = { id, d };
+    });
+    return (best as { id: string } | null)?.id ?? null;
+  }
+
+  /** Tells this player why no meeting can start now; returns true if it cannot. */
+  private refuseMeeting(sessionId: string): boolean {
+    const reason = meetingBlocked({
+      nightTime: this.state.nightTime,
+      hunting: this.ghost.huntingOrAbout,
+      overtime: this.state.overtime,
+      lastMeetingEnd: this.lastMeetingEnd,
+    });
+    if (!reason) return false;
+    const msg: ServerMessages["meetingRefused"] = { reason };
+    this.clients.find((c) => c.sessionId === sessionId)?.send("meetingRefused", msg);
+    return true;
+  }
+
+  /** Everyone living is pulled to the table (the map's spawns, around it) and the night waits (GDD 16.2). */
+  private startMeeting(callerId: string, bodyId: string | null) {
+    const s = this.state;
+    s.meeting = "evidence" satisfies MeetingStep;
+    s.meetingLeft = meetingStepSec("evidence");
+    s.meetingCaller = s.players.get(callerId)?.name ?? "";
+    s.meetingBody = bodyId ? (s.players.get(bodyId)?.name ?? "") : "";
+    this.meetingBodyId = bodyId;
+    this.votes.clear();
+    this.removedId = null;
+    let seat = 0;
+    for (const [id, sim] of this.sims) {
+      const p = s.players.get(id);
+      if (!p) continue;
+      this.closeTask(id, "cancelled");
+      this.clearAction(sim, p);
+      p.voted = false;
+      sim.ouijaPushed = false;
+      if (p.health === "dead") continue;
+      sim.beforeMeeting = { x: sim.move.x, z: sim.move.z, hidingSpot: p.hidingSpot };
+      p.hidingSpot = "";
+      p.holdingBreath = false;
+      const at = this.map.spawns[seat++ % this.map.spawns.length]!;
+      this.placePlayer(sim, p, at);
+    }
+    // New photos are shown as the meeting starts (GDD 15.2).
+    this.developPhotos();
+  }
+
+  private placePlayer(sim: PlayerSim, player: Player, at: { x: number; z: number }) {
+    sim.move = { ...sim.move, x: at.x, z: at.z };
+    player.x = at.x;
+    player.z = at.z;
+  }
+
+  private tickMeeting(dt: number) {
+    const s = this.state;
+    s.meetingLeft = Math.max(0, s.meetingLeft - dt);
+    // Everyone has voted: no need to wait out the clock.
+    if (s.meeting === "vote" && this.allVoted()) s.meetingLeft = 0;
+    if (s.meetingLeft > 0) return;
+    if (s.meeting === "vote") this.showVoteResult();
+    const next = nextMeetingStep(s.meeting as MeetingStep);
+    if (!next) return this.endMeeting();
+    s.meeting = next;
+    s.meetingLeft = meetingStepSec(next);
+  }
+
+  private castVote(sessionId: string, target: string) {
+    const voter = this.state.players.get(sessionId);
+    if (this.state.meeting !== "vote" || !voter || voter.health === "dead" || this.votes.has(sessionId)) return;
+    const votedFor = this.state.players.get(target);
+    if (target !== SKIP && (!votedFor || votedFor.health === "dead")) return;
+    this.votes.set(sessionId, target);
+    voter.voted = true;
+  }
+
+  private allVoted(): boolean {
+    let all = true;
+    this.state.players.forEach((p, id) => {
+      if (p.health !== "dead" && !this.votes.has(id)) all = false;
+    });
+    return all;
+  }
+
+  /** The vote's result, to everyone (GDD 16.3). The removed player goes when the meeting ends. */
+  private showVoteResult() {
+    const { removed, tally, skip } = countVotes(this.votes);
+    this.removedId = removed;
+    const name = (id: string) => this.state.players.get(id)?.name ?? "?";
+    const m = config.meetings;
+    const msg: ServerMessages["meetingResult"] = {
+      removed: removed ? name(removed) : null,
+      role: removed && m.revealRole ? (this.sims.get(removed)?.role ?? "investigator") : null,
+      tally: [...tally].map(([id, votes]) => ({ name: name(id), votes })),
+      skip,
+      votes: m.anonymousVoting ? null : [...this.votes].map(([voter, target]) => ({ voter: name(voter), target: target === SKIP ? "Skip" : name(target) })),
+    };
+    this.broadcast("meetingResult", msg);
+  }
+
+  /** Everyone goes back where they were; the reported body and the removed player are gone (GDD 16.3). */
+  private endMeeting() {
+    const s = this.state;
+    for (const [id, sim] of this.sims) {
+      const p = s.players.get(id);
+      p && (p.voted = false);
+      const back = sim.beforeMeeting;
+      if (!p || !back) continue;
+      sim.beforeMeeting = null;
+      this.placePlayer(sim, p, back);
+      // Back into the hiding spot, unless someone else took it meanwhile (they cannot: everyone was at the table).
+      if (back.hidingSpot && id !== this.removedId) p.hidingSpot = back.hidingSpot;
+    }
+    const body = this.meetingBodyId && s.players.get(this.meetingBodyId);
+    if (body) body.bodyGone = true;
+    const removed = this.removedId && s.players.get(this.removedId);
+    if (removed) {
+      // Voted out: a Wisp now, whatever their role (GDD 16.3, 17). No body is left behind.
+      this.dropRelic(this.removedId!, false);
+      this.becomeWisp(removed);
+      removed.bodyGone = true;
+    }
+    s.meeting = "" satisfies MeetingStep;
+    s.meetingLeft = 0;
+    s.meetingCaller = "";
+    s.meetingBody = "";
+    this.meetingBodyId = null;
+    this.removedId = null;
+    this.votes.clear();
+    this.lastMeetingEnd = s.nightTime;
+    this.ghost.afterMeeting(config.ghost.postMeetingGraceSec);
+    this.checkResult(false);
+  }
+
+  // ---------- Wisps and the Ouija board (GDD 17) ----------
+
+  /** Dead: the body stays where it fell, and the player floats on from there as a Wisp. */
+  private becomeWisp(player: Player) {
+    player.health = "dead" satisfies Health;
+    player.bleedLeft = 0;
+    player.flashlightOn = false;
+    player.bodyX = player.x;
+    player.bodyZ = player.z;
+  }
+
+  private wispChangeFloor(sessionId: string, dir: 1 | -1) {
+    const sim = this.sims.get(sessionId);
+    const player = this.state.players.get(sessionId);
+    if (!sim || !player || player.health !== "dead" || this.state.meeting) return;
+    const to = wispFloor(this.map, sim.move, dir);
+    if (!to) return;
+    this.closeTask(sessionId, "cancelled");
+    this.placePlayer(sim, player, to);
+  }
+
+  private pushOuija(sessionId: string, target: string) {
+    const sim = this.sims.get(sessionId);
+    const wisp = this.state.players.get(sessionId);
+    if (!sim || !wisp || wisp.health !== "dead" || !config.wisps.ouija) return;
+    if (this.state.meeting !== ("evidence" satisfies MeetingStep) || sim.ouijaPushed) return;
+    const onto = this.state.players.get(target);
+    if (target !== OUIJA_UNKNOWN && (!onto || onto.health === "dead")) return;
+    sim.ouijaPushed = true;
+    const msg: ServerMessages["ouijaMove"] = { target: target === OUIJA_UNKNOWN ? null : onto!.name };
+    this.broadcast("ouijaMove", msg);
   }
 
   // ---------- The ritual (GDD Section 11) ----------
@@ -493,14 +1047,35 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     return count;
   }
 
+  /** With the clock frozen, gaps measured on it (meetings, Taint, same victim) still run out. */
+  private backdateClockTimers(sec: number) {
+    this.lastTaintAt -= sec;
+    if (this.lastMeetingEnd !== null) this.lastMeetingEnd -= sec;
+    for (const sim of this.sims.values()) {
+      sim.hitAt -= sec;
+      sim.trappedAt -= sec;
+    }
+  }
+
+  /** Every player dealt the possessed role is dead or has left. */
+  private possessedGone(): boolean {
+    if (!this.possessedDealt) return false;
+    for (const [id, p] of this.state.players) if (p.health !== "dead" && this.sims.get(id)?.role === "possessed") return false;
+    return true;
+  }
+
   /** Ends the match once someone has won (GDD 18). Checked after the ritual, so finishing at dawn wins. */
   private checkResult(dawn: boolean) {
     let living = 0;
     this.state.players.forEach((p) => {
       if (p.health !== "dead") living++;
     });
-    // Everyone is an investigator until the possessed come in Phase 6.
-    const result = matchResult({ ritualComplete: this.state.ritualProgress >= 100, dawn, livingInvestigators: living, livingPossessed: 0 });
+    let livingPossessed = 0;
+    this.state.players.forEach((p, id) => {
+      if (p.health !== "dead" && this.sims.get(id)?.role === "possessed") livingPossessed++;
+    });
+    const counted = this.noInvestigators ? { livingInvestigators: 1, livingPossessed: 0 } : { livingInvestigators: living - livingPossessed, livingPossessed };
+    const result = matchResult({ ritualComplete: this.state.ritualProgress >= 100, dawn, ...counted });
     if (!result) return;
     this.state.winner = result.winner;
     this.state.endReason = result.reason;
@@ -508,8 +1083,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.state.overtime = false;
     this.ghost.update(0, "dawn", this.state.players.size);
     const roles: ServerMessages["matchEnd"]["roles"] = [];
-    this.state.players.forEach((p) => roles.push({ name: p.name, role: "investigator" }));
-    const msg: ServerMessages["matchEnd"] = { ...result, roles };
+    this.state.players.forEach((p, id) => roles.push({ name: p.name, role: this.sims.get(id)?.role ?? "investigator" }));
+    const msg: ServerMessages["matchEnd"] = { ...result, roles, photos: this.photos.map((p) => p.photo) };
     this.broadcast("matchEnd", msg);
   }
 
@@ -537,7 +1112,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       const input = sim.inputs.shift()!;
       if (input.seq <= player.lastSeq) continue; // duplicate or old
       const before = sim.move;
-      sim.move = stepMovement(sim.move, input, SIM_DT, sim.collide, mode);
+      sim.move = stepMovement(sim.move, input, SIM_DT, mode === "wisp" ? this.wispCollide : sim.collide, mode);
       sim.budget -= SIM_DT;
       player.lastSeq = input.seq;
       player.yaw = input.yaw;
@@ -564,19 +1139,24 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       // A small drift (steps still on the way when E was pressed) does not count.
       const at = this.activityAt(sim.task);
       const away = !at || Math.hypot(at.x - sim.move.x, at.z - sim.move.z) > at.rangeM;
-      if (away || player.health !== "alive") this.closeTask(this.sessionOf(sim), "cancelled");
+      if (away || player.health === "downed") this.closeTask(this.sessionOf(sim), "cancelled");
     }
   }
 
   private moveMode(player: Player): MoveMode {
+    // Everyone stays at the table through a meeting.
+    if (this.state.meeting) return "frozen";
+    if (player.health === "dead") return "wisp";
     if (player.health === "downed") return "crawl";
-    if (player.health === "dead" || player.hidingSpot) return "frozen";
+    if (player.hidingSpot) return "frozen";
     return player.relic ? "carry" : "normal";
   }
 
   /** How far a step of movement can be heard (GDD Section 12.2). */
   private movementNoise(input: MoveInput, mode: MoveMode, before: MoveState, after: MoveState): number {
     const h = config.ghost.hearingM;
+    // A Wisp makes no sound (GDD 17).
+    if (mode === "wisp") return 0;
     if (mode === "crawl" || after.crouching) return h.crouch;
     // Same rule as stepMovement: running needs stamina left at the start of the step.
     return input.run && before.stamina > 0 ? h.run : h.walk;
@@ -667,6 +1247,12 @@ export class HauntedRoom extends Room<{ state: GameState }> {
         mix[id] = [1, 0, boost];
         continue;
       }
+      // Meetings: everyone hears everyone at full volume (GDD 12.6).
+      if (this.state.meeting) {
+        speakers.add(id);
+        mix[id] = [1, 0, boost];
+        continue;
+      }
       const dist = this.hearingDistance(speaker, listener);
       if (dist > config.voice.routeRangeM) continue;
       speakers.add(id);
@@ -681,13 +1267,12 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   // ---------- Health (GDD Section 7) ----------
 
   private tickHealth(sim: PlayerSim, player: Player, dt: number) {
+    // Bleeding out waits for the meeting too.
+    if (this.state.meeting) return;
     if (sim.immuneLeft > 0) sim.immuneLeft = Math.max(0, sim.immuneLeft - dt);
     if (player.health !== "downed") return;
     player.bleedLeft = Math.max(0, player.bleedLeft - dt);
-    if (player.bleedLeft <= 0) {
-      player.health = "dead";
-      player.flashlightOn = false;
-    }
+    if (player.bleedLeft <= 0) this.becomeWisp(player);
   }
 
   /** The ghost caught this player. */
@@ -703,6 +1288,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     }
     player.health = "downed" satisfies Health;
     player.bleedLeft = config.health.bleedOutSec;
+    sim.hitAt = this.state.nightTime;
     sim.flashlightBeforeDowned = player.flashlightOn;
     player.flashlightOn = false;
     player.holdingBreath = false;
@@ -737,8 +1323,18 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private startUse(sessionId: string) {
     const sim = this.sims.get(sessionId);
     const player = this.state.players.get(sessionId);
-    if (!sim || !player || player.health !== "alive" || sim.action || this.state.winner) return;
+    if (!sim || !player || sim.action || this.state.winner || this.state.meeting) return;
     const here = { x: sim.move.x, z: sim.move.z };
+    // A Wisp can still do tasks, and touch nothing else (GDD 17).
+    if (player.health === "dead") {
+      if (this.playing && config.wisps.canDoTasks) this.openTask(sessionId, sim, player, here.x, here.z);
+      return;
+    }
+    if (player.health !== "alive") return;
+    if (!this.playing) {
+      this.toggleNearestDoor(here.x, here.z);
+      return;
+    }
 
     if (player.hidingSpot) {
       this.setAction(sim, player, { kind: "unhide", elapsed: 0 });
@@ -756,6 +1352,41 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     });
     if (reviveId) {
       this.setAction(sim, player, { kind: "revive", targetId: reviveId, elapsed: 0 });
+      return;
+    }
+
+    // Report a body, or ring the bell: both call a meeting (GDD 16.1).
+    const bodyId = this.bodyNear(sessionId, here);
+    const bell = this.map.bell;
+    const nearBell = !!bell && this.hearingDistance(here, bell) <= config.interact.rangeM;
+    if (!bodyId && nearBell && player.bellUses <= 0) {
+      const msg: ServerMessages["meetingRefused"] = { reason: "You have used your bell. Each player has their own." };
+      this.clients.find((c) => c.sessionId === sessionId)?.send("meetingRefused", msg);
+      return;
+    }
+    const atBell = nearBell && player.bellUses > 0;
+    if (bodyId || atBell) {
+      if (this.refuseMeeting(sessionId)) return;
+      this.setAction(sim, player, bodyId ? { kind: "report", targetId: bodyId, elapsed: 0 } : { kind: "ringBell", elapsed: 0 });
+      return;
+    }
+
+    // Put out black flames on the altar with a handful of salt (GDD 11).
+    const altar = this.map.altar;
+    if (this.state.taintLeft > 0 && altar && player.salt >= config.taint.cleanseSaltCost && this.hearingDistance(here, altar) <= config.ritual.circleRadiusM) {
+      this.setAction(sim, player, { kind: "cleanse", elapsed: 0 });
+      return;
+    }
+    // Fix the fuse box in a blackout (GDD 14.2).
+    const fuse = this.map.fuseBox;
+    if (this.state.blackout && fuse && this.hearingDistance(here, fuse) <= config.interact.rangeM) {
+      this.setAction(sim, player, { kind: "fixFuse", elapsed: 0 });
+      return;
+    }
+    // Push on a slammed door; it breaks open when enough players push together (GDD 14.2).
+    const locked = this.nearestDoor(here.x, here.z);
+    if (locked && this.state.doors.get(locked)?.locked) {
+      this.setAction(sim, player, { kind: "breakDoor", doorId: locked, elapsed: 0 });
       return;
     }
 
@@ -826,6 +1457,13 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       if (!target || target.health !== "downed" || !near) return this.clearAction(sim, player);
     }
 
+    if (action.kind === "report" && this.bodyNear(this.sessionOf(sim), sim.move) !== action.targetId) return this.clearAction(sim, player);
+    if (action.kind === "breakDoor" && !this.state.doors.get(action.doorId)?.locked) return this.clearAction(sim, player);
+    if (action.kind === "fixFuse" && !this.state.blackout) return this.clearAction(sim, player);
+    if (action.kind === "cleanse" && this.state.taintLeft <= 0) return this.clearAction(sim, player);
+    // A slammed door gives only to enough players pushing together.
+    if (action.kind === "breakDoor" && this.pushers(action.doorId) < config.powers.slamDoor.breakPushers) return;
+
     action.elapsed += dt;
     const duration = ACTION_SECONDS[action.kind];
     player.actionProgress = Math.min(1, action.elapsed / duration);
@@ -836,7 +1474,19 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     else if (action.kind === "hide") this.hide(sim, player, action.spotId);
     else if (action.kind === "salt") this.pourSalt(player);
     else if (action.kind === "placeRelic") this.placeRelic(player);
-    else this.unhide(sim, player);
+    else if (action.kind === "breakDoor") this.unlockDoor(action.doorId, true);
+    else if (action.kind === "fixFuse") this.endBlackout();
+    else if (action.kind === "ringBell" || action.kind === "report") {
+      // A hunt may have begun while E was held.
+      const id = this.sessionOf(sim);
+      if (this.refuseMeeting(id)) return;
+      if (action.kind === "ringBell") player.bellUses -= 1;
+      this.startMeeting(id, action.kind === "report" ? action.targetId : null);
+    }
+    else if (action.kind === "cleanse") {
+      player.salt -= config.taint.cleanseSaltCost;
+      this.state.taintLeft = 0;
+    } else this.unhide(sim, player);
   }
 
   private revive(targetId: string) {
@@ -919,7 +1569,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const at = this.activityAt(sim.task);
     const tooFast = sim.task.elapsed < this.taskMinSec(sim.task);
     const tooFar = !at || Math.hypot(at.x - player.x, at.z - player.z) > at.rangeM;
-    if (tooFast || tooFar || player.health !== "alive") return this.closeTask(sessionId, "cancelled");
+    if (tooFast || tooFar || player.health === "downed") return this.closeTask(sessionId, "cancelled");
     if (sim.task.kind === "relic") return this.finishSearch(sessionId, sim, player, stationId);
 
     const def = this.map.tasks.find((d) => d.id === stationId)!;
@@ -927,7 +1577,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const task = sim.tasks.find((t) => t.stationId === stationId);
     if (task && !task.done) {
       task.done = true;
-      this.state.tasksDone += 1;
+      // A possessed player's task is fake: it looks done to them, but the bar does not move (GDD 9).
+      if (sim.role === "investigator") this.state.tasksDone += 1;
       if (def.visible) this.state.stations.get(stationId)!.done = true;
     }
     this.closeTask(sessionId, "done");
@@ -1182,29 +1833,28 @@ export class HauntedRoom extends Room<{ state: GameState }> {
    */
   private takePhoto(sessionId: string) {
     const player = this.state.players.get(sessionId);
-    if (!player || player.health !== "alive" || player.cameraShots <= 0) return;
+    if (!player || player.health !== "alive" || player.cameraShots <= 0 || !this.playing) return;
     player.cameraShots -= 1;
     const c = config.camera;
-    const halfFov = ((c.photoFovDeg / 2) * Math.PI) / 180;
-    const inFrame = (x: number, z: number) => {
-      const dist = Math.hypot(x - player.x, z - player.z);
-      if (dist > c.captureRangeM || dist < 1e-6) return false;
-      const angleTo = Math.atan2(-(x - player.x), -(z - player.z));
-      if (Math.abs(normalizeAngle(angleTo - player.yaw)) > halfFov) return false;
-      return this.physics.lineOfSight(player, { x, z }, VOICE_SIGHT_HEIGHT_M);
+    // In the frame, within captureRangeM, and not behind a wall.
+    const inFrame = (at: { x: number; z: number }) => {
+      const spot = inPhotoFrame(player, at);
+      return spot && this.physics.lineOfSight(player, at, VOICE_SIGHT_HEIGHT_M) ? spot : null;
     };
 
-    const subjects: PhotoRecord["subjects"] = [];
+    const subjects: DevelopedPhoto["subjects"] = [];
     this.state.players.forEach((p, id) => {
-      if (id !== sessionId && !p.hidingSpot && inFrame(p.x, p.z)) subjects.push({ id, cursed: false });
+      // Wisps are invisible to the living, and so to their cameras (GDD 17).
+      const spot = id !== sessionId && !p.hidingSpot && p.health !== "dead" ? inFrame(p) : null;
+      if (!spot) return;
+      // The demon face: a possessed player within their curse glow (GDD 15.2). Decided now, shown later.
+      const sim = this.sims.get(id);
+      subjects.push({ name: p.name, ...spot, demon: sim?.role === "possessed" && sim.curseLeft > 0 });
     });
+    subjects.sort((a, b) => a.frameX - b.frameX);
     const ghostPresent = this.ghost.state !== "asleep" && this.ghost.state !== "gone" && this.ghost.state !== "retreat";
-    this.photos.push({
-      by: sessionId,
-      nightTime: this.state.nightTime,
-      subjects,
-      ghostInFrame: ghostPresent && this.ghost.visible && inFrame(this.ghost.x, this.ghost.z),
-    });
+    const ghost = ghostPresent && this.ghost.visible ? inFrame(this.ghost) : null;
+    this.photos.push({ photo: { by: player.name, nightTime: this.state.nightTime, subjects, ghost }, developed: false });
 
     const flash: ServerMessages["flash"] = { x: player.x, z: player.z, by: sessionId };
     for (const client of this.clients) {
@@ -1216,16 +1866,32 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.clients.find((cl) => cl.sessionId === sessionId)?.send("photoTaken", taken);
   }
 
-  private toggleNearestDoor(x: number, z: number) {
+  /**
+   * The photos taken since the last meeting develop and are shown to everyone (GDD 15.2). The
+   * meeting calls this as it starts; until meetings are built, a debug message does.
+   */
+  private developPhotos() {
+    const fresh = this.photos.filter((p) => !p.developed);
+    for (const p of fresh) p.developed = true;
+    const msg: ServerMessages["photosDeveloped"] = { photos: fresh.map((p) => p.photo) };
+    this.broadcast("photosDeveloped", msg);
+  }
+
+  /** The door within reach of a player, nearest first. Never the relic door, which cannot be worked by hand. */
+  private nearestDoor(x: number, z: number): string | null {
     let nearest: { id: string; dist: number } | undefined;
     for (const door of this.map.doors) {
-      // The relic door cannot be worked by hand: it is locked, then open for good.
       if (door.id === this.map.relicDoor) continue;
       const dist = Math.hypot(door.x - x, door.z - z);
       if (dist <= config.interact.rangeM && (!nearest || dist < nearest.dist)) nearest = { id: door.id, dist };
     }
-    if (!nearest) return;
-    const door = this.map.doors.find((d) => d.id === nearest!.id)!;
+    return nearest?.id ?? null;
+  }
+
+  private toggleNearestDoor(x: number, z: number) {
+    const id = this.nearestDoor(x, z);
+    if (!id || this.state.doors.get(id)!.locked) return;
+    const door = this.map.doors.find((d) => d.id === id)!;
     this.setDoor(door.id, !this.state.doors.get(door.id)!.open);
     // Opening or closing a door can be heard (GDD Section 12.2).
     this.noises.push({ x: door.x, z: door.z, radiusM: config.ghost.hearingM.door });
@@ -1273,8 +1939,12 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       ritualAt: () => (this.state.ritualStarted && this.map.altar ? this.map.altar : null),
       isDoorOpen: (id) => this.state.doors.get(id)?.open ?? true,
       openDoor: (id) => {
-        if (id !== this.map.relicDoor || !this.relicDoorLocked()) this.setDoor(id, true);
+        if (id === this.map.relicDoor && this.relicDoorLocked()) return;
+        // A slammed door locks players in, not the ghost (GDD 26.13).
+        this.unlockDoor(id, false);
+        this.setDoor(id, true);
       },
+      speedMult: () => (this.state.blackout ? config.ghost.blackoutSpeedMult : 1),
       hidingSpots: this.map.hidingSpots,
       takeNoises: () => this.noises.slice(),
       takeSaltAt: (x, z) => {

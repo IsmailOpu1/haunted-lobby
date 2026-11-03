@@ -10,7 +10,7 @@ export const config = {
     knowEachOther: true,
   },
   match: {
-    lengthMin: 12,
+    lengthMin: 15,
     lengthOptionsMin: [10, 12, 15, 20],
     introSec: 10,
     countdownSec: 5,
@@ -19,13 +19,13 @@ export const config = {
     overtimeSec: 30,
   },
   movement: {
-    walk: 2.1,
-    run: 3.3,
-    crouch: 1.1,
-    crawl: 0.6,
+    walk: 2.6,
+    run: 4.1,
+    crouch: 1.4,
+    crawl: 0.75,
     staminaSec: 5,
     staminaRegenDelaySec: 3,
-    staminaRefillSec: 15,
+    staminaRefillSec: 8,
     relicSlowPct: 15,
     hideEnterExitSec: 1,
     breathHoldSec: 6,
@@ -37,7 +37,8 @@ export const config = {
   body: { radiusM: 0.3, heightM: 1.8 },
   interact: { rangeM: 2, reviveRangeM: 1.5, hideRangeM: 1.5 },
   health: { reviveSec: 5, bleedOutSec: 30, postReviveImmunitySec: 3 },
-  flashlight: { coneM: 12, darkVisionM: 2, flickerGhostM: 15, deadGhostM: 5, deadSec: 2 },
+  // coneHalfAngleDeg: how wide the beam is, for what it lights (the client's beam and a possessed's glowing eyes).
+  flashlight: { coneM: 12, coneHalfAngleDeg: 26, darkVisionM: 2, flickerGhostM: 15, deadGhostM: 5, deadSec: 2 },
   camera: {
     shotsPerPlayer: 1,
     shotOptions: [0, 1, 2, 3],
@@ -166,9 +167,9 @@ export const config = {
       // only counts fastFactor of the extra and throws soil (a noise).
       dig: { searchPx: 1800, takePx: 4200, maxPxPerSec: 700, fastFactor: 0.3 },
       // A dial lock: turn the dial (degPerPx) right to the first pin, left to the next, and so on.
-      // A pin clicks if the dial passes it no faster than clickDegPerSec; each is minGapDeg to
-      // maxGapDeg on from the last. The dial ticks every tickDeg so you can hear your speed.
-      lockbox: { pins: 4, degPerPx: 0.4, clickDegPerSec: 70, minGapDeg: 90, maxGapDeg: 200, tickDeg: 15 },
+      // The dial is stiff: it turns at most maxDegPerSec however fast you drag, and every pin clicks
+      // as it passes. Each pin is minGapDeg to maxGapDeg on from the last. The dial ticks every tickDeg.
+      lockbox: { pins: 4, degPerPx: 0.4, maxDegPerSec: 80, minGapDeg: 140, maxGapDeg: 220, tickDeg: 15 },
       // Reach into the dark water: the hand moves mPerPx (at most maxMPerSec) in a sizeM square. Within
       // feelM of the relic, hold still (under stillMPerSec) for grabSec to grip it, then pull up
       // pullPx (at most pullPxPerSec). Let go while pulling and it slips back.
@@ -200,9 +201,9 @@ export const config = {
     hidingChecks: 2,
     hidingCheckSec: 3,
     parts: {
-      calm: { wander: 1.1, hunt: 1.9, betweenHuntsSec: 75, huntSec: 20 },
-      restless: { wander: 1.4, hunt: 2.2, betweenHuntsSec: 50, huntSec: 25 },
-      furious: { wander: 1.8, hunt: 2.5, betweenHuntsSec: 30, huntSec: 30 },
+      calm: { wander: 1.4, hunt: 2.4, betweenHuntsSec: 75, huntSec: 20 },
+      restless: { wander: 1.75, hunt: 2.75, betweenHuntsSec: 50, huntSec: 25 },
+      furious: { wander: 2.25, hunt: 3.1, betweenHuntsSec: 30, huntSec: 30 },
     },
     difficulty: {
       easy: { intervalMult: 1.25, speedMult: 0.9 },
@@ -262,12 +263,17 @@ export const config = {
     summon: { unlockSec: 120, cooldownSec: 60, targetRangeM: 15, spawnMinM: 6, spawnMaxM: 10, whisperM: 5, eyeGlowSec: 1, protectAfterHitSec: 30 },
     blackout: { unlockAtPart: "restless", usesPerMatch: 1, fuseFixSec: 5, autoRestoreSec: 60 },
     cooldownSpeed: { slow: 1.25, normal: 1.0, fast: 0.75 },
+    // How often a possessed player is told their cooldowns and curse glow.
+    statusEverySec: 0.5,
   },
   meetings: {
     bellUsesPerPlayer: 1,
     bellOptions: [0, 1, 2, 3],
     bellHoldSec: 2,
     reportRangeM: 3,
+    // How long to hold E on a body to report it, and how long the vote's result stays up (GDD 26.12).
+    reportHoldSec: 1,
+    resultSec: 6,
     minGapSec: 30,
     evidenceSec: 30,
     evidenceOptions: [15, 30, 45, 60],

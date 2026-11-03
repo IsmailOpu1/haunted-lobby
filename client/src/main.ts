@@ -5,11 +5,15 @@ import {
   isValidRoomCode,
   normalizeRoomCode,
   type EndReason,
+  type PowerStatus,
   type ServerMessages,
+  SKIP,
+  OUIJA_UNKNOWN,
 } from "@haunted/shared";
 import { defaultMap } from "@haunted/maps";
 import { FloorPlan } from "./floorplan.ts";
-import { Game } from "./game.ts";
+import { Game, POWER_NAMES } from "./game.ts";
+import { photoCard } from "./photoView.ts";
 import { createRoom, joinRoom } from "./network.ts";
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -38,6 +42,9 @@ const relicList = el("relic-list");
 const night = el("night");
 const nightPartText = el("night-part");
 const nightFill = el("night-fill");
+const nightBar = el("night-bar");
+const nightLeft = el("night-left");
+let nightPartShown = "";
 const overlay = el("overlay");
 const overlayTitle = el("overlay-title");
 const overlayText = el("overlay-text");
@@ -76,7 +83,40 @@ const roomNameRoom = el("room-name-room");
 const roomNameFloor = el("room-name-floor");
 const soundCues = el("sound-cues");
 const workHint = el("work-hint");
+const startBtn = el<HTMLButtonElement>("start-night");
+const startHint = el("start-hint");
+const intro = el("intro");
+const introTitle = el("intro-title");
+const introText = el("intro-text");
+const introExtra = el("intro-extra");
+/** Your role once it is dealt (GDD 4.1), or null before. Only you are told it. */
+let myRole: ServerMessages["role"] | null = null;
 const floorPlan = new FloorPlan(defaultMap);
+const powersBar = el("powers-bar");
+const meetingBox = el("meeting");
+/** The photos that developed last: the meeting's evidence. */
+let newPhotos: ServerMessages["photosDeveloped"]["photos"] = [];
+/** Which meeting the screen shows (its players and photos are built once, then updated). */
+let meetingKey = "";
+let meetingPlayers = "";
+/** Where the planchette last moved: a name, "" for "I don't know", null before it moves. */
+let ouijaTarget: string | null = null;
+
+/** Puts the planchette over its name. Called with every meeting update, so it follows any rebuild or resize. */
+function placePlanchette() {
+  const planchette = el("planchette");
+  planchette.classList.toggle("hidden", ouijaTarget === null);
+  const slot = [...el("ouija-names").children].find((c) => (c as HTMLElement).dataset.name === ouijaTarget) as HTMLElement | undefined;
+  const board = planchette.parentElement!.getBoundingClientRect();
+  const at = slot?.getBoundingClientRect();
+  // Not laid out yet (the board is hidden): try again on the next update.
+  if (!at || at.width === 0) return;
+  const left = `${Math.round(at.left - board.left + at.width / 2)}px`;
+  const top = `${Math.round(at.top - board.top + at.height / 2)}px`;
+  if (planchette.style.left !== left) planchette.style.left = left;
+  if (planchette.style.top !== top) planchette.style.top = top;
+}
+const powerWheel = el("power-wheel");
 el("floor-plan").append(floorPlan.element);
 
 /** How long the room name stays up after you walk into a room. */
@@ -101,6 +141,22 @@ const NIGHT_PART_NAMES: Record<string, string> = {
   overtime: "Overtime",
 };
 
+/** Said once as the night moves on, so nobody misses the ghost getting worse. */
+const NIGHT_PART_BANNERS: Record<string, string> = {
+  calm: "The ghost wakes.",
+  restless: "The ghost grows restless. It hunts more often.",
+  furious: "The ghost is furious. It hunts fast and often.",
+  overtime: "Overtime: hold the circle and finish the ritual.",
+};
+const NIGHT_BANNER_SEC = 4;
+
+function showBanner(text: string, seconds: number) {
+  banner.textContent = text;
+  banner.classList.remove("hidden");
+  clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => banner.classList.add("hidden"), seconds * 1000);
+}
+
 const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
   // While the mouse is captured, hide the lobby panel so the 3D view is clear.
   setLooking: (looking) => document.body.classList.toggle("looking", looking),
@@ -112,10 +168,26 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     prompt.classList.toggle("hidden", !text);
     prompt.textContent = text ?? "";
   },
-  setNight: (part, fractionLeft) => {
+  setNight: (part, fractionLeft, secLeft, marks) => {
     night.classList.remove("hidden");
+    night.dataset.part = part;
     nightPartText.textContent = NIGHT_PART_NAMES[part] ?? part;
     nightFill.style.width = `${Math.round((1 - fractionLeft) * 100)}%`;
+    const left = Math.max(0, Math.ceil(secLeft));
+    nightLeft.textContent = part === "dawn" ? "Dawn" : part === "overtime" ? "Dawn is here" : `Dawn in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+    if (nightBar.querySelectorAll(".night-mark").length !== marks.length) {
+      nightBar.querySelectorAll(".night-mark").forEach((m) => m.remove());
+      for (const at of marks) {
+        const mark = Object.assign(document.createElement("div"), { className: "night-mark" });
+        mark.style.left = `${(at * 100).toFixed(1)}%`;
+        nightBar.append(mark);
+      }
+    }
+    if (part !== nightPartShown) {
+      // Not on joining mid-night: only when the part changes while you watch.
+      if (nightPartShown && NIGHT_PART_BANNERS[part]) showBanner(NIGHT_PART_BANNERS[part]!, NIGHT_BANNER_SEC);
+      nightPartShown = part;
+    }
   },
   setStatus: (status) => {
     document.body.dataset.status = status.kind;
@@ -124,8 +196,8 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
       overlayTitle.textContent = "You are down";
       overlayText.textContent = `A friend must hold E on you within ${Math.ceil(status.bleedLeft)} s. You can crawl.`;
     } else if (status.kind === "dead") {
-      overlayTitle.textContent = "You died";
-      overlayText.textContent = "Dead players will become Wisps in a later update.";
+      overlayTitle.textContent = "You are a Wisp";
+      overlayText.textContent = `Fly with W A S D, through walls. Space and C float up and down a floor.${config.wisps.canDoTasks ? " You can still do your tasks." : ""} Only other Wisps can hear you.`;
     } else if (status.kind === "hidden") {
       overlayTitle.textContent = "";
       overlayText.textContent = status.holdingBreath
@@ -140,12 +212,125 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     actionLabel.textContent = label ?? "";
     actionFill.style.width = `${Math.round(progress * 100)}%`;
   },
-  showBanner: (text, seconds) => {
-    banner.textContent = text;
-    banner.classList.remove("hidden");
-    clearTimeout(bannerTimer);
-    bannerTimer = setTimeout(() => banner.classList.add("hidden"), seconds * 1000);
+  setPowers: (list, curseLeft) => {
+    powersBar.classList.toggle("hidden", !list);
+    if (!list) return;
+    const chips = list.map((p) => {
+      const chip = document.createElement("span");
+      chip.className = `power ${p.state}`;
+      chip.textContent = `${POWER_NAMES[p.kind]} ${powerStateText(p)}`;
+      return chip;
+    });
+    if (curseLeft > 0) {
+      const curse = document.createElement("span");
+      curse.className = "power curse";
+      curse.textContent = `Curse glow ${Math.ceil(curseLeft)} s`;
+      chips.push(curse);
+    }
+    powersBar.replaceChildren(...chips);
   },
+  addPhotos: (photos) => {
+    newPhotos = photos;
+    el("meeting-photos").replaceChildren(...photos.map(photoCard));
+    el("photos-box").classList.remove("hidden");
+    el("photo-list").append(...photos.map(photoCard));
+  },
+  setMeeting: (m) => {
+    document.body.classList.toggle("meeting", !!m);
+    meetingBox.classList.toggle("hidden", !m);
+    if (!m) {
+      meetingKey = "";
+      meetingPlayers = "";
+      return;
+    }
+    const key = `${m.caller}|${m.body}`;
+    if (key !== meetingKey) {
+      meetingKey = key;
+      el("meeting-title").textContent = m.body ? `${m.caller} reported ${m.body}'s body` : `${m.caller} rang the bell`;
+      el("meeting-result").classList.add("hidden");
+      el("ouija-log").textContent = "";
+      ouijaTarget = null;
+      // The photos shown are the ones that developed as this meeting began.
+      if (newPhotos.length === 0) el("meeting-photos").replaceChildren();
+      newPhotos = [];
+    }
+    el("meeting-step").textContent = `${MEETING_STEP_TEXT[m.step] ?? ""}  ${Math.ceil(m.secondsLeft)} s`;
+    // Rebuilt only when it changes: the state comes 20 times a second, and a button replaced
+    // between press and release loses the click.
+    const players = JSON.stringify([m.players, m.canVote, m.ouija, m.canOuija]);
+    if (players === meetingPlayers) return placePlanchette();
+    meetingPlayers = players;
+    // The Ouija board: one slot per living player and "I don't know"; a Wisp clicks one (GDD 17).
+    el("ouija").classList.toggle("hidden", !m.ouija);
+    el("ouija-names").replaceChildren(
+      ...[...m.players.filter((p) => !p.dead).map((p) => ({ id: p.id, label: p.name })), { id: OUIJA_UNKNOWN, label: "I don't know" }].map((slot) => {
+        const b = document.createElement("button");
+        b.className = "ouija-slot";
+        b.dataset.name = slot.id === OUIJA_UNKNOWN ? "" : slot.label;
+        b.textContent = slot.label;
+        b.disabled = !m.canOuija;
+        b.onclick = () => game.pushOuija(slot.id);
+        return b;
+      }),
+    );
+    placePlanchette();
+    el("meeting-players").replaceChildren(
+      ...m.players.map((p) => {
+        const li = document.createElement("li");
+        li.classList.toggle("dead", p.dead);
+        li.textContent = p.me ? `${p.name} (you)` : p.name;
+        if (p.voted) li.append(Object.assign(document.createElement("span"), { className: "stamp", textContent: "Voted" }));
+        if (m.canVote && !p.dead) {
+          const btn = document.createElement("button");
+          btn.className = "small";
+          btn.textContent = "Vote";
+          btn.onclick = () => game.vote(p.id);
+          li.append(btn);
+        }
+        return li;
+      }),
+    );
+    el("meeting-skip").classList.toggle("hidden", !m.canVote);
+  },
+  ouijaMove: (target) => {
+    // The planchette slides onto the name (or "I don't know").
+    ouijaTarget = target ?? "";
+    placePlanchette();
+    const log = el("ouija-log");
+    log.textContent = `${log.textContent ? `${log.textContent}  ` : "The planchette moves: "}${target ?? "I don't know"}.`;
+  },
+  showMeetingResult: (r) => {
+    const box = el("meeting-result");
+    box.classList.remove("hidden");
+    const verdict = document.createElement("strong");
+    verdict.className = r.role === "possessed" ? "possessed" : "";
+    if (!r.removed) verdict.textContent = r.skip > 0 ? "Nobody was removed." : "Nobody was removed: a tie.";
+    else if (r.role) verdict.textContent = `${r.removed.toUpperCase()} WAS ${r.role === "possessed" ? "" : "NOT "}POSSESSED.`;
+    else verdict.textContent = `${r.removed} is gone.`;
+    const counts = document.createElement("p");
+    counts.textContent = [...r.tally.map((t) => `${t.name} ${t.votes}`), `Skip ${r.skip}`].join(" · ");
+    const votes = document.createElement("ul");
+    for (const v of r.votes ?? []) votes.append(Object.assign(document.createElement("li"), { textContent: `${v.voter} voted ${v.target}` }));
+    box.replaceChildren(verdict, counts, votes);
+  },
+  showPowerWheel: (wheel) => {
+    powerWheel.classList.toggle("hidden", !wheel);
+    if (!wheel) return;
+    powerWheel.replaceChildren(
+      ...wheel.powers.map((p, i) => {
+        const sector = document.createElement("div");
+        sector.className = `sector at-${i} ${p.state}${wheel.selected === p.kind ? " selected" : ""}`;
+        const name = document.createElement("strong");
+        name.textContent = POWER_NAMES[p.kind];
+        const state = document.createElement("span");
+        state.textContent = powerStateText(p) || "Ready";
+        sector.append(name, state);
+        return sector;
+      }),
+      Object.assign(document.createElement("div"), { className: "wheel-hint", textContent: "Move the mouse, let go of R" }),
+    );
+  },
+  showBanner,
   setVoice: (state) => {
     micBox.classList.toggle("hidden", state.kind === "off");
     micStatus.classList.remove("error");
@@ -185,8 +370,8 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     micFill.style.width = `${Math.round(level * 100)}%`;
   },
   setMicLost: (lost) => micLost.classList.toggle("hidden", !lost),
-  setItems: (salt, shots) => {
-    const text = `Salt <strong>&times;${salt}</strong> (3) &nbsp; Camera <strong>&times;${shots}</strong> (2)`;
+  setItems: (salt, shots, bellUses) => {
+    const text = `Salt <strong>&times;${salt}</strong> (3) &nbsp; Camera <strong>&times;${shots}</strong> (2) &nbsp; Bell <strong>&times;${bellUses}</strong>`;
     if (itemsBox.innerHTML !== text) itemsBox.innerHTML = text;
   },
   setCameraRaised: (raised) => viewfinder.classList.toggle("hidden", !raised),
@@ -198,7 +383,12 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
   setTasks: (list) => {
     floorPlan.setTaskRooms(list.filter((t) => !t.done).map((t) => t.room));
     taskList.classList.toggle("hidden", list.length === 0);
+    // The possessed's list is fake (GDD 9): a reminder that only they see.
+    const note = document.createElement("li");
+    note.className = "role-note";
+    note.textContent = "Fake tasks: pretend to do them";
     taskList.replaceChildren(
+      ...(myRole?.role === "possessed" ? [note] : []),
       ...list.map((t) => {
         const li = document.createElement("li");
         li.classList.toggle("done", t.done);
@@ -255,6 +445,8 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
         return li;
       }),
     );
+    el("end-photos-box").classList.toggle("hidden", end.photos.length === 0);
+    el("end-photos").replaceChildren(...end.photos.map(photoCard));
   },
   showStatusPanel: (open) => statusPanel.classList.toggle("hidden", !open),
   setWorkHint: (text) => {
@@ -454,4 +646,68 @@ function enterLobby(room: Room) {
   room.onLeave(() => {
     addLogLine("Disconnected from the server.");
   });
+
+  // Starting the night: the host's button, the countdown, then your role (GDD 4.1 and 5).
+  startBtn.onclick = () => room.send("start");
+  room.onMessage("startRefused", (msg: ServerMessages["startRefused"]) => {
+    startHint.textContent = msg.reason;
+  });
+  room.onMessage("role", (msg: ServerMessages["role"]) => {
+    myRole = msg;
+    game.setRole(msg.role);
+    // Your task list now shows whether it is real.
+    room.send("tasksRequest");
+  });
+  room.onStateChange((state: { stage?: string; stageLeft?: number; host?: string; players?: { size: number } }) => {
+    const waiting = state.stage === "waiting";
+    const isHost = state.host === room.sessionId;
+    el("start-box").classList.toggle("hidden", !waiting);
+    startBtn.classList.toggle("hidden", !isHost);
+    if (waiting && !startHint.textContent?.startsWith("At least")) {
+      startHint.textContent = isHost
+        ? `You are the host. Start when everyone is here (${config.players.min} to ${config.players.max} players). Until then, walk around and try your mic.`
+        : "Waiting for the host to start the night.";
+    }
+    showIntro(state.stage ?? "", state.stageLeft ?? 0);
+  });
+}
+
+const MEETING_STEP_TEXT: Record<string, string> = {
+  evidence: "Evidence: look at the new photos.",
+  discussion: "Discussion: talk it over.",
+  vote: "Vote: pick a player, or skip.",
+  result: "The vote is in.",
+};
+
+el("meeting-skip").onclick = () => game.vote(SKIP);
+
+/** A power's state in a few words: "" when ready. */
+function powerStateText(p: PowerStatus): string {
+  if (p.state === "cooldown") return `${Math.ceil(p.cooldownLeft)} s`;
+  if (p.state === "locked") return p.kind === "taint" ? "(ritual)" : "(not yet)";
+  if (p.state === "used") return "(used)";
+  return "";
+}
+
+/** The countdown, then your role for the intro's 10 seconds (GDD 4.1). */
+function showIntro(stage: string, secondsLeft: number) {
+  intro.classList.toggle("hidden", stage !== "countdown" && stage !== "intro");
+  if (stage === "countdown") {
+    delete intro.dataset.role;
+    introTitle.textContent = String(Math.max(1, Math.ceil(secondsLeft)));
+    introText.textContent = "The night begins";
+    introExtra.textContent = "";
+  } else if (stage === "intro" && myRole) {
+    intro.dataset.role = myRole.role;
+    if (myRole.role === "possessed") {
+      introTitle.textContent = "YOU ARE POSSESSED";
+      introText.textContent = "Stop the ritual. Do not get caught.";
+      const partners = myRole.partners.length ? `Also possessed: ${myRole.partners.join(", ")}. ` : "";
+      introExtra.textContent = `${partners}Hold R for your powers.`;
+    } else {
+      introTitle.textContent = "INVESTIGATOR";
+      introText.textContent = "Do your tasks, find the relics, finish the ritual before dawn.";
+      introExtra.textContent = "";
+    }
+  }
 }

@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { config } from "@haunted/shared";
 
 // Look of the flashlight beam (GDD Section 8.1: 12 m cone). Visual tuning only.
-const BEAM_ANGLE = 0.45; // radians, half-angle of the cone
+const BEAM_ANGLE = (config.flashlight.coneHalfAngleDeg * Math.PI) / 180; // half-angle of the cone
 const BEAM_PENUMBRA = 0.5;
 const BEAM_INTENSITY = 30;
 const BEAM_DECAY = 1.2;
