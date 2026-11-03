@@ -399,10 +399,12 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     });
 
     if (DEBUG) {
-      this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number; teleport?: { x: number; z: number }; giveTask?: string; hideRelicAt?: string; toggleGhost?: boolean; possessed?: boolean; startNow?: boolean; developPhotos?: boolean; curse?: boolean; meeting?: boolean; skipStep?: boolean; freezeClock?: boolean }) => {
+      this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number; teleport?: { x: number; z: number }; giveTask?: string; hideRelicAt?: string; toggleGhost?: boolean; possessed?: boolean; startNow?: boolean; developPhotos?: boolean; curse?: boolean; meeting?: boolean; skipStep?: boolean; freezeClock?: boolean; startRitual?: boolean }) => {
         if (typeof msg?.nightTime === "number") this.state.nightTime = msg.nightTime;
         // Stop the night clock (to try things without dawn coming), or start it again.
         if (typeof msg?.freezeClock === "boolean") this.clockFrozen = msg.freezeClock;
+        // Skip to the ritual (to try Taint): the basement opens and everyone stands in the circle.
+        if (msg?.startRitual && this.state.stage === "night") this.debugStartRitual();
         // Swap your first task for this station's (to try a particular task).
         const mine = this.sims.get(client.sessionId);
         if (mine && typeof msg?.giveTask === "string" && this.map.tasks.some((t) => t.id === msg.giveTask)) {
@@ -1045,6 +1047,34 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       if (p.health === "alive" && !p.hidingSpot && this.hearingDistance(p, altar) <= config.ritual.circleRadiusM) count++;
     });
     return count;
+  }
+
+  /**
+   * Debug: every relic is placed, the relic door opens, everyone living stands in the circle,
+   * and the ritual starts at the point where Taint becomes possible.
+   */
+  private debugStartRitual() {
+    const altar = this.map.altar;
+    if (!altar) return;
+    const door = this.map.doors.find((d) => d.id === this.map.relicDoor);
+    for (const relic of this.relics) {
+      relic.status = "placed";
+      if (door) Object.assign(relic, { x: door.x, z: door.z });
+      this.state.relics.get(relic.id)!.status = relic.status;
+    }
+    this.state.players.forEach((p) => (p.relic = ""));
+    if (door) this.setDoor(door.id, true);
+    if (this.openNav) this.ghost.setNav(this.openNav);
+    // Around the altar, halfway out to the circle's edge.
+    const living = [...this.state.players].filter(([, p]) => p.health !== "dead");
+    living.forEach(([id, p], i) => {
+      const angle = (i / living.length) * Math.PI * 2;
+      const r = config.ritual.circleRadiusM / 2;
+      const sim = this.sims.get(id);
+      if (sim) this.placePlayer(sim, p, { x: altar.x + Math.cos(angle) * r, z: altar.z + Math.sin(angle) * r });
+    });
+    this.state.ritualStarted = true;
+    this.state.ritualProgress = Math.max(this.state.ritualProgress, config.taint.minProgressPct);
   }
 
   /** With the clock frozen, gaps measured on it (meetings, Taint, same victim) still run out. */
