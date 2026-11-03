@@ -109,7 +109,7 @@ The owner asked to keep building before playtesting the first batch. These five 
 
 | Task | In the world | Steady player, in the browser |
 |---|---|---|
-| Burn the cursed letter | The letter hangs on a string under the mantel and sways in the draught. Strike a match and keep the flame just under it for 6 s of heat (it cools when the flame slips away), then it burns and drops into the grate | 8 s |
+| Burn the cursed letter | The letter hangs on a string under the mantel and sways in the draught. Strike a match and keep the flame just under it for 6 s of heat (it cools when the flame slips away), then it burns and drops into the grate. Eased 2026-11-04: less sway, a wider flame (GDD 26.5) | 8 to 12 s |
 | Wind the grandfather clock | Grab the key on the clock face and drag it round a quarter turn on each tick (12 quarters). Off the beat, or two on one tick, it slips back 2 | 9.9 s |
 | Turn the boiler valve | Grab the heavy wheel (it turns at most 60° a second) and watch the real gauge: bring the needle into the green band and keep it there 5 s. The needle lags and wobbles | 10.7 s |
 | Straighten the portraits | Grab a crooked frame and drag sideways to level it (heavy: 18° a second at most), then let go; it settles after 1 s. One is haunted and swings crooked once more | 15.6 s |

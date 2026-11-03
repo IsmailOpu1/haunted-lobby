@@ -296,6 +296,21 @@ describe("letter", () => {
     expect(game.done).toBe(false);
   });
 
+  it("burns, slowly, for a hand held still under where it hangs", () => {
+    for (let seed = 1; seed <= 6; seed++) {
+      const game = new LetterLogic(() => {}, seeded(seed));
+      const t = run(
+        () => {
+          if (!game.match.lit && !game.caught) strike(game.match);
+          game.update(DT, { under: Math.abs(game.sway) < hands.letter.aimM, holding: false, dragY: 0, lookSpeed: 0 });
+        },
+        () => game.done,
+      );
+      expect(game.done).toBe(true);
+      expect(t).toBeLessThanOrEqual(config.tasks.maxSec);
+    }
+  });
+
   it("sways in the draught", () => {
     const game = new LetterLogic(() => {}, () => 0);
     const seen = new Set<number>();
