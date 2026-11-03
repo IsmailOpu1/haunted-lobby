@@ -33,8 +33,11 @@ export interface ServerMessages {
   /** The match is over (GDD 18): who won, why, and every player's role, now shown to all (GDD 19). */
   /** Every photo of the night is shown on the end screen, developed or not (GDD 19). */
   matchEnd: { winner: Team; reason: EndReason; roles: { name: string; role: Role }[]; photos: DevelopedPhoto[] };
-  /** How to join the voice room, or disabled when this server has no voice keys. */
-  voice: { url: string; token: string } | { disabled: true };
+  /**
+   * How to join the voice room, or disabled when this server has no voice keys. micOptional:
+   * a debug server lets you play without a microphone (you still count as talking normally).
+   */
+  voice: { url: string; token: string; micOptional?: boolean } | { disabled: true };
   /**
    * How loud you hear each speaker right now: [volume 0..1, muffled 1 if through a wall,
    * boost for a quiet mic]. Sent 4 times a second. Speakers not listed are out of range.

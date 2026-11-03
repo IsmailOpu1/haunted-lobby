@@ -364,6 +364,15 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
         micStatus.textContent = "Mic check done. Remember: whisper to hide from the ghost.";
         break;
     }
+    // A debug server lets you play without a mic; the ghost hears you as talking normally.
+    if ((state.kind === "no-mic" || state.kind === "needs-check") && state.optional) {
+      canPlay = true;
+      const note = "This is a test server, so you can play without a mic (the ghost hears you as talking normally).";
+      if (state.kind === "no-mic") {
+        micStatus.classList.remove("error");
+        micStatus.textContent = `No microphone. ${note}`;
+      } else micStatus.textContent += ` Or skip it: ${note.charAt(0).toLowerCase()}${note.slice(1)}`;
+    }
     lookHint.textContent = canPlay ? "Click anywhere outside this box to play." : "Do the mic check before you play.";
   },
   setMicLevel: (level) => {

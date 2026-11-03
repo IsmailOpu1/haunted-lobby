@@ -185,9 +185,9 @@ export interface RitualHud {
 export type VoiceUiState =
   | { kind: "off" }
   | { kind: "connecting" }
-  | { kind: "no-mic" }
+  | { kind: "no-mic"; optional?: boolean }
   | { kind: "failed" }
-  | { kind: "needs-check"; error?: string }
+  | { kind: "needs-check"; error?: string; optional?: boolean }
   | { kind: "checking" }
   | { kind: "ready" };
 
@@ -288,6 +288,8 @@ export class Game {
   private voice: VoiceChat;
   /** False until the mic check passes when voice is on (GDD 5: a working mic is required). */
   private micChecked = false;
+  /** A debug server lets you play without a mic (or before the mic check). */
+  private micOptional = false;
   private saltJarsTaken = new Set<string>();
   private myStepTracker = new StepTracker();
   private stepTrackers = new Map<string, StepTracker>();
@@ -404,7 +406,11 @@ export class Game {
     this.voice = new VoiceChat(
       () => this.sound.voiceOutput(),
       (status) => {
-        if (status === "on") hud.setVoice(this.micChecked ? { kind: "ready" } : { kind: "needs-check" });
+        const optional = this.micOptional;
+        if ((status === "on" && !this.micChecked) || status === "no-mic") {
+          if (optional) this.input.enable();
+          hud.setVoice(status === "on" ? { kind: "needs-check", optional } : { kind: "no-mic", optional });
+        } else if (status === "on") hud.setVoice({ kind: "ready" });
         else hud.setVoice({ kind: status === "off" ? "off" : status });
       },
     );
@@ -470,6 +476,7 @@ export class Game {
         this.hud.setVoice({ kind: "off" });
         this.input.enable();
       } else {
+        this.micOptional = !!msg.micOptional;
         void this.voice.connect(msg.url, msg.token);
       }
     });
@@ -480,7 +487,7 @@ export class Game {
         this.hud.setVoice({ kind: "ready" });
         this.input.enable();
       } else {
-        this.hud.setVoice({ kind: "needs-check", error: result.reason });
+        this.hud.setVoice({ kind: "needs-check", error: result.reason, optional: this.micOptional });
       }
     });
     room.onMessage("micLost", (msg: ServerMessages["micLost"]) => this.hud.setMicLost(msg.lost));

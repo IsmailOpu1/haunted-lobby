@@ -540,6 +540,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     } catch (err) {
       console.error("Voice token failed", err);
     }
+    // Debug servers only: no microphone needed, so one person can test with several tabs.
+    if (DEBUG && "url" in msg) msg = { ...msg, micOptional: true };
     client.send("voice", msg);
   }
 
