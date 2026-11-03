@@ -36,6 +36,12 @@ import {
   nextMeetingStep,
   SKIP,
   type MeetingStep,
+  altarStands,
+  clueStations,
+  dealClueTasks,
+  otherSuspect,
+  pickMystery,
+  type SuspectDef,
   type DevelopedPhoto,
   POWER_KINDS,
   powerCooldownSec,
@@ -102,7 +108,8 @@ type Action =
   | { kind: "cleanse"; elapsed: number }
   | { kind: "ringBell"; elapsed: number }
   | { kind: "report"; targetId: string; elapsed: number }
-  | { kind: "placeRelic"; elapsed: number };
+  | { kind: "placeRelic"; elapsed: number }
+  | { kind: "offer"; relicId: string; elapsed: number };
 
 /** Server-only data for one connected player. */
 interface PlayerSim {
@@ -148,6 +155,8 @@ interface PlayerSim {
   beforeMeeting: { x: number; z: number; hidingSpot: string } | null;
   /** This Wisp pushed the planchette in this meeting already (GDD 17). */
   ouijaPushed: boolean;
+  /** Clues this possessed player has altered (GDD 26.13). */
+  cluesAltered: number;
   /** The minigame open right now (a task, or taking a relic from a spot), and for how long. */
   /**
    * The task or search open in the player's hands. stationId is the task station, or the place
@@ -189,6 +198,7 @@ const ACTION_SECONDS: Record<Action["kind"], number> = {
   cleanse: config.taint.cleanseSec,
   ringBell: config.meetings.bellHoldSec,
   report: config.meetings.reportHoldSec,
+  offer: config.mystery.offerHoldSec,
 };
 
 export class HauntedRoom extends Room<{ state: GameState }> {
@@ -234,6 +244,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private blackoutUsed = false;
   private blackoutLeft = 0;
   private taintsUsed = 0;
+  /** Who the ghost was in life tonight, known only to the server and the possessed (GDD 26.13). */
+  private ghostSuspect: SuspectDef | null = null;
   /** Night time of the last Taint, or -Infinity. */
   private lastTaintAt = -Infinity;
   /** Seconds each slammed door stays locked. */
@@ -271,13 +283,19 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     for (const door of this.map.doors) this.state.doors.set(door.id, new Door({ open: false, locked: false }));
     this.state.blackout = false;
     this.state.taintLeft = 0;
+    this.state.ghostNamed = "";
+    this.state.altarWait = 0;
     this.state.meeting = "" satisfies MeetingStep;
     this.state.meetingLeft = 0;
     this.state.meetingCaller = "";
     this.state.meetingBody = "";
     // Every jar spot is stocked until the lobby decides the player count (Phase 7).
     for (const jar of this.map.saltJars) this.state.saltJars.set(jar.id, new SaltJar({ taken: false }));
-    for (const station of this.map.tasks) this.state.stations.set(station.id, new TaskStation({ done: false }));
+    for (const station of this.map.tasks) this.state.stations.set(station.id, new TaskStation({ done: false, clue: "" }));
+    // Tonight's ghost, and the relics: its own belonging is always one of them (GDD 26.13).
+    const mystery = pickMystery(this.map, config.relics.count);
+    this.ghostSuspect = mystery?.ghost ?? null;
+    const relicNames = mystery?.relicNames ?? this.map.relicNames;
     // Relics hide in random spots each match (GDD 10). The count becomes a lobby setting in Phase 7.
     for (const spot of this.map.relicSpots) {
       for (const place of spot.places ?? []) this.state.searchPlaces.set(place.id, new SearchPlace({ searched: false }));
@@ -288,7 +306,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       const places = searchPlaces(spot);
       const place = places[Math.floor(Math.random() * places.length)]!;
       this.relics.push({ id, spotId: spot.id, placeId: place.id, x: place.x, z: place.z, status: "hidden" });
-      this.state.relics.set(id, new Relic({ name: this.map.relicNames[i] ?? `Relic ${i + 1}`, status: "hidden", carrier: "" }));
+      this.state.relics.set(id, new Relic({ name: relicNames[i] ?? `Relic ${i + 1}`, status: "hidden", carrier: "" }));
     });
     this.state.stage = "waiting" satisfies Stage;
     this.state.stageLeft = 0;
@@ -399,12 +417,16 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     });
 
     if (DEBUG) {
-      this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number; teleport?: { x: number; z: number }; giveTask?: string; hideRelicAt?: string; toggleGhost?: boolean; possessed?: boolean; startNow?: boolean; developPhotos?: boolean; curse?: boolean; meeting?: boolean; skipStep?: boolean; freezeClock?: boolean; startRitual?: boolean }) => {
+      this.onMessage("debug", (client, msg: { nightTime?: number; down?: boolean; bleedLeft?: number; huntIn?: number; teleport?: { x: number; z: number }; giveTask?: string; hideRelicAt?: string; toggleGhost?: boolean; possessed?: boolean; startNow?: boolean; developPhotos?: boolean; curse?: boolean; meeting?: boolean; skipStep?: boolean; freezeClock?: boolean; startRitual?: boolean; openBasement?: boolean; mystery?: boolean }) => {
         if (typeof msg?.nightTime === "number") this.state.nightTime = msg.nightTime;
         // Stop the night clock (to try things without dawn coming), or start it again.
         if (typeof msg?.freezeClock === "boolean") this.clockFrozen = msg.freezeClock;
         // Skip to the ritual (to try Taint): the basement opens and everyone stands in the circle.
         if (msg?.startRitual && this.state.stage === "night") this.debugStartRitual();
+        // A night without the mystery (to try the rest as before), set before the night starts.
+        if (msg?.mystery === false && this.state.stage === "waiting") this.ghostSuspect = null;
+        // Skip to the offering (to try the mystery): every relic is placed and the basement opens.
+        if (msg?.openBasement && this.state.stage === "night") this.debugOpenBasement();
         // Swap your first task for this station's (to try a particular task).
         const mine = this.sims.get(client.sessionId);
         if (mine && typeof msg?.giveTask === "string" && this.map.tasks.some((t) => t.id === msg.giveTask)) {
@@ -487,12 +509,13 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       micCheck: null,
       role: "investigator",
       wantsPossessed: false,
-      cooldowns: { slamDoor: 0, summon: 0, blackout: 0, taint: 0 },
+      cooldowns: { slamDoor: 0, summon: 0, blackout: 0, taint: 0, alterClue: 0 },
       curseLeft: 0,
       hitAt: -Infinity,
       trappedAt: -Infinity,
       beforeMeeting: null,
       ouijaPushed: false,
+      cluesAltered: 0,
     });
 
     this.state.players.set(
@@ -661,13 +684,28 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     }
     this.noInvestigators = picked.length === ids.length;
     this.possessedDealt = picked.length > 0;
+    this.dealClues();
     const names = (list: string[]) => list.map((id) => this.state.players.get(id)?.name ?? "");
     for (const client of this.clients) {
       const sim = this.sims.get(client.sessionId);
       if (!sim) continue;
       const partners = sim.role === "possessed" && config.possessed.knowEachOther ? names(picked.filter((id) => id !== client.sessionId)) : [];
       const msg: ServerMessages["role"] = { role: sim.role, partners };
+      if (sim.role === "possessed" && this.ghostSuspect) msg.ghost = this.ghostSuspect.name;
       client.send("role", msg);
+    }
+  }
+
+  /** Every clue task goes to an investigator, never the possessed (GDD 26.13). */
+  private dealClues() {
+    if (!this.ghostSuspect) return;
+    const dealt = [...this.sims].map(([id, sim]) => ({ id, investigator: sim.role === "investigator", tasks: sim.tasks }));
+    const changed = dealClueTasks(dealt, this.map.tasks, clueStations(this.map).map((s) => s.id));
+    for (const p of dealt) {
+      if (!changed.has(p)) continue;
+      // The possessed's list may shrink; their tasks are already off the bar.
+      this.sims.get(p.id)!.tasks = p.tasks;
+      this.sendTasks(p.id);
     }
   }
 
@@ -699,7 +737,15 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     if (status.state === "used") return refuse("Already used.");
     if (status.state === "cooldown") return refuse(`Ready in ${Math.ceil(status.cooldownLeft)} s.`);
     const result =
-      kind === "slamDoor" ? this.slamDoor(sim, target) : kind === "summon" ? this.summon(client.sessionId, sim, target) : kind === "blackout" ? this.startBlackout() : this.taint(sim);
+      kind === "slamDoor"
+        ? this.slamDoor(sim, target)
+        : kind === "summon"
+          ? this.summon(client.sessionId, sim, target)
+          : kind === "blackout"
+            ? this.startBlackout()
+            : kind === "alterClue"
+              ? this.alterClue(sim)
+              : this.taint(sim);
     if (result) return refuse(result);
     sim.cooldowns[kind] = powerCooldownSec(kind);
     // Every power leaves the curse glow (GDD 14.2, 15.2).
@@ -712,6 +758,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const cooldownLeft = sim.cooldowns[kind];
     let state: PowerStatus["state"] = cooldownLeft > 0 ? "cooldown" : "ready";
     if (kind === "blackout" && this.blackoutUsed) state = "used";
+    else if (kind === "alterClue" && sim.cluesAltered >= config.powers.alterClue.usesPerMatch) state = "used";
     else if (kind === "taint" && this.taintsUsed >= config.taint.maxPerMatch) state = "used";
     else if (!powerUnlocked(kind, clock)) state = "locked";
     // The team waits taint.cooldownSec between Taints, whoever used the last one (GDD 11).
@@ -816,8 +863,31 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     return null;
   }
 
+  /**
+   * Alter a clue (GDD 26.13): the nearest clue that is showing changes to point at another
+   * suspect. Anyone who saw it before will now disagree with anyone who sees it after.
+   */
+  private alterClue(sim: PlayerSim): string | null {
+    if (!this.ghostSuspect) return "There are no clues here.";
+    let found: TaskStation | undefined;
+    let best: number = config.powers.alterClue.rangeM;
+    for (const def of this.map.tasks) {
+      const station = this.state.stations.get(def.id);
+      const d = this.hearingDistance(sim.move, def);
+      if (station?.clue && d <= best) {
+        best = d;
+        found = station;
+      }
+    }
+    if (!found) return "Stand by a clue that is showing.";
+    found.clue = otherSuspect(this.map, found.clue);
+    sim.cluesAltered += 1;
+    return null;
+  }
+
   /** Cooldowns, curse glow, locked doors, the blackout and the flames, each tick of the night. */
   private tickPowers(dt: number) {
+    this.state.altarWait = Math.max(0, this.state.altarWait - dt);
     for (const sim of this.sims.values()) {
       for (const kind of POWER_KINDS) sim.cooldowns[kind] = Math.max(0, sim.cooldowns[kind] - dt);
       sim.curseLeft = Math.max(0, sim.curseLeft - dt);
@@ -1030,7 +1100,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   /** Starts the ritual once it is ready and the circle is full, then fills or drains it. */
   private tickRitual(dt: number) {
     const s = this.state;
-    s.ritualReady = !this.relicDoorLocked() && s.tasksTotal > 0 && s.tasksDone >= s.tasksTotal;
+    // With a mystery, the right relic must be offered first (GDD 26.13).
+    s.ritualReady = !this.relicDoorLocked() && s.tasksTotal > 0 && s.tasksDone >= s.tasksTotal && (!this.ghostSuspect || !!s.ghostNamed);
     s.circleNeeded = circleNeeded(s.players.size);
     s.circleCount = this.playersInCircle();
     if (!s.ritualStarted && s.ritualReady && s.circleCount >= s.circleNeeded) s.ritualStarted = true;
@@ -1058,15 +1129,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private debugStartRitual() {
     const altar = this.map.altar;
     if (!altar) return;
-    const door = this.map.doors.find((d) => d.id === this.map.relicDoor);
-    for (const relic of this.relics) {
-      relic.status = "placed";
-      if (door) Object.assign(relic, { x: door.x, z: door.z });
-      this.state.relics.get(relic.id)!.status = relic.status;
-    }
-    this.state.players.forEach((p) => (p.relic = ""));
-    if (door) this.setDoor(door.id, true);
-    if (this.openNav) this.ghost.setNav(this.openNav);
+    this.debugOpenBasement();
     // Around the altar, halfway out to the circle's edge.
     const living = [...this.state.players].filter(([, p]) => p.health !== "dead");
     living.forEach(([id, p], i) => {
@@ -1075,8 +1138,23 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       const sim = this.sims.get(id);
       if (sim) this.placePlayer(sim, p, { x: altar.x + Math.cos(angle) * r, z: altar.z + Math.sin(angle) * r });
     });
+    if (this.ghostSuspect) this.state.ghostNamed = this.ghostSuspect.name;
     this.state.ritualStarted = true;
     this.state.ritualProgress = Math.max(this.state.ritualProgress, config.taint.minProgressPct);
+  }
+
+  /** Debug: every relic still about is placed, and the relic door opens. */
+  private debugOpenBasement() {
+    const door = this.map.doors.find((d) => d.id === this.map.relicDoor);
+    for (const relic of this.relics) {
+      if (relic.status === "crumbled") continue;
+      relic.status = "placed";
+      if (door) Object.assign(relic, { x: door.x, z: door.z });
+      this.state.relics.get(relic.id)!.status = relic.status;
+    }
+    this.state.players.forEach((p) => (p.relic = ""));
+    if (door) this.setDoor(door.id, true);
+    if (this.openNav) this.ghost.setNav(this.openNav);
   }
 
   /** With the clock frozen, gaps measured on it (meetings, Taint, same victim) still run out. */
@@ -1116,7 +1194,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.ghost.update(0, "dawn", this.state.players.size);
     const roles: ServerMessages["matchEnd"]["roles"] = [];
     this.state.players.forEach((p, id) => roles.push({ name: p.name, role: this.sims.get(id)?.role ?? "investigator" }));
-    const msg: ServerMessages["matchEnd"] = { ...result, roles, photos: this.photos.map((p) => p.photo) };
+    const msg: ServerMessages["matchEnd"] = { ...result, roles, photos: this.photos.map((p) => p.photo), ghost: this.ghostSuspect?.name ?? null };
     this.broadcast("matchEnd", msg);
   }
 
@@ -1409,6 +1487,12 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       this.setAction(sim, player, { kind: "cleanse", elapsed: 0 });
       return;
     }
+    // Offer a relic on the altar: the team's answer to who the ghost was (GDD 26.13).
+    const offerId = this.relicToOffer(here);
+    if (offerId) {
+      this.setAction(sim, player, { kind: "offer", relicId: offerId, elapsed: 0 });
+      return;
+    }
     // Fix the fuse box in a blackout (GDD 14.2).
     const fuse = this.map.fuseBox;
     if (this.state.blackout && fuse && this.hearingDistance(here, fuse) <= config.interact.rangeM) {
@@ -1493,6 +1577,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     if (action.kind === "breakDoor" && !this.state.doors.get(action.doorId)?.locked) return this.clearAction(sim, player);
     if (action.kind === "fixFuse" && !this.state.blackout) return this.clearAction(sim, player);
     if (action.kind === "cleanse" && this.state.taintLeft <= 0) return this.clearAction(sim, player);
+    if (action.kind === "offer" && this.relicToOffer(sim.move) !== action.relicId) return this.clearAction(sim, player);
     // A slammed door gives only to enough players pushing together.
     if (action.kind === "breakDoor" && this.pushers(action.doorId) < config.powers.slamDoor.breakPushers) return;
 
@@ -1518,7 +1603,54 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     else if (action.kind === "cleanse") {
       player.salt -= config.taint.cleanseSaltCost;
       this.state.taintLeft = 0;
-    } else this.unhide(sim, player);
+    } else if (action.kind === "offer") this.offer(this.sessionOf(sim), player, action.relicId);
+    else this.unhide(sim, player);
+  }
+
+  /**
+   * The relic on the altar nearest this spot, if an offering can be made here now: the basement
+   * is open, nobody has named the ghost yet, the altar is not waiting after a wrong one, and the
+   * spot is in the circle and close to that relic's stand.
+   */
+  private relicToOffer(here: { x: number; z: number }): string | null {
+    const altar = this.map.altar;
+    const s = this.state;
+    if (!this.ghostSuspect || !altar || s.ghostNamed || s.ritualStarted || s.altarWait > 0 || this.relicDoorLocked()) return null;
+    if (this.hearingDistance(here, altar) > config.ritual.circleRadiusM) return null;
+    const stands = altarStands(altar, this.relics.length);
+    let found: string | null = null;
+    let best: number = config.interact.rangeM;
+    this.relics.forEach((relic, i) => {
+      const d = this.hearingDistance(here, stands[i]!);
+      if (relic.status === "placed" && d <= best) {
+        best = d;
+        found = relic.id;
+      }
+    });
+    return found;
+  }
+
+  /**
+   * The offering is made (GDD 26.13). The ghost's own belonging names it, and the ritual may
+   * start. Any other crumbles to dust, the ghost hunts the one who offered it at once, and the
+   * altar takes nothing for wrongWaitSec.
+   */
+  private offer(sessionId: string, player: Player, relicId: string) {
+    const relic = this.relics.find((r) => r.id === relicId);
+    const shown = this.state.relics.get(relicId);
+    const ghost = this.ghostSuspect;
+    if (!relic || !shown || !ghost || relic.status !== "placed") return;
+    const right = shown.name === ghost.belonging;
+    if (right) {
+      this.state.ghostNamed = ghost.name;
+    } else {
+      relic.status = "crumbled";
+      shown.status = relic.status;
+      this.state.altarWait = config.mystery.wrongWaitSec;
+      this.ghost.huntNow({ id: sessionId, x: player.x, z: player.z }, summonSpots(player));
+    }
+    const msg: ServerMessages["offering"] = { by: player.name, relic: shown.name, right, ghost: right ? ghost.name : null };
+    this.broadcast("offering", msg);
   }
 
   private revive(targetId: string) {
@@ -1612,6 +1744,9 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       // A possessed player's task is fake: it looks done to them, but the bar does not move (GDD 9).
       if (sim.role === "investigator") this.state.tasksDone += 1;
       if (def.visible) this.state.stations.get(stationId)!.done = true;
+      // A clue task shows who the ghost was, and the clue stays for everyone (GDD 26.13).
+      const station = this.state.stations.get(stationId)!;
+      if (this.ghostSuspect && sim.role === "investigator" && !station.clue && this.ghostSuspect.clues[def.minigame]) station.clue = this.ghostSuspect.id;
     }
     this.closeTask(sessionId, "done");
     this.sendTasks(sessionId);
@@ -1779,7 +1914,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
 
   /** The relic door stays shut until every relic is placed. */
   private relicDoorLocked(): boolean {
-    return !!this.map.relicDoor && this.relics.some((r) => r.status !== "placed");
+    // A relic that crumbled on the altar was placed first.
+    return !!this.map.relicDoor && this.relics.some((r) => r.status !== "placed" && r.status !== "crumbled");
   }
 
   /**

@@ -117,6 +117,8 @@ function placePlanchette() {
   if (planchette.style.top !== top) planchette.style.top = top;
 }
 const powerWheel = el("power-wheel");
+// How far from the centre the power names sit, in % of the wheel.
+const WHEEL_RADIUS_PCT = 33;
 el("floor-plan").append(floorPlan.element);
 
 /** How long the room name stays up after you walk into a room. */
@@ -319,7 +321,11 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     powerWheel.replaceChildren(
       ...wheel.powers.map((p, i) => {
         const sector = document.createElement("div");
-        sector.className = `sector at-${i} ${p.state}${wheel.selected === p.kind ? " selected" : ""}`;
+        sector.className = `sector ${p.state}${wheel.selected === p.kind ? " selected" : ""}`;
+        // Clockwise from the top, one equal slice each (game.ts wheelPick).
+        const a = (i / wheel.powers.length) * Math.PI * 2;
+        sector.style.left = `${50 + Math.sin(a) * WHEEL_RADIUS_PCT}%`;
+        sector.style.top = `${50 - Math.cos(a) * WHEEL_RADIUS_PCT}%`;
         const name = document.createElement("strong");
         name.textContent = POWER_NAMES[p.kind];
         const state = document.createElement("span");
@@ -415,7 +421,13 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     teamCount.textContent = `${done} / ${total}`;
   },
   setRitual: (r) => {
-    ritualBox.classList.toggle("hidden", !r.ready && !r.started);
+    ritualBox.classList.toggle("hidden", !r.ready && !r.started && !r.offering);
+    if (r.offering && !r.started) {
+      ritualLabel.textContent = "Who was the ghost?";
+      ritualFill.style.width = "0%";
+      ritualCount.textContent = "Offer the ghost's own belonging on the altar";
+      return;
+    }
     const short = r.inCircle < r.needed;
     ritualBox.classList.toggle("draining", r.started && short && r.progress < 100);
     ritualLabel.textContent = r.started ? "Ritual" : "Ritual ready";
@@ -443,7 +455,7 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     document.body.classList.add("ended");
     endScreen.dataset.winner = end.winner;
     endTitle.textContent = text.title;
-    endText.textContent = text.why;
+    endText.textContent = end.ghost ? `${text.why} The ghost was ${end.ghost}.` : text.why;
     endRoles.replaceChildren(
       ...end.roles.map((r) => {
         const li = document.createElement("li");
@@ -712,7 +724,9 @@ function showIntro(stage: string, secondsLeft: number) {
       introTitle.textContent = "YOU ARE POSSESSED";
       introText.textContent = "Stop the ritual. Do not get caught.";
       const partners = myRole.partners.length ? `Also possessed: ${myRole.partners.join(", ")}. ` : "";
-      introExtra.textContent = `${partners}Hold R for your powers.`;
+      // Only the possessed know who the ghost was (GDD 26.13): lie about the clues.
+      const ghost = myRole.ghost ? `The ghost was ${myRole.ghost}. Lead the team to the wrong relic. ` : "";
+      introExtra.textContent = `${partners}${ghost}Hold R for your powers.`;
     } else {
       introTitle.textContent = "INVESTIGATOR";
       introText.textContent = "Do your tasks, find the relics, finish the ritual before dawn.";

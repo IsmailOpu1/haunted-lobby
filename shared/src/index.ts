@@ -16,3 +16,4 @@ export * from "./roles.ts";
 export * from "./powers.ts";
 export * from "./camera.ts";
 export * from "./meetings.ts";
+export * from "./mystery.ts";

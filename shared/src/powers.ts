@@ -3,8 +3,8 @@
 import { config } from "./config.ts";
 import { nightPart } from "./night.ts";
 
-export type PowerKind = "slamDoor" | "summon" | "blackout" | "taint";
-export const POWER_KINDS: readonly PowerKind[] = ["slamDoor", "summon", "blackout", "taint"];
+export type PowerKind = "slamDoor" | "summon" | "blackout" | "taint" | "alterClue";
+export const POWER_KINDS: readonly PowerKind[] = ["slamDoor", "summon", "blackout", "taint", "alterClue"];
 export type CooldownSpeed = keyof typeof config.powers.cooldownSpeed;
 
 /** Where the night is, as far as the powers care. */
@@ -32,10 +32,12 @@ export function powerUnlocked(kind: PowerKind, c: PowerClock): boolean {
     }
     case "taint":
       return c.ritualStarted;
+    case "alterClue":
+      return c.nightTime >= p.alterClue.unlockSec;
   }
 }
 
-/** A power's cooldown after the lobby's cooldown speed (GDD 14.3). Blackout has none: it is once per match. */
+/** A power's cooldown after the lobby's cooldown speed (GDD 14.3). Blackout and Alter a clue have none: they are once per match. */
 export function powerCooldownSec(kind: PowerKind, speed: CooldownSpeed = "normal"): number {
   const base = kind === "slamDoor" ? config.powers.slamDoor.cooldownSec : kind === "summon" ? config.powers.summon.cooldownSec : kind === "taint" ? config.taint.cooldownSec : 0;
   return base * config.powers.cooldownSpeed[speed];

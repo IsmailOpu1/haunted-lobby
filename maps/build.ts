@@ -8,6 +8,7 @@ import type {
   RelicSpotDef,
   RoomDef,
   StairDef,
+  SuspectDef,
   TaskStationDef,
   WallSegment,
 } from "@haunted/shared";
@@ -59,6 +60,7 @@ export interface Plan {
   stairs: StairDef[];
   relicDoor?: string;
   relicNames: string[];
+  suspects?: SuspectDef[];
   ghostTrick?: GhostTrickDef;
   roomColors?: Record<string, string>;
 }
@@ -174,6 +176,7 @@ export function buildMap(plan: Plan): MapData {
     tasks: [],
     relicSpots: [],
     relicNames: plan.relicNames,
+    ...(plan.suspects ? { suspects: plan.suspects } : {}),
     spawns: [],
     furniture: [],
     relicDoor: plan.relicDoor,

@@ -32,7 +32,8 @@ export interface ServerMessages {
   bellRing: { x: number; z: number };
   /** The match is over (GDD 18): who won, why, and every player's role, now shown to all (GDD 19). */
   /** Every photo of the night is shown on the end screen, developed or not (GDD 19). */
-  matchEnd: { winner: Team; reason: EndReason; roles: { name: string; role: Role }[]; photos: DevelopedPhoto[] };
+  /** ghost: who the ghost was in life (GDD 26.13), or null on a map without the mystery. */
+  matchEnd: { winner: Team; reason: EndReason; roles: { name: string; role: Role }[]; photos: DevelopedPhoto[]; ghost: string | null };
   /**
    * How to join the voice room, or disabled when this server has no voice keys. micOptional:
    * a debug server lets you play without a microphone (you still count as talking normally).
@@ -55,9 +56,10 @@ export interface ServerMessages {
   photosDeveloped: { photos: DevelopedPhoto[] };
   /**
    * Your role, sent only to you when the countdown ends (GDD 4.1). partners: the other possessed
-   * players' names, if you are possessed and Possessed know each other is on.
+   * players' names, if you are possessed and Possessed know each other is on. ghost: who the
+   * ghost was in life, told only to the possessed, who know the answer to the mystery (GDD 26.13).
    */
-  role: { role: Role; partners: string[] };
+  role: { role: Role; partners: string[]; ghost?: string };
   /**
    * Your powers (possessed only, private, sent statusEverySec): each one's state and seconds of
    * cooldown left, and how long your curse glow lasts (GDD 14.2, 15.2).
@@ -110,6 +112,11 @@ export interface ServerMessages {
   relicsNear: { list: RelicNear[] };
   /** A relic hit the floor near you. */
   relicDrop: { x: number; z: number };
+  /**
+   * Someone offered a relic on the altar (GDD 26.13), told to everyone. right: it was the ghost's
+   * own belonging, and ghost is who it was; a wrong one crumbles and the ghost hunts at once.
+   */
+  offering: { by: string; relic: string; right: boolean; ghost: string | null };
 }
 
 export interface RelicNear {
@@ -122,7 +129,7 @@ export interface RelicNear {
 }
 
 /** What everyone sees about a relic on Tab (GDD 10). Never where it is. */
-export type RelicStatus = "hidden" | "carried" | "dropped" | "placed";
+export type RelicStatus = "hidden" | "carried" | "dropped" | "placed" | "crumbled";
 
 export interface GhostView {
   x: number;
@@ -209,7 +216,7 @@ export type Stage = "waiting" | "countdown" | "intro" | "night";
 export type Health = "alive" | "downed" | "dead";
 
 /** A timed action a player is doing (holding E, pouring salt, or a task minigame). */
-export type PlayerAction = "" | "revive" | "hide" | "unhide" | "salt" | "task" | "placeRelic" | "breakDoor" | "fixFuse" | "cleanse" | "ringBell" | "report";
+export type PlayerAction = "" | "revive" | "hide" | "unhide" | "salt" | "task" | "placeRelic" | "breakDoor" | "fixFuse" | "cleanse" | "ringBell" | "report" | "offer";
 
 /** One of your tasks, as only you see it. The possessed's are fake: doing them moves no bar (GDD 9). */
 export interface TaskEntry {

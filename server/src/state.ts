@@ -65,6 +65,8 @@ export type SaltJar = SchemaType<typeof SaltJar>;
 /** A task station's visible result (GDD 9: lit candles stay lit). */
 export const TaskStation = schema({
   done: t.boolean(),
+  /** The suspect a finished clue task points at, for everyone to see, or "" (GDD 26.13). */
+  clue: t.string(),
 }, "TaskStation");
 export type TaskStation = SchemaType<typeof TaskStation>;
 
@@ -122,6 +124,10 @@ export const GameState = schema({
   /** Who called it, and the body they reported ("" for the bell). */
   meetingCaller: t.string(),
   meetingBody: t.string(),
+  /** The ghost's name in life once the right relic is offered, else "" (GDD 26.13). */
+  ghostNamed: t.string(),
+  /** Seconds the altar takes no offering after a wrong one. */
+  altarWait: t.float32(),
   /** Black flames on the altar: seconds left to put them out, or 0 (GDD 11). */
   taintLeft: t.float32(),
   /** "" while the match goes on, then "investigators" or "possessed" (GDD 18). */
