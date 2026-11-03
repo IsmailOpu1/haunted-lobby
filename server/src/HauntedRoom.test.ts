@@ -1030,6 +1030,22 @@ describe("HauntedRoom", () => {
       await Promise.all([ghoul.leave(), friend.leave(), third.leave()]);
     });
 
+    it("skips to the ritual with a debug command, so Taint can be tried (debug servers only)", async () => {
+      const { ghoul, friend, third, server } = await possessedPair(300);
+      ghoul.send("debug", { startRitual: true });
+      await waitFor(() => ghoul.state.ritualStarted === true);
+      expect(ghoul.state.doors.get(marrowHotelGreybox.relicDoor!).open).toBe(true);
+      const altar = marrowHotelGreybox.altar!;
+      for (const r of [ghoul, friend, third]) {
+        const me = r.state.players.get(r.sessionId);
+        expect(Math.hypot(me.x - altar.x, me.z - altar.z)).toBeLessThanOrEqual(config.ritual.circleRadiusM);
+      }
+      expect(server.state.ritualProgress).toBeGreaterThanOrEqual(config.taint.minProgressPct);
+      ghoul.send("power", { kind: "taint" });
+      await waitFor(() => ghoul.state.taintLeft > 0);
+      await Promise.all([ghoul.leave(), friend.leave(), third.leave()]);
+    });
+
     it("taints the ritual: black flames that halve progress unless cleansed with salt (GDD 11)", async () => {
       const { ghoul, friend, third, server } = await possessedPair(300);
       const altar = marrowHotelGreybox.altar!;
