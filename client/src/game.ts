@@ -328,6 +328,8 @@ export class Game {
   private ghostNamed = "";
   private altarWait = 0;
   private ritualStarted = false;
+  /** Team tasks still to do, for what the offering's banner says next. */
+  private tasksLeft = 0;
   private clues = new Map<string, string>();
   private debugLights = false;
   /** The meeting's step, "" when there is none (GDD 16). */
@@ -506,7 +508,7 @@ export class Game {
     room.onMessage("offering", (msg: ServerMessages["offering"]) => {
       this.hud.showBanner(
         msg.right
-          ? `${msg.by} offered ${msg.relic}. It glows: the ghost was ${msg.ghost}! Gather in the circle.`
+          ? `${msg.by} offered ${msg.relic}. It glows: the ghost was ${msg.ghost}! ${this.tasksLeft > 0 ? `Finish the tasks (${this.tasksLeft} left), then gather in the circle.` : "Gather in the circle."}`
           : `${msg.by} offered ${msg.relic}. It crumbles to dust, and the ghost is coming!`,
         6,
       );
@@ -637,8 +639,11 @@ export class Game {
     });
     this.hud.setRelics(relicList);
     const relicDoor = this.map.relicDoor && this.doors.get(this.map.relicDoor);
-    if (relicDoor) relicDoor.setSlots([...this.relics.values()].filter((r) => r.status === "placed").length, this.relics.size);
-    if (typeof state.tasksTotal === "number") this.hud.setTeamTasks(state.tasksDone, state.tasksTotal);
+    if (relicDoor) relicDoor.setSlots([...this.relics.values()].filter((r) => r.status === "placed" || r.status === "crumbled").length, this.relics.size);
+    if (typeof state.tasksTotal === "number") {
+      this.hud.setTeamTasks(state.tasksDone, state.tasksTotal);
+      this.tasksLeft = Math.max(0, state.tasksTotal - state.tasksDone);
+    }
     const ritual: RitualHud = {
       ready: !!state.ritualReady,
       started: !!state.ritualStarted,
@@ -929,7 +934,7 @@ export class Game {
     }
     if (atRelicDoor) {
       const relics = [...this.relics.values()];
-      const placed = relics.filter((r) => r.status === "placed").length;
+      const placed = relics.filter((r) => r.status === "placed" || r.status === "crumbled").length;
       // Once every slot is full the door stays open, and there is nothing to do here.
       if (placed < relics.length) return `Locked: ${placed} of ${relics.length} relics placed`;
     }

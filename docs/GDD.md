@@ -925,6 +925,7 @@ The owner approved `docs/plans/mystery-pilot.md` with the suggested answers. Wha
 | The offering | Once the basement is open, the relics stand in a row on the altar. Hold E for 3 s in the circle, next to one, to offer it. Everyone gets a banner naming who offered what. Until the right one is offered, the ritual cannot start | Plan |
 | Wrong offering | The relic crumbles to dust, the ghost hunts the one who offered at once (if it is awake), and the altar takes no offering for 30 s | Plan, question 2 |
 | Right offering | It glows, the banner names the ghost, and the ritual starts as before once the circle is full | Plan |
+| End screen | Says who the ghost was, whoever won | Found in testing: a team that never offered the right relic never learned the answer |
 | Ghost behaviour | The same for every suspect | Plan, question 5 |
 | Debug | `{ openBasement: true }` places every relic and opens the basement; `{ mystery: false }` before the night plays without the mystery | To try it alone, and for the older tests |
 

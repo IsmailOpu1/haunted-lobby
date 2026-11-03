@@ -32,7 +32,8 @@ export interface ServerMessages {
   bellRing: { x: number; z: number };
   /** The match is over (GDD 18): who won, why, and every player's role, now shown to all (GDD 19). */
   /** Every photo of the night is shown on the end screen, developed or not (GDD 19). */
-  matchEnd: { winner: Team; reason: EndReason; roles: { name: string; role: Role }[]; photos: DevelopedPhoto[] };
+  /** ghost: who the ghost was in life (GDD 26.13), or null on a map without the mystery. */
+  matchEnd: { winner: Team; reason: EndReason; roles: { name: string; role: Role }[]; photos: DevelopedPhoto[]; ghost: string | null };
   /** How to join the voice room, or disabled when this server has no voice keys. */
   voice: { url: string; token: string } | { disabled: true };
   /**

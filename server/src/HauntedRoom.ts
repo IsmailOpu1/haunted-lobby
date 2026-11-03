@@ -1192,7 +1192,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.ghost.update(0, "dawn", this.state.players.size);
     const roles: ServerMessages["matchEnd"]["roles"] = [];
     this.state.players.forEach((p, id) => roles.push({ name: p.name, role: this.sims.get(id)?.role ?? "investigator" }));
-    const msg: ServerMessages["matchEnd"] = { ...result, roles, photos: this.photos.map((p) => p.photo) };
+    const msg: ServerMessages["matchEnd"] = { ...result, roles, photos: this.photos.map((p) => p.photo), ghost: this.ghostSuspect?.name ?? null };
     this.broadcast("matchEnd", msg);
   }
 

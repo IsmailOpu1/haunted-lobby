@@ -62,12 +62,14 @@ export function dealClueTasks(players: DealtPlayer[], stations: TaskStationDef[]
   const roomOf = (id: string) => byId.get(id)?.room;
   const fitsIn = (list: DealtPlayer["tasks"], skip: number, id: string) => list.every((t, i) => i === skip || (t.stationId !== id && roomOf(t.stationId) !== roomOf(id)));
 
-  // The possessed swap their clue tasks for other (fake) ones.
+  // The possessed swap their clue tasks for other (fake) ones, preferring tasks nobody has.
+  const held = (id: string) => players.some((p) => p.tasks.some((t) => t.stationId === id));
   for (const p of players.filter((p) => !p.investigator)) {
     for (let i = p.tasks.length - 1; i >= 0; i--) {
       const task = p.tasks[i]!;
       if (task.done || !isClue(task.stationId)) continue;
-      const spare = shuffle(stations, random).find((s) => !isClue(s.id) && fitsIn(p.tasks, i, s.id));
+      const spares = shuffle(stations, random).filter((s) => !isClue(s.id) && fitsIn(p.tasks, i, s.id) && !(s.visible && held(s.id)));
+      const spare = spares.find((s) => !held(s.id)) ?? spares[0];
       if (spare) p.tasks[i] = { stationId: spare.id, done: false };
       else p.tasks.splice(i, 1);
       changed.add(p);

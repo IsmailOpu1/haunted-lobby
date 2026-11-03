@@ -43,6 +43,11 @@ describe("who was the ghost? (GDD 26.13)", () => {
         dealClueTasks(players, map.tasks, clueIds);
         for (const id of clueIds) expect(players.some((p) => p.investigator && p.tasks.some((t) => t.stationId === id))).toBe(true);
         expect(players[0]!.tasks.some((t) => clueIds.includes(t.stationId))).toBe(false);
+        // The possessed's new fake tasks never take a visible task someone else has.
+        for (const t of players[0]!.tasks) {
+          const def = map.tasks.find((s) => s.id === t.stationId)!;
+          if (def.visible) expect(players.slice(1).some((p) => p.tasks.some((o) => o.stationId === t.stationId))).toBe(false);
+        }
         // Lists keep their length and one task per room.
         players.forEach((p, i) => {
           expect(p.tasks.length).toBe(counts[i]);

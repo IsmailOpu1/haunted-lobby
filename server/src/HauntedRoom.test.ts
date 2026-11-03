@@ -807,7 +807,7 @@ describe("HauntedRoom", () => {
     server.state.ritualProgress = 99;
 
     await waitFor(() => ends.length === 1);
-    expect(ends[0]).toEqual({ winner: "investigators", reason: "ritual", roles: [{ name: "Sam", role: "investigator" }, { name: "Mim", role: "investigator" }], photos: [] });
+    expect(ends[0]).toEqual({ winner: "investigators", reason: "ritual", roles: [{ name: "Sam", role: "investigator" }, { name: "Mim", role: "investigator" }], photos: [], ghost: null });
     await waitFor(() => a.state.winner === "investigators");
     expect(a.state.part).toBe("dawn");
 
@@ -1478,6 +1478,11 @@ describe("HauntedRoom", () => {
     expect(offerings[1]).toMatchObject({ by: "Nila", relic: ghost.belonging, right: true, ghost: ghost.name });
     expect(ghoul.state.ghostNamed).toBe(ghost.name);
     await waitFor(() => ghoul.state.ritualStarted === true);
+    // The end screen says who the ghost was.
+    const ends = collectMsgs(rafi, "matchEnd");
+    server.state.ritualProgress = 99.9;
+    await waitFor(() => ends.length === 1);
+    expect(ends[0]!.ghost).toBe(ghost.name);
     await Promise.all(rooms.map((r) => r.leave()));
   }, 45000);
 });

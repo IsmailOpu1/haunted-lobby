@@ -446,7 +446,7 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     document.body.classList.add("ended");
     endScreen.dataset.winner = end.winner;
     endTitle.textContent = text.title;
-    endText.textContent = text.why;
+    endText.textContent = end.ghost ? `${text.why} The ghost was ${end.ghost}.` : text.why;
     endRoles.replaceChildren(
       ...end.roles.map((r) => {
         const li = document.createElement("li");
