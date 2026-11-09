@@ -15,9 +15,10 @@ export function nextMeetingStep(step: MeetingStep): MeetingStep {
   return step === "evidence" ? "discussion" : step === "discussion" ? "vote" : step === "vote" ? "result" : "";
 }
 
-export function meetingStepSec(step: MeetingStep): number {
-  const m = config.meetings;
-  return step === "evidence" ? m.evidenceSec : step === "discussion" ? m.discussionSec : step === "vote" ? m.voteSec : step === "result" ? m.resultSec : 0;
+/** times: the lobby's meeting settings (GDD 20.3); the defaults otherwise. */
+export function meetingStepSec(step: MeetingStep, times: { evidenceSec: number; discussionSec: number; voteSec: number } = config.meetings): number {
+  const m = times;
+  return step === "evidence" ? m.evidenceSec : step === "discussion" ? m.discussionSec : step === "vote" ? m.voteSec : step === "result" ? config.meetings.resultSec : 0;
 }
 
 /**

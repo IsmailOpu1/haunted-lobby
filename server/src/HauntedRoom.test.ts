@@ -807,7 +807,7 @@ describe("HauntedRoom", () => {
     server.state.ritualProgress = 99;
 
     await waitFor(() => ends.length === 1);
-    expect(ends[0]).toEqual({ winner: "investigators", reason: "ritual", roles: [{ name: "Sam", role: "investigator" }, { name: "Mim", role: "investigator" }], photos: [], ghost: null });
+    expect(ends[0]).toEqual({ winner: "investigators", reason: "ritual", roles: [{ name: "Sam", role: "investigator" }, { name: "Mim", role: "investigator" }], photos: [], ghost: null, timeline: [], awards: [] });
     await waitFor(() => a.state.winner === "investigators");
     expect(a.state.part).toBe("dawn");
 
@@ -886,6 +886,9 @@ describe("HauntedRoom", () => {
     rooms[1]!.send("start");
     await new Promise((r) => setTimeout(r, 300));
     expect(host.state.stage).toBe("waiting");
+    // Everyone is Ready (GDD 5).
+    for (const r of rooms) r.send("ready", { ready: true });
+    await waitFor(() => rooms.every((r) => host.state.players.get(r.sessionId)?.ready === true));
     host.send("start");
     await waitFor(() => host.state.stage === "countdown");
     // Nobody can join once the countdown starts.
@@ -897,7 +900,9 @@ describe("HauntedRoom", () => {
     // One possessed has no partner, and nobody else learns anything.
     for (const r of roles) expect(r[0]!.partners).toEqual([]);
     // Roles are never in the shared state (PRD 10.3).
-    expect(JSON.stringify(host.state.toJSON())).not.toContain("possessed");
+    // (The lobby settings name the "possessed" setting; no role is anywhere else.)
+    const { settings: _settings, ...shared } = host.state.toJSON() as Record<string, unknown>;
+    expect(JSON.stringify(shared)).not.toContain("possessed");
     // The possessed's tasks are fake and leave the team bar (GDD 9).
     expect(host.state.tasksTotal).toBe(4 * config.tasks.perPlayer);
     await Promise.all(rooms.map((r) => r.leave()));
@@ -1476,7 +1481,8 @@ describe("HauntedRoom", () => {
     await waitFor(() => offerings.length === 2, (config.mystery.offerHoldSec + 1) * 1000);
     nila.send("use", { down: false });
     expect(offerings[1]).toMatchObject({ by: "Nila", relic: ghost.belonging, right: true, ghost: ghost.name });
-    expect(ghoul.state.ghostNamed).toBe(ghost.name);
+    // (The message can arrive before the state patch.)
+    await waitFor(() => ghoul.state.ghostNamed === ghost.name);
     await waitFor(() => ghoul.state.ritualStarted === true);
     // The end screen says who the ghost was.
     const ends = collectMsgs(rafi, "matchEnd");

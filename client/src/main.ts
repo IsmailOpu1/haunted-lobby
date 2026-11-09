@@ -1,5 +1,10 @@
 import type { Room } from "@colyseus/sdk";
+// The game's two fonts, bundled with it (style.css).
+import "@fontsource/instrument-serif/latin-400.css";
+import "@fontsource/instrument-serif/latin-400-italic.css";
+import "@fontsource-variable/manrope";
 import {
+  characterById,
   cleanPlayerName,
   config,
   isValidRoomCode,
@@ -14,23 +19,40 @@ import { defaultMap } from "@haunted/maps";
 import { FloorPlan } from "./floorplan.ts";
 import { Game, POWER_NAMES } from "./game.ts";
 import { photoCard } from "./photoView.ts";
-import { createRoom, joinRoom } from "./network.ts";
+import { createRoom, joinRoom, reconnectRoom } from "./network.ts";
+import { joinErrorText, lobbyView } from "./lobbyView.ts";
+import { Screens } from "./screens.ts";
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
 }
 
-const menu = el("menu");
-const lobby = el("lobby");
-const nameInput = el<HTMLInputElement>("name");
+// The menus: one screen at a time (screens.ts). The start page is home until you join a room.
+const screens = new Screens("start");
+/** Both name fields (Create and Join) hold the same remembered name. */
+const nameInputs = [el<HTMLInputElement>("name"), el<HTMLInputElement>("join-name")];
 const codeInput = el<HTMLInputElement>("code");
 const createBtn = el<HTMLButtonElement>("create");
 const joinBtn = el<HTMLButtonElement>("join");
 const errorText = el("error");
+const createError = el("create-error");
+const joinError = el("join-error");
+for (const input of nameInputs) {
+  input.addEventListener("input", () => {
+    for (const other of nameInputs) if (other !== input) other.value = input.value;
+  });
+}
+// Enter in a field presses that screen's button.
+nameInputs[0]!.addEventListener("keydown", (e) => e.key === "Enter" && createBtn.click());
+for (const input of [nameInputs[1]!, codeInput]) input.addEventListener("keydown", (e) => e.key === "Enter" && joinBtn.click());
+codeInput.addEventListener("input", () => {
+  const at = codeInput.selectionStart;
+  codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z]/g, "");
+  codeInput.setSelectionRange(at, at);
+});
 const roomCodeText = el("room-code");
 const copyCodeBtn = el<HTMLButtonElement>("copy-code");
 const copyLinkBtn = el<HTMLButtonElement>("copy-link");
-const playerList = el("players");
 const log = el("log");
 
 const staminaBar = el("stamina");
@@ -53,11 +75,27 @@ const actionLabel = el("action-label");
 const actionFill = el("action-fill");
 const banner = el("banner");
 let bannerTimer: ReturnType<typeof setTimeout> | undefined;
-const micBox = el("mic");
 const micFill = el("mic-fill");
 const micStatus = el("mic-status");
 const micSentence = el("mic-sentence");
 const micCheckBtn = el<HTMLButtonElement>("mic-check");
+const micDone = el<HTMLButtonElement>("mic-done");
+const optionsMic = el("options-mic");
+const optionsMicStatus = el("options-mic-status");
+/** The mic screen opens by itself once, the first time a check is needed in a room. */
+let micScreenShown = false;
+let inRoom = false;
+let micNeeded = false;
+let nightOn = false;
+/** The line at the bottom of the room page: how to get into the hotel, or what is missing first. */
+function showLookHint() {
+  lookHint.textContent = micNeeded
+    ? "Do the mic check before you play."
+    : nightOn
+      ? "The night goes on while this page is open. Esc brings it back."
+      : "Walk around the hotel while you wait. Esc brings this page back.";
+  lookHint.classList.toggle("warn", micNeeded);
+}
 const micLost = el("mic-lost");
 const lookHint = el("look-hint");
 const itemsBox = el("items");
@@ -338,10 +376,10 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
   },
   showBanner,
   setVoice: (state) => {
-    micBox.classList.toggle("hidden", state.kind === "off");
+    optionsMic.classList.toggle("hidden", state.kind === "off");
     micStatus.classList.remove("error");
     micCheckBtn.classList.add("hidden");
-    micSentence.classList.add("hidden");
+    micSentence.classList.remove("hidden");
     let canPlay = state.kind === "off" || state.kind === "ready";
     switch (state.kind) {
       case "connecting":
@@ -357,17 +395,16 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
         canPlay = true;
         break;
       case "needs-check":
-        micStatus.textContent = state.error ?? "Mic check: press the button and read the sentence below.";
+        micStatus.textContent = state.error ?? "Press the button, then read the line out loud.";
         if (state.error) micStatus.classList.add("error");
-        micSentence.classList.remove("hidden");
         micCheckBtn.classList.remove("hidden");
         break;
       case "checking":
         micStatus.textContent = "Listening... keep reading at your normal volume.";
-        micSentence.classList.remove("hidden");
         break;
       case "ready":
         micStatus.textContent = "Mic check done. Remember: whisper to hide from the ghost.";
+        micSentence.classList.add("hidden");
         break;
     }
     // A debug server lets you play without a mic; the ghost hears you as talking normally.
@@ -379,7 +416,19 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
         micStatus.textContent = `No microphone. ${note}`;
       } else micStatus.textContent += ` Or skip it: ${note.charAt(0).toLowerCase()}${note.slice(1)}`;
     }
-    lookHint.textContent = canPlay ? "Click anywhere outside this box to play." : "Do the mic check before you play.";
+    micNeeded = !canPlay;
+    showLookHint();
+    optionsMicStatus.textContent = micStatus.textContent;
+    // Done (or not needed): the way on is the main button. Not done yet: you can still come back later.
+    micDone.textContent = canPlay ? "Continue to the room" : "Do it later";
+    micDone.classList.toggle("primary", canPlay && state.kind !== "needs-check");
+    micDone.classList.toggle("quiet", !(canPlay && state.kind !== "needs-check"));
+    // The first time a check is needed (or a required mic is missing), the mic screen opens by itself.
+    const needsAttention = state.kind === "needs-check" || (state.kind === "no-mic" && !canPlay);
+    if (needsAttention && inRoom && !micScreenShown && screens.current === "room") {
+      micScreenShown = true;
+      screens.go("mic");
+    }
   },
   setMicLevel: (level) => {
     micFill.style.width = `${Math.round(level * 100)}%`;
@@ -449,6 +498,14 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
       }),
     );
   },
+  newNight: () => {
+    // A rematch (GDD 19): back to the lobby with a clean slate.
+    endScreen.classList.add("hidden");
+    document.body.classList.remove("ended");
+    myRole = null;
+    el("photos-box").classList.add("hidden");
+    el("photo-list").replaceChildren();
+  },
   showEndScreen: (end) => {
     const text = END_TEXT[end.reason];
     endScreen.classList.remove("hidden");
@@ -463,6 +520,31 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
         role.className = `end-role ${r.role}`;
         role.textContent = r.role === "possessed" ? "Possessed" : "Investigator";
         li.append(r.name, role);
+        return li;
+      }),
+    );
+    // Awards and the timeline (GDD 19).
+    el("end-awards-box").classList.toggle("hidden", end.awards.length === 0);
+    el("end-awards").replaceChildren(
+      ...end.awards.map((a) => {
+        const li = document.createElement("li");
+        const title = document.createElement("strong");
+        title.textContent = a.title;
+        const why = document.createElement("span");
+        why.className = "award-why";
+        why.textContent = a.why;
+        li.append(title, ` ${a.names.join(", ")} `, why);
+        return li;
+      }),
+    );
+    el("end-timeline-box").classList.toggle("hidden", end.timeline.length === 0);
+    el("end-timeline").replaceChildren(
+      ...end.timeline.map((l) => {
+        const li = document.createElement("li");
+        const time = document.createElement("span");
+        time.className = "timeline-time";
+        time.textContent = l.time;
+        li.append(time, l.text);
         return li;
       }),
     );
@@ -524,10 +606,13 @@ try {
 } catch {
   // Storage blocked: use the default.
 }
+const volumeValue = el("volume-value");
 volumeInput.value = String(savedVolume);
+volumeValue.textContent = `${savedVolume}%`;
 game.setVolume(savedVolume / 100);
 volumeInput.addEventListener("input", () => {
   const value = Number(volumeInput.value);
+  volumeValue.textContent = `${value}%`;
   game.setVolume(value / 100);
   try {
     localStorage.setItem("volume", String(value));
@@ -544,19 +629,32 @@ const linkCode = new URLSearchParams(location.search).get("room");
 if (linkCode) codeInput.value = normalizeRoomCode(linkCode);
 
 try {
-  nameInput.value = localStorage.getItem("playerName") ?? "";
+  for (const input of nameInputs) input.value = localStorage.getItem("playerName") ?? "";
+  // Why you are back on the start page (removed by the host).
+  const left = sessionStorage.getItem("leftReason");
+  if (left) {
+    sessionStorage.removeItem("leftReason");
+    errorText.textContent = left;
+  }
 } catch {
   // Storage can be blocked (private windows). The name just isn't remembered.
 }
 
+// A friend's invite link opens the Join screen with the code filled in.
+if (linkCode) screens.reset("join");
+else screens.reset("start");
+
+/** Errors show on the screen you are on. */
 function showError(message: string) {
-  errorText.textContent = message;
+  const box = screens.current === "create" ? createError : screens.current === "join" ? joinError : errorText;
+  for (const b of [createError, joinError, errorText]) b.textContent = b === box ? message : "";
 }
 
-function readName(): string | null {
-  const name = cleanPlayerName(nameInput.value);
+function readName(input: HTMLInputElement): string | null {
+  const name = cleanPlayerName(input.value);
   if (!name) {
     showError(`Type a name (1 to ${config.room.nameMaxLength} characters).`);
+    input.focus();
     return null;
   }
   try {
@@ -567,6 +665,35 @@ function readName(): string | null {
   return name;
 }
 
+/** The reconnection pass for this tab's room, kept so a reload gets you back in (GDD 18). */
+const TOKEN_KEY = "reconnect";
+function saveToken(room: Room | null) {
+  try {
+    if (room) sessionStorage.setItem(TOKEN_KEY, JSON.stringify({ code: room.roomId, token: room.reconnectionToken }));
+    else sessionStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // Storage blocked: a reload just goes back to the start page.
+  }
+}
+
+async function tryReconnect() {
+  let saved: { code: string; token: string } | null = null;
+  try {
+    saved = JSON.parse(sessionStorage.getItem(TOKEN_KEY) ?? "null");
+  } catch {
+    saved = null;
+  }
+  if (!saved || !linkCode || normalizeRoomCode(linkCode) !== saved.code) return;
+  createBtn.disabled = joinBtn.disabled = true;
+  try {
+    enterLobby(await reconnectRoom(saved.token));
+  } catch {
+    saveToken(null);
+  } finally {
+    createBtn.disabled = joinBtn.disabled = false;
+  }
+}
+
 async function enter(connect: () => Promise<Room>) {
   showError("");
   createBtn.disabled = joinBtn.disabled = true;
@@ -574,7 +701,7 @@ async function enter(connect: () => Promise<Room>) {
     const room = await connect();
     enterLobby(room);
   } catch (err) {
-    showError(err instanceof Error ? err.message : "Could not connect to the server.");
+    showError(joinErrorText(err));
   } finally {
     createBtn.disabled = joinBtn.disabled = false;
   }
@@ -582,17 +709,18 @@ async function enter(connect: () => Promise<Room>) {
 
 createBtn.addEventListener("click", () => {
   game.unlockSound(); // a button click lets the browser start sound and voice
-  const name = readName();
+  const name = readName(nameInputs[0]!);
   if (name) enter(() => createRoom({ name }));
 });
 
 joinBtn.addEventListener("click", () => {
   game.unlockSound();
-  const name = readName();
+  const name = readName(nameInputs[1]!);
   if (!name) return;
   const code = normalizeRoomCode(codeInput.value);
   if (!isValidRoomCode(code)) {
     showError("Room codes are 5 letters, like KQXRT.");
+    codeInput.focus();
     return;
   }
   enter(() => joinRoom(code, { name }));
@@ -618,11 +746,14 @@ function addLogLine(text: string) {
 }
 
 function enterLobby(room: Room) {
-  menu.classList.add("hidden");
-  lobby.classList.remove("hidden");
   game.attach(room);
+  saveToken(room);
   roomCodeText.textContent = room.roomId;
   history.replaceState(null, "", `?room=${room.roomId}`);
+  // From here the room is home: the menus sit at the side and the hotel stays in view.
+  inRoom = true;
+  document.body.classList.add("in-room");
+  screens.setRoot("room");
 
   const link = `${location.origin}${location.pathname}?room=${room.roomId}`;
   copyCodeBtn.onclick = () => copyToButton(copyCodeBtn, room.roomId, "Code copied");
@@ -631,47 +762,73 @@ function enterLobby(room: Room) {
   // Your own join message can arrive before this listener exists, so say it here.
   addLogLine("You joined the room");
   room.onMessage("system", (msg: ServerMessages["system"]) => {
-    if (msg.kind === "join" && msg.name === nameInput.value.trim() && log.childElementCount <= 1) return;
+    if (msg.kind === "join" && msg.name === nameInputs[0]!.value.trim() && log.childElementCount <= 1) return;
     addLogLine(msg.text);
   });
 
-  // The player list comes from the room state, which always arrives, rather than a message.
-  let rosterKey = "";
-  room.onStateChange((state: { players?: { forEach(cb: (p: { name: string }, id: string) => void): void } }) => {
-    const players: { id: string; name: string }[] = [];
-    state.players?.forEach((p, id) => players.push({ id, name: p.name }));
-    const key = players.map((p) => p.id).join(",");
-    if (key === rosterKey) return;
-    rosterKey = key;
-    playerList.replaceChildren(
-      ...players.map((p) => {
-        const li = document.createElement("li");
-        li.textContent = p.id === room.sessionId ? `${p.name} (you)` : p.name;
-        if (p.id !== room.sessionId) {
-          // Mute only changes what you hear (PRD FR-V6).
-          const mute = document.createElement("button");
-          mute.className = "mute";
-          const label = () => (mute.textContent = game.isMuted(p.id) ? "Unmute" : "Mute");
-          label();
-          mute.onclick = () => {
-            game.toggleMute(p.id);
-            label();
-          };
-          li.append(" ", mute);
-        }
-        return li;
-      }),
-    );
-  });
+  // The player list, characters, Ready and settings come from the room state (GDD 5, 20).
+  lobbyView(room, { isMuted: (id) => game.isMuted(id), toggleMute: (id) => game.toggleMute(id) });
 
-  room.onLeave(() => {
+  let kickedReason = "";
+  room.onMessage("kicked", (msg: ServerMessages["kicked"]) => (kickedReason = msg.reason));
+  // A lost connection (GDD 18): the game keeps trying for a while; the server holds your slot.
+  room.onDrop(() => showBanner("Connection lost. Reconnecting…", 60));
+  room.onReconnect(() => {
+    saveToken(room);
+    showBanner("Reconnected.", 3);
+  });
+  room.onLeave((code) => {
+    saveToken(null);
+    // 4000: you left yourself.
+    if (!kickedReason && code !== 4000) kickedReason = "Lost the connection to the room. If the server restarted, that night is lost.";
+    if (kickedReason) {
+      // Back to the start page, saying why.
+      try {
+        sessionStorage.setItem("leftReason", kickedReason);
+      } catch {
+        // Storage blocked: the page just opens without the reason.
+      }
+      location.href = location.pathname;
+      return;
+    }
     addLogLine("Disconnected from the server.");
   });
 
+  // Rematch (GDD 19): only the host presses it; everyone else waits for them.
+  const rematchBtn = el<HTMLButtonElement>("end-rematch");
+  rematchBtn.onclick = () => room.send("rematch");
+  // Leaving on purpose frees your slot at once (no 60 s hold).
+  const leave = async () => {
+    saveToken(null);
+    await room.leave().catch(() => {});
+    location.href = location.pathname;
+  };
+  el("end-leave").onclick = leave;
+  // From the room menu, a second click confirms, like Remove.
+  const leaveBtn = el<HTMLButtonElement>("leave-room");
+  leaveBtn.onclick = () => {
+    if (leaveBtn.dataset.armed) return void leave();
+    leaveBtn.dataset.armed = "1";
+    leaveBtn.textContent = "Click again to leave";
+    setTimeout(() => {
+      delete leaveBtn.dataset.armed;
+      leaveBtn.textContent = "Leave room";
+    }, 3000);
+  };
+
+  // The room page covers the hotel: this button lets you walk around it (Esc comes back).
+  el("walk").onclick = () => {
+    game.unlockSound();
+    Promise.resolve(el<HTMLCanvasElement>("scene").requestPointerLock()).catch(() => {});
+  };
+
   // Starting the night: the host's button, the countdown, then your role (GDD 4.1 and 5).
   startBtn.onclick = () => room.send("start");
+  let refusedShown = false;
   room.onMessage("startRefused", (msg: ServerMessages["startRefused"]) => {
     startHint.textContent = msg.reason;
+    refusedShown = true;
+    setTimeout(() => (refusedShown = false), 4000);
   });
   room.onMessage("role", (msg: ServerMessages["role"]) => {
     myRole = msg;
@@ -679,17 +836,30 @@ function enterLobby(room: Room) {
     // Your task list now shows whether it is real.
     room.send("tasksRequest");
   });
-  room.onStateChange((state: { stage?: string; stageLeft?: number; host?: string; players?: { size: number } }) => {
+  room.onStateChange((state: { stage?: string; stageLeft?: number; host?: string; players?: { get(id: string): { character?: string } | undefined } }) => {
     const waiting = state.stage === "waiting";
     const isHost = state.host === room.sessionId;
     el("start-box").classList.toggle("hidden", !waiting);
     startBtn.classList.toggle("hidden", !isHost);
-    if (waiting && !startHint.textContent?.startsWith("At least")) {
+    rematchBtn.classList.toggle("hidden", !isHost);
+    el("end-wait").textContent = isHost
+      ? "Rematch takes everyone back to the lobby with the same settings. Everyone gets a new character."
+      : "Waiting for the host to start a rematch.";
+    if (waiting && !refusedShown) {
       startHint.textContent = isHost
-        ? `You are the host. Start when everyone is here (${config.players.min} to ${config.players.max} players). Until then, walk around and try your mic.`
-        : "Waiting for the host to start the night.";
+        ? `You are the host. Start when everyone else is Ready (${config.players.min} to ${config.players.max} players). Pressing Start counts as your Ready.`
+        : "Do the mic check and press Ready. The host starts the night.";
     }
-    showIntro(state.stage ?? "", state.stageLeft ?? 0);
+    if (!waiting) refusedShown = false;
+    // Once the night is on, the page is a pause menu: the button takes you back into it.
+    const playing = state.stage === "night" || state.stage === "intro";
+    el("walk").textContent = playing ? "Back to the night" : "Walk around the hotel";
+    el("walk").classList.toggle("go", playing);
+    if (playing !== nightOn) {
+      nightOn = playing;
+      showLookHint();
+    }
+    showIntro(state.stage ?? "", state.stageLeft ?? 0, characterById(state.players?.get(room.sessionId)?.character ?? "")?.name);
   });
 }
 
@@ -710,9 +880,11 @@ function powerStateText(p: PowerStatus): string {
   return "";
 }
 
-/** The countdown, then your role for the intro's 10 seconds (GDD 4.1). */
-function showIntro(stage: string, secondsLeft: number) {
+/** The countdown, then your role and character for the intro's 10 seconds (GDD 4.1, 26.14). */
+function showIntro(stage: string, secondsLeft: number, character?: string) {
   intro.classList.toggle("hidden", stage !== "countdown" && stage !== "intro");
+  // The role reveal gets the whole screen; the menu page waits behind it.
+  document.body.classList.toggle("revealing", stage === "intro");
   if (stage === "countdown") {
     delete intro.dataset.role;
     introTitle.textContent = String(Math.max(1, Math.ceil(secondsLeft)));
@@ -726,11 +898,12 @@ function showIntro(stage: string, secondsLeft: number) {
       const partners = myRole.partners.length ? `Also possessed: ${myRole.partners.join(", ")}. ` : "";
       // Only the possessed know who the ghost was (GDD 26.13): lie about the clues.
       const ghost = myRole.ghost ? `The ghost was ${myRole.ghost}. Lead the team to the wrong relic. ` : "";
-      introExtra.textContent = `${partners}${ghost}Hold R for your powers.`;
+      introExtra.textContent = `${character ? `You are ${character}. ` : ""}${partners}${ghost}Hold R for your powers.`;
     } else {
       introTitle.textContent = "INVESTIGATOR";
       introText.textContent = "Do your tasks, find the relics, finish the ritual before dawn.";
-      introExtra.textContent = "";
+      introExtra.textContent = character ? `Tonight you are ${character}.` : "";
     }
   }
 }
+void tryReconnect();

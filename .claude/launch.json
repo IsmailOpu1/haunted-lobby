@@ -36,6 +36,39 @@
         "HAUNTED_DEBUG": "1"
       },
       "port": 2567
+    },
+    {
+      "name": "server-debug-alt",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "-w",
+        "server"
+      ],
+      "env": {
+        "HAUNTED_DEBUG": "1",
+        "PORT": "2577"
+      },
+      "port": 2577
+    },
+    {
+      "name": "client-alt",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "-w",
+        "client",
+        "--",
+        "--port",
+        "5183",
+        "--strictPort"
+      ],
+      "env": {
+        "VITE_SERVER_URL": "ws://localhost:2577"
+      },
+      "port": 5183
     }
   ]
 }

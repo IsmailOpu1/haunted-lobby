@@ -18,7 +18,7 @@ export type Role = "investigator" | "possessed";
 
 export interface ServerMessages {
   /** A line for the lobby log, e.g. "Rafi joined the room". */
-  system: { kind: "join" | "leave"; name: string; text: string };
+  system: { kind: "join" | "leave" | "lobby"; name: string; text: string };
   /** Everyone currently in the room. Sent whenever someone joins or leaves. */
   roster: { players: RosterEntry[] };
   /**
@@ -33,7 +33,16 @@ export interface ServerMessages {
   /** The match is over (GDD 18): who won, why, and every player's role, now shown to all (GDD 19). */
   /** Every photo of the night is shown on the end screen, developed or not (GDD 19). */
   /** ghost: who the ghost was in life (GDD 26.13), or null on a map without the mystery. */
-  matchEnd: { winner: Team; reason: EndReason; roles: { name: string; role: Role }[]; photos: DevelopedPhoto[]; ghost: string | null };
+  /** timeline: each power, meeting and death with its night time "m:ss"; awards: GDD 19, only those earned. */
+  matchEnd: {
+    winner: Team;
+    reason: EndReason;
+    roles: { name: string; role: Role }[];
+    photos: DevelopedPhoto[];
+    ghost: string | null;
+    timeline: { time: string; text: string }[];
+    awards: { title: string; why: string; names: string[] }[];
+  };
   /**
    * How to join the voice room, or disabled when this server has no voice keys. micOptional:
    * a debug server lets you play without a microphone (you still count as talking normally).
@@ -91,8 +100,12 @@ export interface ServerMessages {
     skip: number;
     votes: { voter: string; target: string }[] | null;
   };
-  /** The host's Start was refused (too few players). */
+  /** The host's Start was refused (too few players, or someone not Ready). */
   startRefused: { reason: string };
+  /** A lobby request of yours was refused: Ready, a setting, a kick or a rematch (GDD 5). */
+  lobbyRefused: { reason: string };
+  /** The host removed you from the room (GDD 5). The connection closes right after. */
+  kicked: { reason: string };
   /** Test shortcut (debug servers only): the ghost was sent away or brought back. */
   debugGhost: { paused: boolean };
   /** Your task list (private). Sent on request and whenever it changes. */
@@ -175,6 +188,14 @@ export interface ClientMessages {
   photo: undefined;
   /** The host starts the night: a countdown, then roles and the intro (GDD 5, 4.1). */
   start: undefined;
+  /** Ready or not (GDD 5). Needs a passed mic check. Characters are dealt, not picked (GDD 26.14). */
+  ready: { ready: boolean };
+  /** Host only, in the lobby: a preset, or some settings changed (GDD 20). */
+  settings: { preset: "standard" | "beginner" | "hardcore" } | { change: Partial<import("./settings.ts").MatchSettings> };
+  /** Host only, in the lobby: remove a player by session id (GDD 5). */
+  kick: { target: string };
+  /** Host only, on the end screen: everyone back to the lobby for another night (GDD 19). */
+  rematch: undefined;
   /** As a Wisp, float one floor up (1) or down (-1) (GDD 17). */
   wispFloor: { dir: 1 | -1 };
   /** As a Wisp in a meeting's Evidence step: push the planchette to a living player's session id, or OUIJA_UNKNOWN. */

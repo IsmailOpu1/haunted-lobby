@@ -141,6 +141,8 @@ export interface GameHud {
   setCarrying(name: string | null): void;
   /** The match is over (GDD 18 and 19). */
   showEndScreen(end: ServerMessages["matchEnd"]): void;
+  /** The host pressed Rematch: back to the lobby for a new night (GDD 19). */
+  newNight(): void;
   /** Your powers and curse glow (possessed only), or null for an investigator. */
   setPowers(list: PowerStatus[] | null, curseLeft: number): void;
   /** The power wheel while R is held, or null when it is closed. */
@@ -624,6 +626,8 @@ export class Game {
   private onServerState(state: any) {
     const now = performance.now();
     const room = this.room!;
+    // A rematch: the night is over and a new one waits in the lobby (GDD 19).
+    if (this.ended && !state.winner) this.startOver();
 
     this.doorsLocked.clear();
     state.doors?.forEach((door: { open: boolean; locked: boolean }, id: string) => {
@@ -1019,6 +1023,18 @@ export class Game {
   }
 
   /** Tells the game your role once it is dealt (GDD 4.1). */
+  /** A new night after a rematch: your role, powers and what you knew are forgotten. */
+  private startOver() {
+    this.ended = false;
+    this.setRole("investigator");
+    this.powers = [];
+    this.relicsNear = [];
+    this.foundAt = null;
+    this.taskState = "none";
+    if (this.hands.active) this.stopHands();
+    this.hud.newNight();
+  }
+
   setRole(role: Role) {
     this.role = role;
     if (role !== "possessed") this.hud.setPowers(null, 0);

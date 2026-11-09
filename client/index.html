@@ -9,78 +9,194 @@
   <body>
     <canvas id="scene"></canvas>
 
-    <div id="menu" class="panel">
-      <h1>Haunted Lobby</h1>
-      <label>
-        Your name
-        <input id="name" maxlength="16" autocomplete="off" placeholder="e.g. Rafi" />
-      </label>
-      <button id="create">Create room</button>
-      <div class="divider">or join a friend</div>
-      <label>
-        Room code
-        <input id="code" maxlength="5" autocomplete="off" placeholder="KQXRT" />
-      </label>
-      <button id="join">Join room</button>
-      <p id="error" class="error" role="alert"></p>
-    </div>
+    <!--
+      The menus, one screen at a time (screens.ts). Before you join they cover the page; once you
+      are in a room they sit at the side, so the hotel stays in view and a click on it lets you walk.
+    -->
+    <section id="screen-start" class="screen" data-screen="start" aria-labelledby="start-title">
+      <div class="screen-body start-body">
+        <p class="eyebrow">A co-op horror night for 4 to 8 friends</p>
+        <h1 id="start-title" class="wordmark"><span>Haunted</span><em>Lobby</em></h1>
+        <nav class="menu-list" aria-label="Main menu">
+          <button class="menu-item" data-go="create">
+            <span class="menu-num">01</span>
+            <span class="menu-text"><strong>Create a room</strong><small>Host a night and invite your friends</small></span>
+          </button>
+          <button class="menu-item" data-go="join">
+            <span class="menu-num">02</span>
+            <span class="menu-text"><strong>Join a room</strong><small>Got a code or a link from a friend?</small></span>
+          </button>
+          <button class="menu-item" data-go="options">
+            <span class="menu-num">03</span>
+            <span class="menu-text"><strong>Options</strong><small>Sound and controls</small></span>
+          </button>
+        </nav>
+        <p id="error" class="error" role="alert"></p>
+        <p class="start-foot">No accounts, no downloads. The ghost hears your real microphone, so keep your voice down.</p>
+      </div>
+    </section>
 
-    <div id="lobby" class="panel hidden">
-      <div class="room-code">
-        <div class="label">Room code</div>
-        <strong id="room-code"></strong>
+    <section id="screen-create" class="screen hidden" data-screen="create" aria-labelledby="create-title">
+      <div class="screen-body">
+        <button class="back" data-back>Back</button>
+        <p class="eyebrow">01 &middot; Host</p>
+        <h2 id="create-title" class="screen-title">Create a room</h2>
+        <p class="lead">You get a 5-letter code and a link to send your friends. You choose the settings.</p>
+        <label class="field">
+          <span>Your name</span>
+          <input id="name" class="name-input" maxlength="16" autocomplete="off" placeholder="e.g. Rafi" />
+        </label>
+        <button id="create" class="primary">Create room</button>
+        <p id="create-error" class="error" role="alert"></p>
       </div>
-      <div class="share-buttons">
-        <button id="copy-code" class="small">Copy code</button>
-        <button id="copy-link" class="small">Copy invite link</button>
+    </section>
+
+    <section id="screen-join" class="screen hidden" data-screen="join" aria-labelledby="join-title">
+      <div class="screen-body">
+        <button class="back" data-back>Back</button>
+        <p class="eyebrow">02 &middot; Join</p>
+        <h2 id="join-title" class="screen-title">Join a room</h2>
+        <p class="lead">Type the code your friend sent you.</p>
+        <label class="field">
+          <span>Room code</span>
+          <input id="code" class="code-input" maxlength="5" autocomplete="off" spellcheck="false" placeholder="KQXRT" />
+        </label>
+        <label class="field">
+          <span>Your name</span>
+          <input id="join-name" class="name-input" maxlength="16" autocomplete="off" placeholder="e.g. Rafi" />
+        </label>
+        <button id="join" class="primary">Join room</button>
+        <p id="join-error" class="error" role="alert"></p>
       </div>
-      <p class="hint">Send the code or the link to your friends so they can join.</p>
-      <h2>Players</h2>
-      <ul id="players"></ul>
-      <div id="start-box">
-        <button id="start-night" class="hidden">Start the night</button>
-        <p id="start-hint" class="hint"></p>
+    </section>
+
+    <section id="screen-options" class="screen hidden" data-screen="options" aria-labelledby="options-title">
+      <div class="screen-body">
+        <button class="back" data-back>Back</button>
+        <p class="eyebrow">Your choices on this computer</p>
+        <h2 id="options-title" class="screen-title">Options</h2>
+        <div class="group">
+          <h3 class="group-title">Sound</h3>
+          <label class="field volume">
+            <span>Sound volume <output id="volume-value"></output></span>
+            <input id="volume" type="range" min="0" max="100" step="5" />
+          </label>
+        </div>
+        <div id="options-mic" class="group hidden">
+          <h3 class="group-title">Microphone</h3>
+          <p id="options-mic-status" class="muted-line"></p>
+          <button class="quiet" data-go="mic">Test your mic or check it again</button>
+        </div>
+        <div class="group">
+          <h3 class="group-title">Controls</h3>
+          <table class="controls">
+            <tr><td>Mouse</td><td>Look</td></tr>
+            <tr><td>W A S D</td><td>Move</td></tr>
+            <tr><td>Shift</td><td>Run (5 s of stamina)</td></tr>
+            <tr><td>C</td><td>Crouch (quiet and slow)</td></tr>
+            <tr><td>E</td><td>Open or close a door, pick up salt or a relic, start a task or search a place (stand still while you do it)</td></tr>
+            <tr><td>Mouse button (at a task)</td><td>Your hand: point at a part, hold to grab it, move the mouse to work it. E or a step stops</td></tr>
+            <tr><td>G</td><td>Drop the relic you carry (the ghost hears it)</td></tr>
+            <tr><td>Hold Tab</td><td>Map and relic status</td></tr>
+            <tr><td>Hold E</td><td>Revive a downed friend (5 s), hide in a wardrobe or curtain, step out, report a body, ring the Main Hall bell for a meeting (once)</td></tr>
+            <tr><td>Shift (hidden)</td><td>Hold your breath (6 s)</td></tr>
+            <tr><td>Click or 1</td><td>Flashlight on / off (only 1 while your hands are busy at a task)</td></tr>
+            <tr><td>2, then click</td><td>Raise the Spirit Camera and take a photo (1 shot)</td></tr>
+            <tr><td>3</td><td>Pour a salt line (freezes the ghost for 3 s)</td></tr>
+            <tr><td>Space / C (Wisp)</td><td>Float up or down a floor</td></tr>
+            <tr><td>L</td><td>Test lights on / off</td></tr>
+            <tr><td>Esc</td><td>Free the mouse and open the room menu</td></tr>
+          </table>
+        </div>
       </div>
-      <div id="photos-box" class="hidden">
-        <h2>Developed photos</h2>
-        <div id="photo-list" class="photo-list"></div>
+    </section>
+
+    <section id="screen-mic" class="screen hidden" data-screen="mic" aria-labelledby="mic-title">
+      <div class="screen-body">
+        <p class="eyebrow">Before the night</p>
+        <h2 id="mic-title" class="screen-title">Mic check</h2>
+        <p class="lead">The ghost hears your real voice. Read the line below at your normal speaking volume, so the game knows what normal sounds like for you. Later, whisper to stay hidden.</p>
+        <blockquote id="mic-sentence" class="mic-line">The old hotel is quiet tonight, but someone is still walking upstairs.</blockquote>
+        <div id="mic-meter" aria-hidden="true"><div id="mic-fill"></div></div>
+        <p id="mic-status" class="muted-line" role="status"></p>
+        <button id="mic-check" class="primary">Start mic check</button>
+        <button id="mic-done" class="quiet" data-back>Continue to the room</button>
       </div>
-      <h2>Log</h2>
-      <ul id="log"></ul>
-      <div id="mic" class="mic hidden">
-        <h2>Microphone</h2>
-        <div id="mic-meter"><div id="mic-fill"></div></div>
-        <p id="mic-status"></p>
-        <p id="mic-sentence" class="hint hidden">
-          Read this out loud at your normal speaking volume:<br />
-          <em>"The old hotel is quiet tonight, but someone is still walking upstairs."</em>
-        </p>
-        <button id="mic-check" class="small hidden">Start mic check</button>
+    </section>
+
+    <section id="screen-room" class="screen hidden" data-screen="room" aria-labelledby="room-code">
+      <div class="screen-body wide room-body">
+        <header class="room-head">
+          <div class="room-id">
+            <p class="eyebrow">Room <span id="stage-chip" class="chip"></span></p>
+            <strong id="room-code" class="room-code"></strong>
+            <div class="share-buttons">
+              <button id="copy-code" class="quiet small">Copy code</button>
+              <button id="copy-link" class="quiet small">Copy invite link</button>
+            </div>
+          </div>
+          <nav class="room-tools" aria-label="Room menu">
+            <button id="walk" class="quiet small">Walk around the hotel</button>
+            <button class="quiet small" data-go="options">Options</button>
+            <button id="leave-room" class="quiet small danger">Leave room</button>
+          </nav>
+        </header>
+
+        <div class="room-grid">
+          <div class="group players-group">
+            <h3 class="group-title">Players <span id="player-count" class="count"></span></h3>
+            <ul id="players" class="players"></ul>
+          </div>
+
+          <div class="room-side">
+            <div id="you-box" class="group">
+              <button id="ready-btn" class="primary ready">I'm ready</button>
+              <p id="ready-hint" class="error" role="alert"></p>
+              <p class="hint">Your character is dealt at random when the night starts.</p>
+            </div>
+
+            <div id="start-box" class="group">
+              <button id="start-night" class="primary hidden">Start the night</button>
+              <p id="start-hint" class="hint"></p>
+            </div>
+
+            <div class="group">
+              <h3 class="group-title">Settings <span id="settings-code" class="code-chip"></span></h3>
+              <p id="settings-summary" class="summary-line"></p>
+              <button id="open-settings" class="quiet" data-go="settings">See all settings</button>
+            </div>
+
+            <div id="photos-box" class="group hidden">
+              <h3 class="group-title">Developed photos</h3>
+              <div id="photo-list" class="photo-list"></div>
+            </div>
+
+            <details class="group log-box">
+              <summary class="group-title">Room log</summary>
+              <ul id="log"></ul>
+            </details>
+          </div>
+        </div>
+
+        <p id="look-hint" class="look-hint">Walk around the hotel while you wait. Esc brings this page back.</p>
       </div>
-      <label class="volume">
-        Sound volume
-        <input id="volume" type="range" min="0" max="100" step="5" />
-      </label>
-      <p id="look-hint" class="look-hint">Click anywhere outside this box to play.</p>
-      <table class="controls">
-        <tr><td>Mouse</td><td>Look</td></tr>
-        <tr><td>W A S D</td><td>Move</td></tr>
-        <tr><td>Shift</td><td>Run (5 s of stamina)</td></tr>
-        <tr><td>C</td><td>Crouch (quiet and slow)</td></tr>
-        <tr><td>E</td><td>Open or close a door, pick up salt or a relic, start a task or search a place (stand still while you do it)</td></tr>
-        <tr><td>Mouse button (at a task)</td><td>Your hand: point at a part, hold to grab it, move the mouse to work it. E or a step stops</td></tr>
-        <tr><td>G</td><td>Drop the relic you carry (the ghost hears it)</td></tr>
-        <tr><td>Hold Tab</td><td>Map and relic status</td></tr>
-        <tr><td>Hold E</td><td>Revive a downed friend (5 s), hide in a wardrobe or curtain, step out, report a body, ring the Main Hall bell for a meeting (once)</td></tr>
-        <tr><td>Shift (hidden)</td><td>Hold your breath (6 s)</td></tr>
-        <tr><td>Click or 1</td><td>Flashlight on / off (only 1 while your hands are busy at a task)</td></tr>
-        <tr><td>2, then click</td><td>Raise the Spirit Camera and take a photo (1 shot)</td></tr>
-        <tr><td>3</td><td>Pour a salt line (freezes the ghost for 3 s)</td></tr>
-        <tr><td>Space / C (Wisp)</td><td>Float up or down a floor</td></tr>
-        <tr><td>L</td><td>Test lights on / off</td></tr>
-        <tr><td>Esc</td><td>Back to this panel</td></tr>
-      </table>
-    </div>
+    </section>
+
+    <section id="screen-settings" class="screen hidden" data-screen="settings" aria-labelledby="settings-title">
+      <div class="screen-body wide">
+        <button class="back" data-back>Room</button>
+        <p class="eyebrow">Room settings <span id="settings-code-2" class="code-chip"></span></p>
+        <h2 id="settings-title" class="screen-title">Settings</h2>
+        <p id="settings-note" class="lead"></p>
+        <div id="presets" class="segmented" role="group" aria-label="Preset"></div>
+        <div class="tabs" role="tablist">
+          <button id="tab-basic" class="tab on" role="tab" aria-selected="true">Basic</button>
+          <button id="tab-advanced" class="tab" role="tab" aria-selected="false">Advanced</button>
+        </div>
+        <div id="settings-basic" class="settings-grid basic" role="tabpanel"></div>
+        <div id="settings-advanced" class="settings-grid advanced hidden" role="tabpanel"></div>
+      </div>
+    </section>
 
     <div id="night" class="hidden">
       <span id="night-part"></span>
@@ -104,11 +220,23 @@
         <p id="end-text"></p>
         <h3>Roles</h3>
         <ul id="end-roles"></ul>
+        <div id="end-awards-box" class="hidden">
+          <h3>Awards</h3>
+          <ul id="end-awards" class="end-awards"></ul>
+        </div>
+        <div id="end-timeline-box" class="hidden">
+          <h3>Timeline</h3>
+          <ul id="end-timeline" class="end-timeline"></ul>
+        </div>
         <div id="end-photos-box" class="hidden">
           <h3>Photos</h3>
           <div id="end-photos" class="photo-list"></div>
         </div>
-        <button id="end-leave">Back to the start</button>
+        <div class="end-buttons">
+          <button id="end-rematch" class="hidden">Rematch</button>
+          <button id="end-leave">Leave</button>
+        </div>
+        <p id="end-wait" class="hint"></p>
       </div>
     </div>
     <div id="overlay" class="hidden">
@@ -116,7 +244,7 @@
       <div id="overlay-text"></div>
     </div>
     <div id="crosshair"></div>
-    <div id="esc-hint">Esc to show the room panel</div>
+    <div id="esc-hint">Esc for the room menu</div>
     <div id="prompt" class="hidden"></div>
     <div id="action" class="hidden">
       <span id="action-label"></span>
