@@ -53,7 +53,7 @@ async function allReady(rooms: Room[]) {
 const settingsOf = (room: Room): MatchSettings => JSON.parse(room.state.settings);
 
 describe("the lobby (GDD 5)", () => {
-  it("nobody picks a character, and Start needs everyone Ready", async () => {
+  it("nobody picks a character, and Start needs everyone but the host Ready", async () => {
     const { host, rooms } = await lobby(4);
     const startRefused = collect(host, "startRefused");
     // Nobody has a character in the lobby: they are dealt when the night starts (GDD 26.14).
@@ -64,7 +64,11 @@ describe("the lobby (GDD 5)", () => {
     await waitFor(() => startRefused.length === 1);
     expect(startRefused[0]!.reason).toMatch(/Waiting for/);
     expect(host.state.stage).toBe("waiting");
-    await allReady(rooms);
+    // The host never presses Ready: their Start counts (GDD 26.14).
+    const guests = rooms.slice(1);
+    for (const r of guests) r.send("ready", { ready: true });
+    await waitFor(() => guests.every((r) => host.state.players.get(r.sessionId)?.ready === true));
+    expect(host.state.players.get(host.sessionId).ready).toBe(false);
     host.send("start");
     await waitFor(() => host.state.stage === "countdown");
     // Un-readying during the countdown stops it.

@@ -103,7 +103,7 @@ Meetings can happen at any time (Section 16).
 3. Each player is **dealt a character at random** when the night starts (Section 22), a new one every night. No two players share one. *(Changed by the owner on 2026-11-09, see 26.14; players used to pick.)*
 4. Each player does a **mic check**: they read one short sentence at normal speaking volume. This sets their personal "normal" level (Section 13). **A working microphone is required.** A player cannot press Ready until their mic check passes.
 5. The host picks a **preset** or changes **settings** (Section 20). Everyone sees the settings live.
-6. Everyone presses **Ready**. The host presses **Start**. A **5-second countdown** begins.
+6. Everyone presses **Ready**. The host presses **Start**. A **5-second countdown** begins. *(The host's Start counts as their Ready, see 26.14.)*
 
 **Lobby rules**
 
@@ -939,12 +939,13 @@ The owner approved `docs/plans/mystery-pilot.md` with the suggested answers. Wha
 | Rematch | Only the host presses it; everyone returns to the lobby together, Ready cleared, settings kept. Characters are dealt again when the next night starts | Nobody is pulled away from the end screen by another player |
 | Kicked players | Can join the same room again (the kick removes them once) | Owner's choice |
 | Countdown | Cancelled if anyone leaves or un-readies during it | Start needs everyone Ready (FR-L6) |
-| Ready | Everyone, the host too, must be Ready. Changing a setting does not clear Ready; a "Settings changed" line goes to the log | Not covered by Section 5 |
+| Ready | Everyone but the host must be Ready: the host's Start counts as their Ready (owner's choice, 2026-11-09), and the host still needs the mic check. Changing a setting does not clear Ready; a "Settings changed" line goes to the log | Not covered by Section 5 |
 | Ready needs | A passed mic check (a server without voice, and debug servers, skip the mic check) | GDD 5 step 4 |
 | Ghost hears real mic: Off | Voices make no noise for the ghost; footsteps, doors and every other sound still do | 20.3 names the setting but not what Off means |
 | A settings change in the lobby | Sets up the night again at once (new relic spots and task lists) | The night is built from the settings |
 | Characters before Phase 8 | Each of the 8 has a colour, shown on the player list and in the role reveal; the models come in Phase 8 | 22.1 |
 | Characters are dealt, not picked | Nobody picks. When the night starts (as roles are dealt), every player gets a different character at random, shown in the role reveal ("Tonight you are the Nurse"). Every night deals again, rematches too; in the lobby nobody has one | Owner's choice after trying the lobby (2026-11-09): picking was a step that added nothing |
-| Menus | Separate screens instead of one panel: Start (Create a room, Join a room, Options), Create, Join, Options, Mic check, the Room, and Room settings (Basic and Advanced tabs). In a room the screens sit down the left side, so the hotel stays in view; a click on it lets you walk, Esc brings the menu back. An invite link opens Join with the code filled in. The browser's Back button moves between screens | Owner asked for game-style menus (2026-11-09) |
+| Menus | Separate whole-page screens instead of one panel: Start (Create a room, Join a room, Options), Create, Join, Options, Mic check, the Room, and Room settings (Basic and Advanced tabs). In a room, "Walk around the hotel" (at night "Back to the night") lets you play and Esc brings the page back; the role reveal hides the page. An invite link opens Join with the code filled in. The browser's Back button moves between screens | Owner asked for game-style menus, the room and settings as whole pages (2026-11-09) |
+| Fonts | Instrument Serif for titles, Manrope for everything else, in every screen and in the game. Both are bundled with the game (SIL Open Font License 1.1, free for games) | Owner asked for better fonts (2026-11-09) |
 | A lost connection | The slot is held 60 s in every stage (lobby too); in the lobby the player is no longer Ready. Reloading the page within the 60 s gets you back in. Host rights pass at once to the longest-connected player | 18 |
 | Gone for good during the night | Removed like a player who left: a relic they carried drops, their unfinished tasks leave the bar, and the end screen still shows their role | 18 says "becomes a Wisp"; with nobody behind it a Wisp does nothing, so removing them has the same effect |

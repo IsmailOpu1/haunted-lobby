@@ -1,4 +1,8 @@
 import type { Room } from "@colyseus/sdk";
+// The game's two fonts, bundled with it (style.css).
+import "@fontsource/instrument-serif/latin-400.css";
+import "@fontsource/instrument-serif/latin-400-italic.css";
+import "@fontsource-variable/manrope";
 import {
   characterById,
   cleanPlayerName,
@@ -81,6 +85,17 @@ const optionsMicStatus = el("options-mic-status");
 /** The mic screen opens by itself once, the first time a check is needed in a room. */
 let micScreenShown = false;
 let inRoom = false;
+let micNeeded = false;
+let nightOn = false;
+/** The line at the bottom of the room page: how to get into the hotel, or what is missing first. */
+function showLookHint() {
+  lookHint.textContent = micNeeded
+    ? "Do the mic check before you play."
+    : nightOn
+      ? "The night goes on while this page is open. Esc brings it back."
+      : "Walk around the hotel while you wait. Esc brings this page back.";
+  lookHint.classList.toggle("warn", micNeeded);
+}
 const micLost = el("mic-lost");
 const lookHint = el("look-hint");
 const itemsBox = el("items");
@@ -401,8 +416,8 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
         micStatus.textContent = `No microphone. ${note}`;
       } else micStatus.textContent += ` Or skip it: ${note.charAt(0).toLowerCase()}${note.slice(1)}`;
     }
-    lookHint.textContent = canPlay ? "Click the hotel to walk around. Esc brings this menu back." : "Do the mic check before you play.";
-    lookHint.classList.toggle("warn", !canPlay);
+    micNeeded = !canPlay;
+    showLookHint();
     optionsMicStatus.textContent = micStatus.textContent;
     // Done (or not needed): the way on is the main button. Not done yet: you can still come back later.
     micDone.textContent = canPlay ? "Continue to the room" : "Do it later";
@@ -801,6 +816,12 @@ function enterLobby(room: Room) {
     }, 3000);
   };
 
+  // The room page covers the hotel: this button lets you walk around it (Esc comes back).
+  el("walk").onclick = () => {
+    game.unlockSound();
+    Promise.resolve(el<HTMLCanvasElement>("scene").requestPointerLock()).catch(() => {});
+  };
+
   // Starting the night: the host's button, the countdown, then your role (GDD 4.1 and 5).
   startBtn.onclick = () => room.send("start");
   let refusedShown = false;
@@ -826,10 +847,18 @@ function enterLobby(room: Room) {
       : "Waiting for the host to start a rematch.";
     if (waiting && !refusedShown) {
       startHint.textContent = isHost
-        ? `You are the host. Start when everyone is Ready (${config.players.min} to ${config.players.max} players). Until then, walk around and try your mic.`
+        ? `You are the host. Start when everyone else is Ready (${config.players.min} to ${config.players.max} players). Pressing Start counts as your Ready.`
         : "Do the mic check and press Ready. The host starts the night.";
     }
     if (!waiting) refusedShown = false;
+    // Once the night is on, the page is a pause menu: the button takes you back into it.
+    const playing = state.stage === "night" || state.stage === "intro";
+    el("walk").textContent = playing ? "Back to the night" : "Walk around the hotel";
+    el("walk").classList.toggle("go", playing);
+    if (playing !== nightOn) {
+      nightOn = playing;
+      showLookHint();
+    }
     showIntro(state.stage ?? "", state.stageLeft ?? 0, characterById(state.players?.get(room.sessionId)?.character ?? "")?.name);
   });
 }
@@ -854,6 +883,8 @@ function powerStateText(p: PowerStatus): string {
 /** The countdown, then your role and character for the intro's 10 seconds (GDD 4.1, 26.14). */
 function showIntro(stage: string, secondsLeft: number, character?: string) {
   intro.classList.toggle("hidden", stage !== "countdown" && stage !== "intro");
+  // The role reveal gets the whole screen; the menu page waits behind it.
+  document.body.classList.toggle("revealing", stage === "intro");
   if (stage === "countdown") {
     delete intro.dataset.role;
     introTitle.textContent = String(Math.max(1, Math.ceil(secondsLeft)));

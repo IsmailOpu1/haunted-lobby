@@ -895,7 +895,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const refuse = (reason: string) => client.send("startRefused", { reason } satisfies ServerMessages["startRefused"]);
     // Debug servers may start with fewer players, to test alone.
     if (this.state.players.size < config.players.min && !DEBUG) return refuse(`At least ${config.players.min} players are needed to start.`);
-    const waiting = [...this.state.players.values()].filter((p) => !p.ready).map((p) => p.name);
+    // The host's own Start counts as their Ready (GDD 26.14); they still need the mic check.
+    const hostSim = this.sims.get(client.sessionId);
+    if (hostSim && this.needsMicCheck(hostSim)) return refuse("Do the mic check first: the ghost hears your real voice.");
+    const waiting = [...this.state.players.entries()].filter(([id, p]) => id !== client.sessionId && !p.ready).map(([, p]) => p.name);
     if (waiting.length > 0) return refuse(`Waiting for ${waiting.join(", ")} to be Ready.`);
     this.state.stage = "countdown" satisfies Stage;
     this.state.stageLeft = config.match.countdownSec;

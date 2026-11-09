@@ -176,11 +176,15 @@ export function lobbyView(room: Room, hooks: LobbyHooks) {
   const mapLine = document.createElement("p");
   mapLine.className = "setting map-line";
   basic.replaceChildren(mapLine, ...BASIC.map(row));
+  // One block per group, side by side on a wide page.
   advanced.replaceChildren(
-    ...ADVANCED.flatMap((g) => {
+    ...ADVANCED.map((g) => {
+      const block = document.createElement("div");
+      block.className = "set-group";
       const h = document.createElement("h4");
       h.textContent = g.group;
-      return [h, ...g.rows.map(row)];
+      block.append(h, ...g.rows.map(row));
+      return block;
     }),
   );
   const presetButtons = PRESETS.map((p) => {
@@ -214,7 +218,8 @@ export function lobbyView(room: Room, hooks: LobbyHooks) {
       stageChip.dataset.stage = state.winner ? "over" : state.stage;
       playerCount.textContent = `${players.length} / ${config.players.max}`;
       playerList.replaceChildren(...players.map((p) => playerRow(room, p, { canKick: isHost && lobby, lobby, host: state.host }, hooks)));
-      youBox.classList.toggle("hidden", state.stage !== "waiting" && state.stage !== "countdown");
+      // The host's Start counts as their Ready (GDD 26.14), so only guests get the button.
+      youBox.classList.toggle("hidden", isHost || (state.stage !== "waiting" && state.stage !== "countdown"));
       readyBtn.textContent = me?.ready ? "Ready ✓  (press to cancel)" : "I'm ready";
       readyBtn.classList.toggle("is-ready", !!me?.ready);
     }
@@ -278,7 +283,7 @@ function playerRow(
   if (character) tag(character.name.replace(/^The /, ""), "char");
   who.append(name, tags);
   li.append(avatar, who);
-  if (where.lobby) {
+  if (where.lobby && p.id !== where.host) {
     const ready = document.createElement("span");
     ready.className = `ready-mark${p.ready ? " on" : ""}`;
     ready.textContent = p.ready ? "Ready" : "Not ready";

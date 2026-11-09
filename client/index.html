@@ -125,73 +125,76 @@
     </section>
 
     <section id="screen-room" class="screen hidden" data-screen="room" aria-labelledby="room-code">
-      <div class="screen-body room-body">
+      <div class="screen-body wide room-body">
         <header class="room-head">
-          <div>
+          <div class="room-id">
             <p class="eyebrow">Room <span id="stage-chip" class="chip"></span></p>
             <strong id="room-code" class="room-code"></strong>
+            <div class="share-buttons">
+              <button id="copy-code" class="quiet small">Copy code</button>
+              <button id="copy-link" class="quiet small">Copy invite link</button>
+            </div>
           </div>
-          <div class="share-buttons">
-            <button id="copy-code" class="quiet small">Copy code</button>
-            <button id="copy-link" class="quiet small">Copy invite link</button>
-          </div>
-        </header>
-
-        <div class="group">
-          <h3 class="group-title">Players <span id="player-count" class="count"></span></h3>
-          <ul id="players" class="players"></ul>
-        </div>
-
-        <div id="you-box" class="group">
-          <button id="ready-btn" class="primary ready">Ready</button>
-          <p id="ready-hint" class="error" role="alert"></p>
-          <p class="hint">Your character is dealt at random when the night starts.</p>
-        </div>
-
-        <div id="start-box" class="group">
-          <button id="start-night" class="primary hidden">Start the night</button>
-          <p id="start-hint" class="hint"></p>
-        </div>
-
-        <div class="group">
-          <h3 class="group-title">Settings <span id="settings-code" class="code-chip"></span></h3>
-          <p id="settings-summary" class="muted-line"></p>
-          <button id="open-settings" class="quiet" data-go="settings">See all settings</button>
-        </div>
-
-        <div id="photos-box" class="group hidden">
-          <h3 class="group-title">Developed photos</h3>
-          <div id="photo-list" class="photo-list"></div>
-        </div>
-
-        <details class="group log-box">
-          <summary class="group-title">Room log</summary>
-          <ul id="log"></ul>
-        </details>
-
-        <footer class="room-foot">
-          <p id="look-hint" class="look-hint">Click the hotel to walk around. Esc brings this menu back.</p>
-          <div class="foot-buttons">
+          <nav class="room-tools" aria-label="Room menu">
+            <button id="walk" class="quiet small">Walk around the hotel</button>
             <button class="quiet small" data-go="options">Options</button>
             <button id="leave-room" class="quiet small danger">Leave room</button>
+          </nav>
+        </header>
+
+        <div class="room-grid">
+          <div class="group players-group">
+            <h3 class="group-title">Players <span id="player-count" class="count"></span></h3>
+            <ul id="players" class="players"></ul>
           </div>
-        </footer>
+
+          <div class="room-side">
+            <div id="you-box" class="group">
+              <button id="ready-btn" class="primary ready">I'm ready</button>
+              <p id="ready-hint" class="error" role="alert"></p>
+              <p class="hint">Your character is dealt at random when the night starts.</p>
+            </div>
+
+            <div id="start-box" class="group">
+              <button id="start-night" class="primary hidden">Start the night</button>
+              <p id="start-hint" class="hint"></p>
+            </div>
+
+            <div class="group">
+              <h3 class="group-title">Settings <span id="settings-code" class="code-chip"></span></h3>
+              <p id="settings-summary" class="summary-line"></p>
+              <button id="open-settings" class="quiet" data-go="settings">See all settings</button>
+            </div>
+
+            <div id="photos-box" class="group hidden">
+              <h3 class="group-title">Developed photos</h3>
+              <div id="photo-list" class="photo-list"></div>
+            </div>
+
+            <details class="group log-box">
+              <summary class="group-title">Room log</summary>
+              <ul id="log"></ul>
+            </details>
+          </div>
+        </div>
+
+        <p id="look-hint" class="look-hint">Walk around the hotel while you wait. Esc brings this page back.</p>
       </div>
     </section>
 
     <section id="screen-settings" class="screen hidden" data-screen="settings" aria-labelledby="settings-title">
-      <div class="screen-body">
+      <div class="screen-body wide">
         <button class="back" data-back>Room</button>
         <p class="eyebrow">Room settings <span id="settings-code-2" class="code-chip"></span></p>
         <h2 id="settings-title" class="screen-title">Settings</h2>
-        <p id="settings-note" class="muted-line"></p>
+        <p id="settings-note" class="lead"></p>
         <div id="presets" class="segmented" role="group" aria-label="Preset"></div>
         <div class="tabs" role="tablist">
           <button id="tab-basic" class="tab on" role="tab" aria-selected="true">Basic</button>
           <button id="tab-advanced" class="tab" role="tab" aria-selected="false">Advanced</button>
         </div>
-        <div id="settings-basic" class="settings-grid" role="tabpanel"></div>
-        <div id="settings-advanced" class="settings-grid hidden" role="tabpanel"></div>
+        <div id="settings-basic" class="settings-grid basic" role="tabpanel"></div>
+        <div id="settings-advanced" class="settings-grid advanced hidden" role="tabpanel"></div>
       </div>
     </section>
 

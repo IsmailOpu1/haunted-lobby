@@ -217,3 +217,4 @@ Nothing is restarted between the two nights.
    - An invite link opens Join with the code filled in. The mic check screen opens by itself the first time it is needed. The browser's Back button moves between screens.
    - Players show a letter badge, You and Host tags, "Reconnecting…" while their connection is lost, and their character once dealt.
    - Leave room needs a second click.
+3. **After a second look:** the room and its settings are whole pages, not a side panel ("Walk around the hotel" and Esc move between the page and the game). The host has no Ready button: their Start counts. One font pair everywhere (Instrument Serif and Manrope, bundled).

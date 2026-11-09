@@ -415,7 +415,7 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 - **Progress:** built 2026-11-09 to the plan in `docs/plans/phase-7.md` (owner's answers and new rules in GDD 26.14):
   - The lobby: Ready (needs the mic check), host settings with Basic and Advanced tabs, the 3 presets and Custom, the settings code, and kick.
   - Characters are dealt at random each night (a colour until the Phase 8 models), changed by the owner on 2026-11-09 (GDD 26.14).
-  - The menus are separate screens: Start, Create, Join, Options, Mic check, Room, Room settings (GDD 26.14).
+  - The menus are separate whole-page screens: Start, Create, Join, Options, Mic check, Room, Room settings. The host's Start counts as their Ready. One font pair everywhere (GDD 26.14).
   - The night plays by the settings. Rematch keeps the room, settings and fair rotation.
   - The 60 s disconnect hold, with reconnecting after a page reload.
   - The end screen's timeline and awards, and the match log (a `MATCHLOG` line in the server output).
