@@ -3,6 +3,7 @@ import { Client, type Room } from "@colyseus/sdk";
 import { matchMaker } from "colyseus";
 import { CHARACTERS, config, presetSettings, ROOM_NAME, type MatchSettings, type ServerMessages } from "@haunted/shared";
 import { createGameServer } from "./app.ts";
+import { HauntedRoom } from "./HauntedRoom.ts";
 
 // The lobby, settings and rematch (Phase 7: GDD 5, 19, 20; FR-L3 to FR-L10).
 
@@ -191,6 +192,36 @@ describe("rematch (GDD 19, FR-L10)", () => {
     await Promise.all(rooms.map((r) => r.leave()));
   });
 
+  it("the end screen has a timeline and awards, and Rematch writes the match log with rematch: true (PRD 10.6)", async () => {
+    const logs: any[] = [];
+    const sink = HauntedRoom.matchLogSink;
+    HauntedRoom.matchLogSink = (r) => logs.push(r);
+    try {
+      const { host, rooms } = await lobby(4);
+      const ends = collect(host, "matchEnd");
+      rooms[1]!.send("debug", { possessed: true });
+      await pause(100);
+      host.send("debug", { startNow: true });
+      await waitFor(() => host.state.stage === "night");
+      // An investigator is downed and bleeds out: a death on the timeline, and Ghost Bait.
+      rooms[2]!.send("debug", { down: true, bleedLeft: 0.05 });
+      await waitFor(() => host.state.players.get(rooms[2]!.sessionId).health === "dead");
+      host.send("debug", { nightTime: 1e6 });
+      await waitFor(() => ends.length === 1);
+      expect(ends[0]!.timeline.map((l) => l.text)).toContain("P3 died");
+      expect(ends[0]!.awards.find((a) => a.title === "Ghost Bait")?.names).toEqual(["P3"]);
+      expect(logs).toHaveLength(0);
+      host.send("rematch");
+      await waitFor(() => logs.length === 1);
+      expect(logs[0]).toMatchObject({ players: 4, possessed: 1, winner: "possessed", rematch: true });
+      expect(logs[0].deaths).toEqual([expect.objectContaining({ cause: "bled out", role: "investigator" })]);
+      expect(JSON.stringify(logs[0])).not.toMatch(/P[1-4]"/);
+      await Promise.all(rooms.map((r) => r.leave()));
+    } finally {
+      HauntedRoom.matchLogSink = sink;
+    }
+  });
+
   it("over 10 rematches with one possessed, nobody is possessed twice before everyone has been once", async () => {
     const { host, rooms, server } = await lobby(5);
     const roles = rooms.map((r) => collect(r, "role"));
@@ -273,4 +304,46 @@ describe("disconnect and reconnect (GDD 18, FR-E7)", () => {
     await waitFor(() => rooms[1]!.state.host === rooms[1]!.sessionId);
     await Promise.all(rooms.slice(1).map((r) => r.leave()));
   });
+});
+
+describe("Phase 7 Done when (PRD 11)", () => {
+  it("8 players can start, finish, rematch and change settings without restarting anything", async () => {
+    const { host, rooms, server } = await lobby(config.players.max);
+    const ends = collect(host, "matchEnd");
+    const roles = rooms.map((r) => collect(r, "role"));
+    const stageWait = (stage: string) => waitFor(() => host.state.stage === stage, (config.match.countdownSec + config.match.introSec + 3) * 1000);
+
+    // Night 1 on Standard: everyone Ready, the host starts, countdown, intro, night.
+    await allReady(rooms);
+    host.send("start");
+    await stageWait("night");
+    expect(roles.every((r) => r.length === 1)).toBe(true);
+    expect(roles.filter((r) => r[0]!.role === "possessed")).toHaveLength(2);
+    expect(host.state.nightLength).toBe(config.match.lengthMin * 60);
+    // It finishes (dawn).
+    host.send("debug", { nightTime: 1e6 });
+    await waitFor(() => ends.length === 1);
+    expect(ends[0]!.roles).toHaveLength(8);
+
+    // Rematch, then the host switches to Hardcore.
+    host.send("rematch");
+    await waitFor(() => host.state.stage === "waiting" && host.state.winner === "");
+    host.send("settings", { preset: "hardcore" });
+    await waitFor(() => host.state.settingsCode === "HRD-10-PA");
+    // Same characters, Ready again, start again.
+    for (const r of rooms) r.send("ready", { ready: true });
+    await waitFor(() => rooms.every((r) => host.state.players.get(r.sessionId)?.ready === true));
+    host.send("start");
+    await stageWait("night");
+
+    // Night 2 plays by Hardcore: 10 minutes, 4 tasks each (the 2 possessed's are fake), 1 salt.
+    expect(roles.every((r) => r.length === 2)).toBe(true);
+    expect(host.state.nightLength).toBe(10 * 60);
+    expect(host.state.tasksTotal).toBe(6 * 4);
+    expect(host.state.players.get(host.sessionId).salt).toBe(1);
+    expect(server.ghost.difficulty).toBe("hard");
+    host.send("debug", { nightTime: 1e6 });
+    await waitFor(() => ends.length === 2);
+    await Promise.all(rooms.map((r) => r.leave()));
+  }, 60000);
 });

@@ -33,7 +33,16 @@ export interface ServerMessages {
   /** The match is over (GDD 18): who won, why, and every player's role, now shown to all (GDD 19). */
   /** Every photo of the night is shown on the end screen, developed or not (GDD 19). */
   /** ghost: who the ghost was in life (GDD 26.13), or null on a map without the mystery. */
-  matchEnd: { winner: Team; reason: EndReason; roles: { name: string; role: Role }[]; photos: DevelopedPhoto[]; ghost: string | null };
+  /** timeline: each power, meeting and death with its night time "m:ss"; awards: GDD 19, only those earned. */
+  matchEnd: {
+    winner: Team;
+    reason: EndReason;
+    roles: { name: string; role: Role }[];
+    photos: DevelopedPhoto[];
+    ghost: string | null;
+    timeline: { time: string; text: string }[];
+    awards: { title: string; why: string; names: string[] }[];
+  };
   /**
    * How to join the voice room, or disabled when this server has no voice keys. micOptional:
    * a debug server lets you play without a microphone (you still count as talking normally).

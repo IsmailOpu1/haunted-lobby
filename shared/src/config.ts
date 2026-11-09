@@ -298,6 +298,8 @@ export const config = {
   wisps: { speed: 4, canDoTasks: true, ouija: true },
   identity: { nameLitRangeM: 10, nameAlwaysWithinM: 2 },
   disconnect: { holdSec: 60 },
+  // The match log (PRD 10.6): a power counts as "near" when a living investigator is this close.
+  matchLog: { nearInvestigatorM: 15 },
   // Possessed draw weight is 1 / (1 + timesPossessedThisSession) (GDD Section 19).
   rotation: { baseWeight: 1 },
   net: {

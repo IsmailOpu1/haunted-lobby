@@ -807,7 +807,7 @@ describe("HauntedRoom", () => {
     server.state.ritualProgress = 99;
 
     await waitFor(() => ends.length === 1);
-    expect(ends[0]).toEqual({ winner: "investigators", reason: "ritual", roles: [{ name: "Sam", role: "investigator" }, { name: "Mim", role: "investigator" }], photos: [], ghost: null });
+    expect(ends[0]).toEqual({ winner: "investigators", reason: "ritual", roles: [{ name: "Sam", role: "investigator" }, { name: "Mim", role: "investigator" }], photos: [], ghost: null, timeline: [], awards: [] });
     await waitFor(() => a.state.winner === "investigators");
     expect(a.state.part).toBe("dawn");
 
@@ -1484,7 +1484,8 @@ describe("HauntedRoom", () => {
     await waitFor(() => offerings.length === 2, (config.mystery.offerHoldSec + 1) * 1000);
     nila.send("use", { down: false });
     expect(offerings[1]).toMatchObject({ by: "Nila", relic: ghost.belonging, right: true, ghost: ghost.name });
-    expect(ghoul.state.ghostNamed).toBe(ghost.name);
+    // (The message can arrive before the state patch.)
+    await waitFor(() => ghoul.state.ghostNamed === ghost.name);
     await waitFor(() => ghoul.state.ritualStarted === true);
     // The end screen says who the ghost was.
     const ends = collectMsgs(rafi, "matchEnd");

@@ -79,6 +79,8 @@ import {
 } from "@haunted/shared";
 import { defaultMap } from "@haunted/maps";
 import { Ghost, type GhostTarget, type GhostWorld } from "./sim/ghost.ts";
+import { appendFile, mkdir } from "node:fs/promises";
+import { awards, matchLog, NightRecord, SKIP_VOTE, timeline, type Cast } from "./nightRecord.ts";
 import { NavMap } from "./sim/navmap.ts";
 import { createTrick, type GhostTrick } from "./sim/tricks.ts";
 import { Door, GameState, Player, Relic, SaltJar, SaltLine, SearchPlace, TaskStation } from "./state.ts";
@@ -210,6 +212,19 @@ const ACTION_SECONDS: Record<Action["kind"], number> = {
 export class HauntedRoom extends Room<{ state: GameState }> {
   /** Creates the voice service for a room. Tests replace this with a fake. */
   static voiceFactory: (voiceRoomName: string) => VoiceBackend = (name) => liveKitFromEnv(name) ?? new NoVoice();
+  /**
+   * Where match log records go (PRD 10.6): one MATCHLOG line in the server output (Render keeps
+   * it in its logs) and a line in logs/matches.jsonl (Render's disk is wiped on deploy). Tests
+   * replace it; under Vitest nothing is written.
+   */
+  static matchLogSink: (record: object) => void = (record) => {
+    if (process.env.VITEST) return;
+    const line = JSON.stringify(record);
+    console.log(`MATCHLOG ${line}`);
+    void mkdir("logs", { recursive: true })
+      .then(() => appendFile("logs/matches.jsonl", `${line}\n`))
+      .catch((err) => console.error("Match log file failed", err));
+  };
 
   maxClients = config.players.max;
   state = new GameState();
@@ -274,6 +289,13 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private removedId: string | null = null;
   /** Players who left during the night, so the end screen still shows their role (GDD 18). */
   private departed: { name: string; role: Role }[] = [];
+  /** Tonight's events (GDD 19, PRD 10.6), and everyone who played it. */
+  private record = new NightRecord();
+  private cast: Cast = new Map();
+  /** The finished night's match log, written once we know whether Rematch was pressed. */
+  private pendingLog: ((rematch: boolean) => void) | null = null;
+  /** Who called this meeting, and how. */
+  private meetingCallerId = "";
   /** Held slots of dropped players: rejecting one ends the wait early (tests). */
   private held = new Map<string, { reject: Function }>();
 
@@ -515,7 +537,11 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       if (next) this.state.host = next[0];
     }
     this.announce("lobby", player.name, `${player.name} lost their connection. Waiting ${config.disconnect.holdSec} s for them.`);
-    this.held.set(client.sessionId, this.allowReconnection(client, config.disconnect.holdSec));
+    try {
+      this.held.set(client.sessionId, this.allowReconnection(client, config.disconnect.holdSec));
+    } catch {
+      // The room is closing (server shutdown): nobody is coming back.
+    }
   }
 
   /** They came back in time: same role, tasks and items. Their private messages are sent again. */
@@ -559,6 +585,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   }
 
   async onDispose() {
+    this.flushLog(false);
     activeCodes.delete(this.roomId);
     await this.voice.dispose();
   }
@@ -643,6 +670,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.votes.clear();
     this.removedId = null;
     this.departed = [];
+    this.record = new NightRecord();
+    this.cast = new Map();
     this.spawnIndex = 0;
 
     for (const door of this.map.doors) {
@@ -860,6 +889,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   /** The host takes everyone back to the lobby for another night with the same settings and characters (GDD 19). */
   private rematch(client: Client) {
     if (client.sessionId !== this.state.host || !this.state.winner) return;
+    this.flushLog(true);
     this.newNight();
     for (const player of this.state.players.values()) player.ready = false;
   }
@@ -914,6 +944,18 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.possessedDealt = picked.length > 0;
     this.dealClues();
     for (const client of this.clients) this.sendRole(client);
+    for (const [id, sim] of this.sims) this.cast.set(id, { name: this.state.players.get(id)?.name ?? "", role: sim.role });
+  }
+
+  private flushLog(rematch: boolean) {
+    this.pendingLog?.(rematch);
+    this.pendingLog = null;
+  }
+
+  /** A player's session id from their state. */
+  private idOf(player: Player): string {
+    for (const [id, p] of this.state.players) if (p === player) return id;
+    return "";
   }
 
   /** Your role, privately (PRD 10.3): when roles are dealt, and again after a reconnect. */
@@ -980,6 +1022,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
               ? this.alterClue(sim)
               : this.taint(sim);
     if (result) return refuse(result);
+    const near = [...this.state.players].some(
+      ([id, p]) => p.health === "alive" && this.sims.get(id)?.role === "investigator" && this.hearingDistance(p, player) <= config.matchLog.nearInvestigatorM,
+    );
+    this.record.add({ t: this.state.nightTime, kind: "power", power: kind, by: client.sessionId, investigatorNear: near });
     sim.cooldowns[kind] = powerCooldownSec(kind, this.settings.cooldownSpeed);
     // Every power leaves the curse glow (GDD 14.2, 15.2).
     sim.curseLeft = config.camera.curseGlowSec;
@@ -1189,6 +1235,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     s.meetingCaller = s.players.get(callerId)?.name ?? "";
     s.meetingBody = bodyId ? (s.players.get(bodyId)?.name ?? "") : "";
     this.meetingBodyId = bodyId;
+    this.meetingCallerId = callerId;
     this.votes.clear();
     this.removedId = null;
     let seat = 0;
@@ -1250,6 +1297,14 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private showVoteResult() {
     const { removed, tally, skip } = countVotes(this.votes);
     this.removedId = removed;
+    this.record.add({
+      t: this.state.nightTime,
+      kind: "meeting",
+      caller: this.meetingCallerId,
+      via: this.meetingBodyId ? "body" : "bell",
+      votes: [...this.votes].map(([voter, target]) => ({ voter, target: target === SKIP ? SKIP_VOTE : target })),
+      removed,
+    });
     const name = (id: string) => this.state.players.get(id)?.name ?? "?";
     const m = this.settings;
     const msg: ServerMessages["meetingResult"] = {
@@ -1282,6 +1337,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       // Voted out: a Wisp now, whatever their role (GDD 16.3, 17). No body is left behind.
       this.dropRelic(this.removedId!, false);
       this.becomeWisp(removed);
+      this.record.add({ t: s.nightTime, kind: "death", who: this.removedId!, cause: "voted out" });
       removed.bodyGone = true;
     }
     s.meeting = "" satisfies MeetingStep;
@@ -1339,6 +1395,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     s.circleNeeded = this.settings.circle === "auto" ? circleNeeded(s.players.size) : this.settings.circle;
     s.circleCount = this.playersInCircle();
     if (!s.ritualStarted && s.ritualReady && s.circleCount >= s.circleNeeded) s.ritualStarted = true;
+    const t = s.nightTime;
+    if (s.tasksTotal > 0 && s.tasksDone >= s.tasksTotal) this.record.once({ t, kind: "tasksFull" });
+    if (this.map.relicDoor && !this.relicDoorLocked()) this.record.once({ t, kind: "basementOpen" });
+    if (s.ritualStarted) this.record.once({ t, kind: "ritualStart" });
     if (!s.ritualStarted || s.ritualProgress >= 100) return;
     // A meeting will freeze it here instead (Phase 6). The ritual length becomes a lobby setting in Phase 7.
     const rate = ritualRatePct(s.circleCount, s.circleNeeded, this.settings.ritualSec);
@@ -1429,7 +1489,26 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const roles: ServerMessages["matchEnd"]["roles"] = [];
     this.state.players.forEach((p, id) => roles.push({ name: p.name, role: this.sims.get(id)?.role ?? "investigator" }));
     roles.push(...this.departed);
-    const msg: ServerMessages["matchEnd"] = { ...result, roles, photos: this.photos.map((p) => p.photo), ghost: this.ghostSuspect?.name ?? null };
+    const msg: ServerMessages["matchEnd"] = {
+      ...result,
+      roles,
+      photos: this.photos.map((p) => p.photo),
+      ghost: this.ghostSuspect?.name ?? null,
+      timeline: timeline(this.record, this.cast, this.settings.anonymousVoting),
+      awards: awards(this.record, this.cast),
+    };
+    const record = this.record;
+    const cast = this.cast;
+    const input = {
+      settingsCode: this.state.settingsCode,
+      settings: { ...this.settings },
+      map: this.map.id,
+      winner: result.winner,
+      reason: result.reason,
+      durationSec: Math.round(this.state.nightTime + this.overtimeUsed),
+      ritualProgress: Math.round(this.state.ritualProgress),
+    };
+    this.pendingLog = (rematch) => HauntedRoom.matchLogSink(matchLog(record, cast, input, rematch));
     this.broadcast("matchEnd", msg);
   }
 
@@ -1522,6 +1601,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       if (!player) continue;
       const db = this.voice.levelDbfs(id);
       sim.voiceLevel = classifyVoice(db, sim.normalDbfs ?? v.defaultNormalDbfs);
+      if (sim.voiceLevel === "shout" && this.nightStarted && player.health === "alive") this.record.shout(id, dt);
       sim.recentLevels.push(sim.voiceLevel);
       const keep = Math.max(1, Math.round((v.levelHoldSec * 1000) / v.subscriptionRefreshMs));
       while (sim.recentLevels.length > keep) sim.recentLevels.shift();
@@ -1618,7 +1698,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     if (sim.immuneLeft > 0) sim.immuneLeft = Math.max(0, sim.immuneLeft - dt);
     if (player.health !== "downed") return;
     player.bleedLeft = Math.max(0, player.bleedLeft - dt);
-    if (player.bleedLeft <= 0) this.becomeWisp(player);
+    if (player.bleedLeft <= 0) {
+      this.becomeWisp(player);
+      this.record.add({ t: this.state.nightTime, kind: "death", who: this.idOf(player), cause: "bled out" });
+    }
   }
 
   /** The ghost caught this player. */
@@ -1633,6 +1716,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       player.hidingSpot = "";
     }
     player.health = "downed" satisfies Health;
+    this.record.add({ t: this.state.nightTime, kind: "downed", who: sessionId });
     player.bleedLeft = config.health.bleedOutSec;
     sim.hitAt = this.state.nightTime;
     sim.flashlightBeforeDowned = player.flashlightOn;
@@ -1823,7 +1907,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     if (action.elapsed < duration) return;
 
     this.clearAction(sim, player);
-    if (action.kind === "revive") this.revive(action.targetId);
+    if (action.kind === "revive") this.revive(action.targetId, this.idOf(player));
     else if (action.kind === "hide") this.hide(sim, player, action.spotId);
     else if (action.kind === "salt") this.pourSalt(player);
     else if (action.kind === "placeRelic") this.placeRelic(player);
@@ -1889,10 +1973,11 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.broadcast("offering", msg);
   }
 
-  private revive(targetId: string) {
+  private revive(targetId: string, by: string) {
     const target = this.state.players.get(targetId);
     const sim = this.sims.get(targetId);
     if (!target || !sim || target.health !== "downed") return;
+    this.record.add({ t: this.state.nightTime, kind: "revive", by, who: targetId });
     target.health = "alive";
     target.bleedLeft = 0;
     target.flashlightOn = sim.flashlightBeforeDowned;
@@ -2140,6 +2225,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     if (!relic || !door || !this.nearRelicDoor(player.x, player.z)) return;
     player.relic = "";
     relic.status = "placed";
+    this.record.add({ t: this.state.nightTime, kind: "relicPlaced", by: this.idOf(player) });
     relic.x = door.x;
     relic.z = door.z;
     this.state.relics.get(relic.id)!.status = relic.status;
@@ -2259,6 +2345,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const ghostPresent = this.ghost.state !== "asleep" && this.ghost.state !== "gone" && this.ghost.state !== "retreat";
     const ghost = ghostPresent && this.ghost.visible ? inFrame(this.ghost) : null;
     this.photos.push({ photo: { by: player.name, nightTime: this.state.nightTime, subjects, ghost }, developed: false });
+    this.record.add({ t: this.state.nightTime, kind: "photo", by: sessionId, caughtPossessed: subjects.some((s) => s.demon) });
 
     const flash: ServerMessages["flash"] = { x: player.x, z: player.z, by: sessionId };
     for (const client of this.clients) {

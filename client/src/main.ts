@@ -474,6 +474,31 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
         return li;
       }),
     );
+    // Awards and the timeline (GDD 19).
+    el("end-awards-box").classList.toggle("hidden", end.awards.length === 0);
+    el("end-awards").replaceChildren(
+      ...end.awards.map((a) => {
+        const li = document.createElement("li");
+        const title = document.createElement("strong");
+        title.textContent = a.title;
+        const why = document.createElement("span");
+        why.className = "award-why";
+        why.textContent = a.why;
+        li.append(title, ` ${a.names.join(", ")} `, why);
+        return li;
+      }),
+    );
+    el("end-timeline-box").classList.toggle("hidden", end.timeline.length === 0);
+    el("end-timeline").replaceChildren(
+      ...end.timeline.map((l) => {
+        const li = document.createElement("li");
+        const time = document.createElement("span");
+        time.className = "timeline-time";
+        time.textContent = l.time;
+        li.append(time, l.text);
+        return li;
+      }),
+    );
     el("end-photos-box").classList.toggle("hidden", end.photos.length === 0);
     el("end-photos").replaceChildren(...end.photos.map(photoCard));
   },
