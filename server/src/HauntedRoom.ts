@@ -43,7 +43,7 @@ import {
   pickMystery,
   type SuspectDef,
   changeSettings,
-  characterById,
+  dealCharacters,
   presetSettings,
   settingsCode,
   standardSettings,
@@ -359,10 +359,6 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       const ready = typeof msg === "object" && msg !== null && (msg as { ready?: unknown }).ready === true;
       this.setReady(client, ready);
     });
-    this.onMessage("character", (client, msg: unknown) => {
-      const id = typeof msg === "object" && msg !== null ? (msg as { id?: unknown }).id : undefined;
-      if (typeof id === "string") this.pickCharacter(client, id);
-    });
     this.onMessage("settings", (client, msg: unknown) => this.hostSettings(client, msg));
     this.onMessage("kick", (client, msg: unknown) => {
       const target = typeof msg === "object" && msg !== null ? (msg as { target?: unknown }).target : undefined;
@@ -642,8 +638,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
 
   /**
    * Sets up a whole new night from the room's settings: when the room is made, when the host
-   * changes a setting in the lobby, and on a rematch. The players, their characters, mic checks
-   * and how often each was possessed stay (GDD 19).
+   * changes a setting in the lobby, and on a rematch. The players, their mic checks and how often
+   * each was possessed stay (GDD 19). Characters go back in the deck: each night deals new ones.
    */
   private newNight() {
     const s = this.settings;
@@ -673,6 +669,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.record = new NightRecord();
     this.cast = new Map();
     this.spawnIndex = 0;
+    for (const player of this.state.players.values()) player.character = "";
 
     for (const door of this.map.doors) {
       const state = this.state.doors.get(door.id);
@@ -801,7 +798,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     } satisfies Partial<PlayerSim>;
   }
 
-  /** A player's shared state at the start of a night (their name, character and Ready stay). */
+  /** A player's shared state at the start of a night (their name and Ready stay). */
   private freshPlayer(spawn: { x: number; z: number }) {
     const move = initialMoveState(spawn.x, spawn.z);
     return {
@@ -847,18 +844,9 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const sim = this.sims.get(client.sessionId);
     const lobby = this.state.stage === "waiting" || this.state.stage === "countdown";
     if (!player || !sim || !lobby || player.ready === ready) return;
-    if (ready && !player.character) return this.refuseLobby(client, "Pick a character first.");
     if (ready && this.needsMicCheck(sim)) return this.refuseLobby(client, "Do the mic check first: the ghost hears your real voice.");
     player.ready = ready;
     if (!ready && this.state.stage === "countdown") this.cancelCountdown(`${player.name} is not Ready.`);
-  }
-
-  private pickCharacter(client: Client, id: string) {
-    const player = this.state.players.get(client.sessionId);
-    if (!player || this.state.stage !== "waiting" || player.ready || !characterById(id)) return;
-    const taken = [...this.state.players.entries()].some(([other, p]) => other !== client.sessionId && p.character === id);
-    if (taken) return this.refuseLobby(client, "Someone else has that character.");
-    player.character = id;
   }
 
   /** The host picks a preset or changes settings; everyone sees it at once (FR-L5). Locked from the countdown. */
@@ -886,7 +874,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     victim.leave(4000);
   }
 
-  /** The host takes everyone back to the lobby for another night with the same settings and characters (GDD 19). */
+  /** The host takes everyone back to the lobby for another night with the same settings (GDD 19). */
   private rematch(client: Client) {
     if (client.sessionId !== this.state.host || !this.state.winner) return;
     this.flushLog(true);
@@ -927,9 +915,13 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     }
   }
 
-  /** Picks the possessed (GDD 3, 19) and tells each player their role, privately. */
+  /** Deals everyone a character (GDD 26.14), picks the possessed (GDD 3, 19) and tells each player their role, privately. */
   private dealRoles() {
     const ids = [...this.sims.keys()];
+    for (const [id, character] of dealCharacters(ids, Math.random)) {
+      const player = this.state.players.get(id);
+      if (player) player.character = character;
+    }
     const forced = ids.filter((id) => this.sims.get(id)!.wantsPossessed);
     const count = Math.max(0, possessedCount(ids.length, this.settings.possessed) - forced.length);
     const picked = [...forced, ...pickPossessed(ids.filter((id) => !forced.includes(id)), this.timesPossessed, count)];

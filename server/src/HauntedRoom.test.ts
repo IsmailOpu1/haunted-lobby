@@ -886,10 +886,7 @@ describe("HauntedRoom", () => {
     rooms[1]!.send("start");
     await new Promise((r) => setTimeout(r, 300));
     expect(host.state.stage).toBe("waiting");
-    // Everyone picks a character and is Ready (GDD 5).
-    const characters = ["priest", "journalist", "nurse", "student", "detective"];
-    rooms.forEach((r, i) => r.send("character", { id: characters[i] }));
-    await new Promise((r) => setTimeout(r, 100));
+    // Everyone is Ready (GDD 5).
     for (const r of rooms) r.send("ready", { ready: true });
     await waitFor(() => rooms.every((r) => host.state.players.get(r.sessionId)?.ready === true));
     host.send("start");

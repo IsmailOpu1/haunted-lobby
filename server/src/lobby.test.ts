@@ -44,10 +44,8 @@ async function lobby(players: number) {
   return { host, rooms, server };
 }
 
-/** Everyone picks a different character and presses Ready. */
+/** Everyone presses Ready. */
 async function allReady(rooms: Room[]) {
-  rooms.forEach((r, i) => r.send("character", { id: CHARACTERS[i]!.id }));
-  await pause(100);
   for (const r of rooms) r.send("ready", { ready: true });
   await waitFor(() => rooms.every((r) => r.state.players.get(r.sessionId)?.ready === true));
 }
@@ -55,20 +53,12 @@ async function allReady(rooms: Room[]) {
 const settingsOf = (room: Room): MatchSettings => JSON.parse(room.state.settings);
 
 describe("the lobby (GDD 5)", () => {
-  it("one character per player, Ready needs a character, and Start needs everyone Ready", async () => {
+  it("nobody picks a character, and Start needs everyone Ready", async () => {
     const { host, rooms } = await lobby(4);
-    const refused = collect(rooms[1]!, "lobbyRefused");
     const startRefused = collect(host, "startRefused");
-    // Ready without a character is refused.
-    rooms[1]!.send("ready", { ready: true });
-    await waitFor(() => refused.length === 1);
-    expect(refused[0]!.reason).toMatch(/character/);
-    // Two players cannot hold the same character.
-    host.send("character", { id: "nurse" });
-    await waitFor(() => host.state.players.get(host.sessionId).character === "nurse");
-    rooms[1]!.send("character", { id: "nurse" });
-    await waitFor(() => refused.length === 2);
-    expect(rooms[1]!.state.players.get(rooms[1]!.sessionId).character).toBe("");
+    // Nobody has a character in the lobby: they are dealt when the night starts (GDD 26.14).
+    await waitFor(() => host.state.players?.size === 4);
+    expect(rooms.every((r) => host.state.players.get(r.sessionId)?.character === "")).toBe(true);
     // Start with someone not Ready is refused and names who.
     host.send("start");
     await waitFor(() => startRefused.length === 1);
@@ -133,11 +123,9 @@ describe("the lobby (GDD 5)", () => {
     await Promise.all(rooms.map((r) => r.leave()));
   });
 
-  it("the host can remove a player in the lobby, freeing their character (FR-L8)", async () => {
+  it("the host can remove a player in the lobby (FR-L8)", async () => {
     const { host, rooms } = await lobby(3);
     const kicked = collect(rooms[2]!, "kicked");
-    rooms[2]!.send("character", { id: "priest" });
-    await waitFor(() => host.state.players.get(rooms[2]!.sessionId)?.character === "priest");
     // A guest cannot kick.
     rooms[1]!.send("kick", { target: rooms[2]!.sessionId });
     await pause(200);
@@ -145,8 +133,6 @@ describe("the lobby (GDD 5)", () => {
     host.send("kick", { target: rooms[2]!.sessionId });
     await waitFor(() => host.state.players.size === 2);
     expect(kicked[0]!.reason).toMatch(/removed you/);
-    host.send("character", { id: "priest" });
-    await waitFor(() => host.state.players.get(host.sessionId).character === "priest");
     // A kicked player can join again (GDD 26.14).
     const back = await new Client(endpoint).joinById(host.roomId, { name: "P3" });
     await waitFor(() => host.state.players.size === 3);
@@ -161,12 +147,17 @@ describe("the lobby (GDD 5)", () => {
 });
 
 describe("rematch (GDD 19, FR-L10)", () => {
-  it("only the host takes everyone back to a fresh lobby, keeping characters and settings", async () => {
+  it("only the host takes everyone back to a fresh lobby, keeping settings; characters are dealt anew", async () => {
     const { host, rooms, server } = await lobby(4);
     host.send("settings", { change: { lengthMin: 10 } });
     await allReady(rooms);
     host.send("debug", { startNow: true });
     await waitFor(() => host.state.stage === "night");
+    // Everyone was dealt a different character (GDD 26.14).
+    await waitFor(() => rooms.every((r) => host.state.players.get(r.sessionId)?.character !== ""));
+    const dealt = rooms.map((r) => host.state.players.get(r.sessionId).character as string);
+    expect(new Set(dealt).size).toBe(4);
+    expect(dealt.every((id) => CHARACTERS.some((c) => c.id === id))).toBe(true);
     // End the night: dawn.
     host.send("debug", { nightTime: 1e6 });
     await waitFor(() => host.state.winner !== "");
@@ -178,9 +169,10 @@ describe("rematch (GDD 19, FR-L10)", () => {
     await waitFor(() => host.state.stage === "waiting" && host.state.winner === "");
     expect(host.state.nightLength).toBe(10 * 60);
     expect(host.state.ritualProgress).toBe(0);
-    rooms.forEach((r, i) => {
+    rooms.forEach((r) => {
       const p = host.state.players.get(r.sessionId);
-      expect(p.character).toBe(CHARACTERS[i]!.id);
+      // Back in the deck until the next night deals again.
+      expect(p.character).toBe("");
       expect(p.ready).toBe(false);
       expect(p.health).toBe("alive");
     });
@@ -330,7 +322,7 @@ describe("Phase 7 Done when (PRD 11)", () => {
     await waitFor(() => host.state.stage === "waiting" && host.state.winner === "");
     host.send("settings", { preset: "hardcore" });
     await waitFor(() => host.state.settingsCode === "HRD-10-PA");
-    // Same characters, Ready again, start again.
+    // Ready again, start again.
     for (const r of rooms) r.send("ready", { ready: true });
     await waitFor(() => rooms.every((r) => host.state.players.get(r.sessionId)?.ready === true));
     host.send("start");

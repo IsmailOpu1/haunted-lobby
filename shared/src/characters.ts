@@ -1,5 +1,5 @@
-// The 8 characters (GDD 22.1): looks only, no abilities. Until the Phase 8 models, each shows
-// as its colour on the player's shadow and name tag.
+// The 8 characters (GDD 22.1): looks only, no abilities. Nobody picks: each night everyone is
+// dealt one at random (GDD 26.14). Until the Phase 8 models, each shows as its colour.
 
 export interface CharacterDef {
   id: string;
@@ -22,4 +22,17 @@ export const CHARACTERS: readonly CharacterDef[] = [
 
 export function characterById(id: string): CharacterDef | undefined {
   return CHARACTERS.find((c) => c.id === id);
+}
+
+/**
+ * Deals each player a different character at random (GDD 26.14). There are as many characters
+ * as the most players a room holds, so nobody is ever left without one.
+ */
+export function dealCharacters(playerIds: readonly string[], random: () => number): Map<string, string> {
+  const deck = CHARACTERS.map((c) => c.id);
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j]!, deck[i]!];
+  }
+  return new Map(playerIds.map((id, i) => [id, deck[i % deck.length]!]));
 }

@@ -102,7 +102,7 @@ export interface ServerMessages {
   };
   /** The host's Start was refused (too few players, or someone not Ready). */
   startRefused: { reason: string };
-  /** A lobby request of yours was refused: Ready, a character, a setting, a kick or a rematch (GDD 5). */
+  /** A lobby request of yours was refused: Ready, a setting, a kick or a rematch (GDD 5). */
   lobbyRefused: { reason: string };
   /** The host removed you from the room (GDD 5). The connection closes right after. */
   kicked: { reason: string };
@@ -188,10 +188,8 @@ export interface ClientMessages {
   photo: undefined;
   /** The host starts the night: a countdown, then roles and the intro (GDD 5, 4.1). */
   start: undefined;
-  /** Ready or not (GDD 5). Needs a character, and a passed mic check. */
+  /** Ready or not (GDD 5). Needs a passed mic check. Characters are dealt, not picked (GDD 26.14). */
   ready: { ready: boolean };
-  /** Pick a character by id (GDD 22.1), one per player. */
-  character: { id: string };
   /** Host only, in the lobby: a preset, or some settings changed (GDD 20). */
   settings: { preset: "standard" | "beginner" | "hardcore" } | { change: Partial<import("./settings.ts").MatchSettings> };
   /** Host only, in the lobby: remove a player by session id (GDD 5). */
