@@ -1,5 +1,6 @@
 import type { Room } from "@colyseus/sdk";
 import {
+  characterById,
   cleanPlayerName,
   config,
   isValidRoomCode,
@@ -16,18 +17,35 @@ import { Game, POWER_NAMES } from "./game.ts";
 import { photoCard } from "./photoView.ts";
 import { createRoom, joinRoom, reconnectRoom } from "./network.ts";
 import { joinErrorText, lobbyView } from "./lobbyView.ts";
+import { Screens } from "./screens.ts";
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
 }
 
-const menu = el("menu");
-const lobby = el("lobby");
-const nameInput = el<HTMLInputElement>("name");
+// The menus: one screen at a time (screens.ts). The start page is home until you join a room.
+const screens = new Screens("start");
+/** Both name fields (Create and Join) hold the same remembered name. */
+const nameInputs = [el<HTMLInputElement>("name"), el<HTMLInputElement>("join-name")];
 const codeInput = el<HTMLInputElement>("code");
 const createBtn = el<HTMLButtonElement>("create");
 const joinBtn = el<HTMLButtonElement>("join");
 const errorText = el("error");
+const createError = el("create-error");
+const joinError = el("join-error");
+for (const input of nameInputs) {
+  input.addEventListener("input", () => {
+    for (const other of nameInputs) if (other !== input) other.value = input.value;
+  });
+}
+// Enter in a field presses that screen's button.
+nameInputs[0]!.addEventListener("keydown", (e) => e.key === "Enter" && createBtn.click());
+for (const input of [nameInputs[1]!, codeInput]) input.addEventListener("keydown", (e) => e.key === "Enter" && joinBtn.click());
+codeInput.addEventListener("input", () => {
+  const at = codeInput.selectionStart;
+  codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z]/g, "");
+  codeInput.setSelectionRange(at, at);
+});
 const roomCodeText = el("room-code");
 const copyCodeBtn = el<HTMLButtonElement>("copy-code");
 const copyLinkBtn = el<HTMLButtonElement>("copy-link");
@@ -53,11 +71,16 @@ const actionLabel = el("action-label");
 const actionFill = el("action-fill");
 const banner = el("banner");
 let bannerTimer: ReturnType<typeof setTimeout> | undefined;
-const micBox = el("mic");
 const micFill = el("mic-fill");
 const micStatus = el("mic-status");
 const micSentence = el("mic-sentence");
 const micCheckBtn = el<HTMLButtonElement>("mic-check");
+const micDone = el<HTMLButtonElement>("mic-done");
+const optionsMic = el("options-mic");
+const optionsMicStatus = el("options-mic-status");
+/** The mic screen opens by itself once, the first time a check is needed in a room. */
+let micScreenShown = false;
+let inRoom = false;
 const micLost = el("mic-lost");
 const lookHint = el("look-hint");
 const itemsBox = el("items");
@@ -338,10 +361,10 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
   },
   showBanner,
   setVoice: (state) => {
-    micBox.classList.toggle("hidden", state.kind === "off");
+    optionsMic.classList.toggle("hidden", state.kind === "off");
     micStatus.classList.remove("error");
     micCheckBtn.classList.add("hidden");
-    micSentence.classList.add("hidden");
+    micSentence.classList.remove("hidden");
     let canPlay = state.kind === "off" || state.kind === "ready";
     switch (state.kind) {
       case "connecting":
@@ -357,17 +380,16 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
         canPlay = true;
         break;
       case "needs-check":
-        micStatus.textContent = state.error ?? "Mic check: press the button and read the sentence below.";
+        micStatus.textContent = state.error ?? "Press the button, then read the line out loud.";
         if (state.error) micStatus.classList.add("error");
-        micSentence.classList.remove("hidden");
         micCheckBtn.classList.remove("hidden");
         break;
       case "checking":
         micStatus.textContent = "Listening... keep reading at your normal volume.";
-        micSentence.classList.remove("hidden");
         break;
       case "ready":
         micStatus.textContent = "Mic check done. Remember: whisper to hide from the ghost.";
+        micSentence.classList.add("hidden");
         break;
     }
     // A debug server lets you play without a mic; the ghost hears you as talking normally.
@@ -379,7 +401,19 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
         micStatus.textContent = `No microphone. ${note}`;
       } else micStatus.textContent += ` Or skip it: ${note.charAt(0).toLowerCase()}${note.slice(1)}`;
     }
-    lookHint.textContent = canPlay ? "Click anywhere outside this box to play." : "Do the mic check before you play.";
+    lookHint.textContent = canPlay ? "Click the hotel to walk around. Esc brings this menu back." : "Do the mic check before you play.";
+    lookHint.classList.toggle("warn", !canPlay);
+    optionsMicStatus.textContent = micStatus.textContent;
+    // Done (or not needed): the way on is the main button. Not done yet: you can still come back later.
+    micDone.textContent = canPlay ? "Continue to the room" : "Do it later";
+    micDone.classList.toggle("primary", canPlay && state.kind !== "needs-check");
+    micDone.classList.toggle("quiet", !(canPlay && state.kind !== "needs-check"));
+    // The first time a check is needed (or a required mic is missing), the mic screen opens by itself.
+    const needsAttention = state.kind === "needs-check" || (state.kind === "no-mic" && !canPlay);
+    if (needsAttention && inRoom && !micScreenShown && screens.current === "room") {
+      micScreenShown = true;
+      screens.go("mic");
+    }
   },
   setMicLevel: (level) => {
     micFill.style.width = `${Math.round(level * 100)}%`;
@@ -557,10 +591,13 @@ try {
 } catch {
   // Storage blocked: use the default.
 }
+const volumeValue = el("volume-value");
 volumeInput.value = String(savedVolume);
+volumeValue.textContent = `${savedVolume}%`;
 game.setVolume(savedVolume / 100);
 volumeInput.addEventListener("input", () => {
   const value = Number(volumeInput.value);
+  volumeValue.textContent = `${value}%`;
   game.setVolume(value / 100);
   try {
     localStorage.setItem("volume", String(value));
@@ -577,7 +614,7 @@ const linkCode = new URLSearchParams(location.search).get("room");
 if (linkCode) codeInput.value = normalizeRoomCode(linkCode);
 
 try {
-  nameInput.value = localStorage.getItem("playerName") ?? "";
+  for (const input of nameInputs) input.value = localStorage.getItem("playerName") ?? "";
   // Why you are back on the start page (removed by the host).
   const left = sessionStorage.getItem("leftReason");
   if (left) {
@@ -588,14 +625,21 @@ try {
   // Storage can be blocked (private windows). The name just isn't remembered.
 }
 
+// A friend's invite link opens the Join screen with the code filled in.
+if (linkCode) screens.reset("join");
+else screens.reset("start");
+
+/** Errors show on the screen you are on. */
 function showError(message: string) {
-  errorText.textContent = message;
+  const box = screens.current === "create" ? createError : screens.current === "join" ? joinError : errorText;
+  for (const b of [createError, joinError, errorText]) b.textContent = b === box ? message : "";
 }
 
-function readName(): string | null {
-  const name = cleanPlayerName(nameInput.value);
+function readName(input: HTMLInputElement): string | null {
+  const name = cleanPlayerName(input.value);
   if (!name) {
     showError(`Type a name (1 to ${config.room.nameMaxLength} characters).`);
+    input.focus();
     return null;
   }
   try {
@@ -650,17 +694,18 @@ async function enter(connect: () => Promise<Room>) {
 
 createBtn.addEventListener("click", () => {
   game.unlockSound(); // a button click lets the browser start sound and voice
-  const name = readName();
+  const name = readName(nameInputs[0]!);
   if (name) enter(() => createRoom({ name }));
 });
 
 joinBtn.addEventListener("click", () => {
   game.unlockSound();
-  const name = readName();
+  const name = readName(nameInputs[1]!);
   if (!name) return;
   const code = normalizeRoomCode(codeInput.value);
   if (!isValidRoomCode(code)) {
     showError("Room codes are 5 letters, like KQXRT.");
+    codeInput.focus();
     return;
   }
   enter(() => joinRoom(code, { name }));
@@ -686,12 +731,14 @@ function addLogLine(text: string) {
 }
 
 function enterLobby(room: Room) {
-  menu.classList.add("hidden");
-  lobby.classList.remove("hidden");
   game.attach(room);
   saveToken(room);
   roomCodeText.textContent = room.roomId;
   history.replaceState(null, "", `?room=${room.roomId}`);
+  // From here the room is home: the menus sit at the side and the hotel stays in view.
+  inRoom = true;
+  document.body.classList.add("in-room");
+  screens.setRoot("room");
 
   const link = `${location.origin}${location.pathname}?room=${room.roomId}`;
   copyCodeBtn.onclick = () => copyToButton(copyCodeBtn, room.roomId, "Code copied");
@@ -700,7 +747,7 @@ function enterLobby(room: Room) {
   // Your own join message can arrive before this listener exists, so say it here.
   addLogLine("You joined the room");
   room.onMessage("system", (msg: ServerMessages["system"]) => {
-    if (msg.kind === "join" && msg.name === nameInput.value.trim() && log.childElementCount <= 1) return;
+    if (msg.kind === "join" && msg.name === nameInputs[0]!.value.trim() && log.childElementCount <= 1) return;
     addLogLine(msg.text);
   });
 
@@ -736,10 +783,22 @@ function enterLobby(room: Room) {
   const rematchBtn = el<HTMLButtonElement>("end-rematch");
   rematchBtn.onclick = () => room.send("rematch");
   // Leaving on purpose frees your slot at once (no 60 s hold).
-  el("end-leave").onclick = async () => {
+  const leave = async () => {
     saveToken(null);
     await room.leave().catch(() => {});
     location.href = location.pathname;
+  };
+  el("end-leave").onclick = leave;
+  // From the room menu, a second click confirms, like Remove.
+  const leaveBtn = el<HTMLButtonElement>("leave-room");
+  leaveBtn.onclick = () => {
+    if (leaveBtn.dataset.armed) return void leave();
+    leaveBtn.dataset.armed = "1";
+    leaveBtn.textContent = "Click again to leave";
+    setTimeout(() => {
+      delete leaveBtn.dataset.armed;
+      leaveBtn.textContent = "Leave room";
+    }, 3000);
   };
 
   // Starting the night: the host's button, the countdown, then your role (GDD 4.1 and 5).
@@ -756,20 +815,22 @@ function enterLobby(room: Room) {
     // Your task list now shows whether it is real.
     room.send("tasksRequest");
   });
-  room.onStateChange((state: { stage?: string; stageLeft?: number; host?: string; players?: { size: number } }) => {
+  room.onStateChange((state: { stage?: string; stageLeft?: number; host?: string; players?: { get(id: string): { character?: string } | undefined } }) => {
     const waiting = state.stage === "waiting";
     const isHost = state.host === room.sessionId;
     el("start-box").classList.toggle("hidden", !waiting);
     startBtn.classList.toggle("hidden", !isHost);
     rematchBtn.classList.toggle("hidden", !isHost);
-    el("end-wait").textContent = isHost ? "Rematch takes everyone back to the lobby with the same settings and characters." : "Waiting for the host to start a rematch.";
+    el("end-wait").textContent = isHost
+      ? "Rematch takes everyone back to the lobby with the same settings. Everyone gets a new character."
+      : "Waiting for the host to start a rematch.";
     if (waiting && !refusedShown) {
       startHint.textContent = isHost
         ? `You are the host. Start when everyone is Ready (${config.players.min} to ${config.players.max} players). Until then, walk around and try your mic.`
-        : "Pick a character, do the mic check and press Ready. The host starts the night.";
+        : "Do the mic check and press Ready. The host starts the night.";
     }
     if (!waiting) refusedShown = false;
-    showIntro(state.stage ?? "", state.stageLeft ?? 0);
+    showIntro(state.stage ?? "", state.stageLeft ?? 0, characterById(state.players?.get(room.sessionId)?.character ?? "")?.name);
   });
 }
 
@@ -790,8 +851,8 @@ function powerStateText(p: PowerStatus): string {
   return "";
 }
 
-/** The countdown, then your role for the intro's 10 seconds (GDD 4.1). */
-function showIntro(stage: string, secondsLeft: number) {
+/** The countdown, then your role and character for the intro's 10 seconds (GDD 4.1, 26.14). */
+function showIntro(stage: string, secondsLeft: number, character?: string) {
   intro.classList.toggle("hidden", stage !== "countdown" && stage !== "intro");
   if (stage === "countdown") {
     delete intro.dataset.role;
@@ -806,11 +867,11 @@ function showIntro(stage: string, secondsLeft: number) {
       const partners = myRole.partners.length ? `Also possessed: ${myRole.partners.join(", ")}. ` : "";
       // Only the possessed know who the ghost was (GDD 26.13): lie about the clues.
       const ghost = myRole.ghost ? `The ghost was ${myRole.ghost}. Lead the team to the wrong relic. ` : "";
-      introExtra.textContent = `${partners}${ghost}Hold R for your powers.`;
+      introExtra.textContent = `${character ? `You are ${character}. ` : ""}${partners}${ghost}Hold R for your powers.`;
     } else {
       introTitle.textContent = "INVESTIGATOR";
       introText.textContent = "Do your tasks, find the relics, finish the ritual before dawn.";
-      introExtra.textContent = "";
+      introExtra.textContent = character ? `Tonight you are ${character}.` : "";
     }
   }
 }

@@ -127,7 +127,7 @@ The GDD says **how the game works**. This PRD says **what must be built for vers
 
 1. A host opens the site and creates a room, getting a code and a link.
 2. Friends click the link, type a name, and land in the lobby.
-3. Everyone picks a character and does the mic check.
+3. Everyone does the mic check. Characters are dealt at random when the night starts (GDD 26.14).
 4. The host picks a preset or changes settings. Everyone sees the settings code.
 5. Everyone presses Ready. The host presses Start. 5-second countdown.
 6. A 10-second intro privately shows each player their role.
@@ -150,7 +150,7 @@ The last column points to the GDD section with the detailed rules.
 |---|---|---|---|---|
 | FR-L1 | Create a room with a 5-letter code and a link | P0 | Room exists in under 2 s. Codes use A to Z without O and I | 5 |
 | FR-L2 | Join by code or link with a display name, no account | P0 | A new player reaches the lobby in under 30 s | 5 |
-| FR-L3 | Character select, one character per player | P0 | Two players cannot hold the same character. Choice persists through rematch | 22.1 |
+| FR-L3 | Characters dealt at random each night, one per player (changed from a picker, GDD 26.14) | P0 | Two players never hold the same character. Every night, rematches too, deals again | 22.1 |
 | FR-L4 | Mic check that stores each player's normal level on the server | P0 | Calibration takes under 10 s. A player cannot press Ready until it passes. A player with no working mic sees a clear message explaining why they cannot play | 5, 13 |
 | FR-L5 | Host edits all settings and presets, synced live | P0 | Changes appear for everyone within 1 s and lock at countdown | 20 |
 | FR-L6 | Ready check and 5-second countdown | P0 | Start is blocked until every player is Ready and there are at least 4 players | 5 |
@@ -413,8 +413,10 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 - Match log (PRD 10.6), kick tool
 - **Done when:** 8 players can start, finish, rematch and change settings without restarting anything.
 - **Progress:** built 2026-11-09 to the plan in `docs/plans/phase-7.md` (owner's answers and new rules in GDD 26.14):
-  - The lobby: characters (one per player, a colour until the Phase 8 models), Ready (needs a character and the mic check), host settings with Basic and Advanced tabs, the 3 presets and Custom, the settings code, and kick.
-  - The night plays by the settings. Rematch keeps the room, characters, settings and fair rotation.
+  - The lobby: Ready (needs the mic check), host settings with Basic and Advanced tabs, the 3 presets and Custom, the settings code, and kick.
+  - Characters are dealt at random each night (a colour until the Phase 8 models), changed by the owner on 2026-11-09 (GDD 26.14).
+  - The menus are separate screens: Start, Create, Join, Options, Mic check, Room, Room settings (GDD 26.14).
+  - The night plays by the settings. Rematch keeps the room, settings and fair rotation.
   - The 60 s disconnect hold, with reconnecting after a page reload.
   - The end screen's timeline and awards, and the match log (a `MATCHLOG` line in the server output).
   - An automated test plays the "Done when" story with 8 players: Start, finish, Rematch, Hardcore, Start again. Waiting for the owner's playtest (PRD 12).

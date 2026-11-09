@@ -1,6 +1,6 @@
 # Phase 7 plan: lobby, settings and stability
 
-Status: **built 2026-11-09; every step's checks pass (266 tests), waiting for the owner's playtest.** Branch `phase-7-lobby`.
+Status: **built 2026-11-09; every step's checks pass, waiting for the owner's playtest.** Branch `phase-7-lobby`. After a first look the owner changed two things (section 5): characters are dealt at random, and the menus became separate screens.
 
 Sources: PRD Section 11 (Phase 7), FR-L1 to FR-L10, FR-E7, FR-E8, FR-D1, PRD 10.4, 10.6 and 10.7; GDD Sections 3, 5, 13, 18, 19, 20 and 22.1.
 
@@ -178,14 +178,14 @@ Where it goes: one line in the server's output starting with `MATCHLOG`, which R
 
 ### Step 8. Done-when test
 
-**Automated:** 8 test clients join one room, pick 8 different characters, do the mic check and press Ready. Then:
+**Automated:** 8 test clients join one room, do the mic check and press Ready. Then:
 1. The host starts, and the night is ended.
 2. The host presses Rematch, changes the preset to Hardcore, and starts again.
 3. The second night uses the Hardcore settings: a 10-minute night, 4 tasks each, and so on.
 
 Nothing is restarted between the two nights.
 
-**In the browser:** 4 to 8 tabs on a debug server. Create a room, pick characters, Ready, Start, end the night, check the end screen, Rematch, change settings, and play again. Also drop a tab and come back.
+**In the browser:** 4 to 8 tabs on a debug server. Create a room, Ready, Start, end the night, check the end screen, Rematch, change settings, and play again. Also drop a tab and come back.
 
 **Then the owner's playtest (PRD 12):** with friends, on the hosted game.
 
@@ -208,3 +208,12 @@ Nothing is restarted between the two nights.
 2. **Who was the ghost?:** an Advanced setting, On or Off, default On.
 3. **Rematch:** only the host presses it.
 4. **Kicked players:** they can join the same room again. The kick itself stays (FR-L8 needs it).
+
+## 5. Changes after the owner's first look (2026-11-09, recorded in GDD 26.14)
+
+1. **Characters are dealt, not picked.** The character picker is gone. When the night starts, every player gets a different character at random (`dealCharacters` in `shared/src/characters.ts`), shown in the role reveal. Every night deals again. Ready now needs only the mic check.
+2. **Menus as screens** (`client/src/screens.ts`): Start (Create a room, Join a room, Options), Create, Join, Options (sound, mic, controls), Mic check, the Room (players, Ready, Start, a settings summary, photos, the log, Options and Leave), and Room settings (presets, Basic and Advanced tabs).
+   - Before joining, a screen covers the page. In a room, the screens sit down the left side, so the hotel stays in view. Click the hotel to walk; Esc brings the menu back.
+   - An invite link opens Join with the code filled in. The mic check screen opens by itself the first time it is needed. The browser's Back button moves between screens.
+   - Players show a letter badge, You and Host tags, "Reconnecting…" while their connection is lost, and their character once dealt.
+   - Leave room needs a second click.
