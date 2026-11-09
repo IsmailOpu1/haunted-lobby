@@ -1,6 +1,6 @@
 # Phase 7 plan: lobby, settings and stability
 
-Status: **plan, waiting for the owner's approval.** Branch `phase-7-lobby`.
+Status: **approved 2026-11-09, being built.** Branch `phase-7-lobby`.
 
 Sources: PRD Section 11 (Phase 7), FR-L1 to FR-L10, FR-E7, FR-E8, FR-D1, PRD 10.4, 10.6 and 10.7; GDD Sections 3, 5, 13, 18, 19, 20 and 22.1.
 
@@ -202,9 +202,9 @@ Nothing is restarted between the two nights.
 - The kicked player sees "The host removed you from the room."
 - Settings stay through a rematch. The host can change them in the lobby before the next Start.
 
-## 4. Questions for the owner
+## 4. The owner's answers (2026-11-09, recorded in GDD 26.14)
 
-1. **Beginner preset length.** GDD 20.1 says Beginner is 15 minutes, but Standard became 15 minutes on 2026-10-29, so Beginner would be the same as Standard. Suggestion: Beginner 20 minutes.
-2. **Who was the ghost? as a setting.** The mystery pilot is waiting for your friends' playtest. Suggestion: an Advanced setting "Who was the ghost?" On/Off (default On), so a group can switch it off. If the playtest says it's not fun, it is easy to remove.
-3. **Who presses Rematch.** Suggestion: only the host. Everyone returns to the lobby together, and anyone can still leave. Otherwise anyone could press it, which pulls everyone back while others are still reading the end screen.
-4. **Can a kicked player come back?** Suggestion: not into the same room (the server remembers that browser for this room). They can join a new room.
+1. **Beginner preset length:** 20 minutes.
+2. **Who was the ghost?:** an Advanced setting, On or Off, default On.
+3. **Rematch:** only the host presses it.
+4. **Kicked players:** they can join the same room again. The kick itself stays (FR-L8 needs it).

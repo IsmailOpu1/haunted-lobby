@@ -929,3 +929,14 @@ The owner approved `docs/plans/mystery-pilot.md` with the suggested answers. Wha
 | Ghost behaviour | The same for every suspect | Plan, question 5 |
 | Debug | `{ openBasement: true }` places every relic and opens the basement; `{ mystery: false }` before the night plays without the mystery | To try it alone, and for the older tests |
 
+
+### 26.14 Phase 7 lobby decisions (owner answered 2026-11-09)
+
+| Rule | Value | Why |
+|---|---|---|
+| Beginner preset length | 20 minutes (20.1 said 15) | Standard became 15 minutes on 2026-10-29, so Beginner would have been the same length |
+| Who was the ghost? | An Advanced setting, On or Off, default On | The pilot waits for the owner's playtest; a group can switch it off |
+| Rematch | Only the host presses it; everyone returns to the lobby together, Ready cleared, characters and settings kept | Nobody is pulled away from the end screen by another player |
+| Kicked players | Can join the same room again (the kick removes them once) | Owner's choice |
+| Countdown | Cancelled if anyone leaves or un-readies during it | Start needs everyone Ready (FR-L6) |
+| Ready | Everyone, the host too, must be Ready. Changing a setting does not clear Ready; a "Settings changed" line goes to the log | Not covered by Section 5 |
