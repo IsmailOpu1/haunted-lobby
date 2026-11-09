@@ -309,6 +309,20 @@ export const config = {
     maxQueuedInputs: 30,
   },
   room: { codeLength: 5, codeAlphabet: "ABCDEFGHJKLMNPQRSTUVWXYZ", nameMaxLength: 16 },
+  // Lobby settings (GDD 20). Each preset lists only what it changes from Standard; codes go in
+  // the settings code (GDD 5), e.g. STD-15-P1. Beginner is 20 min (GDD 26.14).
+  settings: {
+    possessedOptions: ["auto", 1, 2],
+    difficultyOptions: ["easy", "normal", "hard"],
+    circleOptions: ["auto", 2, 3],
+    cooldownSpeedOptions: ["slow", "normal", "fast"],
+    presets: {
+      standard: { code: "STD", changes: {} },
+      beginner: { code: "BEG", changes: { lengthMin: 20, difficulty: "easy", tasksPerPlayer: 2, cameraShots: 2, saltPerPlayer: 3, discussionSec: 90 } },
+      hardcore: { code: "HRD", changes: { lengthMin: 10, difficulty: "hard", tasksPerPlayer: 4, saltPerPlayer: 1, revealRole: false, anonymousVoting: true } },
+    },
+    customCode: "CUS",
+  },
 } as const;
 
 export type Config = typeof config;
