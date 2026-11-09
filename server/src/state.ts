@@ -43,6 +43,8 @@ export const Player = schema({
   // The lobby (GDD 5, 22.1): the character picked ("" for none yet) and the Ready mark.
   character: t.string(),
   ready: t.boolean(),
+  /** False while the player's connection is lost and their slot is held (GDD 18). */
+  connected: t.boolean(),
 }, "Player");
 export type Player = SchemaType<typeof Player>;
 

@@ -20,3 +20,8 @@ export function createRoom(options: JoinOptions): Promise<Room> {
 export function joinRoom(code: string, options: JoinOptions): Promise<Room> {
   return client.joinById(normalizeRoomCode(code), options);
 }
+
+/** Back into a room after reloading the page, within the 60 s the server holds your slot (GDD 18). */
+export function reconnectRoom(token: string): Promise<Room> {
+  return client.reconnect(token);
+}

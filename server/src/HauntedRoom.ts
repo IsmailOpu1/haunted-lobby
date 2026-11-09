@@ -272,6 +272,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private votes = new Map<string, string>();
   /** Who the vote removed, out at the end of the meeting. */
   private removedId: string | null = null;
+  /** Players who left during the night, so the end screen still shows their role (GDD 18). */
+  private departed: { name: string; role: Role }[] = [];
+  /** Held slots of dropped players: rejecting one ends the wait early (tests). */
+  private held = new Map<string, { reject: Function }>();
 
   async onCreate() {
     // The 5-letter room code is the Colyseus room id, so friends join with joinById(code).
@@ -468,7 +472,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       wantsPossessed: false,
     });
 
-    this.state.players.set(client.sessionId, new Player({ name, lastSeq: 0, character: "", ready: false, ...this.freshPlayer(spawn) }));
+    this.state.players.set(client.sessionId, new Player({ name, lastSeq: 0, character: "", ready: false, connected: true, ...this.freshPlayer(spawn) }));
     this.state.tasksTotal += this.sims.get(client.sessionId)!.tasks.length;
     if (!this.state.host) this.state.host = client.sessionId;
     this.announce("join", name, `${name} joined the room`);
@@ -489,10 +493,54 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     client.send("voice", msg);
   }
 
+  /**
+   * A connection was lost without leaving (GDD 18): the character freezes where it stands, and
+   * the ghost can still hit it. The slot is held for disconnect.holdSec; onLeave runs if they never return.
+   */
+  onDrop(client: Client) {
+    const player = this.state.players.get(client.sessionId);
+    const sim = this.sims.get(client.sessionId);
+    if (!player || !sim) return;
+    player.connected = false;
+    sim.inputs = [];
+    if (sim.task) this.closeTask(client.sessionId, "cancelled");
+    if (sim.action) this.cancelAction(client.sessionId);
+    if (player.ready && (this.state.stage === "waiting" || this.state.stage === "countdown")) {
+      player.ready = false;
+      if (this.state.stage === "countdown") this.cancelCountdown(`${player.name} lost their connection.`);
+    }
+    // Host rights pass to whoever has been connected longest (GDD 18).
+    if (this.state.host === client.sessionId) {
+      const next = [...this.state.players.entries()].find(([id, p]) => id !== client.sessionId && p.connected);
+      if (next) this.state.host = next[0];
+    }
+    this.announce("lobby", player.name, `${player.name} lost their connection. Waiting ${config.disconnect.holdSec} s for them.`);
+    this.held.set(client.sessionId, this.allowReconnection(client, config.disconnect.holdSec));
+  }
+
+  /** They came back in time: same role, tasks and items. Their private messages are sent again. */
+  onReconnect(client: Client) {
+    this.held.delete(client.sessionId);
+    const player = this.state.players.get(client.sessionId);
+    if (!player) return;
+    player.connected = true;
+    if (!this.state.host) this.state.host = client.sessionId;
+    if (this.state.stage === "intro" || this.state.stage === "night") this.sendRole(client);
+    this.sendTasks(client.sessionId);
+    this.announce("lobby", player.name, `${player.name} is back.`);
+  }
+
   onLeave(client: Client) {
+    this.held.delete(client.sessionId);
     const leaving = this.sims.get(client.sessionId);
     // A player who leaves takes their unfinished tasks off the bar; finished ones still count.
-    if (leaving) this.state.tasksTotal -= leaving.tasks.filter((t) => !t.done).length;
+    // (The possessed's fake tasks left the bar when roles were dealt.)
+    if (leaving && leaving.role === "investigator") this.state.tasksTotal -= leaving.tasks.filter((t) => !t.done).length;
+    // Gone for good during the night: the end screen still shows their role (GDD 18).
+    const name = this.state.players.get(client.sessionId)?.name;
+    if (leaving && name && (this.state.stage === "intro" || this.state.stage === "night") && !this.state.winner) {
+      this.departed.push({ name, role: leaving.role });
+    }
     // A relic they carried falls where they stood (GDD 18).
     this.dropRelic(client.sessionId, false);
     leaving?.removeBody();
@@ -594,6 +642,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.meetingBodyId = null;
     this.votes.clear();
     this.removedId = null;
+    this.departed = [];
     this.spawnIndex = 0;
 
     for (const door of this.map.doors) {
@@ -804,7 +853,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const victim = this.clients.getById(target);
     if (!victim) return;
     victim.send("kicked", { reason: "The host removed you from the room." } satisfies ServerMessages["kicked"]);
-    victim.leave();
+    // A kick is a leave, not a lost connection: no slot is held.
+    victim.leave(4000);
   }
 
   /** The host takes everyone back to the lobby for another night with the same settings and characters (GDD 19). */
@@ -863,15 +913,20 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.noInvestigators = picked.length === ids.length;
     this.possessedDealt = picked.length > 0;
     this.dealClues();
-    const names = (list: string[]) => list.map((id) => this.state.players.get(id)?.name ?? "");
-    for (const client of this.clients) {
-      const sim = this.sims.get(client.sessionId);
-      if (!sim) continue;
-      const partners = sim.role === "possessed" && this.settings.knowEachOther ? names(picked.filter((id) => id !== client.sessionId)) : [];
-      const msg: ServerMessages["role"] = { role: sim.role, partners };
-      if (sim.role === "possessed" && this.ghostSuspect) msg.ghost = this.ghostSuspect.name;
-      client.send("role", msg);
-    }
+    for (const client of this.clients) this.sendRole(client);
+  }
+
+  /** Your role, privately (PRD 10.3): when roles are dealt, and again after a reconnect. */
+  private sendRole(client: Client) {
+    const sim = this.sims.get(client.sessionId);
+    if (!sim) return;
+    const partners =
+      sim.role === "possessed" && this.settings.knowEachOther
+        ? [...this.sims].filter(([id, s]) => id !== client.sessionId && s.role === "possessed").map(([id]) => this.state.players.get(id)?.name ?? "")
+        : [];
+    const msg: ServerMessages["role"] = { role: sim.role, partners };
+    if (sim.role === "possessed" && this.ghostSuspect) msg.ghost = this.ghostSuspect.name;
+    client.send("role", msg);
   }
 
   /** Every clue task goes to an investigator, never the possessed (GDD 26.13). */
@@ -1373,6 +1428,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     this.ghost.update(0, "dawn", this.state.players.size);
     const roles: ServerMessages["matchEnd"]["roles"] = [];
     this.state.players.forEach((p, id) => roles.push({ name: p.name, role: this.sims.get(id)?.role ?? "investigator" }));
+    roles.push(...this.departed);
     const msg: ServerMessages["matchEnd"] = { ...result, roles, photos: this.photos.map((p) => p.photo), ghost: this.ghostSuspect?.name ?? null };
     this.broadcast("matchEnd", msg);
   }

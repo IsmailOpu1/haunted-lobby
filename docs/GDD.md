@@ -944,3 +944,5 @@ The owner approved `docs/plans/mystery-pilot.md` with the suggested answers. Wha
 | Ghost hears real mic: Off | Voices make no noise for the ghost; footsteps, doors and every other sound still do | 20.3 names the setting but not what Off means |
 | A settings change in the lobby | Sets up the night again at once (new relic spots and task lists) | The night is built from the settings |
 | Characters before Phase 8 | Each of the 8 has a colour, shown in the lobby; the models come in Phase 8 | 22.1 |
+| A lost connection | The slot is held 60 s in every stage (lobby too); in the lobby the player is no longer Ready. Reloading the page within the 60 s gets you back in. Host rights pass at once to the longest-connected player | 18 |
+| Gone for good during the night | Removed like a player who left: a relic they carried drops, their unfinished tasks leave the bar, and the end screen still shows their role | 18 says "becomes a Wisp"; with nobody behind it a Wisp does nothing, so removing them has the same effect |

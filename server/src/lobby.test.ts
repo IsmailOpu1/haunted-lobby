@@ -210,3 +210,67 @@ describe("rematch (GDD 19, FR-L10)", () => {
     await Promise.all(rooms.map((r) => r.leave()));
   }, 30000);
 });
+
+describe("disconnect and reconnect (GDD 18, FR-E7)", () => {
+  /** Drops a client's connection without leaving, as a lost Wi-Fi would. */
+  function drop(room: Room) {
+    room.reconnection.enabled = false;
+    room.connection.close(4010, "test drop");
+  }
+
+  it("a dropped player freezes in place, and returns within the hold with the same role and tasks", async () => {
+    const { host, rooms, server } = await lobby(4);
+    const ghoul = rooms[1]!;
+    ghoul.send("debug", { possessed: true });
+    await pause(100);
+    host.send("debug", { startNow: true });
+    await waitFor(() => host.state.stage === "night");
+    const id = ghoul.sessionId;
+    const tasksBefore = JSON.stringify(server.sims.get(id).tasks);
+    const token = ghoul.reconnectionToken;
+    drop(ghoul);
+    await waitFor(() => host.state.players.get(id)?.connected === false);
+    // Still in the night: the ghost can still reach the frozen character.
+    expect(host.state.players.has(id)).toBe(true);
+    const back = await new Client(endpoint).reconnect(token);
+    const roles = collect(back, "role");
+    back.onMessage("*", () => {});
+    await waitFor(() => roles.length === 1);
+    expect(back.sessionId).toBe(id);
+    expect(roles[0]!.role).toBe("possessed");
+    expect(JSON.stringify(server.sims.get(id).tasks)).toBe(tasksBefore);
+    await waitFor(() => host.state.players.get(id)?.connected === true);
+    await Promise.all([host, rooms[2]!, rooms[3]!, back].map((r) => r.leave()));
+  });
+
+  it("a player who never returns is out: their relic drops and the end screen still shows their role", async () => {
+    const { host, rooms, server } = await lobby(5);
+    const roleMsgs = collect(rooms[4]!, "role");
+    const ends = collect(host, "matchEnd");
+    host.send("debug", { startNow: true });
+    await waitFor(() => roleMsgs.length === 1);
+    const gone = rooms[4]!;
+    const id = gone.sessionId;
+    // They carry a relic.
+    server.state.relics.get("R1").status = "carried";
+    server.state.relics.get("R1").carrier = id;
+    server.state.players.get(id).relic = "R1";
+    drop(gone);
+    await waitFor(() => server.held.has(id));
+    // The 60 s run out (ended early here).
+    server.held.get(id).reject(new Error("timed out"));
+    await waitFor(() => !host.state.players.has(id));
+    expect(host.state.relics.get("R1").status).toBe("dropped");
+    host.send("debug", { nightTime: 1e6 });
+    await waitFor(() => ends.length === 1);
+    expect(ends[0]!.roles.find((r) => r.name === "P5")?.role).toBe(roleMsgs[0]!.role);
+    await Promise.all(rooms.slice(0, 4).map((r) => r.leave()));
+  });
+
+  it("the host's rights pass on while the host is away (GDD 18)", async () => {
+    const { host, rooms } = await lobby(3);
+    drop(host);
+    await waitFor(() => rooms[1]!.state.host === rooms[1]!.sessionId);
+    await Promise.all(rooms.slice(1).map((r) => r.leave()));
+  });
+});

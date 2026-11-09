@@ -14,7 +14,7 @@ import { defaultMap } from "@haunted/maps";
 import { FloorPlan } from "./floorplan.ts";
 import { Game, POWER_NAMES } from "./game.ts";
 import { photoCard } from "./photoView.ts";
-import { createRoom, joinRoom } from "./network.ts";
+import { createRoom, joinRoom, reconnectRoom } from "./network.ts";
 import { joinErrorText, lobbyView } from "./lobbyView.ts";
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T {
@@ -581,6 +581,35 @@ function readName(): string | null {
   return name;
 }
 
+/** The reconnection pass for this tab's room, kept so a reload gets you back in (GDD 18). */
+const TOKEN_KEY = "reconnect";
+function saveToken(room: Room | null) {
+  try {
+    if (room) sessionStorage.setItem(TOKEN_KEY, JSON.stringify({ code: room.roomId, token: room.reconnectionToken }));
+    else sessionStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // Storage blocked: a reload just goes back to the start page.
+  }
+}
+
+async function tryReconnect() {
+  let saved: { code: string; token: string } | null = null;
+  try {
+    saved = JSON.parse(sessionStorage.getItem(TOKEN_KEY) ?? "null");
+  } catch {
+    saved = null;
+  }
+  if (!saved || !linkCode || normalizeRoomCode(linkCode) !== saved.code) return;
+  createBtn.disabled = joinBtn.disabled = true;
+  try {
+    enterLobby(await reconnectRoom(saved.token));
+  } catch {
+    saveToken(null);
+  } finally {
+    createBtn.disabled = joinBtn.disabled = false;
+  }
+}
+
 async function enter(connect: () => Promise<Room>) {
   showError("");
   createBtn.disabled = joinBtn.disabled = true;
@@ -635,6 +664,7 @@ function enterLobby(room: Room) {
   menu.classList.add("hidden");
   lobby.classList.remove("hidden");
   game.attach(room);
+  saveToken(room);
   roomCodeText.textContent = room.roomId;
   history.replaceState(null, "", `?room=${room.roomId}`);
 
@@ -654,7 +684,16 @@ function enterLobby(room: Room) {
 
   let kickedReason = "";
   room.onMessage("kicked", (msg: ServerMessages["kicked"]) => (kickedReason = msg.reason));
-  room.onLeave(() => {
+  // A lost connection (GDD 18): the game keeps trying for a while; the server holds your slot.
+  room.onDrop(() => showBanner("Connection lost. Reconnecting…", 60));
+  room.onReconnect(() => {
+    saveToken(room);
+    showBanner("Reconnected.", 3);
+  });
+  room.onLeave((code) => {
+    saveToken(null);
+    // 4000: you left yourself.
+    if (!kickedReason && code !== 4000) kickedReason = "Lost the connection to the room. If the server restarted, that night is lost.";
     if (kickedReason) {
       // Back to the start page, saying why.
       try {
@@ -671,6 +710,12 @@ function enterLobby(room: Room) {
   // Rematch (GDD 19): only the host presses it; everyone else waits for them.
   const rematchBtn = el<HTMLButtonElement>("end-rematch");
   rematchBtn.onclick = () => room.send("rematch");
+  // Leaving on purpose frees your slot at once (no 60 s hold).
+  el("end-leave").onclick = async () => {
+    saveToken(null);
+    await room.leave().catch(() => {});
+    location.href = location.pathname;
+  };
 
   // Starting the night: the host's button, the countdown, then your role (GDD 4.1 and 5).
   startBtn.onclick = () => room.send("start");
@@ -744,3 +789,4 @@ function showIntro(stage: string, secondsLeft: number) {
     }
   }
 }
+void tryReconnect();
