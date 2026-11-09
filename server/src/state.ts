@@ -40,6 +40,9 @@ export const Player = schema({
   // Where a dead player's body lies (GDD 16.1). Their x and z are their Wisp's from then on (GDD 17).
   bodyX: t.float32(),
   bodyZ: t.float32(),
+  // The lobby (GDD 5, 22.1): the character picked ("" for none yet) and the Ready mark.
+  character: t.string(),
+  ready: t.boolean(),
 }, "Player");
 export type Player = SchemaType<typeof Player>;
 
@@ -133,5 +136,8 @@ export const GameState = schema({
   /** "" while the match goes on, then "investigators" or "possessed" (GDD 18). */
   winner: t.string(),
   endReason: t.string(),
+  /** The lobby's settings as JSON (shared MatchSettings), and their short code (GDD 5, 20). */
+  settings: t.string(),
+  settingsCode: t.string(),
 }, "GameState");
 export type GameState = SchemaType<typeof GameState>;

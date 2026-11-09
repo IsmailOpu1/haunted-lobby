@@ -886,6 +886,12 @@ describe("HauntedRoom", () => {
     rooms[1]!.send("start");
     await new Promise((r) => setTimeout(r, 300));
     expect(host.state.stage).toBe("waiting");
+    // Everyone picks a character and is Ready (GDD 5).
+    const characters = ["priest", "journalist", "nurse", "student", "detective"];
+    rooms.forEach((r, i) => r.send("character", { id: characters[i] }));
+    await new Promise((r) => setTimeout(r, 100));
+    for (const r of rooms) r.send("ready", { ready: true });
+    await waitFor(() => rooms.every((r) => host.state.players.get(r.sessionId)?.ready === true));
     host.send("start");
     await waitFor(() => host.state.stage === "countdown");
     // Nobody can join once the countdown starts.
@@ -897,7 +903,9 @@ describe("HauntedRoom", () => {
     // One possessed has no partner, and nobody else learns anything.
     for (const r of roles) expect(r[0]!.partners).toEqual([]);
     // Roles are never in the shared state (PRD 10.3).
-    expect(JSON.stringify(host.state.toJSON())).not.toContain("possessed");
+    // (The lobby settings name the "possessed" setting; no role is anywhere else.)
+    const { settings: _settings, ...shared } = host.state.toJSON() as Record<string, unknown>;
+    expect(JSON.stringify(shared)).not.toContain("possessed");
     // The possessed's tasks are fake and leave the team bar (GDD 9).
     expect(host.state.tasksTotal).toBe(4 * config.tasks.perPlayer);
     await Promise.all(rooms.map((r) => r.leave()));

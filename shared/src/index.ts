@@ -18,3 +18,4 @@ export * from "./camera.ts";
 export * from "./meetings.ts";
 export * from "./mystery.ts";
 export * from "./settings.ts";
+export * from "./characters.ts";

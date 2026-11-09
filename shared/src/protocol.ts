@@ -18,7 +18,7 @@ export type Role = "investigator" | "possessed";
 
 export interface ServerMessages {
   /** A line for the lobby log, e.g. "Rafi joined the room". */
-  system: { kind: "join" | "leave"; name: string; text: string };
+  system: { kind: "join" | "leave" | "lobby"; name: string; text: string };
   /** Everyone currently in the room. Sent whenever someone joins or leaves. */
   roster: { players: RosterEntry[] };
   /**
@@ -91,8 +91,12 @@ export interface ServerMessages {
     skip: number;
     votes: { voter: string; target: string }[] | null;
   };
-  /** The host's Start was refused (too few players). */
+  /** The host's Start was refused (too few players, or someone not Ready). */
   startRefused: { reason: string };
+  /** A lobby request of yours was refused: Ready, a character, a setting, a kick or a rematch (GDD 5). */
+  lobbyRefused: { reason: string };
+  /** The host removed you from the room (GDD 5). The connection closes right after. */
+  kicked: { reason: string };
   /** Test shortcut (debug servers only): the ghost was sent away or brought back. */
   debugGhost: { paused: boolean };
   /** Your task list (private). Sent on request and whenever it changes. */
@@ -175,6 +179,16 @@ export interface ClientMessages {
   photo: undefined;
   /** The host starts the night: a countdown, then roles and the intro (GDD 5, 4.1). */
   start: undefined;
+  /** Ready or not (GDD 5). Needs a character, and a passed mic check. */
+  ready: { ready: boolean };
+  /** Pick a character by id (GDD 22.1), one per player. */
+  character: { id: string };
+  /** Host only, in the lobby: a preset, or some settings changed (GDD 20). */
+  settings: { preset: "standard" | "beginner" | "hardcore" } | { change: Partial<import("./settings.ts").MatchSettings> };
+  /** Host only, in the lobby: remove a player by session id (GDD 5). */
+  kick: { target: string };
+  /** Host only, on the end screen: everyone back to the lobby for another night (GDD 19). */
+  rematch: undefined;
   /** As a Wisp, float one floor up (1) or down (-1) (GDD 17). */
   wispFloor: { dir: 1 | -1 };
   /** As a Wisp in a meeting's Evidence step: push the planchette to a living player's session id, or OUIJA_UNKNOWN. */

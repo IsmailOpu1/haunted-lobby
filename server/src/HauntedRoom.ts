@@ -42,6 +42,12 @@ import {
   otherSuspect,
   pickMystery,
   type SuspectDef,
+  changeSettings,
+  characterById,
+  presetSettings,
+  settingsCode,
+  standardSettings,
+  type MatchSettings,
   type DevelopedPhoto,
   POWER_KINDS,
   powerCooldownSec,
@@ -210,6 +216,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   patchRate = 1000 / config.net.tickRate;
 
   private map: MapData = defaultMap;
+  /** The lobby's settings (GDD 20): the host changes them before the countdown; they hold through rematches. */
+  private settings: MatchSettings = standardSettings(defaultMap.id);
+  /** The ghost's navmesh with the relic door as a wall, for each new night. */
+  private lockedNav!: NavMap;
   private physics!: PhysicsWorld;
   private ghost!: Ghost;
   private sims = new Map<string, PlayerSim>();
@@ -280,72 +290,12 @@ export class HauntedRoom extends Room<{ state: GameState }> {
 
     await initPhysics();
     this.physics = new PhysicsWorld(this.map);
-    for (const door of this.map.doors) this.state.doors.set(door.id, new Door({ open: false, locked: false }));
-    this.state.blackout = false;
-    this.state.taintLeft = 0;
-    this.state.ghostNamed = "";
-    this.state.altarWait = 0;
-    this.state.meeting = "" satisfies MeetingStep;
-    this.state.meetingLeft = 0;
-    this.state.meetingCaller = "";
-    this.state.meetingBody = "";
-    // Every jar spot is stocked until the lobby decides the player count (Phase 7).
-    for (const jar of this.map.saltJars) this.state.saltJars.set(jar.id, new SaltJar({ taken: false }));
-    for (const station of this.map.tasks) this.state.stations.set(station.id, new TaskStation({ done: false, clue: "" }));
-    // Tonight's ghost, and the relics: its own belonging is always one of them (GDD 26.13).
-    const mystery = pickMystery(this.map, config.relics.count);
-    this.ghostSuspect = mystery?.ghost ?? null;
-    const relicNames = mystery?.relicNames ?? this.map.relicNames;
-    // Relics hide in random spots each match (GDD 10). The count becomes a lobby setting in Phase 7.
-    for (const spot of this.map.relicSpots) {
-      for (const place of spot.places ?? []) this.state.searchPlaces.set(place.id, new SearchPlace({ searched: false }));
-    }
-    pickRelicSpots(this.map.relicSpots, config.relics.count, config.relics.minSpacingM, Math.random, (a, b) => this.hearingDistance(a, b)).forEach((spot, i) => {
-      const id = `R${i + 1}`;
-      // In a group, the relic hides in one of its places, picked at random (GDD 26.5).
-      const places = searchPlaces(spot);
-      const place = places[Math.floor(Math.random() * places.length)]!;
-      this.relics.push({ id, spotId: spot.id, placeId: place.id, x: place.x, z: place.z, status: "hidden" });
-      this.state.relics.set(id, new Relic({ name: relicNames[i] ?? `Relic ${i + 1}`, status: "hidden", carrier: "" }));
-    });
-    this.state.stage = "waiting" satisfies Stage;
-    this.state.stageLeft = 0;
     this.state.host = "";
-    this.state.tasksDone = 0;
-    this.state.tasksTotal = 0;
-    this.state.nightLength = config.match.lengthMin * 60;
-    this.state.nightTime = 0;
-    this.state.part = "quiet";
-    this.state.overtime = false;
-    this.state.ritualReady = false;
-    this.state.ritualStarted = false;
-    this.state.ritualProgress = 0;
-    this.state.winner = "";
-    this.state.endReason = "";
-
     // While the relic door is locked the ghost cannot get past it either (GDD 10).
     const relicDoor = this.map.relicDoor;
     this.openNav = await NavMap.create(this.map);
-    const nav = relicDoor ? await NavMap.create(this.map, [relicDoor]) : this.openNav;
-    // The ghost starts asleep where the map says (far from the spawn), else in the last room listed.
-    const lastRoom = this.map.rooms[this.map.rooms.length - 1]!;
-    const start = this.map.ghostStart ?? { x: (lastRoom.minX + lastRoom.maxX) / 2, z: (lastRoom.minZ + lastRoom.maxZ) / 2 };
-    this.ghost = new Ghost(nav, this.ghostWorld(), start);
-    this.trick = createTrick(this.map.ghostTrick, {
-      ghost: () => this.ghost,
-      // The relic door opens only by its relics.
-      doors: this.map.doors.filter((d) => d.id !== this.map.relicDoor),
-      isDoorOpen: (id) => this.state.doors.get(id)?.open ?? true,
-      swingDoor: (id) => this.setDoor(id, true),
-      ring: (at) => {
-        // The bell is in the middle of the room the ghost is in, so it tells the room, not the spot.
-        const room = nearestRoom(this.map, at.x, at.z);
-        const msg: ServerMessages["bellRing"] = { x: (room.minX + room.maxX) / 2, z: (room.minZ + room.maxZ) / 2 };
-        this.broadcast("bellRing", msg);
-      },
-      distance: (a, b) => this.hearingDistance(a, b),
-      random: Math.random,
-    });
+    this.lockedNav = relicDoor ? await NavMap.create(this.map, [relicDoor]) : this.openNav;
+    this.newNight();
 
     this.onMessage("input", (client, raw: unknown) => {
       const sim = this.sims.get(client.sessionId);
@@ -378,6 +328,21 @@ export class HauntedRoom extends Room<{ state: GameState }> {
 
     this.onMessage("photo", (client) => this.takePhoto(client.sessionId));
     this.onMessage("start", (client) => this.startCountdown(client));
+    // The lobby (GDD 5).
+    this.onMessage("ready", (client, msg: unknown) => {
+      const ready = typeof msg === "object" && msg !== null && (msg as { ready?: unknown }).ready === true;
+      this.setReady(client, ready);
+    });
+    this.onMessage("character", (client, msg: unknown) => {
+      const id = typeof msg === "object" && msg !== null ? (msg as { id?: unknown }).id : undefined;
+      if (typeof id === "string") this.pickCharacter(client, id);
+    });
+    this.onMessage("settings", (client, msg: unknown) => this.hostSettings(client, msg));
+    this.onMessage("kick", (client, msg: unknown) => {
+      const target = typeof msg === "object" && msg !== null ? (msg as { target?: unknown }).target : undefined;
+      if (typeof target === "string") this.kick(client, target);
+    });
+    this.onMessage("rematch", (client) => this.rematch(client));
     this.onMessage("wispFloor", (client, msg: unknown) => {
       const dir = typeof msg === "object" && msg !== null ? (msg as { dir?: unknown }).dir : undefined;
       if (dir === 1 || dir === -1) this.wispChangeFloor(client.sessionId, dir);
@@ -424,7 +389,11 @@ export class HauntedRoom extends Room<{ state: GameState }> {
         // Skip to the ritual (to try Taint): the basement opens and everyone stands in the circle.
         if (msg?.startRitual && this.state.stage === "night") this.debugStartRitual();
         // A night without the mystery (to try the rest as before), set before the night starts.
-        if (msg?.mystery === false && this.state.stage === "waiting") this.ghostSuspect = null;
+        if (msg?.mystery === false && this.state.stage === "waiting") {
+          this.settings = { ...this.settings, mystery: false };
+          this.ghostSuspect = null;
+          this.state.settings = JSON.stringify(this.settings);
+        }
         // Skip to the offering (to try the mystery): every relic is placed and the basement opens.
         if (msg?.openBasement && this.state.stage === "night") this.debugOpenBasement();
         // Swap your first task for this station's (to try a particular task).
@@ -481,25 +450,14 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     // Nobody can join after the countdown starts (GDD 5).
     if (this.state.stage !== "waiting") throw new Error("This night has already started");
 
-    const spawn = this.map.spawns[this.spawnIndex++ % this.map.spawns.length]!;
+    const spawn = this.nextSpawn();
     const body = this.physics.addBody();
-    const move = initialMoveState(spawn.x, spawn.z);
+    const tasks = this.dealTasks();
     this.sims.set(client.sessionId, {
-      move,
+      ...this.freshSim(spawn),
+      tasks,
       collide: body.collide,
       removeBody: body.remove,
-      inputs: [],
-      budget: 0,
-      noiseM: 0,
-      immuneLeft: 0,
-      action: null,
-      breathLeft: 0,
-      flashlightBeforeDowned: true,
-      tasks: assignTasks(this.map.tasks, config.tasks.perPlayer, Math.random, takenTasks([...this.sims.values()].map((s) => s.tasks))).map((t) => ({
-        stationId: t.id,
-        done: false,
-      })),
-      task: null,
       normalDbfs: null,
       voiceLevel: "silent",
       recentLevels: [],
@@ -507,47 +465,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
       micDeadSec: 0,
       micLost: false,
       micCheck: null,
-      role: "investigator",
       wantsPossessed: false,
-      cooldowns: { slamDoor: 0, summon: 0, blackout: 0, taint: 0, alterClue: 0 },
-      curseLeft: 0,
-      hitAt: -Infinity,
-      trappedAt: -Infinity,
-      beforeMeeting: null,
-      ouijaPushed: false,
-      cluesAltered: 0,
     });
 
-    this.state.players.set(
-      client.sessionId,
-      new Player({
-        name,
-        x: move.x,
-        z: move.z,
-        yaw: 0,
-        pitch: 0,
-        crouching: false,
-        flashlightOn: true,
-        stamina: move.stamina,
-        regenWait: 0,
-        lastSeq: 0,
-        health: "alive",
-        bleedLeft: 0,
-        hidingSpot: "",
-        holdingBreath: false,
-        breathCooldown: 0,
-        action: "",
-        actionProgress: 0,
-        salt: config.salt.perPlayer,
-        cameraShots: config.camera.shotsPerPlayer,
-        relic: "",
-        voted: false,
-        bodyGone: false,
-        bellUses: config.meetings.bellUsesPerPlayer,
-        bodyX: 0,
-        bodyZ: 0,
-      }),
-    );
+    this.state.players.set(client.sessionId, new Player({ name, lastSeq: 0, character: "", ready: false, ...this.freshPlayer(spawn) }));
     this.state.tasksTotal += this.sims.get(client.sessionId)!.tasks.length;
     if (!this.state.host) this.state.host = client.sessionId;
     this.announce("join", name, `${name} joined the room`);
@@ -583,6 +504,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const player = this.state.players.get(client.sessionId);
     if (!player) return;
     this.state.players.delete(client.sessionId);
+    if (this.state.stage === "countdown") this.cancelCountdown(`${player.name} left.`);
     // The host's rights pass to whoever has waited longest (GDD 5).
     if (this.state.host === client.sessionId) this.state.host = this.state.players.keys().next().value ?? "";
     this.announce("leave", player.name, `${player.name} left the room`);
@@ -641,16 +563,272 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     }
   }
 
+  // ---------- A fresh night (Phase 7: rematch and lobby settings) ----------
+
+  /**
+   * Sets up a whole new night from the room's settings: when the room is made, when the host
+   * changes a setting in the lobby, and on a rematch. The players, their characters, mic checks
+   * and how often each was possessed stay (GDD 19).
+   */
+  private newNight() {
+    const s = this.settings;
+    this.nightStarted = false;
+    this.overtimeUsed = 0;
+    this.noises.length = 0;
+    // Everyone stops seeing last night's ghost.
+    if (this.seesGhost.size > 0) this.broadcast("ghost", null);
+    this.seesGhost.clear();
+    this.saltCounter = 0;
+    this.photos = [];
+    this.relics = [];
+    this.relicTimer = 0;
+    this.noInvestigators = false;
+    this.possessedDealt = false;
+    this.blackoutUsed = false;
+    this.blackoutLeft = 0;
+    this.taintsUsed = 0;
+    this.lastTaintAt = -Infinity;
+    this.doorLocks.clear();
+    this.powerStatusTimer = 0;
+    this.lastMeetingEnd = null;
+    this.meetingBodyId = null;
+    this.votes.clear();
+    this.removedId = null;
+    this.spawnIndex = 0;
+
+    for (const door of this.map.doors) {
+      const state = this.state.doors.get(door.id);
+      if (!state) this.state.doors.set(door.id, new Door({ open: false, locked: false }));
+      else {
+        this.setDoor(door.id, false);
+        state.locked = false;
+      }
+    }
+    this.state.saltLines.clear();
+    this.state.saltJars.clear();
+    this.state.stations.clear();
+    this.state.searchPlaces.clear();
+    this.state.relics.clear();
+    this.state.blackout = false;
+    this.state.taintLeft = 0;
+    this.state.ghostNamed = "";
+    this.state.altarWait = 0;
+    this.state.meeting = "" satisfies MeetingStep;
+    this.state.meetingLeft = 0;
+    this.state.meetingCaller = "";
+    this.state.meetingBody = "";
+    // Every jar spot is stocked whatever the player count.
+    for (const jar of this.map.saltJars) this.state.saltJars.set(jar.id, new SaltJar({ taken: false }));
+    for (const station of this.map.tasks) this.state.stations.set(station.id, new TaskStation({ done: false, clue: "" }));
+    // Tonight's ghost, and the relics: its own belonging is always one of them (GDD 26.13).
+    const mystery = s.mystery ? pickMystery(this.map, s.relics) : null;
+    this.ghostSuspect = mystery?.ghost ?? null;
+    const relicNames = mystery?.relicNames ?? this.map.relicNames;
+    // Relics hide in random spots each match (GDD 10).
+    for (const spot of this.map.relicSpots) {
+      for (const place of spot.places ?? []) this.state.searchPlaces.set(place.id, new SearchPlace({ searched: false }));
+    }
+    pickRelicSpots(this.map.relicSpots, s.relics, config.relics.minSpacingM, Math.random, (a, b) => this.hearingDistance(a, b)).forEach((spot, i) => {
+      const id = `R${i + 1}`;
+      // In a group, the relic hides in one of its places, picked at random (GDD 26.5).
+      const places = searchPlaces(spot);
+      const place = places[Math.floor(Math.random() * places.length)]!;
+      this.relics.push({ id, spotId: spot.id, placeId: place.id, x: place.x, z: place.z, status: "hidden" });
+      this.state.relics.set(id, new Relic({ name: relicNames[i] ?? `Relic ${i + 1}`, status: "hidden", carrier: "" }));
+    });
+    this.state.stage = "waiting" satisfies Stage;
+    this.state.stageLeft = 0;
+    this.state.tasksDone = 0;
+    this.state.tasksTotal = 0;
+    this.state.nightLength = s.lengthMin * 60;
+    this.state.nightTime = 0;
+    this.state.part = "quiet";
+    this.state.overtime = false;
+    this.state.ritualReady = false;
+    this.state.ritualStarted = false;
+    this.state.ritualProgress = 0;
+    this.state.circleCount = 0;
+    this.state.winner = "";
+    this.state.endReason = "";
+    this.state.settings = JSON.stringify(s);
+    this.state.settingsCode = settingsCode(s);
+
+    // The ghost starts asleep where the map says (far from the spawn), else in the last room listed.
+    const lastRoom = this.map.rooms[this.map.rooms.length - 1]!;
+    const start = this.map.ghostStart ?? { x: (lastRoom.minX + lastRoom.maxX) / 2, z: (lastRoom.minZ + lastRoom.maxZ) / 2 };
+    this.ghost = new Ghost(this.lockedNav, this.ghostWorld(), start, s.difficulty);
+    if (this.ghostPaused) this.ghost.debugPause(true);
+    this.trick = createTrick(this.map.ghostTrick, {
+      ghost: () => this.ghost,
+      // The relic door opens only by its relics.
+      doors: this.map.doors.filter((d) => d.id !== this.map.relicDoor),
+      isDoorOpen: (id) => this.state.doors.get(id)?.open ?? true,
+      swingDoor: (id) => this.setDoor(id, true),
+      ring: (at) => {
+        // The bell is in the middle of the room the ghost is in, so it tells the room, not the spot.
+        const room = nearestRoom(this.map, at.x, at.z);
+        const msg: ServerMessages["bellRing"] = { x: (room.minX + room.maxX) / 2, z: (room.minZ + room.maxZ) / 2 };
+        this.broadcast("bellRing", msg);
+      },
+      distance: (a, b) => this.hearingDistance(a, b),
+      random: Math.random,
+    });
+
+    // Everyone back at the spawn, with fresh tasks and items.
+    for (const sim of this.sims.values()) sim.tasks = [];
+    for (const [id, sim] of this.sims) {
+      const player = this.state.players.get(id);
+      if (!player) continue;
+      const spawn = this.nextSpawn();
+      Object.assign(sim, this.freshSim(spawn));
+      Object.assign(player, this.freshPlayer(spawn));
+      sim.tasks = this.dealTasks();
+      this.state.tasksTotal += sim.tasks.length;
+      this.sendTasks(id);
+    }
+  }
+
+  private nextSpawn() {
+    return this.map.spawns[this.spawnIndex++ % this.map.spawns.length]!;
+  }
+
+  /** A task list for one more player, avoiding tasks others hold (GDD 26.5). */
+  private dealTasks(): PlayerSim["tasks"] {
+    return assignTasks(this.map.tasks, this.settings.tasksPerPlayer, Math.random, takenTasks([...this.sims.values()].map((s) => s.tasks))).map((t) => ({
+      stationId: t.id,
+      done: false,
+    }));
+  }
+
+  /** A player's server-only data at the start of a night. Mic and voice data are kept. */
+  private freshSim(spawn: { x: number; z: number }) {
+    return {
+      move: initialMoveState(spawn.x, spawn.z),
+      inputs: [] as MoveInput[],
+      budget: 0,
+      noiseM: 0,
+      immuneLeft: 0,
+      action: null,
+      breathLeft: 0,
+      flashlightBeforeDowned: true,
+      task: null,
+      role: "investigator" as Role,
+      cooldowns: { slamDoor: 0, summon: 0, blackout: 0, taint: 0, alterClue: 0 },
+      curseLeft: 0,
+      hitAt: -Infinity,
+      trappedAt: -Infinity,
+      beforeMeeting: null,
+      ouijaPushed: false,
+      cluesAltered: 0,
+    } satisfies Partial<PlayerSim>;
+  }
+
+  /** A player's shared state at the start of a night (their name, character and Ready stay). */
+  private freshPlayer(spawn: { x: number; z: number }) {
+    const move = initialMoveState(spawn.x, spawn.z);
+    return {
+      x: move.x,
+      z: move.z,
+      yaw: 0,
+      pitch: 0,
+      crouching: false,
+      flashlightOn: true,
+      stamina: move.stamina,
+      regenWait: 0,
+      health: "alive" satisfies Health,
+      bleedLeft: 0,
+      hidingSpot: "",
+      holdingBreath: false,
+      breathCooldown: 0,
+      action: "",
+      actionProgress: 0,
+      salt: this.settings.saltPerPlayer,
+      cameraShots: this.settings.cameraShots,
+      relic: "",
+      voted: false,
+      bodyGone: false,
+      bellUses: this.settings.bellUses,
+      bodyX: 0,
+      bodyZ: 0,
+    };
+  }
+
+  // ---------- The lobby (GDD 5) ----------
+
+  private refuseLobby(client: Client, reason: string) {
+    client.send("lobbyRefused", { reason } satisfies ServerMessages["lobbyRefused"]);
+  }
+
+  /** The mic check is needed before Ready, unless voice is off on this server or it is a debug server (FR-L4). */
+  private needsMicCheck(sim: PlayerSim): boolean {
+    return this.voice.enabled && !DEBUG && sim.normalDbfs === null;
+  }
+
+  private setReady(client: Client, ready: boolean) {
+    const player = this.state.players.get(client.sessionId);
+    const sim = this.sims.get(client.sessionId);
+    const lobby = this.state.stage === "waiting" || this.state.stage === "countdown";
+    if (!player || !sim || !lobby || player.ready === ready) return;
+    if (ready && !player.character) return this.refuseLobby(client, "Pick a character first.");
+    if (ready && this.needsMicCheck(sim)) return this.refuseLobby(client, "Do the mic check first: the ghost hears your real voice.");
+    player.ready = ready;
+    if (!ready && this.state.stage === "countdown") this.cancelCountdown(`${player.name} is not Ready.`);
+  }
+
+  private pickCharacter(client: Client, id: string) {
+    const player = this.state.players.get(client.sessionId);
+    if (!player || this.state.stage !== "waiting" || player.ready || !characterById(id)) return;
+    const taken = [...this.state.players.entries()].some(([other, p]) => other !== client.sessionId && p.character === id);
+    if (taken) return this.refuseLobby(client, "Someone else has that character.");
+    player.character = id;
+  }
+
+  /** The host picks a preset or changes settings; everyone sees it at once (FR-L5). Locked from the countdown. */
+  private hostSettings(client: Client, msg: unknown) {
+    if (client.sessionId !== this.state.host) return;
+    if (this.state.stage !== "waiting") return this.refuseLobby(client, "Settings are locked once the countdown starts.");
+    const m = (typeof msg === "object" && msg !== null ? msg : {}) as { preset?: unknown; change?: unknown };
+    let next: MatchSettings | null = null;
+    if (m.preset === "standard" || m.preset === "beginner" || m.preset === "hardcore") next = presetSettings(m.preset, this.settings.map);
+    else if (m.change !== undefined) next = changeSettings(this.settings, m.change, [this.map.id]);
+    if (!next) return this.refuseLobby(client, "That setting is not allowed.");
+    this.settings = next;
+    this.newNight();
+    const host = this.state.players.get(client.sessionId)?.name ?? "";
+    this.announce("lobby", host, `Settings changed: ${this.state.settingsCode}`);
+  }
+
+  private kick(client: Client, target: string) {
+    if (client.sessionId !== this.state.host || target === client.sessionId) return;
+    if (this.state.stage !== "waiting") return this.refuseLobby(client, "Players can be removed only in the lobby.");
+    const victim = this.clients.getById(target);
+    if (!victim) return;
+    victim.send("kicked", { reason: "The host removed you from the room." } satisfies ServerMessages["kicked"]);
+    victim.leave();
+  }
+
+  /** The host takes everyone back to the lobby for another night with the same settings and characters (GDD 19). */
+  private rematch(client: Client) {
+    if (client.sessionId !== this.state.host || !this.state.winner) return;
+    this.newNight();
+    for (const player of this.state.players.values()) player.ready = false;
+  }
+
+  private cancelCountdown(why: string) {
+    this.state.stage = "waiting" satisfies Stage;
+    this.state.stageLeft = 0;
+    this.announce("lobby", "", `Countdown stopped: ${why}`);
+  }
+
   // ---------- Starting the night (GDD 4.1 and 5) ----------
 
   private startCountdown(client: Client) {
     if (client.sessionId !== this.state.host || this.state.stage !== "waiting") return;
+    const refuse = (reason: string) => client.send("startRefused", { reason } satisfies ServerMessages["startRefused"]);
     // Debug servers may start with fewer players, to test alone.
-    if (this.state.players.size < config.players.min && !DEBUG) {
-      const msg: ServerMessages["startRefused"] = { reason: `At least ${config.players.min} players are needed to start.` };
-      client.send("startRefused", msg);
-      return;
-    }
+    if (this.state.players.size < config.players.min && !DEBUG) return refuse(`At least ${config.players.min} players are needed to start.`);
+    const waiting = [...this.state.players.values()].filter((p) => !p.ready).map((p) => p.name);
+    if (waiting.length > 0) return refuse(`Waiting for ${waiting.join(", ")} to be Ready.`);
     this.state.stage = "countdown" satisfies Stage;
     this.state.stageLeft = config.match.countdownSec;
   }
@@ -673,7 +851,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private dealRoles() {
     const ids = [...this.sims.keys()];
     const forced = ids.filter((id) => this.sims.get(id)!.wantsPossessed);
-    const count = Math.max(0, possessedCount(ids.length) - forced.length);
+    const count = Math.max(0, possessedCount(ids.length, this.settings.possessed) - forced.length);
     const picked = [...forced, ...pickPossessed(ids.filter((id) => !forced.includes(id)), this.timesPossessed, count)];
     for (const id of picked) {
       const sim = this.sims.get(id)!;
@@ -689,7 +867,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     for (const client of this.clients) {
       const sim = this.sims.get(client.sessionId);
       if (!sim) continue;
-      const partners = sim.role === "possessed" && config.possessed.knowEachOther ? names(picked.filter((id) => id !== client.sessionId)) : [];
+      const partners = sim.role === "possessed" && this.settings.knowEachOther ? names(picked.filter((id) => id !== client.sessionId)) : [];
       const msg: ServerMessages["role"] = { role: sim.role, partners };
       if (sim.role === "possessed" && this.ghostSuspect) msg.ghost = this.ghostSuspect.name;
       client.send("role", msg);
@@ -747,7 +925,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
               ? this.alterClue(sim)
               : this.taint(sim);
     if (result) return refuse(result);
-    sim.cooldowns[kind] = powerCooldownSec(kind);
+    sim.cooldowns[kind] = powerCooldownSec(kind, this.settings.cooldownSpeed);
     // Every power leaves the curse glow (GDD 14.2, 15.2).
     sim.curseLeft = config.camera.curseGlowSec;
     this.sendPowerStatus();
@@ -757,7 +935,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const clock = { nightTime: this.state.nightTime, nightLength: this.state.nightLength, ritualStarted: this.state.ritualStarted };
     const cooldownLeft = sim.cooldowns[kind];
     let state: PowerStatus["state"] = cooldownLeft > 0 ? "cooldown" : "ready";
-    if (kind === "blackout" && this.blackoutUsed) state = "used";
+    // Blackout off in the lobby settings counts as already used (GDD 20.3).
+    if (kind === "blackout" && (this.blackoutUsed || !this.settings.blackout)) state = "used";
     else if (kind === "alterClue" && sim.cluesAltered >= config.powers.alterClue.usesPerMatch) state = "used";
     else if (kind === "taint" && this.taintsUsed >= config.taint.maxPerMatch) state = "used";
     else if (!powerUnlocked(kind, clock)) state = "locked";
@@ -951,7 +1130,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private startMeeting(callerId: string, bodyId: string | null) {
     const s = this.state;
     s.meeting = "evidence" satisfies MeetingStep;
-    s.meetingLeft = meetingStepSec("evidence");
+    s.meetingLeft = meetingStepSec("evidence", this.settings);
     s.meetingCaller = s.players.get(callerId)?.name ?? "";
     s.meetingBody = bodyId ? (s.players.get(bodyId)?.name ?? "") : "";
     this.meetingBodyId = bodyId;
@@ -992,7 +1171,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const next = nextMeetingStep(s.meeting as MeetingStep);
     if (!next) return this.endMeeting();
     s.meeting = next;
-    s.meetingLeft = meetingStepSec(next);
+    s.meetingLeft = meetingStepSec(next, this.settings);
   }
 
   private castVote(sessionId: string, target: string) {
@@ -1017,7 +1196,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const { removed, tally, skip } = countVotes(this.votes);
     this.removedId = removed;
     const name = (id: string) => this.state.players.get(id)?.name ?? "?";
-    const m = config.meetings;
+    const m = this.settings;
     const msg: ServerMessages["meetingResult"] = {
       removed: removed ? name(removed) : null,
       role: removed && m.revealRole ? (this.sims.get(removed)?.role ?? "investigator") : null,
@@ -1086,7 +1265,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
   private pushOuija(sessionId: string, target: string) {
     const sim = this.sims.get(sessionId);
     const wisp = this.state.players.get(sessionId);
-    if (!sim || !wisp || wisp.health !== "dead" || !config.wisps.ouija) return;
+    if (!sim || !wisp || wisp.health !== "dead" || !this.settings.ouija) return;
     if (this.state.meeting !== ("evidence" satisfies MeetingStep) || sim.ouijaPushed) return;
     const onto = this.state.players.get(target);
     if (target !== OUIJA_UNKNOWN && (!onto || onto.health === "dead")) return;
@@ -1102,12 +1281,12 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const s = this.state;
     // With a mystery, the right relic must be offered first (GDD 26.13).
     s.ritualReady = !this.relicDoorLocked() && s.tasksTotal > 0 && s.tasksDone >= s.tasksTotal && (!this.ghostSuspect || !!s.ghostNamed);
-    s.circleNeeded = circleNeeded(s.players.size);
+    s.circleNeeded = this.settings.circle === "auto" ? circleNeeded(s.players.size) : this.settings.circle;
     s.circleCount = this.playersInCircle();
     if (!s.ritualStarted && s.ritualReady && s.circleCount >= s.circleNeeded) s.ritualStarted = true;
     if (!s.ritualStarted || s.ritualProgress >= 100) return;
     // A meeting will freeze it here instead (Phase 6). The ritual length becomes a lobby setting in Phase 7.
-    const rate = ritualRatePct(s.circleCount, s.circleNeeded, config.ritual.baseSec);
+    const rate = ritualRatePct(s.circleCount, s.circleNeeded, this.settings.ritualSec);
     s.ritualProgress = Math.max(0, Math.min(100, s.ritualProgress + rate * dt));
   }
 
@@ -1307,7 +1486,8 @@ export class HauntedRoom extends Room<{ state: GameState }> {
 
       // A lost mic counts as talking normally, so turning it off never hides you (GDD 13).
       const level: VoiceLevel = sim.micLost ? (v.micLostCountsAs as VoiceLevel) : sim.voiceLevel;
-      sim.voiceNoiseM = player.health === "dead" ? 0 : ghostHearRangeM(level);
+      // Ghost hears real mic off: voices make no noise for the ghost (GDD 20.3, 26.14).
+      sim.voiceNoiseM = player.health === "dead" || !this.settings.ghostHearsMic ? 0 : ghostHearRangeM(level);
     }
 
     for (const client of this.clients) this.routeVoices(client);
@@ -1437,7 +1617,7 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     const here = { x: sim.move.x, z: sim.move.z };
     // A Wisp can still do tasks, and touch nothing else (GDD 17).
     if (player.health === "dead") {
-      if (this.playing && config.wisps.canDoTasks) this.openTask(sessionId, sim, player, here.x, here.z);
+      if (this.playing && this.settings.wispTasks) this.openTask(sessionId, sim, player, here.x, here.z);
       return;
     }
     if (player.health !== "alive") return;
