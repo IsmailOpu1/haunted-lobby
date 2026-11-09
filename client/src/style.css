@@ -1171,3 +1171,108 @@ body.meeting #powers-bar {
 #planchette.hidden {
   display: none;
 }
+
+/* The lobby (GDD 5, 20, 22.1): characters, Ready, settings. */
+#players li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.char-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid #5a5650;
+  flex: none;
+}
+.ready-mark {
+  font-size: 12px;
+  color: #8a8478;
+}
+.ready-mark.on {
+  color: #7fc47a;
+}
+button.kick {
+  background: #4a2420;
+}
+.characters {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin-bottom: 8px;
+}
+button.character {
+  padding: 4px 2px;
+  font-size: 12px;
+  border-left: 4px solid var(--colour);
+  background: #2a2822;
+  color: var(--text);
+}
+button.character.mine {
+  outline: 2px solid var(--colour);
+  background: #3a362c;
+}
+button.character:disabled {
+  opacity: 0.4;
+}
+#ready-btn.is-ready {
+  background: #3d5a36;
+}
+.settings-code {
+  font-family: monospace;
+  font-size: 13px;
+  color: #c9a45a;
+  margin-left: 6px;
+}
+.presets {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+button.preset.on,
+.preset.custom.on {
+  outline: 2px solid #c9a45a;
+}
+.preset.custom {
+  font-size: 12px;
+  padding: 2px 6px;
+  opacity: 0.4;
+}
+.preset.custom.on {
+  opacity: 1;
+}
+.settings-grid h3 {
+  margin: 8px 0 2px;
+  font-size: 13px;
+}
+.setting {
+  display: flex;
+  flex-direction: row;
+  text-align: left;
+  color: var(--text);
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin: 3px 0;
+  font-size: 13px;
+}
+.setting select {
+  min-width: 90px;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: #16151a;
+  border: 1px solid #36332b;
+}
+.setting select:disabled {
+  opacity: 0.7;
+}
+.end-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}

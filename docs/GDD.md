@@ -940,3 +940,7 @@ The owner approved `docs/plans/mystery-pilot.md` with the suggested answers. Wha
 | Kicked players | Can join the same room again (the kick removes them once) | Owner's choice |
 | Countdown | Cancelled if anyone leaves or un-readies during it | Start needs everyone Ready (FR-L6) |
 | Ready | Everyone, the host too, must be Ready. Changing a setting does not clear Ready; a "Settings changed" line goes to the log | Not covered by Section 5 |
+| Ready needs | A character, and a passed mic check (a server without voice, and debug servers, skip the mic check) | GDD 5 step 4 |
+| Ghost hears real mic: Off | Voices make no noise for the ghost; footsteps, doors and every other sound still do | 20.3 names the setting but not what Off means |
+| A settings change in the lobby | Sets up the night again at once (new relic spots and task lists) | The night is built from the settings |
+| Characters before Phase 8 | Each of the 8 has a colour, shown in the lobby; the models come in Phase 8 | 22.1 |

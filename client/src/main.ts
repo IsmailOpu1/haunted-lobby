@@ -15,6 +15,7 @@ import { FloorPlan } from "./floorplan.ts";
 import { Game, POWER_NAMES } from "./game.ts";
 import { photoCard } from "./photoView.ts";
 import { createRoom, joinRoom } from "./network.ts";
+import { joinErrorText, lobbyView } from "./lobbyView.ts";
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
@@ -30,7 +31,6 @@ const errorText = el("error");
 const roomCodeText = el("room-code");
 const copyCodeBtn = el<HTMLButtonElement>("copy-code");
 const copyLinkBtn = el<HTMLButtonElement>("copy-link");
-const playerList = el("players");
 const log = el("log");
 
 const staminaBar = el("stamina");
@@ -449,6 +449,14 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
       }),
     );
   },
+  newNight: () => {
+    // A rematch (GDD 19): back to the lobby with a clean slate.
+    endScreen.classList.add("hidden");
+    document.body.classList.remove("ended");
+    myRole = null;
+    el("photos-box").classList.add("hidden");
+    el("photo-list").replaceChildren();
+  },
   showEndScreen: (end) => {
     const text = END_TEXT[end.reason];
     endScreen.classList.remove("hidden");
@@ -545,6 +553,12 @@ if (linkCode) codeInput.value = normalizeRoomCode(linkCode);
 
 try {
   nameInput.value = localStorage.getItem("playerName") ?? "";
+  // Why you are back on the start page (removed by the host).
+  const left = sessionStorage.getItem("leftReason");
+  if (left) {
+    sessionStorage.removeItem("leftReason");
+    errorText.textContent = left;
+  }
 } catch {
   // Storage can be blocked (private windows). The name just isn't remembered.
 }
@@ -574,7 +588,7 @@ async function enter(connect: () => Promise<Room>) {
     const room = await connect();
     enterLobby(room);
   } catch (err) {
-    showError(err instanceof Error ? err.message : "Could not connect to the server.");
+    showError(joinErrorText(err));
   } finally {
     createBtn.disabled = joinBtn.disabled = false;
   }
@@ -635,43 +649,36 @@ function enterLobby(room: Room) {
     addLogLine(msg.text);
   });
 
-  // The player list comes from the room state, which always arrives, rather than a message.
-  let rosterKey = "";
-  room.onStateChange((state: { players?: { forEach(cb: (p: { name: string }, id: string) => void): void } }) => {
-    const players: { id: string; name: string }[] = [];
-    state.players?.forEach((p, id) => players.push({ id, name: p.name }));
-    const key = players.map((p) => p.id).join(",");
-    if (key === rosterKey) return;
-    rosterKey = key;
-    playerList.replaceChildren(
-      ...players.map((p) => {
-        const li = document.createElement("li");
-        li.textContent = p.id === room.sessionId ? `${p.name} (you)` : p.name;
-        if (p.id !== room.sessionId) {
-          // Mute only changes what you hear (PRD FR-V6).
-          const mute = document.createElement("button");
-          mute.className = "mute";
-          const label = () => (mute.textContent = game.isMuted(p.id) ? "Unmute" : "Mute");
-          label();
-          mute.onclick = () => {
-            game.toggleMute(p.id);
-            label();
-          };
-          li.append(" ", mute);
-        }
-        return li;
-      }),
-    );
-  });
+  // The player list, characters, Ready and settings come from the room state (GDD 5, 20).
+  lobbyView(room, { isMuted: (id) => game.isMuted(id), toggleMute: (id) => game.toggleMute(id) });
 
+  let kickedReason = "";
+  room.onMessage("kicked", (msg: ServerMessages["kicked"]) => (kickedReason = msg.reason));
   room.onLeave(() => {
+    if (kickedReason) {
+      // Back to the start page, saying why.
+      try {
+        sessionStorage.setItem("leftReason", kickedReason);
+      } catch {
+        // Storage blocked: the page just opens without the reason.
+      }
+      location.href = location.pathname;
+      return;
+    }
     addLogLine("Disconnected from the server.");
   });
 
+  // Rematch (GDD 19): only the host presses it; everyone else waits for them.
+  const rematchBtn = el<HTMLButtonElement>("end-rematch");
+  rematchBtn.onclick = () => room.send("rematch");
+
   // Starting the night: the host's button, the countdown, then your role (GDD 4.1 and 5).
   startBtn.onclick = () => room.send("start");
+  let refusedShown = false;
   room.onMessage("startRefused", (msg: ServerMessages["startRefused"]) => {
     startHint.textContent = msg.reason;
+    refusedShown = true;
+    setTimeout(() => (refusedShown = false), 4000);
   });
   room.onMessage("role", (msg: ServerMessages["role"]) => {
     myRole = msg;
@@ -684,11 +691,14 @@ function enterLobby(room: Room) {
     const isHost = state.host === room.sessionId;
     el("start-box").classList.toggle("hidden", !waiting);
     startBtn.classList.toggle("hidden", !isHost);
-    if (waiting && !startHint.textContent?.startsWith("At least")) {
+    rematchBtn.classList.toggle("hidden", !isHost);
+    el("end-wait").textContent = isHost ? "Rematch takes everyone back to the lobby with the same settings and characters." : "Waiting for the host to start a rematch.";
+    if (waiting && !refusedShown) {
       startHint.textContent = isHost
-        ? `You are the host. Start when everyone is here (${config.players.min} to ${config.players.max} players). Until then, walk around and try your mic.`
-        : "Waiting for the host to start the night.";
+        ? `You are the host. Start when everyone is Ready (${config.players.min} to ${config.players.max} players). Until then, walk around and try your mic.`
+        : "Pick a character, do the mic check and press Ready. The host starts the night.";
     }
+    if (!waiting) refusedShown = false;
     showIntro(state.stage ?? "", state.stageLeft ?? 0);
   });
 }

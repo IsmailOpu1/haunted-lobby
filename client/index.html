@@ -37,6 +37,22 @@
       <p class="hint">Send the code or the link to your friends so they can join.</p>
       <h2>Players</h2>
       <ul id="players"></ul>
+      <div id="you-box">
+        <h2>Your character</h2>
+        <div id="characters" class="characters"></div>
+        <button id="ready-btn">Ready</button>
+        <p id="ready-hint" class="hint" role="alert"></p>
+      </div>
+      <div id="settings-box">
+        <h2>Settings <span id="settings-code" class="settings-code"></span></h2>
+        <p id="settings-note" class="hint"></p>
+        <div id="presets" class="presets"></div>
+        <div id="settings-basic" class="settings-grid"></div>
+        <details>
+          <summary>Advanced</summary>
+          <div id="settings-advanced" class="settings-grid"></div>
+        </details>
+      </div>
       <div id="start-box">
         <button id="start-night" class="hidden">Start the night</button>
         <p id="start-hint" class="hint"></p>
@@ -108,7 +124,11 @@
           <h3>Photos</h3>
           <div id="end-photos" class="photo-list"></div>
         </div>
-        <button id="end-leave">Back to the start</button>
+        <div class="end-buttons">
+          <button id="end-rematch" class="hidden">Rematch</button>
+          <button id="end-leave">Leave</button>
+        </div>
+        <p id="end-wait" class="hint"></p>
       </div>
     </div>
     <div id="overlay" class="hidden">
