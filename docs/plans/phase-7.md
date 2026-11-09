@@ -1,6 +1,6 @@
 # Phase 7 plan: lobby, settings and stability
 
-Status: **built 2026-11-09; every step's checks pass, waiting for the owner's playtest.** Branch `phase-7-lobby`. After a first look the owner changed two things (section 5): characters are dealt at random, and the menus became separate screens.
+Status: **passed the owner's check 2026-11-09; merged into main and tagged `phase-7-lobby`.** Branch `phase-7-lobby`. After a first look the owner changed two things (section 5): characters are dealt at random, and the menus became separate screens.
 
 Sources: PRD Section 11 (Phase 7), FR-L1 to FR-L10, FR-E7, FR-E8, FR-D1, PRD 10.4, 10.6 and 10.7; GDD Sections 3, 5, 13, 18, 19, 20 and 22.1.
 

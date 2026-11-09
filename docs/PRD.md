@@ -419,7 +419,8 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
   - The night plays by the settings. Rematch keeps the room, settings and fair rotation.
   - The 60 s disconnect hold, with reconnecting after a page reload.
   - The end screen's timeline and awards, and the match log (a `MATCHLOG` line in the server output).
-  - An automated test plays the "Done when" story with 8 players: Start, finish, Rematch, Hardcore, Start again. Waiting for the owner's playtest (PRD 12).
+  - An automated test plays the "Done when" story with 8 players: Start, finish, Rematch, Hardcore, Start again.
+  - **Passed** the owner's check on 2026-11-09; merged into main and tagged `phase-7-lobby`.
 
 **Phase 8: Content and polish (about 6 weeks)**
 - Detailed hotel art in the *Invokyr*-inspired style (GDD 23): PBR materials, furnished rooms, baked lightmaps, warm practical lights and coloured accent glows
