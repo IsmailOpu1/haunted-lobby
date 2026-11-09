@@ -412,6 +412,12 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 - End screen: roles, timeline, photos, awards, rematch (GDD 19)
 - Match log (PRD 10.6), kick tool
 - **Done when:** 8 players can start, finish, rematch and change settings without restarting anything.
+- **Progress:** built 2026-11-09 to the plan in `docs/plans/phase-7.md` (owner's answers and new rules in GDD 26.14):
+  - The lobby: characters (one per player, a colour until the Phase 8 models), Ready (needs a character and the mic check), host settings with Basic and Advanced tabs, the 3 presets and Custom, the settings code, and kick.
+  - The night plays by the settings. Rematch keeps the room, characters, settings and fair rotation.
+  - The 60 s disconnect hold, with reconnecting after a page reload.
+  - The end screen's timeline and awards, and the match log (a `MATCHLOG` line in the server output).
+  - An automated test plays the "Done when" story with 8 players: Start, finish, Rematch, Hardcore, Start again. Waiting for the owner's playtest (PRD 12).
 
 **Phase 8: Content and polish (about 6 weeks)**
 - Detailed hotel art in the *Invokyr*-inspired style (GDD 23): PBR materials, furnished rooms, baked lightmaps, warm practical lights and coloured accent glows
