@@ -949,3 +949,15 @@ The owner approved `docs/plans/mystery-pilot.md` with the suggested answers. Wha
 | Fonts | Instrument Serif for titles, Manrope for everything else, in every screen and in the game. Both are bundled with the game (SIL Open Font License 1.1, free for games) | Owner asked for better fonts (2026-11-09) |
 | A lost connection | The slot is held 60 s in every stage (lobby too); in the lobby the player is no longer Ready. Reloading the page within the 60 s gets you back in. Host rights pass at once to the longest-connected player | 18 |
 | Gone for good during the night | Removed like a player who left: a relic they carried drops, their unfinished tasks leave the bar, and the end screen still shows their role | 18 says "becomes a Wisp"; with nobody behind it a Wisp does nothing, so removing them has the same effect |
+
+### 26.15 Phase 8 art and sound decisions (owner answered 2026-11-10)
+
+| Rule | Value | Why |
+|---|---|---|
+| Characters | One free, licensed base character and animation set shared by all 8; each character's outfit and props (22.1) are built in Blender on it | Owner's choice; no budget for a paid pack |
+| Lighting | Practical lights are baked in Blender; flashlights, the camera flash and supernatural glows are real-time. Blackout blends to a second baked set with every lamp off | 23 says "baked in Blender where possible"; Blackout (14) must turn every light off |
+| Dressing | Props are looks only and never block walking or sight; anything that blocks is map furniture. Hiding spots, stations, relic places, the bell and the fuse box keep their places and sizes | Server, physics and ghost pathing must keep agreeing (PRD 10.3) |
+| Sounds | Recorded sounds from Sonniss's free game-audio bundles and CC0 Freesound sounds, every one listed in `docs/ASSETS.md` | Owner's choice |
+| Tutorial | About 3 minutes, alone on the real hotel's ground floor with a slow ghost; the Training Room is the same solo night without the steps | Owner's choice; new players learn the real map |
+| Look test | The Main Hall is dressed first, and the owner approves it before any other room | PRD 11 Phase 8 |
+
