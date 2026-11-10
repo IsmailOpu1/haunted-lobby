@@ -67,16 +67,33 @@ describe.each(maps.map((m) => [m.name, m] as const))("%s", (_name, map) => {
   });
 
   it("leaves everything you walk to or use clear of walls and furniture", () => {
-    const solid: { id: string; box: FloorBox }[] = [
+    const solid: { id: string; box: FloorBox; of?: string }[] = [
       ...map.walls.map((w, i) => ({ id: `wall ${i} (${w.join(", ")})`, box: wallBox(w, map.wallThicknessM) })),
-      ...map.furniture.map((f) => ({ id: f.id, box: furnitureBox(f) })),
+      ...map.furniture.map((f) => ({ id: f.id, box: furnitureBox(f), of: f.of })),
       ...map.hidingSpots.map((h) => ({ id: h.id, box: hidingSpotBox(h) })),
     ];
     const r = config.body.radiusM;
+    const blocked = (x: number, z: number, skip?: string) =>
+      solid.find((s) => s.of !== skip && Math.abs(x - s.box.x) < s.box.sizeX / 2 + r && Math.abs(z - s.box.z) < s.box.sizeZ / 2 + r);
+    // A station that is a piece of furniture (the clock, the bell) is used from beside it: some
+    // spot within reach must be clear to stand on.
+    for (const f of map.furniture.filter((f) => f.of)) {
+      const p = [...points].find((q) => q.id === f.of);
+      expect(p, `${f.id} is the body of ${f.of}`).toBeDefined();
+      const stand = Array.from({ length: 32 }, (_, i) => {
+        const a = (i / 32) * Math.PI * 2;
+        const d = Math.hypot(f.sizeX, f.sizeZ) / 2 + r + 0.05;
+        return { x: p!.x + Math.cos(a) * d, z: p!.z + Math.sin(a) * d };
+      }).filter((s) => Math.hypot(s.x - p!.x, s.z - p!.z) <= config.tasks.useRangeM && roomAt(map, s.x, s.z) && !blocked(s.x, s.z));
+      expect(stand.length, `somewhere clear to stand and use ${f.of}`).toBeGreaterThan(0);
+    }
     const clear = [...points, ...map.spawns.map((s, i) => ({ id: `spawn ${i}`, ...s })), ...(map.ghostStart ? [{ id: "ghost start", ...map.ghostStart }] : [])];
     for (const p of clear) {
       expect(roomAt(map, p.x, p.z), `${p.id} is in a room`).toBeDefined();
+      // Its own body, and the walls that body stands against, are where it is used from beside.
+      const body = map.furniture.find((f) => f.of === p.id);
       for (const s of solid) {
+        if (body && (s.of === p.id || s.id.startsWith("wall "))) continue;
         const inside = Math.abs(p.x - s.box.x) < s.box.sizeX / 2 + r && Math.abs(p.z - s.box.z) < s.box.sizeZ / 2 + r;
         expect(inside, `${p.id} is clear of ${s.id}`).toBe(false);
       }

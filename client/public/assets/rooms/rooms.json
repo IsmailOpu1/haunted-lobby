@@ -1,0 +1,33 @@
+{
+  "Main Hall": {
+    "glb": "assets/rooms/main-hall.gltf",
+    "lightmap": "assets/rooms/main-hall-lightmap.ktx2",
+    "lightmapScale": 2,
+    "drawn": [
+      "hall-sofa-west",
+      "hall-coffee-west",
+      "hall-armchair-west",
+      "hall-sofa-east",
+      "hall-coffee-east",
+      "hall-chair-east",
+      "hall-ottoman",
+      "hall-side-east",
+      "hall-plant-door-west",
+      "hall-plant-door-east",
+      "hall-plant-southwest",
+      "hall-console-west",
+      "hall-console-east",
+      "hall-side-southeast",
+      "hall-luggage",
+      "hall-bell-stand",
+      "bell",
+      "hall-clock-case",
+      "task-clock",
+      "hall-meeting-table",
+      "hall-wardrobe-west",
+      "hall-wardrobe-east",
+      "grand-stairs",
+      "cellar-stairs"
+    ]
+  }
+}

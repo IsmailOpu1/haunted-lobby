@@ -197,6 +197,9 @@ function showBanner(text: string, seconds: number) {
   bannerTimer = setTimeout(() => banner.classList.add("hidden"), seconds * 1000);
 }
 
+// Textures are chosen when the game loads: the 1K set on Low (or when Auto chose Low before).
+const savedQualityAtLoad = stored("quality") ?? "auto";
+const lowTextures = savedQualityAtLoad === "low" || (savedQualityAtLoad === "auto" && stored("autoQuality") === "low");
 const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
   // While the mouse is captured, hide the lobby panel so the 3D view is clear.
   setLooking: (looking) => document.body.classList.toggle("looking", looking),
@@ -207,6 +210,15 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
   setPrompt: (text) => {
     prompt.classList.toggle("hidden", !text);
     prompt.textContent = text ?? "";
+  },
+  setFps: (text) => {
+    const counter = el("fps");
+    counter.classList.toggle("hidden", text === null);
+    counter.textContent = text ?? "";
+  },
+  autoQualityChosen: (level) => {
+    store("autoQuality", level);
+    if (qualityInput.value === "auto") applyQuality("auto");
   },
   setNight: (part, fractionLeft, secLeft, marks) => {
     night.classList.remove("hidden");
@@ -592,7 +604,7 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     const text = name ? `Carrying ${name} (G to drop)` : "";
     if (carrying.textContent !== text) carrying.textContent = text;
   },
-});
+}, lowTextures);
 
 micCheckBtn.addEventListener("click", () => game.startMicCheck());
 
@@ -619,6 +631,52 @@ volumeInput.addEventListener("input", () => {
   } catch {
     // Storage blocked: the setting lasts for this visit only.
   }
+});
+
+// Graphics quality and the FPS counter, remembered between visits. Auto measures this computer
+// once, the first time you are in the hotel, and remembers what it chose.
+const qualityInput = el<HTMLSelectElement>("quality");
+const qualityNote = el("quality-note");
+const showFpsInput = el<HTMLInputElement>("show-fps");
+const QUALITY_CHOICES = ["auto", "high", "low"] as const;
+type QualityChoice = (typeof QUALITY_CHOICES)[number];
+function stored(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null; // storage blocked: defaults for this visit
+  }
+}
+function store(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Storage blocked: the setting lasts for this visit only.
+  }
+}
+const savedQuality = stored("quality");
+const qualityChoice: QualityChoice = QUALITY_CHOICES.includes(savedQuality as QualityChoice) ? (savedQuality as QualityChoice) : "auto";
+function applyQuality(choice: QualityChoice) {
+  const picked = stored("autoQuality");
+  const autoKnown = picked === "high" || picked === "low";
+  const level = choice === "auto" ? (autoKnown ? picked : "high") : choice;
+  const about = choice !== "auto" ? "" : autoKnown ? `Auto chose ${picked === "high" ? "High" : "Low"} for this computer.` : "Auto tests this computer the first time you walk the hotel.";
+  const later = (level === "low") !== lowTextures ? " Texture detail changes the next time you open the game." : "";
+  qualityNote.textContent = (about + later).trim();
+  game.setQuality(choice === "auto" && autoKnown ? picked : choice);
+}
+qualityInput.value = qualityChoice;
+applyQuality(qualityChoice);
+qualityInput.addEventListener("change", () => {
+  const choice = qualityInput.value as QualityChoice;
+  store("quality", choice);
+  applyQuality(choice);
+});
+showFpsInput.checked = stored("showFps") === "1";
+game.setFpsCounter(showFpsInput.checked);
+showFpsInput.addEventListener("change", () => {
+  store("showFps", showFpsInput.checked ? "1" : "0");
+  game.setFpsCounter(showFpsInput.checked);
 });
 
 // Development only: lets the browser console inspect the game (window.__game). Not in builds.

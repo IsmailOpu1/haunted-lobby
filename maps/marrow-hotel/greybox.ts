@@ -182,7 +182,28 @@ export const marrowHotelGreybox = buildMap({
         hide("service-cupboard", "cupboard", 20.5, -13, "w"),
       ],
       furniture: [
-        piece("hall-meeting-table", "table", "Main Hall", 0, 11, 4, 1.6, 0.8),
+        // The Main Hall, dressed (Phase 8, GDD 26.15): two dining tables end to end make the meeting
+        // table; seating groups flank the front door, consoles stand either side of the clock.
+        piece("hall-meeting-table", "table", "Main Hall", 0, 11, 4.5, 1.4, 0.88),
+        against("hall-sofa-west", "sofa", "Main Hall", -4.2, 4.5, "s", 2.73, 0.93, 1.1),
+        piece("hall-coffee-west", "table", "Main Hall", -4.2, 6.5, 1.54, 0.97, 0.52),
+        piece("hall-armchair-west", "chair", "Main Hall", -6, 6.6, 0.77, 0.85, 1.06),
+        against("hall-sofa-east", "sofa", "Main Hall", 4.2, 4.5, "s", 1.57, 0.66, 0.8),
+        piece("hall-coffee-east", "table", "Main Hall", 4.2, 6.5, 1.44, 1.44, 0.56),
+        piece("hall-chair-east", "chair", "Main Hall", 5.9, 6.5, 0.66, 0.67, 1.06),
+        piece("hall-ottoman", "chair", "Main Hall", 2.75, 6.5, 0.62, 0.89, 0.62),
+        piece("hall-side-east", "table", "Main Hall", 5.75, 4.85, 0.55, 0.45, 0.55),
+        against("hall-console-west", "counter", "Main Hall", -2, 18.5, "n", 1.54, 0.59, 0.95),
+        against("hall-console-east", "counter", "Main Hall", 2, 18.5, "n", 1.54, 0.59, 0.95),
+        piece("hall-side-southeast", "table", "Main Hall", 5.8, 17.9, 0.55, 0.45, 0.55),
+        piece("hall-plant-door-west", "plant", "Main Hall", -1.95, 5.05, 0.6, 0.6, 0.84),
+        piece("hall-plant-door-east", "plant", "Main Hall", 1.95, 5.05, 0.6, 0.6, 0.84),
+        piece("hall-plant-southwest", "plant", "Main Hall", -5.8, 17.8, 0.6, 0.6, 1.35),
+        against("hall-luggage", "crates", "Main Hall", 7.75, 18.5, "n", 1.61, 0.3, 0.57),
+        // The meeting bell's pedestal (the map's bell, below).
+        { ...piece("hall-bell-stand", "table", "Main Hall", 0, 8.5, 0.4, 0.4, 1.03), of: "bell" },
+        // The grandfather clock's case (task-clock below), its back to the south wall.
+        { ...against("hall-clock-case", "shelf", "Main Hall", 0, 18.5, "n", 0.63, 0.43, 2.19), of: "task-clock" },
         piece("reception-desk", "counter", "Reception", -16, 11, 5, 1, 1.1),
         against("library-shelf", "shelf", "Library", -14, 4.5, "n", 3, 0.5, 2.2),
         piece("library-table", "table", "Library", -17, -1, 2.5, 1.2, 0.8),
@@ -202,7 +223,9 @@ export const marrowHotelGreybox = buildMap({
       ],
       tasks: [
         // The guest book with the time to set lies on the meeting table.
-        task("task-clock", "Set the grandfather clock", "Main Hall", "clock", 0, 17.8, true, false, { x: 1.2, z: 11, heightM: 0.8 }),
+        // At the clock model's own centre (its case stands flush with the wall: 18.5 - 0.1 wall - 0.213
+        // half its depth + 0.025, the model's centre behind its footprint's middle).
+        task("task-clock", "Set the grandfather clock", "Main Hall", "clock", 0, 18.207, true, false, { x: 1.2, z: 11, heightM: 0.88 }),
         task("task-switchboard", "Repair the switchboard", "Reception", "switchboard", -22.2, 14),
         task("task-letter", "Burn the cursed letter", "Library", "letter", -22.3, -1, true),
         task("task-piano", "Tune the piano", "Ballroom", "piano", -21.5, -13, false, true),

@@ -42,6 +42,9 @@ export interface FurnitureDef {
   sizeX: number;
   sizeZ: number;
   heightM: number;
+  /** The station this piece is the body of (a clock case, the bell's pedestal): you use that
+   * station by standing next to the piece, so its point may sit inside it. */
+  of?: string;
 }
 
 /** A wardrobe, cupboard or curtain a player can hide in (GDD Section 6). It is also solid furniture. */

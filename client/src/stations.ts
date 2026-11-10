@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { config, searchPlaces, type MapData, type RelicMinigame, type TaskMinigame } from "@haunted/shared";
 import { liftToFloor } from "./place.ts";
+import type { ModelLoaders } from "./loaders.ts";
 import { clockText, clueTime, type FacePoint, type JugPuzzle } from "./hands/logic.ts";
 
 // Placeholder task station models until the Phase 8 art pass. Visible tasks (GDD 9) show
@@ -300,6 +301,110 @@ function clock(): StationView {
     },
     update(time) {
       if (swinging) pivot.rotation.z = Math.sin((time / PENDULUM_PERIOD_SEC) * Math.PI * 2) * PENDULUM_SWING_RAD;
+    },
+    hands,
+  };
+}
+
+/**
+ * The dressed grandfather clock (Phase 8). Its case is baked into the room
+ * (tools/art/blender/build_room.py grandfather_clock), so this draws only what moves: the
+ * model's own hands (tools/art/blender/build_clock_hands.py), a brass pendulum behind the glass
+ * window cut in the trunk, and the face you grab, which is invisible until it glows. In the
+ * model's axes: its centre at the station's place, front +z. These numbers come from the model
+ * and must match build_room.py (CLOCK_WINDOW_*, CLOCK_DOOR_Y, CLOCK_CAVITY_BACK_Y).
+ */
+const DRESSED_CLOCK = {
+  /** The dial's centre: the hands' pivot. */
+  pivotY: 1.7319,
+  handZ: 0.1255,
+  /** The chapter ring's radius, where you grab. */
+  faceR: 0.17,
+  /** The minute hand rides this far in front of the hour hand. */
+  minuteAheadM: 0.002,
+  /** The pendulum hangs from above the window and swings in the middle of the trunk. */
+  pendulumTopY: 1.36,
+  pendulumZ: 0.02,
+  rodM: 0.55,
+  bobR: 0.05,
+  /** Small, like a real clock's, so the bob clears the window's sides (+-0.105 m). */
+  swingRad: 0.09,
+};
+
+/** The clock's live parts when its case is in the room build. hands: the model's hour and minute hands, or null to draw plain ones. */
+export interface DressedClockParts {
+  hands: { hour: THREE.Object3D; minute: THREE.Object3D } | null;
+}
+
+const CLOCK_HANDS_URL = `${import.meta.env.BASE_URL}assets/stations/clock_hands.glb`;
+
+/** Loads the clock's hands. Without them (a failed load) the dressed clock gets plain ones. */
+export async function loadClockParts(loaders: ModelLoaders): Promise<DressedClockParts> {
+  try {
+    const gltf = await loaders.gltf.loadAsync(CLOCK_HANDS_URL);
+    const hour = gltf.scene.getObjectByName("hour");
+    const minute = gltf.scene.getObjectByName("minute");
+    if (hour && minute) return { hands: { hour, minute } };
+    console.error("The clock hands file has no hour and minute hands, so plain ones are drawn");
+  } catch (err) {
+    console.error("The clock hands failed to load, so plain ones are drawn", err);
+  }
+  return { hands: null };
+}
+
+function dressedClock(parts: DressedClockParts): StationView {
+  const c = DRESSED_CLOCK;
+  const group = new THREE.Group();
+  // Black, and adds its glow over the dial: you see the dial through it until you aim at it.
+  const faceMat = new THREE.MeshLambertMaterial({ color: 0x000000, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+  const face = part(new THREE.Mesh(new THREE.CircleGeometry(c.faceR, 40), faceMat), "face");
+  face.position.set(0, c.pivotY, c.handZ + 0.006);
+  group.add(face);
+  const plainHand = (length: number, width: number) => {
+    const pivot = new THREE.Group();
+    pivot.add(box(width, length, 0.004, 0x1a1410, 0, length / 2 - 0.02, 0));
+    return pivot;
+  };
+  const hourHand = parts.hands?.hour ?? plainHand(0.1, 0.014);
+  const minuteHand = parts.hands?.minute ?? plainHand(0.15, 0.008);
+  hourHand.position.set(0, c.pivotY, c.handZ);
+  minuteHand.position.set(0, c.pivotY, c.handZ + c.minuteAheadM);
+  group.add(hourHand, minuteHand);
+  const brass = new THREE.MeshStandardMaterial({ color: 0xb8913f, metalness: 0.6, roughness: 0.35 });
+  const pivot = new THREE.Group();
+  pivot.position.set(0, c.pendulumTopY, c.pendulumZ);
+  const rod = new THREE.Mesh(new THREE.BoxGeometry(0.012, c.rodM, 0.004), brass);
+  rod.position.y = -c.rodM / 2;
+  const bob = new THREE.Mesh(new THREE.CylinderGeometry(c.bobR, c.bobR, 0.012, 32), brass);
+  bob.rotation.x = Math.PI / 2;
+  bob.position.y = -c.rodM;
+  pivot.add(rod, bob);
+  group.add(pivot);
+  const setHands = (minuteDeg: number, hourDeg: number) => {
+    minuteHand.rotation.z = (-minuteDeg * Math.PI) / 180;
+    hourHand.rotation.z = (-hourDeg * Math.PI) / 180;
+  };
+  const hands: Extract<HandsModel, { kind: "clock" }> = { kind: "clock", face, target: 0, setHands };
+  let swinging = false;
+  // Stopped, it shows half a day from the time in the book; going, the time itself.
+  const showTime = () => {
+    const minutes = swinging ? hands.target : (hands.target + 360) % 720;
+    setHands((minutes % 60) * 6, (minutes / 720) * 360);
+  };
+  showTime();
+  return {
+    group,
+    setDone(done) {
+      swinging = done;
+      if (!done) pivot.rotation.z = 0;
+      showTime();
+    },
+    setClue(minutes) {
+      hands.target = minutes;
+      showTime();
+    },
+    update(time) {
+      if (swinging) pivot.rotation.z = Math.sin((time / PENDULUM_PERIOD_SEC) * Math.PI * 2) * c.swingRad;
     },
     hands,
   };
@@ -1186,9 +1291,10 @@ export class StationsView {
   /** The clues to set when the match's seed is known, by station id. */
   private clues: { id: string; book: { setTime(minutes: number): void } }[] = [];
 
-  constructor(scene: THREE.Scene, map: MapData) {
+  /** drawn: stations whose look a dressed room's build draws (the clock's case); clock: its live parts. */
+  constructor(scene: THREE.Scene, map: MapData, dressed: { drawn: ReadonlySet<string>; clock: DressedClockParts }) {
     for (const def of map.tasks) {
-      const view = MODELS[def.minigame]();
+      const view = def.minigame === "clock" && dressed.drawn.has(def.id) ? dressedClock(dressed.clock) : MODELS[def.minigame]();
       view.group.position.set(def.x, 0, def.z);
       liftToFloor(map, view.group);
       view.group.rotation.y = facingYaw(map, def);
