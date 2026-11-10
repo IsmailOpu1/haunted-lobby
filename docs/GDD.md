@@ -960,4 +960,4 @@ The owner approved `docs/plans/mystery-pilot.md` with the suggested answers. Wha
 | Sounds | Recorded sounds from Sonniss's free game-audio bundles and CC0 Freesound sounds, every one listed in `docs/ASSETS.md` | Owner's choice |
 | Tutorial | About 3 minutes, alone on the real hotel's ground floor with a slow ghost; the Training Room is the same solo night without the steps | Owner's choice; new players learn the real map |
 | Look test | The Main Hall is dressed first, and the owner approves it before any other room | PRD 11 Phase 8 |
-
+| Room sizes and furniture | The hotel's outline, corridors and stairs stay. Oversized rooms are split into believable parts with inner walls and doors (a guest room becomes bedroom, bathroom and sitting room). Big furniture (sofas, pillars, beds, cabinets) becomes map furniture that blocks; rooms aim for 25 to 40% of the floor furnished. Nothing floats; no two rooms are dressed alike. GDD 21.1 rules still hold | Owner found the rooms empty, objects floating and repeated (2026-11-10); a guest room was 196 m² |

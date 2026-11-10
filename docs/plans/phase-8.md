@@ -145,6 +145,25 @@ All in Options: remap every key, mouse sensitivity, field of view 70 to 100, pho
 - **Training Room:** the same solo night without the steps, to practise freely, with a slow ghost you can turn off.
 - Both run on the server as a one-player room type, so they use the real rules. Offered from the Start screen and suggested the first time someone plays.
 
+### 4.9 Empty and oversized rooms (owner's feedback, 2026-11-10)
+
+The owner found the rooms too empty, objects not touching the walls, and the same objects repeated. An audit (`tools/audit-dressing.ts`) and a top-down view of the ground floor confirm it:
+
+- **Rooms are far too big for what they are.** A guest room is 196 m² (a real one is about 25 m²), the Ritual Room 340 m², the Reception 196 m².
+- **Rooms are almost bare.** Furniture covers 0 to 5% of each room's floor; a lived-in room is 25 to 40%.
+- **No map furniture floats** (every piece in the map data touches its wall or stands free on purpose), so the floating objects are the task, relic and salt-jar objects drawn in `stations.ts`. These get checked one by one.
+
+What changes, room by room as each is dressed (the owner left the choice to me):
+
+1. **The hotel's outline, corridors, stairs and routes stay**, so walking times (GDD 21.1) and the ghost's paths stay about the same.
+2. **Oversized rooms are split into believable parts with inner walls and doors:** a guest room becomes a bedroom, a bathroom and a small sitting room; the Ritual Room gets an antechamber; Reception gets a back office. More doors and corners mean more cover and more hiding, which suits the game.
+3. **Big furniture becomes map furniture** (it blocks walking and sight, so the server and the ghost know about it): sofas, armchair groups, pillars, cabinets, beds, desks, pianos. Small things (books, lamps, cups, papers) are dressing.
+4. **Nothing floats.** Objects against a wall touch it; a task or relic object stands on a piece of furniture or on the floor. The props test checks this.
+5. **No two rooms are dressed alike.** Repeated models are varied (turned, aged, different fabric) and a room never uses the same large piece more than twice unless it makes sense (restaurant tables, bunk beds).
+6. Map tests that count rooms, hiding spots or stations are updated with each room, and the GDD 21.1 rules (2 routes, 2 hiding spots per room, Ritual Room with 2 doorways) still pass.
+
+The Main Hall is a grand lobby, so it keeps its size and gets filled: seating groups, pillars, a fireplace, the reception desk side, luggage, plants and a fallen chandelier.
+
 ---
 
 ## 5. Steps
@@ -154,7 +173,7 @@ Each step has its own check, and steps 1 and 3 have an **owner check before goin
 | # | Step | What you get | Check | Estimate |
 |---|---|---|---|---|
 | 1 | **Look test: the Main Hall fully dressed** | Pipeline working end to end, PBR materials, baked light (lamps on and off), post-processing, the hand and flashlight, quality setting, FPS counter | **Owner check:** screenshots, a walk-through video, and you walk it yourself. Nothing else is dressed until you like it | 1.5 weeks |
-| 2 | Dress the ground floor, then upper, then basement | Every room to its story, doors, stairs, courtyard; station, relic, bell and fuse box models | Props test passes, FPS within budget on each floor, screenshots per room | 2 weeks |
+| 2 | Fix and dress the ground floor, then upper, then basement | Oversized rooms split (4.9), every room to its story, doors, stairs, courtyard; station, relic, bell and fuse box models | Props test passes, FPS within budget on each floor, screenshots per room | 2 weeks |
 | 3 | **Characters** | 8 models, animations, shadows in the dark, names when lit, hands mid-task | **Owner check:** a lineup video and a 4-player test | 1 week |
 | 4 | Sound pass | Recorded sounds for everything in 4.6 | You play a night with headphones | 0.5 week |
 | 5 | Compression and loading | KTX2 and Meshopt, Low and High asset sets, loading screen, menus up in 5 s, first load under 30 s | Measured on a throttled connection | 0.5 week |
