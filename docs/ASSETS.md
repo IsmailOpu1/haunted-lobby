@@ -60,12 +60,19 @@ No outside licence; part of this project.
 
 | What | How it is made |
 |---|---|
-| Hand torch (`assets-src/models/hand_torch`, `client/public/assets/held/hand_torch.glb`) | Modelled and textured by script: `tools/art/blender/build_torch.py` |
+| Hand torch (`assets-src/models/hand_torch`) | Modelled and textured by script: `tools/art/blender/build_torch.py` |
+| Your hand and coat sleeve holding the torch (`assets-src/models/held_torch`, `client/public/assets/held/held_torch.glb`) | `tools/art/blender/build_hand.py`: the right hand and forearm of MakeHuman's base human (CC0), made and rigged with the MPFB add-on, posed round the torch's grip by script; the sleeve built by script; skin, nails and wool baked from procedural shaders (nails placed with MPFB's CC0 nail mask) |
 | Banquet table, hiding-spot wardrobes, room shells | Built by script in `tools/art/blender/build_room.py` from the map data |
 | Meeting bell (brass bell on a turned pedestal) | Built by script in `tools/art/blender/build_room.py` (`meeting_bell`) |
 | Stairwells (treads, runner, stair rods, panelling, handrail) | Built by script in `tools/art/blender/build_room.py` (`stairwell`) from the map's stairs |
 | Grandfather clock window and hands (`client/public/assets/stations/clock_hands.glb`) | The case's window cut and glazed in `build_room.py` (`grandfather_clock`); the hands taken from the Poly Haven model by `tools/art/blender/build_clock_hands.py` |
 | Room lightmaps | Baked in Blender (Cycles) from the room builds |
+
+## Tools used to make assets (not shipped)
+
+| What | Source | Licence |
+|---|---|---|
+| MPFB 2.0.18 (MakeHuman for Blender), installed only in `assets-src/blender-user` | static.makehumancommunity.org | Code GPL-3.0 (a tool, not shipped); its human mesh, rigs and textures CC0 |
 
 ## Fonts and code shipped with the client
 

@@ -3,11 +3,12 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import type { ModelLoaders } from "./loaders.ts";
 
 // The torch in your hand (Phase 8 plan, 4.5): an old nickel-plated metal torch held low and to the
-// right, swaying with your steps and lagging a little behind your view. It is drawn in its own
+// right in your gloveless right hand and coat sleeve (tools/art/blender/build_hand.py), swaying
+// with your steps and lagging a little behind your view. It is drawn in its own
 // pass over the world, so it never sinks into a wall you stand against. The beam comes out of its
 // lens. Looks only: none of this is a game number.
 
-const MODEL_URL = `${import.meta.env.BASE_URL}assets/held/hand_torch.glb`;
+const MODEL_URL = `${import.meta.env.BASE_URL}assets/held/held_torch.glb`;
 /** Where the flashlight sits in front of your eye (right, down, forward). */
 const HOLD = new THREE.Vector3(0.19, -0.23, -0.42);
 /** Life size: the torch (tools/art/blender/build_torch.py) is 24.5 cm long, about 5 cm across the head. */
@@ -45,6 +46,13 @@ const BOUNCE_RANGE_M = 2;
  */
 const STUDIO_INTENSITY = 0.25;
 const STUDIO_BLUR = 0.04;
+/**
+ * The hand and sleeve take only a little of that studio, and are toned down and warmed toward the
+ * hotel's lamps: the torch's cool fill, made for metal, turned skin into a bright grey rubber glove.
+ */
+const SKIN_STUDIO_SCALE = 0.25;
+const SKIN_TINT = new THREE.Color(0.55, 0.47, 0.4);
+const SKIN_MATERIALS = /^(skin|wool)/i;
 
 export interface HeldState {
   /** Shown at all (not while working a task, holding up the camera, or as a Wisp). */
@@ -110,6 +118,10 @@ export class HeldFlashlight {
       if (!(obj instanceof THREE.Mesh)) return;
       obj.frustumCulled = false;
       const material = obj.material as THREE.MeshStandardMaterial;
+      if (SKIN_MATERIALS.test(material.name)) {
+        material.envMapIntensity = SKIN_STUDIO_SCALE;
+        material.color.multiply(SKIN_TINT);
+      }
       if (/glass/i.test(material.name)) {
         material.emissive = new THREE.Color(LENS_GLOW);
         this.lens.push(material);
