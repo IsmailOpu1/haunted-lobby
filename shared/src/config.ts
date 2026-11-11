@@ -227,6 +227,10 @@ export const config = {
     radiusM: 0.3,
     heightM: 2.1,
     catchRangeM: 0.8,
+    // A player squeezed somewhere too narrow for the ghost to walk: it comes as close as it can,
+    // up to this far short, instead of standing still (found in Phase 8, when inner walls moved
+    // where test players wandered).
+    closeInM: 2,
     sightFovDeg: 140,
     investigateLookSec: 3,
     // After investigating a spot, clues near it are ignored for a while so the ghost moves on.

@@ -1446,6 +1446,20 @@ body.revealing .screen {
   width: 100%;
   accent-color: var(--brass);
 }
+/* No mouse arrow while you look around the hotel (input.ts sets "looking"). */
+html.looking,
+html.looking * {
+  cursor: none !important;
+}
+/* A small typed value beside a field's name (mouse sensitivity). */
+.screen .field input.number-box {
+  width: 5.5em;
+  padding: 0 0 2px;
+  font-family: var(--sans);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-align: right;
+}
 .screen output {
   color: var(--brass);
 }

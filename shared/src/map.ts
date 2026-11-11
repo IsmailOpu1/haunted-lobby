@@ -24,6 +24,12 @@ export interface RoomDef {
   maxZ: number;
   /** Open to the sky: no ceiling (the Garden Courtyard). */
   outdoor?: boolean;
+  /**
+   * A walled-off part of the room (a back office, a study), joined to the rest by an inner door.
+   * Walls go between parts, but for every rule (tasks, hiding spots, doors) it is the same room
+   * (GDD 26.15).
+   */
+  part?: string;
 }
 
 /**

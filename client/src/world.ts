@@ -139,10 +139,13 @@ const NOTHING_DRESSED: Dressed = { rooms: new Set(), drawn: new Set() };
 export function buildWorld(scene: THREE.Scene, map: MapData, dressed: Dressed = NOTHING_DRESSED): { doors: Map<string, DoorView>; ritualCircle: RitualCircleView | null } {
   const h = map.wallHeightM;
   const wallMat = new THREE.MeshLambertMaterial({ color: WALL_COLOR });
+  // Up to the underside of the slab, not through it: a wall's top at the next floor's level shows
+  // through that floor as a flickering stripe (the basement's walls under the Ballroom).
+  const wallH = h - SLAB_M;
   for (const segment of map.walls) {
     const box = wallBox(segment, map.wallThicknessM);
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(box.sizeX, h, box.sizeZ), wallMat);
-    wall.position.set(box.x, h / 2, box.z);
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(box.sizeX, wallH, box.sizeZ), wallMat);
+    wall.position.set(box.x, wallH / 2, box.z);
     scene.add(liftToFloor(map, wall));
   }
 
@@ -185,7 +188,7 @@ export function buildWorld(scene: THREE.Scene, map: MapData, dressed: Dressed = 
     scene.add(liftToFloor(map, obj));
   };
   if (map.bell && !dressed.drawn.has("bell")) placeAt(bellModel(), map.bell);
-  if (map.fuseBox) placeAt(fuseBoxModel(), map.fuseBox);
+  if (map.fuseBox && !dressed.drawn.has("fuseBox")) placeAt(fuseBoxModel(), map.fuseBox);
   const circle = map.altar ? new RitualCircleView() : null;
   if (circle && map.altar) placeAt(circle.mesh, map.altar);
 
@@ -224,8 +227,11 @@ function buildDoorSigns(scene: THREE.Scene, map: MapData, wallHeight: number, dr
   const off = map.wallThicknessM / 2 + FACE_GAP_M * 2;
   for (const def of map.doors) {
     const box = doorBox(def, map.wallThicknessM);
-    const lintel = new THREE.Mesh(new THREE.BoxGeometry(box.sizeX, wallHeight - doorTop, box.sizeZ), lintelMat);
-    lintel.position.set(def.x, (wallHeight + doorTop) / 2, def.z);
+    // Up to the ceiling like the walls (buildWorld): its top at the next floor's level shows through
+    // that floor (a basement door's lintel under the Ballroom).
+    const lintelTop = wallHeight - SLAB_M;
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(box.sizeX, lintelTop - doorTop, box.sizeZ), lintelMat);
+    lintel.position.set(def.x, (lintelTop + doorTop) / 2, def.z);
     scene.add(liftToFloor(map, lintel));
     // The two sides of the doorway: -1 is north (or west), +1 south (or east).
     for (const side of [-1, 1]) {
@@ -298,7 +304,8 @@ function roomMaterials(map: MapData): Map<string, RoomMaterials> {
 
 /** Each room's side of its walls in the room's colour, merged into one mesh per room. */
 function buildWallFaces(scene: THREE.Scene, map: MapData, mats: Map<string, RoomMaterials>, dressed: Dressed) {
-  const h = map.wallHeightM;
+  // Up to the ceiling, not the floor above: see the wall boxes in buildWorld.
+  const h = map.wallHeightM - SLAB_M;
   const byRoom = new Map<string, THREE.BufferGeometry[]>();
   for (const face of wallFaces(map)) {
     if (!mats.has(face.room) || dressed.rooms.has(face.room)) continue;

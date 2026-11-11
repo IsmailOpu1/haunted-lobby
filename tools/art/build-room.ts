@@ -8,7 +8,7 @@ import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
 import { meshopt } from "@gltf-transform/functions";
 import { MeshoptDecoder, MeshoptEncoder } from "meshoptimizer";
 import { dirname, join, resolve } from "node:path";
-import { HIDING_SPOT_HEIGHT_M, levelOf, toWorld, wallFaces, type MapData } from "@haunted/shared";
+import { HIDING_SPOT_HEIGHT_M, levelOf, stairWalls, toWorld, wallBox, wallFaces, type MapData } from "@haunted/shared";
 import { defaultMap } from "../../maps/index.ts";
 import { marrowHotelDressing } from "../../maps/marrow-hotel/dressing.ts";
 
@@ -35,6 +35,9 @@ export function slug(room: string): string {
 }
 
 /** The room's shell in world coordinates: floor parts, wall faces and doorways on its edges. */
+/** build_room.py FACE_GAP: wall faces stand this far proud of the wall's solid box. */
+const FACE_GAP_M = 0.005;
+
 export function roomJob(map: MapData, room: string) {
   const parts = map.rooms.filter((r) => r.name === room);
   if (!parts.length) throw new Error(`No room named ${room}`);
@@ -44,13 +47,15 @@ export function roomJob(map: MapData, room: string) {
   const inside = (x: number, z: number) => parts.some((p) => x > p.minX && x < p.maxX && z > p.minZ && z < p.maxZ);
   const doors = map.doors.flatMap((d) => {
     const [nx, nz] = d.axis === "x" ? [0, 1] : [1, 0];
-    const into = inside(d.x + nx * 0.3, d.z + nz * 0.3) ? [nx, nz] : inside(d.x - nx * 0.3, d.z - nz * 0.3) ? [-nx, -nz] : null;
-    return into ? [{ x: d.x + sx, z: d.z + sz, width: d.width, axis: d.axis, into }] : [];
+    // One entry for each side of the doorway that is in this room: a door between two parts of
+    // the same room (the dining room and the bar) is framed on both sides.
+    const sides = [[nx, nz], [-nx, -nz]].filter(([ux, uz]) => inside(d.x + ux! * 0.3, d.z + uz! * 0.3));
+    return sides.map((into) => ({ x: d.x + sx, z: d.z + sz, width: d.width, axis: d.axis, into }));
   });
-  // Hiding spots are built as furniture here (wardrobes and cupboards); `front` points to where
-  // the player steps out, which is the side the doors are on.
+  // Hiding spots are built here (wardrobes and cupboards, and curtained alcoves); `front` points to
+  // where the player steps out, which is the side the doors or the drape are on.
   const hidingSpots = map.hidingSpots
-    .filter((h) => h.kind !== "curtain" && inside(h.x, h.z))
+    .filter((h) => inside(h.x, h.z))
     .map((h) => {
       const [dx, dz] = [h.exit.x - h.x, h.exit.z - h.z];
       const front = Math.abs(dx) > Math.abs(dz) ? [Math.sign(dx), 0] : [0, Math.sign(dz)];
@@ -71,8 +76,19 @@ export function roomJob(map: MapData, room: string) {
     const at = (along: number, across: number) => ({ x: bottom.x + u.x * along + side.x * across - sx, z: bottom.z + u.z * along + side.z * across - sz });
     const out = open === 0 ? -0.3 : s.lengthM + 0.3;
     const mouth = at(out, 0);
-    if (!inside(mouth.x, mouth.z)) return [];
     const runsAlongX = u.x !== 0;
+    if (!inside(mouth.x, mouth.z)) {
+      // The flight opens into another room, but its shaft's side wall may still be this room's
+      // wall (the cellar stairs behind the Reception): give that side the room's finish.
+      for (const sideSign of [-1, 1]) {
+        const beside = at(s.lengthM / 2, sideSign * (s.widthM / 2 + T / 2 + 0.3));
+        if (!inside(beside.x, beside.z)) continue;
+        const c = at(s.lengthM / 2, (sideSign * s.widthM) / 2);
+        const sign = (n: number) => (n > 0 ? 1 : -1);
+        extraFaces.push({ room, x: c.x + sx, z: c.z + sz, length: s.lengthM, axis: runsAlongX ? "x" : "z", facing: sign(runsAlongX ? sideSign * side.z : sideSign * side.x) });
+      }
+      return [];
+    }
     const sign = (n: number) => (n > 0 ? 1 : -1);
     let hallSide = 0;
     for (const sideSign of [-1, 1]) {
@@ -93,6 +109,35 @@ export function roomJob(map: MapData, room: string) {
     }
     return [{ id: s.id, x: bottom.x, y: bottom.y, z: bottom.z, ux: u.x, uz: u.z, lengthM: s.lengthM, widthM: s.widthM, rise: top.y - bottom.y, open, hallSide }];
   });
+  // Each wall's solid box runs half a thickness past its ends so corners close. Where a wall ends
+  // out in the room (a partition stopping short, the corner of an opening between two parts of a
+  // room) that last bit has no face of its own and the bare grey core shows: carry the face on
+  // round it, up to the edge of the box.
+  const boxes = [...map.walls, ...stairWalls(map)].map((w) => wallBox(w, T));
+  const inWall = (x: number, z: number) => boxes.some((b) => Math.abs(x - b.x) < b.sizeX / 2 - 1e-3 && Math.abs(z - b.z) < b.sizeZ / 2 - 1e-3);
+  const inRoom = (x: number, z: number) => parts.some((p) => x >= p.minX - 1e-3 && x <= p.maxX + 1e-3 && z >= p.minZ - 1e-3 && z <= p.maxZ + 1e-3);
+  const nearDoor = (x: number, z: number) => map.doors.some((d) => Math.abs(x - d.x) < d.width / 2 + T && Math.abs(z - d.z) < d.width / 2 + T);
+  const faces = wallFaces(map)
+    .filter((f) => f.room === room)
+    .map((f) => {
+      let lo = (f.axis === "x" ? f.x : f.z) - f.length / 2;
+      let hi = lo + f.length;
+      const at = (u: number, out: number) => (f.axis === "x" ? { x: u, z: f.z + f.facing * out } : { x: f.x + f.facing * out, z: u });
+      for (const end of [-1, 1] as const) {
+        const u = end < 0 ? lo : hi;
+        const beyond = at(u + end * 0.05, T / 2 + 0.05); // just past the end, in front of the face
+        if (!inRoom(beyond.x, beyond.z) || inWall(beyond.x, beyond.z) || nearDoor(beyond.x, beyond.z)) continue;
+        // The wall itself must stop here: solid up to half a thickness past the end, open beyond.
+        const last = at(u + end * (T / 2 - 0.01), 0);
+        const past = at(u + end * (T / 2 + 0.01), 0);
+        if (!inWall(last.x, last.z) || inWall(past.x, past.z)) continue;
+        // Out to the plane of the face round the end (faces stand FACE_GAP proud of the wall).
+        if (end < 0) lo -= T / 2 + FACE_GAP_M;
+        else hi += T / 2 + FACE_GAP_M;
+      }
+      const mid = (lo + hi) / 2;
+      return { ...f, x: f.axis === "x" ? mid : f.x, z: f.axis === "x" ? f.z : mid, length: hi - lo };
+    });
   return {
     room,
     levelY: level.y,
@@ -101,7 +146,7 @@ export function roomJob(map: MapData, room: string) {
     doorHeight: map.wallHeightM * DOOR_HEIGHT_FRACTION,
     outdoor: parts.some((p) => p.outdoor),
     parts: parts.map((p) => ({ minX: p.minX + sx, maxX: p.maxX + sx, minZ: p.minZ + sz, maxZ: p.maxZ + sz })),
-    faces: [...wallFaces(map).filter((f) => f.room === room).map((f) => ({ ...f, x: f.x + sx, z: f.z + sz })), ...extraFaces],
+    faces: [...faces.map((f) => ({ ...f, x: f.x + sx, z: f.z + sz })), ...extraFaces],
     doors,
     hidingSpots,
     stairs,
@@ -185,7 +230,7 @@ async function build(room: string, fast: boolean, skipBlender: boolean) {
 
   const manifestPath = join(OUT, "rooms.json");
   // The map furniture and hiding spots this build draws, so the game leaves out their grey boxes.
-  const drawn = [...new Set([...dressing.props.flatMap((p) => (p.draws ? [p.draws] : [])), ...(dressing.builds ?? []).flatMap((b) => [...(b.draws ? [b.draws] : []), ...("station" in b ? [b.station] : [])]), ...shell.hidingSpots.map((h) => h.id), ...shell.stairs.map((s) => s.id)])];
+  const drawn = [...new Set([...dressing.props.flatMap((p) => (p.draws ? [p.draws] : [])), ...(dressing.builds ?? []).flatMap((b) => [...("draws" in b && b.draws ? [b.draws] : []), ...("station" in b ? [b.station] : []), ...("drawsAll" in b ? (b.drawsAll ?? []) : [])]), ...shell.hidingSpots.map((h) => h.id), ...shell.stairs.map((s) => s.id)])];
   const manifest: Record<string, { glb: string; lightmap: string; lightmapScale: number; drawn: string[] }> = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, "utf8")) : {};
   manifest[room] = { glb: `assets/rooms/${name}.gltf`, lightmap: `assets/rooms/${name}-lightmap.ktx2`, lightmapScale: LIGHTMAP_SCALE, drawn };
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));

@@ -33,6 +33,11 @@ const VIGNETTE_START = 0.45;
  */
 const AO_RADIUS_M = 0.35;
 const AO_INTENSITY = 0.6;
+/**
+ * The occlusion is worked out at this fraction of the screen's width and height and then blurred
+ * up: it is soft anyway, and at full size it cost about half of a High frame (2026-11-11).
+ */
+const AO_SCALE = 0.5;
 const HIGH_MAX_PIXEL_RATIO = 1.5;
 /** Low renders this many lines high and scales up. */
 const LOW_LINES = 720;
@@ -81,8 +86,17 @@ export class PostProcessing {
   private ao: GTAOPass;
   private level: QualityLevel = "high";
 
-  /** `overlay` is drawn over the world with its own depth: what you hold, so it never sinks into a wall. */
-  constructor(private renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera, overlay?: THREE.Scene) {
+  /**
+   * `overlay` is drawn over the world with its own depth: what you hold, so it never sinks into a
+   * wall. It is seen through `overlayCamera` (its own fixed lens), or the world's camera if none.
+   */
+  constructor(
+    private renderer: THREE.WebGLRenderer,
+    scene: THREE.Scene,
+    camera: THREE.Camera,
+    overlay?: THREE.Scene,
+    overlayCamera: THREE.Camera = camera,
+  ) {
     renderer.toneMapping = TONE_MAPPING;
     renderer.toneMappingExposure = EXPOSURE;
     // Render in high precision so the darks don't band and the bloom sees true brightness.
@@ -92,9 +106,11 @@ export class PostProcessing {
     this.ao = new GTAOPass(scene, camera, 1, 1);
     this.ao.blendIntensity = AO_INTENSITY;
     this.ao.updateGtaoMaterial({ radius: AO_RADIUS_M });
+    const fullSize = this.ao.setSize.bind(this.ao);
+    this.ao.setSize = (w: number, h: number) => fullSize(Math.max(1, Math.round(w * AO_SCALE)), Math.max(1, Math.round(h * AO_SCALE)));
     this.composer.addPass(this.ao);
     if (overlay) {
-      const held = new RenderPass(overlay, camera);
+      const held = new RenderPass(overlay, overlayCamera);
       held.clear = false;
       held.clearDepth = true;
       this.composer.addPass(held);

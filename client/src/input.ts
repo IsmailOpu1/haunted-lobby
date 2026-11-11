@@ -1,8 +1,38 @@
 // Keyboard and mouse for first-person play (GDD Section 6).
 // Remapping comes with the accessibility options (Phase 8).
 
-const MOUSE_SENSITIVITY = 0.0022; // radians per pixel; becomes a settings slider in Phase 8
+/**
+ * Mouse sensitivity uses the standard scale of Counter-Strike and other Source games: each count
+ * of the mouse turns the view 0.022 degrees times the sensitivity, so a player can bring the number
+ * they use elsewhere (Valorant's number times 3.18). 2.5 is Counter-Strike's default.
+ */
+const DEG_PER_COUNT_PER_SENSITIVITY = 0.022;
+export const SENSITIVITY_MIN = 0.1;
+export const SENSITIVITY_MAX = 10;
+export const DEFAULT_SENSITIVITY = 2.5;
 const MAX_PITCH = Math.PI / 2 - 0.05;
+/**
+ * The browser sometimes reports a huge jump for one mouse event (a known Chrome bug with a locked
+ * pointer); a real hand never moves the mouse this many counts between two events.
+ */
+const MAX_COUNTS_PER_EVENT = 400;
+
+/**
+ * Captures the mouse for looking around, with raw movement like other games: without it, Windows'
+ * "Enhance pointer precision" makes slow moves crawl and stutter and fast ones fly (owner,
+ * 2026-11-11). Browsers that cannot give raw movement get the ordinary kind.
+ */
+export function lockPointer(canvas: HTMLCanvasElement) {
+  const ordinary = () => Promise.resolve(canvas.requestPointerLock()).catch(() => {});
+  try {
+    Promise.resolve(canvas.requestPointerLock({ unadjustedMovement: true })).catch((err: unknown) => {
+      // Not supported here: fall back. Any other refusal (for example right after Esc): click again.
+      if (err instanceof DOMException && err.name === "NotSupportedError") void ordinary();
+    });
+  } catch {
+    void ordinary();
+  }
+}
 
 export interface InputActions {
   onFlashlight(): void;
@@ -44,6 +74,8 @@ const MOVE_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD"]);
 export class PlayerInput {
   yaw = 0;
   pitch = 0;
+  /** The Options slider, SENSITIVITY_MIN to SENSITIVITY_MAX. */
+  sensitivity = DEFAULT_SENSITIVITY;
   private keys = new Set<string>();
   private enabled = false;
   private cameraRaised = false;
@@ -113,7 +145,7 @@ export class PlayerInput {
         }
       } else {
         // Browsers can refuse (for example right after Esc); the player just clicks again.
-        Promise.resolve(canvas.requestPointerLock()).catch(() => {});
+        lockPointer(canvas);
       }
     });
 
@@ -124,6 +156,9 @@ export class PlayerInput {
     });
 
     document.addEventListener("pointerlockchange", () => {
+      // Chrome can leave the arrow drawn while the mouse is captured for raw movement; hide it
+      // ourselves while you look around (owner, 2026-11-11).
+      document.documentElement.classList.toggle("looking", this.looking);
       if (!this.looking) {
         if (this.handDown) {
           this.handDown = false;
@@ -151,8 +186,10 @@ export class PlayerInput {
         actions.onWheelMove(e.movementX, e.movementY);
         return;
       }
-      this.yaw -= e.movementX * MOUSE_SENSITIVITY;
-      this.pitch -= e.movementY * MOUSE_SENSITIVITY;
+      if (Math.abs(e.movementX) > MAX_COUNTS_PER_EVENT || Math.abs(e.movementY) > MAX_COUNTS_PER_EVENT) return;
+      const turn = ((this.sensitivity * DEG_PER_COUNT_PER_SENSITIVITY) * Math.PI) / 180;
+      this.yaw -= e.movementX * turn;
+      this.pitch -= e.movementY * turn;
       this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch));
     });
   }

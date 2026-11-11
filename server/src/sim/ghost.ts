@@ -396,6 +396,22 @@ export class Ghost {
       }
     }
 
+    // A player it sees but cannot walk to (squeezed between furniture, closer than closeInM): it
+    // glides straight at them for the last stretch, through the furniture. It sees them, so no wall
+    // is in the way; without this a narrow gap would be a place the ghost can never catch you.
+    if (perceived.length > 0 && target && this.path.length === 0) {
+      const d = this.world.distance(target, this);
+      if (d > config.ghost.catchRangeM && d <= config.ghost.closeInM) {
+        const step = Math.min(speed * dt, d);
+        const dx = (target.x - this.x) / d;
+        const dz = (target.z - this.z) / d;
+        this.x += dx * step;
+        this.z += dz * step;
+        this.yaw = Math.atan2(-dx, -dz);
+        return;
+      }
+    }
+
     // On arrival at the last known position, the next tick picks a hiding spot to check.
     if (this.moveAlongPath(dt, speed)) {
       this.goal = null;
@@ -453,6 +469,12 @@ export class Ghost {
     this.goal = goal;
     this.path = this.nav.path(this, goal);
     if (this.path.length === 0 && Math.hypot(goal.x - this.x, goal.z - this.z) > ARRIVE_M) {
+      // Somewhere too narrow to walk (a player squeezed between furniture): get as close as it can.
+      this.path = this.nav.path(this, goal, config.ghost.closeInM);
+      const end = this.path[this.path.length - 1];
+      if (end) this.goal = { x: end.x, z: end.z };
+    }
+    if (this.path.length === 0 && Math.hypot(this.goal.x - this.x, this.goal.z - this.z) > ARRIVE_M) {
       // Unreachable: forget it and pick something else next tick.
       this.goal = null;
     }

@@ -216,7 +216,8 @@ describe.each([marrowHotelGreybox].map((m) => [m.name, m] as const))("%s follows
     const along = (f: (typeof faces)[number]) => (f.axis === "x" ? f.x : f.z);
     for (const a of faces) {
       for (const b of faces) {
-        const facingEachOther = a.axis === b.axis && a.facing === 1 && b.facing === -1 && Math.abs(line(a) - line(b)) < 1e-3;
+        // Two parts of one room (an inner wall) share the room's colour.
+        const facingEachOther = a.room !== b.room && a.axis === b.axis && a.facing === 1 && b.facing === -1 && Math.abs(line(a) - line(b)) < 1e-3;
         const overlap = Math.abs(along(a) - along(b)) < (a.length + b.length) / 2 - 1e-3;
         if (facingEachOther && overlap) expect(map.roomColors?.[a.room], `${a.room} next to ${b.room}`).not.toBe(map.roomColors?.[b.room]);
       }

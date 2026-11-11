@@ -80,14 +80,14 @@ export class NavMap {
    * Between floors it walks to the middle of each flight of stairs and jumps to the same place
    * in the next floor's area.
    */
-  path(a: Point, b: Point): Point[] {
+  path(a: Point, b: Point, reachM = REACH_TOLERANCE_M): Point[] {
     const routes = stairRoutes(this.map, levelOf(this.map, a.x, a.z).id, levelOf(this.map, b.x, b.z).id);
-    if (routes.length === 0) return this.pathOnFloor(a, b);
+    if (routes.length === 0) return this.pathOnFloor(a, b, reachM);
     // With more than one flight between floors, take the shortest way.
     let best: Point[] = [];
     let bestLength = Infinity;
     for (const route of routes) {
-      const points = this.pathVia(a, b, route);
+      const points = this.pathVia(a, b, route, reachM);
       const length = pathLength(a, points);
       if (points.length > 0 && length < bestLength) {
         best = points;
@@ -98,7 +98,7 @@ export class NavMap {
   }
 
   /** A path through the given flights of stairs, or empty if a leg is unreachable. */
-  private pathVia(a: Point, b: Point, route: { before: Point; after: Point }[]): Point[] {
+  private pathVia(a: Point, b: Point, route: { before: Point; after: Point }[], reachM: number): Point[] {
     const points: Point[] = [];
     let from = a;
     for (const step of route) {
@@ -107,18 +107,19 @@ export class NavMap {
       points.push(...leg, { ...step.after, jump: true });
       from = step.after;
     }
-    const last = this.pathOnFloor(from, b);
+    const last = this.pathOnFloor(from, b, reachM);
     if (last.length === 0 && Math.hypot(b.x - from.x, b.z - from.z) > 0.05) return [];
     return [...points, ...last];
   }
 
-  private pathOnFloor(a: Point, b: Point): Point[] {
+  /** reachM: how far short of b the path may end (Recast stops at the nearest point it can reach). */
+  private pathOnFloor(a: Point, b: Point, reachM = REACH_TOLERANCE_M): Point[] {
     const r = this.query.computePath({ x: a.x, y: 0, z: a.z }, { x: b.x, y: 0, z: b.z });
     if (!r.success) return [];
     const points = r.path.map((p) => ({ x: p.x, z: p.z }));
     // Recast returns a path to the nearest point it can reach. Short of the goal means unreachable.
     const end = points[points.length - 1];
-    if (end && Math.hypot(end.x - b.x, end.z - b.z) > REACH_TOLERANCE_M) return [];
+    if (end && Math.hypot(end.x - b.x, end.z - b.z) > reachM) return [];
     if (points.length > 0 && Math.hypot(points[0]!.x - a.x, points[0]!.z - a.z) < 0.05) points.shift();
     return points;
   }

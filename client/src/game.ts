@@ -40,7 +40,7 @@ import { GhostView } from "./ghostView.ts";
 import { createHandsTask } from "./hands/tasks.ts";
 import { HandsWork } from "./hands/work.ts";
 import { ItemsView } from "./items.ts";
-import { PlayerInput } from "./input.ts";
+import { PlayerInput, SENSITIVITY_MAX, SENSITIVITY_MIN } from "./input.ts";
 import { RelicsView } from "./relicsView.ts";
 import { MysteryView } from "./mysteryView.ts";
 import { RemotePlayers } from "./remotePlayers.ts";
@@ -50,6 +50,7 @@ import type { TaskSoundKind } from "./hands/sounds.ts";
 import { buildWorld, type DoorView, type RitualCircleView } from "./world.ts";
 import { DressedRooms, loadDressedRooms } from "./dressedRooms.ts";
 import { PostProcessing, type QualityLevel } from "./post.ts";
+import { LightBudget } from "./lightBudget.ts";
 import { HeldFlashlight } from "./heldFlashlight.ts";
 import { modelLoaders } from "./loaders.ts";
 import { dressings } from "@haunted/maps";
@@ -81,6 +82,8 @@ const AIM_DOOR_RAD = (35 * Math.PI) / 180;
 const AIM_PLAYER_RAD = (20 * Math.PI) / 180;
 const FOG_NEAR = 1;
 const FOG_FAR = 18;
+/** Nothing past the fog can be seen, so nothing past it is drawn (a little beyond, for the fade's tail). */
+const VIEW_FAR_M = FOG_FAR + 1;
 const CROUCH_LERP_PER_SEC = 10;
 // How fast a server correction to your own position fades out, and when to jump instead.
 const CORRECTION_FADE_PER_SEC = 20;
@@ -91,8 +94,20 @@ const VOICE_ANSWER_TIMEOUT_MS = 5000;
 const BELL_CUE_SEC = 4;
 const CUE_FLOOR_DIFF_M = 1.5;
 // Working with your hands (GDD 26.5): the view narrows a little toward what you work on.
-const WORK_FOV = 58;
-const NORMAL_FOV = 75;
+/**
+ * Field of view, measured side to side like most games (the Options slider, GDD 23). It was a fixed
+ * 75 degrees up and down, about 106 side to side on a wide screen: a wide-angle lens that stretched
+ * the edges and made walking and turning feel twice as fast (owner, 2026-11-11).
+ */
+export const FOV_MIN = 70;
+export const FOV_MAX = 100;
+export const DEFAULT_FOV = 90;
+/** On a tall, narrow window the up-and-down angle never passes this. */
+const MAX_VERTICAL_FOV_DEG = 75;
+/** Working with your hands narrows the view to this share, toward the work. */
+const WORK_ZOOM = 0.77;
+/** Your hand and torch are drawn through their own fixed lens, so the slider never resizes them. */
+const HELD_FOV_DEG = 75;
 const FOV_LERP_PER_SEC = 6;
 const STOP_HINT = "E or a step to stop";
 /** A hidden relic this close to the place you found one is that relic. */
@@ -279,7 +294,9 @@ interface RelicData {
 export class Game {
   private scene = new THREE.Scene();
   private post: PostProcessing;
-  private camera = new THREE.PerspectiveCamera(75, 1, 0.05, 100);
+  private camera = new THREE.PerspectiveCamera(75, 1, 0.05, VIEW_FAR_M);
+  private heldCamera = new THREE.PerspectiveCamera(HELD_FOV_DEG, 1, 0.05, VIEW_FAR_M);
+  private fovDeg = DEFAULT_FOV;
   private ambient = new THREE.HemisphereLight(0xb8c0d0, 0x202020, DARK_AMBIENT);
   private flashlight = createFlashlight();
   private flashlightIntensity: number;
@@ -368,6 +385,7 @@ export class Game {
   private wispCollide: CollideFn;
   private wisps: WispsView;
   private wispLight = new THREE.PointLight(0xbfe3ff, WISP_GLOW, WISP_GLOW_RANGE_M);
+  private lightBudget: LightBudget;
 
   private constructor(
     private canvas: HTMLCanvasElement,
@@ -382,7 +400,7 @@ export class Game {
     this.scene.fog = new THREE.Fog(0x000000, FOG_NEAR, FOG_FAR);
     this.scene.add(this.ambient);
 
-    this.post = new PostProcessing(renderer, this.scene, this.camera, held.scene);
+    this.post = new PostProcessing(renderer, this.scene, this.camera, held.scene, this.heldCamera);
     for (const room of dressed.objects) this.scene.add(room);
     ({ doors: this.doors, ritualCircle: this.ritualCircle } = buildWorld(this.scene, map, dressed));
     dressed.captureReflections(this.renderer, this.scene); // before the flashlight is added
@@ -410,6 +428,7 @@ export class Game {
     this.wispLight.visible = false;
     this.camera.add(this.wispLight);
     this.scene.add(this.camera);
+    this.lightBudget = new LightBudget(this.scene);
     const spawn = map.spawns[0] ?? { x: 0, z: 0 };
     const start = toWorld(map, spawn.x, spawn.z);
     this.camera.position.set(start.x, start.y + config.movement.eyeHeightM, start.z);
@@ -472,6 +491,27 @@ export class Game {
 
     window.addEventListener("resize", () => this.resize());
     this.resize();
+  }
+
+  /**
+   * Builds every shader and uploads every texture before the first frame, so nothing stalls the
+   * first time it comes into view (a room, the ghost, a torch), then starts the frame loop.
+   */
+  private async start() {
+    this.lightBudget.update();
+    await this.renderer.compileAsync(this.scene, this.camera);
+    await this.renderer.compileAsync(this.held.scene, this.heldCamera);
+    const textures = new Set<THREE.Texture>();
+    const collect = (obj: THREE.Object3D) => {
+      const mats = (obj as THREE.Mesh).material;
+      if (!mats) return;
+      for (const mat of Array.isArray(mats) ? mats : [mats]) {
+        for (const value of Object.values(mat)) if ((value as THREE.Texture)?.isTexture) textures.add(value as THREE.Texture);
+      }
+    };
+    this.scene.traverse(collect);
+    this.held.scene.traverse(collect);
+    for (const texture of textures) this.renderer.initTexture(texture);
 
     const timer = new THREE.Timer();
     this.renderer.setAnimationLoop((time) => {
@@ -492,7 +532,9 @@ export class Game {
       loadClockParts(loaders),
     ]);
     loaders.dispose();
-    return new Game(canvas, map, hud, renderer, dressed, held, clockParts);
+    const game = new Game(canvas, map, hud, renderer, dressed, held, clockParts);
+    await game.start();
+    return game;
   }
 
   /** You stopped working: tell the server. Your hands never let go of the mouse, so you just get your view back. */
@@ -667,7 +709,28 @@ export class Game {
     const { innerWidth: w, innerHeight: h } = window;
     this.post.setSize(w, h);
     this.camera.aspect = w / h;
+    this.camera.fov = this.viewFov();
     this.camera.updateProjectionMatrix();
+    this.heldCamera.aspect = w / h;
+    this.heldCamera.updateProjectionMatrix();
+  }
+
+  /** The camera's up-and-down angle for the side-to-side setting on this window, narrower while working. */
+  private viewFov(): number {
+    const across = THREE.MathUtils.degToRad(this.fovDeg);
+    const upDown = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(across / 2) / this.camera.aspect));
+    return Math.min(MAX_VERTICAL_FOV_DEG, upDown) * (this.hands.active ? WORK_ZOOM : 1);
+  }
+
+  /** Field of view, side to side, in degrees (Options). */
+  setFov(degrees: number) {
+    this.fovDeg = Math.min(FOV_MAX, Math.max(FOV_MIN, degrees));
+    this.resize();
+  }
+
+  /** Mouse sensitivity, 1 to 10 (Options). */
+  setSensitivity(value: number) {
+    this.input.sensitivity = Math.min(SENSITIVITY_MAX, Math.max(SENSITIVITY_MIN, value));
   }
 
   /** Runs whenever the server sends new state (20 times per second). */
@@ -860,6 +923,9 @@ export class Game {
     this.voice.update((id) => views.get(id) ?? null);
     if (this.voice.status === "on") this.hud.setMicLevel(this.voice.micLevel());
     this.sound.update(ghostDistance);
+    this.lightBudget.update();
+    this.heldCamera.position.copy(this.camera.position);
+    this.heldCamera.quaternion.copy(this.camera.quaternion);
     this.post.render(now / 1000);
     this.measureFrame(dt);
   }
@@ -1292,7 +1358,7 @@ export class Game {
       this.taskState = "finished";
       this.room?.send("taskDone", { stationId: this.openStation });
     }
-    const fov = this.hands.active ? WORK_FOV : NORMAL_FOV;
+    const fov = this.viewFov();
     if (Math.abs(this.camera.fov - fov) > 0.05) {
       this.camera.fov += (fov - this.camera.fov) * Math.min(1, FOV_LERP_PER_SEC * dt);
       this.camera.updateProjectionMatrix();

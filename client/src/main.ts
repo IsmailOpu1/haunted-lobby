@@ -17,7 +17,8 @@ import {
 } from "@haunted/shared";
 import { defaultMap } from "@haunted/maps";
 import { FloorPlan } from "./floorplan.ts";
-import { Game, POWER_NAMES } from "./game.ts";
+import { DEFAULT_FOV, FOV_MAX, FOV_MIN, Game, POWER_NAMES } from "./game.ts";
+import { DEFAULT_SENSITIVITY, lockPointer, SENSITIVITY_MAX, SENSITIVITY_MIN } from "./input.ts";
 import { photoCard } from "./photoView.ts";
 import { createRoom, joinRoom, reconnectRoom } from "./network.ts";
 import { joinErrorText, lobbyView } from "./lobbyView.ts";
@@ -672,6 +673,40 @@ qualityInput.addEventListener("change", () => {
   store("quality", choice);
   applyQuality(choice);
 });
+// Mouse sensitivity and field of view (GDD 23), remembered between visits.
+/** A slider; its value shows in `<id>-value`, or in a box `<id>-number` where it can also be typed. */
+function rangeSetting(id: string, key: string, fallback: number, min: number, max: number, show: (v: number) => string, apply: (v: number) => void) {
+  const input = el<HTMLInputElement>(id);
+  const label = document.getElementById(`${id}-value`);
+  const box = document.getElementById(`${id}-number`) as HTMLInputElement | null;
+  const saved = Number(stored(key));
+  const start = stored(key) !== null && Number.isFinite(saved) ? Math.min(max, Math.max(min, saved)) : fallback;
+  const set = (v: number) => {
+    if (label) label.textContent = show(v);
+    apply(v);
+  };
+  input.value = String(start);
+  if (box) box.value = show(start);
+  set(start);
+  input.addEventListener("input", () => {
+    const v = Number(input.value);
+    if (box) box.value = show(v);
+    set(v);
+    store(key, String(v));
+  });
+  box?.addEventListener("change", () => {
+    const typed = Number(box.value);
+    const v = Number.isFinite(typed) ? Math.min(max, Math.max(min, typed)) : Number(input.value);
+    box.value = show(v);
+    input.value = String(v);
+    set(v);
+    store(key, String(v));
+  });
+}
+// The Counter-Strike scale (input.ts); stored under a new name, as the old 1 to 10 numbers meant something else.
+rangeSetting("sensitivity", "mouseSensitivityCs", DEFAULT_SENSITIVITY, SENSITIVITY_MIN, SENSITIVITY_MAX, (v) => String(Math.round(v * 100) / 100), (v) => game.setSensitivity(v));
+rangeSetting("fov", "fieldOfView", DEFAULT_FOV, FOV_MIN, FOV_MAX, (v) => `${v}°`, (v) => game.setFov(v));
+
 showFpsInput.checked = stored("showFps") === "1";
 game.setFpsCounter(showFpsInput.checked);
 showFpsInput.addEventListener("change", () => {
@@ -877,7 +912,7 @@ function enterLobby(room: Room) {
   // The room page covers the hotel: this button lets you walk around it (Esc comes back).
   el("walk").onclick = () => {
     game.unlockSound();
-    Promise.resolve(el<HTMLCanvasElement>("scene").requestPointerLock()).catch(() => {});
+    lockPointer(el<HTMLCanvasElement>("scene"));
   };
 
   // Starting the night: the host's button, the countdown, then your role (GDD 4.1 and 5).

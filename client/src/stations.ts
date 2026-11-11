@@ -41,6 +41,16 @@ const INK = "#3a2a1a";
 const PAPER_SHADE = 0xa49c8c;
 /** How deep a dug pot's soil goes, and how far down a searched (empty) one stays. */
 const DIG_DEPTH_M = 0.3;
+/** The middle of the loose soil in a dressed bed's pit: its top flush with the bed's soil at 0.48. */
+const DRESSED_SOIL_Y = 0.46;
+/** A dead rose's stalks in a dug bed: [x, z, lean, turn, height], from the soil's middle. */
+const DEAD_ROSE_STALKS: [number, number, number, number, number][] = [
+  [0, 0, 0.12, 0, 0.62],
+  [0.05, 0.03, 0.35, 1.1, 0.5],
+  [-0.04, 0.05, 0.3, 2.4, 0.55],
+  [0.02, -0.05, 0.4, 3.9, 0.42],
+  [-0.05, -0.02, 0.28, 5.2, 0.47],
+];
 const SEARCHED_DEPTH = 0.4;
 /** The piano's keys span this much, at this height. */
 const PIANO_KEYS_M = 1.3;
@@ -180,19 +190,25 @@ function box(w: number, h: number, d: number, color: number, x = 0, y = 0, z = 0
   return mesh;
 }
 
-function candelabra(): StationView {
+/** Dressed: the table and brass candelabra are baked with the room (build_room.py candelabra_stand), so only the wax candles, flames and light are drawn. */
+function candelabra(dressed = false): StationView {
   const group = new THREE.Group();
-  group.add(box(0.9, 0.75, 0.9, WOOD, 0, 0.375, 0)); // table
-  group.add(box(0.06, 0.35, 0.06, BRASS, 0, 0.92, 0));
-  group.add(box(0.6, 0.04, 0.04, BRASS, 0, 1.08, 0));
+  if (!dressed) {
+    group.add(box(0.9, 0.75, 0.9, WOOD, 0, 0.375, 0)); // table
+    group.add(box(0.06, 0.35, 0.06, BRASS, 0, 0.92, 0));
+    group.add(box(0.6, 0.04, 0.04, BRASS, 0, 1.08, 0));
+  }
   const flames: THREE.Mesh[] = [];
   const wicks: THREE.Mesh[] = [];
   const tips: THREE.Object3D[] = [];
   const flameMat = new THREE.MeshBasicMaterial({ color: 0xffc966 });
+  const wax = new THREE.MeshStandardMaterial({ color: 0xe6dcc4, roughness: 0.55 });
   for (let i = 0; i < 5; i++) {
     const x = -0.28 + i * 0.14;
     const h = 0.12 + Math.sin((i / 4) * Math.PI) * 0.06;
-    const wick = part(box(0.035, h, 0.035, 0xe9dfc6, x, 1.1 + h / 2, 0), `wick:${i}`);
+    const candle = dressed ? new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.018, h, 14), wax) : box(0.035, h, 0.035, 0xe9dfc6);
+    candle.position.set(x, 1.1 + h / 2, 0);
+    const wick = part(candle, `wick:${i}`);
     group.add(wick);
     wicks.push(wick);
     // Where a flame must touch to light it: the top of the candle.
@@ -458,9 +474,14 @@ function guestBook(heightM: number, stand: boolean): { group: THREE.Group; setTi
   return { group, setTime };
 }
 
-function stove(): StationView {
+/**
+ * The stove: three burners on its hotplate, a knob for each on its front. In a dressed room the
+ * range itself is baked with the room (tools/art/blender/build_room.py kitchen_range), so only the
+ * burner plates, flames and knobs are drawn here.
+ */
+function stove(dressed = false): StationView {
   const group = new THREE.Group();
-  group.add(box(1.2, 0.9, 0.7, IRON, 0, 0.45, 0));
+  if (!dressed) group.add(box(1.2, 0.9, 0.7, IRON, 0, 0.45, 0));
   const knobs: THREE.Mesh[] = [];
   const pivots: THREE.Group[] = [];
   const flames: THREE.Mesh[] = [];
@@ -498,12 +519,19 @@ function stove(): StationView {
   return { group, setDone() {}, hands: { kind: "stove", knobs, setKnobs } };
 }
 
-function fireplace(): StationView {
+/**
+ * The fireplace for burning the letter. In a dressed room the fireplace itself is baked with the
+ * room (tools/art/blender/build_room.py fireplace), so only the flames, the fire's light and the
+ * letter on its hook are drawn here.
+ */
+function fireplace(dressed = false): StationView {
   const group = new THREE.Group();
-  const stone = 0x4a4440;
-  group.add(box(1.4, 1.1, 0.5, stone, 0, 0.55, -0.05));
-  group.add(box(1.6, 0.1, 0.6, 0x2a2522, 0, 1.15, -0.05)); // mantel
-  group.add(box(0.8, 0.7, 0.42, 0x0b0807, 0, 0.35, 0.02)); // opening
+  if (!dressed) {
+    const stone = 0x4a4440;
+    group.add(box(1.4, 1.1, 0.5, stone, 0, 0.55, -0.05));
+    group.add(box(1.6, 0.1, 0.6, 0x2a2522, 0, 1.15, -0.05)); // mantel
+    group.add(box(0.8, 0.7, 0.42, 0x0b0807, 0, 0.35, 0.02)); // opening
+  }
   const fireMat = new THREE.MeshBasicMaterial({ color: 0xff8a3a });
   const flames: THREE.Mesh[] = [];
   for (let i = 0; i < 3; i++) {
@@ -645,13 +673,18 @@ export function jugModel(): { group: THREE.Group; glass: THREE.Mesh; setJug(capa
   };
 }
 
-function roses(): StationView {
+/**
+ * dressed: the courtyard's baked potting bench draws the table, the pump, the pail and the dead
+ * roses (build_room.py potting_bench), so here they are only invisible stand-ins you still pick.
+ */
+function roses(dressed = false): StationView {
   const group = new THREE.Group();
   const y = ROSES_TABLE_Y;
-  group.add(box(1.5, y, 0.5, WOOD, 0, y / 2, 0));
+  if (!dressed) group.add(box(1.5, y, 0.5, WOOD, 0, y / 2, 0));
   // The pump, at the left end: you fill a jug from its spout.
   const pump = part(box(0.1, 0.36, 0.1, IRON, -0.62, y + 0.18, -0.05), "pump");
-  group.add(pump, box(0.04, 0.03, 0.12, IRON, -0.62, y + 0.3, 0.05), box(0.02, 0.02, 0.22, IRON, -0.62, y + 0.38, -0.1));
+  group.add(pump);
+  if (!dressed) group.add(box(0.04, 0.03, 0.12, IRON, -0.62, y + 0.3, 0.05), box(0.02, 0.02, 0.22, IRON, -0.62, y + 0.38, -0.1));
   // Two jugs, each on its own mat.
   const jugs: THREE.Mesh[] = [];
   const mats: THREE.Mesh[] = [];
@@ -682,11 +715,14 @@ function roses(): StationView {
   const vaseTag = numberTag(0.12);
   vaseTag.mesh.position.set(0.28, y + 0.07, 0.17);
   vaseTag.mesh.rotation.x = -0.4;
-  group.add(vase, vaseWater, line, vaseTag.mesh, box(0.12, 0.12, 0.12, 0x5a2a26, 0.28, y + VASE_HEIGHT_M + 0.08, 0.02));
+  group.add(vase, vaseWater, line, vaseTag.mesh);
+  if (!dressed) group.add(box(0.12, 0.12, 0.12, 0x5a2a26, 0.28, y + VASE_HEIGHT_M + 0.08, 0.02));
   // The bucket, at the right end: you empty a jug into it.
   const bucket = part(new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.09, 0.2, 12), new THREE.MeshLambertMaterial({ color: 0x4a4a48 })), "bucket");
   bucket.position.set(0.6, y + 0.1, 0.02);
   group.add(bucket);
+  // Hidden, not removed: picking ignores visibility, and the highlight shows on the baked part's place.
+  if (dressed) for (const stand of [pump, bucket]) (stand.material as THREE.Material).visible = false;
   const { vaseCap } = config.tasks.hands.roses;
   let puzzle: JugPuzzle = { jugs: [0, 0], target: 0 };
   const setWater = (amounts: readonly number[], inVase: number, inHand: number | null) => {
@@ -795,10 +831,13 @@ function stretch(mesh: THREE.Mesh, a: THREE.Vector3, b: THREE.Vector3) {
   if (len > 0) mesh.quaternion.setFromUnitVectors(_up, _dir.divideScalar(len));
 }
 
-function piano(): StationView {
+/** dressed: the room's bake has the piano's case, keybed and music desk; draw only the keys and the card. */
+function piano(dressed = false): StationView {
   const group = new THREE.Group();
-  group.add(box(1.5, 1.2, 0.6, 0x1e1410, 0, 0.6, -0.05));
-  group.add(box(1.5, 0.05, 0.32, 0x1e1410, 0, 0.74, 0.39)); // keybed
+  if (!dressed) {
+    group.add(box(1.5, 1.2, 0.6, 0x1e1410, 0, 0.6, -0.05));
+    group.add(box(1.5, 0.05, 0.32, 0x1e1410, 0, 0.74, 0.39)); // keybed
+  }
   const { keys: count } = config.tasks.hands.piano;
   const keys: THREE.Mesh[] = [];
   const width = PIANO_KEYS_M / count;
@@ -811,7 +850,7 @@ function piano(): StationView {
     if (i < count - 1 && i % 7 !== 2 && i % 7 !== 6) group.add(box(width * 0.5, 0.03, 0.15, 0x0d0a08, x + width / 2, PIANO_KEY_Y + 0.03, 0.34));
   }
   // The card on the music stand: what the piano wants from you.
-  group.add(box(0.9, 0.42, 0.02, 0x1e1410, 0, PIANO_CARD_Y, 0.24));
+  if (!dressed) group.add(box(0.9, 0.42, 0.02, 0x1e1410, 0, PIANO_CARD_Y, 0.24));
   const canvas = document.createElement("canvas");
   canvas.width = 512;
   canvas.height = 256;
@@ -934,11 +973,18 @@ function cradle(): StationView {
   };
 }
 
-/** The switchboard: plugs on hooks below, coloured sockets above, each with a lamp. */
-function switchboard(): StationView {
+/**
+ * The switchboard: plugs on hooks below, coloured sockets above, each with a lamp. In a dressed
+ * room its cabinet and board are baked into the room (tools/art/blender/build_room.py
+ * switchboard_cabinet, whose SWITCHBOARD_* numbers match BOARD_FRONT_Z here), so only the live
+ * parts are drawn.
+ */
+function switchboard(dressed = false): StationView {
   const group = new THREE.Group();
-  group.add(box(1.0, 1.0, 0.15, WOOD, 0, BOARD_Y, -0.1));
-  group.add(box(1.0, 0.8, 0.4, WOOD, 0, 0.4, 0.05)); // desk
+  if (!dressed) {
+    group.add(box(1.0, 1.0, 0.15, WOOD, 0, BOARD_Y, -0.1));
+    group.add(box(1.0, 0.8, 0.4, WOOD, 0, 0.4, 0.05)); // desk
+  }
   const { cables } = config.tasks.hands.switchboard;
   const hooks: FacePoint[] = [];
   const sockets: FacePoint[] = [];
@@ -1163,14 +1209,23 @@ const MODELS: Record<TaskMinigame, () => StationView> = {
   portraits,
 };
 
-/** A jewellery box on a sideboard, with a dial lock on its front and a stud for each pin set. */
-function lockboxSpot(): PlaceView {
+/**
+ * A jewellery box on a sideboard, with a dial lock on its front and a stud for each pin set. In a
+ * dressed room the cabinet under it is baked with the room (build_room.py jewel_cabinet).
+ */
+function lockboxSpot(dressed = false): PlaceView {
   const group = new THREE.Group();
-  group.add(box(1.0, 0.85, 0.45, WOOD, 0, 0.425, 0)); // sideboard or shelf
-  group.add(box(0.3, 0.16, 0.2, 0x6a4a2a, 0, 0.93, 0));
+  if (!dressed) group.add(box(1.0, 0.85, 0.45, WOOD, 0, 0.425, 0)); // sideboard or shelf
+  // A walnut box with brass bands round its foot and its lid's edge, on four brass feet.
+  const walnut = 0x1e1008;
+  group.add(box(0.3, 0.15, 0.2, walnut, 0, 0.935, 0));
+  group.add(box(0.31, 0.012, 0.21, BRASS, 0, 0.866, 0));
+  for (const [fx, fz] of [[-0.13, -0.08], [0.13, -0.08], [-0.13, 0.08], [0.13, 0.08]] as const) group.add(box(0.025, 0.01, 0.025, BRASS, fx, 0.855, fz));
   const hinge = new THREE.Group();
   hinge.position.set(0, 1.01, -0.1);
-  hinge.add(box(0.31, 0.03, 0.21, 0x7a5a36, 0, 0.015, 0.1));
+  hinge.add(box(0.31, 0.03, 0.21, walnut, 0, 0.015, 0.1));
+  hinge.add(box(0.316, 0.01, 0.216, BRASS, 0, 0.004, 0.1));
+  hinge.add(box(0.08, 0.006, 0.05, BRASS, 0, 0.032, 0.1)); // a cartouche on the lid
   group.add(hinge);
   const pivot = new THREE.Group();
   pivot.position.set(0, 0.92, 0.1);
@@ -1207,17 +1262,35 @@ function lockboxSpot(): PlaceView {
   };
 }
 
-function digSpot(): PlaceView {
+/**
+ * dressed: a pit in the courtyard's baked raised bed (build_room.py raised_bed), not a pot. The bed
+ * is drawn by the bake; here only the loose soil that sinks, a dead rose's stalks, the heap of dug
+ * soil (on the bed beside the pit) and the relic. Not turned to face a wall: the bed runs north-south.
+ */
+function digSpot(dressed = false): PlaceView {
   const group = new THREE.Group();
-  group.add(box(0.8, 0.5, 0.8, 0x5a3b22, 0, 0.25, 0));
-  const soil = part(box(0.7, 0.04, 0.7, 0x2e2014, 0, 0.51, 0), "soil");
+  if (!dressed) group.add(box(0.8, 0.5, 0.8, 0x5a3b22, 0, 0.25, 0));
+  // In a bed the loose soil starts flush with the bed's soil (build_room.py raised_bed: 0.48 on top).
+  const soilY = dressed ? DRESSED_SOIL_Y : 0.51;
+  const soil = part(box(0.7, 0.04, 0.7, dressed ? 0x1f150c : 0x2e2014, 0, soilY, 0), "soil");
   group.add(soil);
   const plant = new THREE.Group();
-  plant.add(box(0.06, 0.9, 0.06, 0x3d6a33, 0, 0.95, 0));
-  plant.add(box(0.6, 0.06, 0.06, 0x3d6a33, 0, 1.3, 0));
+  if (dressed) {
+    // A dead rose cut back to brown stalks, leaning every which way.
+    for (const [x, z, lean, turn, h] of DEAD_ROSE_STALKS) {
+      const stalk = box(0.011, h, 0.011, 0x2b2014, 0, 0, 0);
+      stalk.geometry.translate(0, h / 2, 0);
+      stalk.position.set(x, DRESSED_SOIL_Y + 0.02, z);
+      stalk.rotation.set(lean, turn, 0, "YXZ");
+      plant.add(stalk);
+    }
+  } else {
+    plant.add(box(0.06, 0.9, 0.06, 0x3d6a33, 0, 0.95, 0));
+    plant.add(box(0.6, 0.06, 0.06, 0x3d6a33, 0, 1.3, 0));
+  }
   group.add(plant);
   // Soil thrown out of a dug pot, and the relic glinting at the bottom.
-  const heap = box(0.3, 0.12, 0.3, 0x2e2014, 0.55, 0.06, 0.2);
+  const heap = dressed ? box(0.3, 0.12, 0.3, 0x2e2014, 0, 0.56, 0.68) : box(0.3, 0.12, 0.3, 0x2e2014, 0.55, 0.06, 0.2);
   heap.visible = false;
   group.add(heap);
   const relic = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.08), new THREE.MeshLambertMaterial({ color: 0xc9a640, emissive: 0x3a2a08 }));
@@ -1225,7 +1298,7 @@ function digSpot(): PlaceView {
   relic.visible = false;
   group.add(relic);
   const setDepth = (depth: number, relicShows: boolean) => {
-    soil.position.y = 0.51 - depth * DIG_DEPTH_M;
+    soil.position.y = soilY - depth * DIG_DEPTH_M;
     plant.visible = depth < 0.1;
     heap.visible = depth > 0.1;
     heap.scale.y = Math.max(0.3, depth);
@@ -1291,10 +1364,26 @@ export class StationsView {
   /** The clues to set when the match's seed is known, by station id. */
   private clues: { id: string; book: { setTime(minutes: number): void } }[] = [];
 
-  /** drawn: stations whose look a dressed room's build draws (the clock's case); clock: its live parts. */
+  /** drawn: stations whose look a dressed room's build draws (the clock's case, the switchboard's cabinet); clock: its live parts. */
   constructor(scene: THREE.Scene, map: MapData, dressed: { drawn: ReadonlySet<string>; clock: DressedClockParts }) {
     for (const def of map.tasks) {
-      const view = def.minigame === "clock" && dressed.drawn.has(def.id) ? dressedClock(dressed.clock) : MODELS[def.minigame]();
+      const drawn = dressed.drawn.has(def.id);
+      const view =
+        def.minigame === "clock" && drawn
+          ? dressedClock(dressed.clock)
+          : def.minigame === "switchboard" && drawn
+            ? switchboard(true)
+            : def.minigame === "letter" && drawn
+              ? fireplace(true)
+              : def.minigame === "candelabra" && drawn
+                ? candelabra(true)
+                : def.minigame === "stove" && drawn
+                  ? stove(true)
+                  : def.minigame === "piano" && drawn
+                    ? piano(true)
+                    : def.minigame === "roses" && drawn
+                      ? roses(true)
+                      : MODELS[def.minigame]();
       view.group.position.set(def.x, 0, def.z);
       liftToFloor(map, view.group);
       view.group.rotation.y = facingYaw(map, def);
@@ -1313,10 +1402,13 @@ export class StationsView {
     }
     for (const spot of map.relicSpots) {
       for (const place of searchPlaces(spot)) {
-        const view = RELIC_SPOTS[spot.minigame]();
+        const drawn = dressed.drawn.has(place.id);
+        const view =
+          spot.minigame === "lockbox" && drawn ? lockboxSpot(true) : spot.minigame === "dig" && drawn ? digSpot(true) : RELIC_SPOTS[spot.minigame]();
         view.group.position.set(place.x, 0, place.z);
         liftToFloor(map, view.group);
-        view.group.rotation.y = facingYaw(map, place);
+        // A pit in a bed is laid out with the map (the heap along the bed), not turned to a wall.
+        view.group.rotation.y = spot.minigame === "dig" && drawn ? 0 : facingYaw(map, place);
         scene.add(view.group);
         this.places.set(place.id, view);
       }
