@@ -19,6 +19,9 @@ const DOOR_HEIGHT_FRACTION = 0.9;
 const DOOR_SWING_PER_SEC = 4; // radians per second for the open/close animation
 const STAIR_COLOR = 0x5e5850;
 const STEP_RISE_M = 0.2;
+/** A dressed flight's own treads and risers are this far in front of (and above) the grey steps,
+ * which stay as its hidden solid core (tools/art/blender/build_room.py stairwell). */
+const DRESSED_STEP_INSET_M = 0.06;
 // Ceilings sit a little under the floor above, so the bottoms of things upstairs never show through.
 const SLAB_M = 0.05;
 const RELIC_DOOR_COLOR = 0x5a1f1f;
@@ -35,6 +38,8 @@ const SIGN_HEIGHT_M = 0.2;
 const SIGN_Y_FRACTION = 0.948;
 /** Half the thickness of a sign that sticks out from a corridor wall. */
 const BLADE_GAP_M = 0.004;
+/** In a dressed room a sign stands in front of the door frame (build_room.py ARCH_D), not in it. */
+const DRESSED_SIGN_OUT_M = 0.04;
 const CORRIDOR = /Corridor|Passage/;
 const SIGN_CANVAS_PX = [512, 80] as const;
 const SIGN_PLATE = "#2a2118";
@@ -119,22 +124,37 @@ export class DoorView {
   }
 }
 
-/** Builds the grey-box rooms: floors, ceilings, walls, stairs and doors, each on its own floor. */
-export function buildWorld(scene: THREE.Scene, map: MapData): { doors: Map<string, DoorView>; ritualCircle: RitualCircleView | null } {
+/** What dressed rooms (dressedRooms.ts) already draw, so the grey boxes leave it out. */
+export interface Dressed {
+  rooms: ReadonlySet<string>;
+  drawn: ReadonlySet<string>;
+}
+
+const NOTHING_DRESSED: Dressed = { rooms: new Set(), drawn: new Set() };
+
+/**
+ * Builds the grey-box rooms: floors, ceilings, walls, stairs and doors, each on its own floor.
+ * A dressed room keeps only its grey wall boxes (they are shared with the room next door).
+ */
+export function buildWorld(scene: THREE.Scene, map: MapData, dressed: Dressed = NOTHING_DRESSED): { doors: Map<string, DoorView>; ritualCircle: RitualCircleView | null } {
   const h = map.wallHeightM;
   const wallMat = new THREE.MeshLambertMaterial({ color: WALL_COLOR });
+  // Up to the underside of the slab, not through it: a wall's top at the next floor's level shows
+  // through that floor as a flickering stripe (the basement's walls under the Ballroom).
+  const wallH = h - SLAB_M;
   for (const segment of map.walls) {
     const box = wallBox(segment, map.wallThicknessM);
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(box.sizeX, h, box.sizeZ), wallMat);
-    wall.position.set(box.x, h / 2, box.z);
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(box.sizeX, wallH, box.sizeZ), wallMat);
+    wall.position.set(box.x, wallH / 2, box.z);
     scene.add(liftToFloor(map, wall));
   }
 
   const floorMat = new THREE.MeshLambertMaterial({ color: FLOOR_COLOR });
   const ceilingMat = new THREE.MeshLambertMaterial({ color: CEILING_COLOR });
   const roomMats = roomMaterials(map);
-  buildWallFaces(scene, map, roomMats);
+  buildWallFaces(scene, map, roomMats, dressed);
   for (const room of map.rooms) {
+    if (dressed.rooms.has(room.name)) continue;
     const mats = roomMats.get(room.name);
     const w = room.maxX - room.minX;
     const d = room.maxZ - room.minZ;
@@ -155,6 +175,7 @@ export function buildWorld(scene: THREE.Scene, map: MapData): { doors: Map<strin
 
   // Furniture: each piece is its own object, named by its id, so interactions can find it later.
   for (const f of map.furniture) {
+    if (dressed.drawn.has(f.id)) continue;
     const box = furnitureBox(f);
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(box.sizeX, f.heightM, box.sizeZ), new THREE.MeshLambertMaterial({ color: FURNITURE_COLORS[f.kind] ?? 0x5a5048 }));
     mesh.name = f.id;
@@ -166,13 +187,14 @@ export function buildWorld(scene: THREE.Scene, map: MapData): { doors: Map<strin
     obj.position.z = at.z;
     scene.add(liftToFloor(map, obj));
   };
-  if (map.bell) placeAt(bellModel(), map.bell);
-  if (map.fuseBox) placeAt(fuseBoxModel(), map.fuseBox);
+  if (map.bell && !dressed.drawn.has("bell")) placeAt(bellModel(), map.bell);
+  if (map.fuseBox && !dressed.drawn.has("fuseBox")) placeAt(fuseBoxModel(), map.fuseBox);
   const circle = map.altar ? new RitualCircleView() : null;
   if (circle && map.altar) placeAt(circle.mesh, map.altar);
 
   // Hiding furniture: wardrobes and cupboards are wood boxes, curtains are dark cloth.
   for (const spot of map.hidingSpots) {
+    if (dressed.drawn.has(spot.id)) continue;
     const box = hidingSpotBox(spot);
     const color = spot.kind === "curtain" ? CURTAIN_COLOR : DOOR_COLOR;
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(box.sizeX, HIDING_SPOT_HEIGHT_M, box.sizeZ), new THREE.MeshLambertMaterial({ color }));
@@ -180,16 +202,16 @@ export function buildWorld(scene: THREE.Scene, map: MapData): { doors: Map<strin
     scene.add(liftToFloor(map, mesh));
   }
 
-  for (const stair of map.stairs) buildStairs(scene, map, stair, wallMat, ceilingMat);
+  for (const stair of map.stairs) buildStairs(scene, map, stair, wallMat, ceilingMat, dressed.drawn.has(stair.id));
 
   const doors = new Map<string, DoorView>();
   for (const def of map.doors) doors.set(def.id, new DoorView(scene, map, def, h));
-  buildDoorSigns(scene, map, h);
+  buildDoorSigns(scene, map, h, dressed);
   return { doors, ritualCircle: circle };
 }
 
 /** Over every doorway: the wall above the door, and on each side a plaque naming the room you walk into. */
-function buildDoorSigns(scene: THREE.Scene, map: MapData, wallHeight: number) {
+function buildDoorSigns(scene: THREE.Scene, map: MapData, wallHeight: number, dressed: Dressed) {
   const lintelMat = new THREE.MeshLambertMaterial({ color: WALL_COLOR });
   const doorTop = wallHeight * DOOR_HEIGHT_FRACTION;
   const materials = new Map<string, THREE.MeshLambertMaterial>();
@@ -205,8 +227,11 @@ function buildDoorSigns(scene: THREE.Scene, map: MapData, wallHeight: number) {
   const off = map.wallThicknessM / 2 + FACE_GAP_M * 2;
   for (const def of map.doors) {
     const box = doorBox(def, map.wallThicknessM);
-    const lintel = new THREE.Mesh(new THREE.BoxGeometry(box.sizeX, wallHeight - doorTop, box.sizeZ), lintelMat);
-    lintel.position.set(def.x, (wallHeight + doorTop) / 2, def.z);
+    // Up to the ceiling like the walls (buildWorld): its top at the next floor's level shows through
+    // that floor (a basement door's lintel under the Ballroom).
+    const lintelTop = wallHeight - SLAB_M;
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(box.sizeX, lintelTop - doorTop, box.sizeZ), lintelMat);
+    lintel.position.set(def.x, (lintelTop + doorTop) / 2, def.z);
     scene.add(liftToFloor(map, lintel));
     // The two sides of the doorway: -1 is north (or west), +1 south (or east).
     for (const side of [-1, 1]) {
@@ -215,7 +240,8 @@ function buildDoorSigns(scene: THREE.Scene, map: MapData, wallHeight: number) {
       const beyond = roomAt(map, def.x - nx * 0.3, def.z - nz * 0.3)?.name;
       if (!here || !beyond || here === beyond) continue;
       const sign = new THREE.Mesh(geometry, material(beyond));
-      sign.position.set(def.x + nx * off, wallHeight * SIGN_Y_FRACTION, def.z + nz * off);
+      const signOff = dressed.rooms.has(here) ? off + DRESSED_SIGN_OUT_M : off;
+      sign.position.set(def.x + nx * signOff, wallHeight * SIGN_Y_FRACTION, def.z + nz * signOff);
       // A plane faces +z; turn it to face into the room it hangs in.
       sign.rotation.y = Math.atan2(nx, nz);
       scene.add(liftToFloor(map, sign, def.x, def.z));
@@ -277,11 +303,12 @@ function roomMaterials(map: MapData): Map<string, RoomMaterials> {
 }
 
 /** Each room's side of its walls in the room's colour, merged into one mesh per room. */
-function buildWallFaces(scene: THREE.Scene, map: MapData, mats: Map<string, RoomMaterials>) {
-  const h = map.wallHeightM;
+function buildWallFaces(scene: THREE.Scene, map: MapData, mats: Map<string, RoomMaterials>, dressed: Dressed) {
+  // Up to the ceiling, not the floor above: see the wall boxes in buildWorld.
+  const h = map.wallHeightM - SLAB_M;
   const byRoom = new Map<string, THREE.BufferGeometry[]>();
   for (const face of wallFaces(map)) {
-    if (!mats.has(face.room)) continue;
+    if (!mats.has(face.room) || dressed.rooms.has(face.room)) continue;
     const level = levelOf(map, face.x, face.z);
     const offset = map.wallThicknessM / 2 + FACE_GAP_M;
     const geometry = new THREE.PlaneGeometry(face.length, h);
@@ -307,7 +334,7 @@ function buildWallFaces(scene: THREE.Scene, map: MapData, mats: Map<string, Room
  * the upper one. The walls the simulation adds across the flight's ends (levels.ts stairWalls)
  * are not drawn: they only stop walkers in the half of the flight that belongs to the other floor.
  */
-function buildStairs(scene: THREE.Scene, map: MapData, stair: StairDef, wallMat: THREE.Material, ceilingMat: THREE.Material) {
+function buildStairs(scene: THREE.Scene, map: MapData, stair: StairDef, wallMat: THREE.Material, ceilingMat: THREE.Material, dressed: boolean) {
   const bottom = toWorld(map, stair.x, stair.z);
   const along = stair.dir === "+x" ? { x: 1, z: 0 } : stair.dir === "-x" ? { x: -1, z: 0 } : stair.dir === "+z" ? { x: 0, z: 1 } : { x: 0, z: -1 };
   const top = toWorld(map, stair.x + along.x * stair.lengthM, stair.z + along.z * stair.lengthM);
@@ -321,10 +348,12 @@ function buildStairs(scene: THREE.Scene, map: MapData, stair: StairDef, wallMat:
   const count = Math.max(1, Math.round(rise / STEP_RISE_M));
   const depth = stair.lengthM / count;
   const stepMat = new THREE.MeshLambertMaterial({ color: STAIR_COLOR });
+  // A dressed flight draws its own steps, ceiling and wall finish; the grey steps shrink behind them.
+  const inset = dressed ? DRESSED_STEP_INSET_M : 0;
   for (let i = 0; i < count; i++) {
-    const height = (rise * (i + 1)) / count;
-    const step = new THREE.Mesh(new THREE.BoxGeometry(stair.widthM, height, depth), stepMat);
-    step.position.set(0, height / 2, -(i + 0.5) * depth);
+    const height = (rise * (i + 1)) / count - inset;
+    const step = new THREE.Mesh(new THREE.BoxGeometry(stair.widthM, height, depth - inset), stepMat);
+    step.position.set(0, height / 2, -(i + 0.5) * depth - inset / 2);
     group.add(step);
   }
 
@@ -334,10 +363,12 @@ function buildStairs(scene: THREE.Scene, map: MapData, stair: StairDef, wallMat:
     wall.position.set((side * stair.widthM) / 2, wallHeight / 2, -stair.lengthM / 2);
     group.add(wall);
   }
-  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(stair.widthM, stair.lengthM), ceilingMat);
-  ceiling.rotation.x = Math.PI / 2;
-  ceiling.position.set(0, wallHeight, -stair.lengthM / 2);
-  group.add(ceiling);
+  if (!dressed) {
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(stair.widthM, stair.lengthM), ceilingMat);
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.position.set(0, wallHeight, -stair.lengthM / 2);
+    group.add(ceiling);
+  }
   // Above the bottom step, the upper floor's wall closes the stairwell off from the floor above.
   const lintel = new THREE.Mesh(new THREE.BoxGeometry(stair.widthM + map.wallThicknessM, map.wallHeightM, map.wallThicknessM), wallMat);
   lintel.position.set(0, rise + map.wallHeightM / 2, 0);

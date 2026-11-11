@@ -33,24 +33,39 @@ import {
 import { WispsView } from "./wispsView.ts";
 import { SoundScape } from "./audio.ts";
 import { directionTo, roundDirection } from "./cues.ts";
-import { createFlashlight } from "./flashlight.ts";
+import { BeamAdaptation, createFlashlight } from "./flashlight.ts";
 import { Flicker } from "./flicker.ts";
 import { playerStepKind, StepTracker } from "./footsteps.ts";
 import { GhostView } from "./ghostView.ts";
 import { createHandsTask } from "./hands/tasks.ts";
 import { HandsWork } from "./hands/work.ts";
 import { ItemsView } from "./items.ts";
-import { PlayerInput } from "./input.ts";
+import { PlayerInput, SENSITIVITY_MAX, SENSITIVITY_MIN } from "./input.ts";
 import { RelicsView } from "./relicsView.ts";
 import { MysteryView } from "./mysteryView.ts";
 import { RemotePlayers } from "./remotePlayers.ts";
-import { StationsView } from "./stations.ts";
+import { loadClockParts, StationsView, type DressedClockParts } from "./stations.ts";
 import { VoiceChat } from "./voice.ts";
 import type { TaskSoundKind } from "./hands/sounds.ts";
 import { buildWorld, type DoorView, type RitualCircleView } from "./world.ts";
+import { DressedRooms, loadDressedRooms } from "./dressedRooms.ts";
+import { PostProcessing, type QualityLevel } from "./post.ts";
+import { LightBudget } from "./lightBudget.ts";
+import { HeldFlashlight } from "./heldFlashlight.ts";
+import { modelLoaders } from "./loaders.ts";
+import { dressings } from "@haunted/maps";
 
 // Near-zero ambient light (GDD Section 23). Press L while testing to light everything up.
 const DARK_AMBIENT = 0.04;
+/** The beam aims at the point this far ahead of your eye, so it lines up with the crosshair. */
+const BEAM_AIM_M = 8;
+/** Auto quality: once you are in the hotel, let it settle, watch this long, then choose. */
+const AUTO_SETTLE_SEC = 2;
+const AUTO_MEASURE_SEC = 5;
+/** Auto keeps High when the average frame rate on High is at least this. */
+const AUTO_HIGH_FPS = 55;
+/** The FPS counter updates this often. */
+const FPS_COUNTER_SEC = 0.5;
 const DEBUG_AMBIENT = 1.6;
 // Blackout (GDD 14.2): the little light there was goes; only flashlights are left.
 const BLACKOUT_AMBIENT = 0.005;
@@ -67,6 +82,8 @@ const AIM_DOOR_RAD = (35 * Math.PI) / 180;
 const AIM_PLAYER_RAD = (20 * Math.PI) / 180;
 const FOG_NEAR = 1;
 const FOG_FAR = 18;
+/** Nothing past the fog can be seen, so nothing past it is drawn (a little beyond, for the fade's tail). */
+const VIEW_FAR_M = FOG_FAR + 1;
 const CROUCH_LERP_PER_SEC = 10;
 // How fast a server correction to your own position fades out, and when to jump instead.
 const CORRECTION_FADE_PER_SEC = 20;
@@ -77,8 +94,20 @@ const VOICE_ANSWER_TIMEOUT_MS = 5000;
 const BELL_CUE_SEC = 4;
 const CUE_FLOOR_DIFF_M = 1.5;
 // Working with your hands (GDD 26.5): the view narrows a little toward what you work on.
-const WORK_FOV = 58;
-const NORMAL_FOV = 75;
+/**
+ * Field of view, measured side to side like most games (the Options slider, GDD 23). It was a fixed
+ * 75 degrees up and down, about 106 side to side on a wide screen: a wide-angle lens that stretched
+ * the edges and made walking and turning feel twice as fast (owner, 2026-11-11).
+ */
+export const FOV_MIN = 70;
+export const FOV_MAX = 100;
+export const DEFAULT_FOV = 90;
+/** On a tall, narrow window the up-and-down angle never passes this. */
+const MAX_VERTICAL_FOV_DEG = 75;
+/** Working with your hands narrows the view to this share, toward the work. */
+const WORK_ZOOM = 0.77;
+/** Your hand and torch are drawn through their own fixed lens, so the slider never resizes them. */
+const HELD_FOV_DEG = 75;
 const FOV_LERP_PER_SEC = 6;
 const STOP_HINT = "E or a step to stop";
 /** A hidden relic this close to the place you found one is that relic. */
@@ -101,6 +130,10 @@ export type PlayerStatus =
   | { kind: "hidden"; holdingBreath: boolean; breathCooldown: number };
 
 export interface GameHud {
+  /** The FPS counter's text, or null to hide it. */
+  setFps(text: string | null): void;
+  /** Auto quality has measured this computer and chosen a level. */
+  autoQualityChosen(level: QualityLevel): void;
   setLooking(looking: boolean): void;
   setStamina(fraction: number): void;
   setPrompt(text: string | null): void;
@@ -259,13 +292,21 @@ interface RelicData {
  * (PRD Section 10.4), and drives the flicker, sounds and HUD.
  */
 export class Game {
-  private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(75, 1, 0.05, 100);
+  private post: PostProcessing;
+  private camera = new THREE.PerspectiveCamera(75, 1, 0.05, VIEW_FAR_M);
+  private heldCamera = new THREE.PerspectiveCamera(HELD_FOV_DEG, 1, 0.05, VIEW_FAR_M);
+  private fovDeg = DEFAULT_FOV;
   private ambient = new THREE.HemisphereLight(0xb8c0d0, 0x202020, DARK_AMBIENT);
   private flashlight = createFlashlight();
   private flashlightIntensity: number;
+  /** The camera is up to your eye (it replaces the flashlight in your hand). */
+  private cameraRaised = false;
+  /** Auto quality's measurement: seconds watched and frames drawn (null once it has chosen). */
+  private autoQuality: { seconds: number; frames: number } | null = null;
+  private fps = { shown: false, seconds: 0, frames: 0 };
   private flicker = new Flicker();
+  private beamAdapt: BeamAdaptation;
   private sound = new SoundScape();
   private input: PlayerInput;
   private doors: Map<string, DoorView>;
@@ -344,21 +385,30 @@ export class Game {
   private wispCollide: CollideFn;
   private wisps: WispsView;
   private wispLight = new THREE.PointLight(0xbfe3ff, WISP_GLOW, WISP_GLOW_RANGE_M);
+  private lightBudget: LightBudget;
 
-  private constructor(private canvas: HTMLCanvasElement, private map: MapData, private hud: GameHud) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-
+  private constructor(
+    private canvas: HTMLCanvasElement,
+    private map: MapData,
+    private hud: GameHud,
+    private renderer: THREE.WebGLRenderer,
+    private dressed: DressedRooms,
+    private held: HeldFlashlight,
+    clockParts: DressedClockParts,
+  ) {
     this.scene.background = new THREE.Color(0x000000);
     this.scene.fog = new THREE.Fog(0x000000, FOG_NEAR, FOG_FAR);
     this.scene.add(this.ambient);
 
-    ({ doors: this.doors, ritualCircle: this.ritualCircle } = buildWorld(this.scene, map));
+    this.post = new PostProcessing(renderer, this.scene, this.camera, held.scene, this.heldCamera);
+    for (const room of dressed.objects) this.scene.add(room);
+    ({ doors: this.doors, ritualCircle: this.ritualCircle } = buildWorld(this.scene, map, dressed));
+    dressed.captureReflections(this.renderer, this.scene); // before the flashlight is added
     const place = (x: number, z: number) => toWorld(map, x, z);
     this.remotes = new RemotePlayers(this.scene, place);
     this.ghost = new GhostView(this.scene, place);
     this.items = new ItemsView(this.scene, map);
-    this.stations = new StationsView(this.scene, map);
+    this.stations = new StationsView(this.scene, map, { drawn: dressed.drawn, clock: clockParts });
     this.relicsView = new RelicsView(this.scene, map);
     this.mystery = new MysteryView(this.scene, map);
     this.wisps = new WispsView(this.scene);
@@ -367,21 +417,28 @@ export class Game {
     this.hands = new HandsWork(this.scene, this.camera);
     this.collide = this.physics.addBody().collide;
 
-    // Your flashlight is held slightly to the right and below your eyes.
+    // Your flashlight is in your hand (heldFlashlight.ts); its beam starts at the lens and aims
+    // where you look.
     this.camera.rotation.order = "YXZ";
     this.flashlight.light.position.set(0.25, -0.2, 0);
+    this.flashlight.target.position.set(0, 0, -BEAM_AIM_M);
     this.flashlightIntensity = this.flashlight.light.intensity;
+    this.beamAdapt = new BeamAdaptation(this.scene.children, dressed.objects);
     this.camera.add(this.flashlight.light, this.flashlight.target);
     this.wispLight.visible = false;
     this.camera.add(this.wispLight);
     this.scene.add(this.camera);
+    this.lightBudget = new LightBudget(this.scene);
     const spawn = map.spawns[0] ?? { x: 0, z: 0 };
     const start = toWorld(map, spawn.x, spawn.z);
     this.camera.position.set(start.x, start.y + config.movement.eyeHeightM, start.z);
 
     this.input = new PlayerInput(canvas, {
       onFlashlight: () => this.room?.send("flashlight"),
-      onCameraToggle: (raised) => hud.setCameraRaised(raised && (this.me?.cameraShots ?? 0) > 0),
+      onCameraToggle: (raised) => {
+        this.cameraRaised = raised && (this.me?.cameraShots ?? 0) > 0;
+        hud.setCameraRaised(this.cameraRaised);
+      },
       onPhoto: () => {
         if ((this.me?.cameraShots ?? 0) > 0) this.room?.send("photo");
       },
@@ -434,6 +491,27 @@ export class Game {
 
     window.addEventListener("resize", () => this.resize());
     this.resize();
+  }
+
+  /**
+   * Builds every shader and uploads every texture before the first frame, so nothing stalls the
+   * first time it comes into view (a room, the ghost, a torch), then starts the frame loop.
+   */
+  private async start() {
+    this.lightBudget.update();
+    await this.renderer.compileAsync(this.scene, this.camera);
+    await this.renderer.compileAsync(this.held.scene, this.heldCamera);
+    const textures = new Set<THREE.Texture>();
+    const collect = (obj: THREE.Object3D) => {
+      const mats = (obj as THREE.Mesh).material;
+      if (!mats) return;
+      for (const mat of Array.isArray(mats) ? mats : [mats]) {
+        for (const value of Object.values(mat)) if ((value as THREE.Texture)?.isTexture) textures.add(value as THREE.Texture);
+      }
+    };
+    this.scene.traverse(collect);
+    this.held.scene.traverse(collect);
+    for (const texture of textures) this.renderer.initTexture(texture);
 
     const timer = new THREE.Timer();
     this.renderer.setAnimationLoop((time) => {
@@ -442,9 +520,21 @@ export class Game {
     });
   }
 
-  static async create(canvas: HTMLCanvasElement, map: MapData, hud: GameHud): Promise<Game> {
-    await initPhysics();
-    return new Game(canvas, map, hud);
+  /** lowTextures: load the 1K texture set (Low quality); textures are chosen once, at load. */
+  static async create(canvas: HTMLCanvasElement, map: MapData, hud: GameHud, lowTextures: boolean): Promise<Game> {
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+    renderer.info.autoReset = false; // post.ts counts a whole frame
+    const loaders = modelLoaders(renderer, lowTextures);
+    const [, dressed, held, clockParts] = await Promise.all([
+      initPhysics(),
+      loadDressedRooms(loaders, dressings[map.id]),
+      HeldFlashlight.load(loaders, renderer),
+      loadClockParts(loaders),
+    ]);
+    loaders.dispose();
+    const game = new Game(canvas, map, hud, renderer, dressed, held, clockParts);
+    await game.start();
+    return game;
   }
 
   /** You stopped working: tell the server. Your hands never let go of the mouse, so you just get your view back. */
@@ -617,9 +707,30 @@ export class Game {
 
   private resize() {
     const { innerWidth: w, innerHeight: h } = window;
-    this.renderer.setSize(w, h, false);
+    this.post.setSize(w, h);
     this.camera.aspect = w / h;
+    this.camera.fov = this.viewFov();
     this.camera.updateProjectionMatrix();
+    this.heldCamera.aspect = w / h;
+    this.heldCamera.updateProjectionMatrix();
+  }
+
+  /** The camera's up-and-down angle for the side-to-side setting on this window, narrower while working. */
+  private viewFov(): number {
+    const across = THREE.MathUtils.degToRad(this.fovDeg);
+    const upDown = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(across / 2) / this.camera.aspect));
+    return Math.min(MAX_VERTICAL_FOV_DEG, upDown) * (this.hands.active ? WORK_ZOOM : 1);
+  }
+
+  /** Field of view, side to side, in degrees (Options). */
+  setFov(degrees: number) {
+    this.fovDeg = Math.min(FOV_MAX, Math.max(FOV_MIN, degrees));
+    this.resize();
+  }
+
+  /** Mouse sensitivity, 1 to 10 (Options). */
+  setSensitivity(value: number) {
+    this.input.sensitivity = Math.min(SENSITIVITY_MAX, Math.max(SENSITIVITY_MIN, value));
   }
 
   /** Runs whenever the server sends new state (20 times per second). */
@@ -679,6 +790,7 @@ export class Game {
     const blackout = !!state.blackout;
     if (blackout !== this.blackout) {
       this.blackout = blackout;
+      this.dressed.setPower(!blackout);
       this.updateAmbient();
       this.hud.showBanner(blackout ? "The lights went out. The fuse box is in the Service Room." : "The lights are back.", 4);
     }
@@ -779,6 +891,7 @@ export class Game {
     this.updateHands(dt);
     const now = performance.now();
     for (const door of this.doors.values()) door.update(dt);
+    this.dressed.update(dt);
     this.stations.render(now / 1000);
     this.relicsView.render(now / 1000);
     this.ritualCircle?.render(now / 1000);
@@ -791,13 +904,69 @@ export class Game {
 
     const cam = this.camera.position;
     const ghostDistance = this.ghost.distanceTo({ x: cam.x, y: cam.y - this.eyeHeight, z: cam.z });
-    this.flashlight.light.intensity = this.flashlightIntensity * this.flicker.update(dt, ghostDistance);
+    const brightness = this.flicker.update(dt, ghostDistance);
+    this.flashlight.light.intensity = this.flashlightIntensity * brightness * this.beamAdapt.update(dt, this.camera);
+    this.held.update(
+      dt,
+      this.camera,
+      {
+        visible: this.me?.health !== "dead" && !this.hands.active && !this.cameraRaised,
+        on: this.flashlight.light.visible,
+        brightness,
+        ambient: this.ambient.intensity,
+        lamps: this.dressed.lamps,
+      },
+      this.flashlight.light.position,
+    );
     this.playFootsteps(dt);
     const views = this.remotes.views();
     this.voice.update((id) => views.get(id) ?? null);
     if (this.voice.status === "on") this.hud.setMicLevel(this.voice.micLevel());
     this.sound.update(ghostDistance);
-    this.renderer.render(this.scene, this.camera);
+    this.lightBudget.update();
+    this.heldCamera.position.copy(this.camera.position);
+    this.heldCamera.quaternion.copy(this.camera.quaternion);
+    this.post.render(now / 1000);
+    this.measureFrame(dt);
+  }
+
+  /**
+   * Graphics quality (Options). "auto" starts on High and, once you are in the hotel, watches the
+   * frame rate for a few seconds and drops to Low if it is too slow; the choice is reported so it
+   * can be remembered.
+   */
+  setQuality(choice: QualityLevel | "auto") {
+    this.autoQuality = choice === "auto" ? { seconds: 0, frames: 0 } : null;
+    this.post.setQuality(choice === "auto" ? "high" : choice);
+    this.resize();
+  }
+
+  setFpsCounter(show: boolean) {
+    this.fps = { shown: show, seconds: 0, frames: 0 };
+    this.hud.setFps(show ? "" : null);
+  }
+
+  private measureFrame(dt: number) {
+    const auto = this.autoQuality;
+    if (auto && this.room && this.predicted) {
+      auto.seconds += dt;
+      if (auto.seconds > AUTO_SETTLE_SEC) auto.frames++;
+      if (auto.seconds >= AUTO_SETTLE_SEC + AUTO_MEASURE_SEC) {
+        const level: QualityLevel = auto.frames / AUTO_MEASURE_SEC >= AUTO_HIGH_FPS ? "high" : "low";
+        this.autoQuality = null;
+        this.post.setQuality(level);
+        this.resize();
+        this.hud.autoQualityChosen(level);
+      }
+    }
+    if (!this.fps.shown) return;
+    this.fps.seconds += dt;
+    this.fps.frames++;
+    if (this.fps.seconds < FPS_COUNTER_SEC) return;
+    const r = this.renderer.info.render;
+    this.hud.setFps(`${Math.round(this.fps.frames / this.fps.seconds)} FPS · ${r.calls} draws · ${Math.round(r.triangles / 1000)}k triangles`);
+    this.fps.seconds = 0;
+    this.fps.frames = 0;
   }
 
   /** Footsteps are the game's background sound: yours, your friends' in 3D, and the hunting ghost's. */
@@ -1189,7 +1358,7 @@ export class Game {
       this.taskState = "finished";
       this.room?.send("taskDone", { stationId: this.openStation });
     }
-    const fov = this.hands.active ? WORK_FOV : NORMAL_FOV;
+    const fov = this.viewFov();
     if (Math.abs(this.camera.fov - fov) > 0.05) {
       this.camera.fov += (fov - this.camera.fov) * Math.min(1, FOV_LERP_PER_SEC * dt);
       this.camera.updateProjectionMatrix();

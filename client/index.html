@@ -82,6 +82,34 @@
             <input id="volume" type="range" min="0" max="100" step="5" />
           </label>
         </div>
+        <div class="group">
+          <h3 class="group-title">Controls</h3>
+          <label class="field volume">
+            <span>Mouse sensitivity <input id="sensitivity-number" class="number-box" type="number" min="0.1" max="10" step="0.05" aria-label="Mouse sensitivity, typed" /></span>
+            <input id="sensitivity" type="range" min="0.1" max="10" step="0.05" />
+          </label>
+          <p class="muted-line">The same scale as Counter-Strike (2.5 is its default). From Valorant, multiply yours by 3.18.</p>
+          <label class="field volume">
+            <span>Field of view <output id="fov-value"></output></span>
+            <input id="fov" type="range" min="70" max="100" step="1" />
+          </label>
+        </div>
+        <div class="group">
+          <h3 class="group-title">Graphics</h3>
+          <label class="setting">
+            <span>Quality</span>
+            <select id="quality">
+              <option value="auto">Auto</option>
+              <option value="high">High</option>
+              <option value="low">Low</option>
+            </select>
+          </label>
+          <p id="quality-note" class="muted-line"></p>
+          <label class="setting">
+            <span>Show FPS counter</span>
+            <input id="show-fps" type="checkbox" />
+          </label>
+        </div>
         <div id="options-mic" class="group hidden">
           <h3 class="group-title">Microphone</h3>
           <p id="options-mic-status" class="muted-line"></p>
@@ -245,6 +273,7 @@
     </div>
     <div id="crosshair"></div>
     <div id="esc-hint">Esc for the room menu</div>
+    <div id="fps" class="hidden"></div>
     <div id="prompt" class="hidden"></div>
     <div id="action" class="hidden">
       <span id="action-label"></span>

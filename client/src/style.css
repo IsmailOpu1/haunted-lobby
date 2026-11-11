@@ -213,6 +213,21 @@ button.mute {
   accent-color: var(--accent);
 }
 
+#fps {
+  position: fixed;
+  top: 10px;
+  left: 12px;
+  z-index: 50;
+  padding: 3px 8px;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--paper);
+  background: rgba(10, 9, 12, 0.6);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
 #crosshair,
 #esc-hint {
   display: none;
@@ -1430,6 +1445,20 @@ body.revealing .screen {
 .screen input[type="range"] {
   width: 100%;
   accent-color: var(--brass);
+}
+/* No mouse arrow while you look around the hotel (input.ts sets "looking"). */
+html.looking,
+html.looking * {
+  cursor: none !important;
+}
+/* A small typed value beside a field's name (mouse sensitivity). */
+.screen .field input.number-box {
+  width: 5.5em;
+  padding: 0 0 2px;
+  font-family: var(--sans);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-align: right;
 }
 .screen output {
   color: var(--brass);

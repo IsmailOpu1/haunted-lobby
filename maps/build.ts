@@ -14,8 +14,8 @@ import type {
 } from "@haunted/shared";
 
 // Builds MapData from a floor plan written in real coordinates (x east, z south, per floor).
-// Walls are not listed by hand: they go wherever two different rooms (or a room and the
-// outside) meet, except at doors, open archways and stairwells. Each floor is then moved to
+// Walls are not listed by hand: they go wherever two different rooms, two parts of a room, or a
+// room and the outside meet, except at doors, open archways and stairwells. Each floor is then moved to
 // its own area of the flat simulation plane (shared/levels.ts).
 
 type Point = { x: number; z: number };
@@ -84,8 +84,10 @@ export function stairFootprint(s: StairDef): { minX: number; maxX: number; minZ:
   };
 }
 
+/** Which room, and which part of it, is at a point: walls go wherever this changes. */
 function roomNameAt(rooms: RoomDef[], x: number, z: number): string | null {
-  return rooms.find((r) => x > r.minX && x < r.maxX && z > r.minZ && z < r.maxZ)?.name ?? null;
+  const r = rooms.find((r) => x > r.minX && x < r.maxX && z > r.minZ && z < r.maxZ);
+  return r ? `${r.name}${r.part ? ` (${r.part})` : ""}` : null;
 }
 
 /** The walls of one floor, in real coordinates. */

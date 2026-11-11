@@ -49,11 +49,42 @@ function relic(id: string, label: string, room: string, minigame: RelicSpotDef["
   return { id, label, room, minigame, x, z };
 }
 
+/** Restaurant dining: a round clothed table and the chairs on the named sides of it. */
+const DINING_TABLE_M = 1.2;
+const DINING_TABLE_TOP = 0.76;
+/** From the table's middle to a chair's middle: the seat tucked a little under the cloth. */
+const CHAIR_OUT_M = 0.78;
+function diningTable(id: string, x: number, z: number, sides: ("n" | "s" | "w" | "e")[]) {
+  const at = { n: [0, -1], s: [0, 1], w: [-1, 0], e: [1, 0] } as const;
+  return [
+    piece(id, "table", "Restaurant", x, z, DINING_TABLE_M, DINING_TABLE_M, DINING_TABLE_TOP),
+    ...sides.map((s) => {
+      const [dx, dz] = at[s];
+      // A dining chair is 0.43 wide and 0.58 deep (dining_chair_02), facing the table.
+      return piece(`${id}-chair-${s}`, "chair", "Restaurant", x + dx * CHAIR_OUT_M, z + dz * CHAIR_OUT_M, dx ? 0.58 : 0.43, dx ? 0.43 : 0.58, 0.97);
+    }),
+  ];
+}
+
 /** A group of places to search (GDD 26.5): the relic hides in one of them, the rest are empty. */
 function relicGroup(id: string, label: string, room: string, minigame: RelicSpotDef["minigame"], places: [number, number][]): RelicSpotDef {
   const [x, z] = places[0]!;
   return { id, label, room, minigame, x, z, places: places.map(([px, pz], i) => ({ id: `${id}-${i + 1}`, x: px, z: pz })) };
 }
+
+/** The courtyard's raised flower bed: its three places to dig, one to each length of it. */
+const COURTYARD_DIG: [number, number][] = [
+  [5, -12.2],
+  [5, -10],
+  [5, -7.8],
+];
+/** Stone urns at the corners of the fountain's paved square. */
+const COURTYARD_URNS: [number, number][] = [
+  [-2.9, -3.1],
+  [2.9, -3.1],
+  [-2.9, -8.9],
+  [2.9, -8.9],
+];
 
 export const marrowHotelGreybox = buildMap({
   id: "marrow-hotel-greybox",
@@ -125,13 +156,26 @@ export const marrowHotelGreybox = buildMap({
         { name: "East Corridor", minX: 9, maxX: 11.5, minZ: -14, maxZ: 2 },
         { name: "North Corridor", minX: -11.5, maxX: 11.5, minZ: -16.5, maxZ: -14 },
         { name: "Garden Courtyard", minX: -9, maxX: 9, minZ: -14, maxZ: 2, outdoor: true },
-        { name: "Reception", minX: -23, maxX: -9, minZ: 4.5, maxZ: 18.5 },
-        { name: "Library", minX: -23, maxX: -11.5, minZ: -6, maxZ: 4.5 },
+        // Big rooms have walled-off parts with an inner door (GDD 26.15): behind the Reception's
+        // desk hall, the back office with the switchboard and the luggage room; the Founder's
+        // study off the Library.
+        { name: "Reception", minX: -17, maxX: -9, minZ: 4.5, maxZ: 18.5 },
+        { name: "Reception", part: "back office", minX: -23, maxX: -17, minZ: 11.5, maxZ: 18.5 },
+        { name: "Reception", part: "luggage room", minX: -23, maxX: -17, minZ: 4.5, maxZ: 11.5 },
+        { name: "Library", minX: -17, maxX: -11.5, minZ: -6, maxZ: 4.5 },
+        { name: "Library", minX: -23, maxX: -17, minZ: 0, maxZ: 4.5 },
+        { name: "Library", part: "study", minX: -23, maxX: -17, minZ: -6, maxZ: 0 },
         { name: "Ballroom", minX: -23, maxX: -11.5, minZ: -20, maxZ: -6 },
-        { name: "Restaurant", minX: 9, maxX: 23, minZ: 4.5, maxZ: 18.5 },
+        // The Restaurant's bar in its south-east corner, and the Service Room's fuse room. (A
+        // hotel kitchen is big; it is filled with counters instead.)
+        { name: "Restaurant", minX: 9, maxX: 23, minZ: 4.5, maxZ: 13.5 },
+        { name: "Restaurant", minX: 9, maxX: 17, minZ: 13.5, maxZ: 18.5 },
+        { name: "Restaurant", part: "bar", minX: 17, maxX: 23, minZ: 13.5, maxZ: 18.5 },
         { name: "Kitchen", minX: 11.5, maxX: 23, minZ: -6, maxZ: 4.5 },
         // The Service Room wraps around the back stairs along its east wall.
-        { name: "Service Room", minX: 11.5, maxX: 20.5, minZ: -22, maxZ: -6 },
+        { name: "Service Room", minX: 11.5, maxX: 20.5, minZ: -17, maxZ: -6 },
+        { name: "Service Room", minX: 17, maxX: 20.5, minZ: -22, maxZ: -17 },
+        { name: "Service Room", part: "fuse room", minX: 11.5, maxX: 17, minZ: -22, maxZ: -17 },
         { name: "Service Room", minX: 20.5, maxX: 23, minZ: -22, maxZ: -16.5 },
         { name: "Service Room", minX: 20.5, maxX: 23, minZ: -10.5, maxZ: -6 },
       ],
@@ -158,6 +202,12 @@ export const marrowHotelGreybox = buildMap({
         { id: "service-north", x: 11.5, z: -15.25, width: 1.5, axis: "z" },
         { id: "courtyard-front", x: 0, z: 2, width: 1.5, axis: "x" },
         { id: "courtyard-north", x: 0, z: -14, width: 1.5, axis: "x" },
+        // Inner doors, between the parts of a room.
+        { id: "reception-office", x: -17, z: 15, width: 1.2, axis: "z" },
+        { id: "reception-luggage", x: -17, z: 8, width: 1.2, axis: "z" },
+        { id: "library-study", x: -18.5, z: 0, width: 1.2, axis: "x" },
+        { id: "restaurant-bar", x: 20, z: 13.5, width: 1.2, axis: "x" },
+        { id: "service-fuse", x: 14.5, z: -17, width: 1.2, axis: "x" },
       ],
       hidingSpots: [
         hide("hall-wardrobe-west", "wardrobe", -4, 18.5, "n"),
@@ -182,39 +232,213 @@ export const marrowHotelGreybox = buildMap({
         hide("service-cupboard", "cupboard", 20.5, -13, "w"),
       ],
       furniture: [
-        piece("hall-meeting-table", "table", "Main Hall", 0, 11, 4, 1.6, 0.8),
-        piece("reception-desk", "counter", "Reception", -16, 11, 5, 1, 1.1),
-        against("library-shelf", "shelf", "Library", -14, 4.5, "n", 3, 0.5, 2.2),
-        piece("library-table", "table", "Library", -17, -1, 2.5, 1.2, 0.8),
+        // The Main Hall, dressed (Phase 8, GDD 26.15): two dining tables end to end make the meeting
+        // table; seating groups flank the front door, consoles stand either side of the clock.
+        piece("hall-meeting-table", "table", "Main Hall", 0, 11, 4.5, 1.4, 0.88),
+        against("hall-sofa-west", "sofa", "Main Hall", -4.2, 4.5, "s", 2.73, 0.93, 1.1),
+        piece("hall-coffee-west", "table", "Main Hall", -4.2, 6.5, 1.54, 0.97, 0.52),
+        piece("hall-armchair-west", "chair", "Main Hall", -6, 6.6, 0.77, 0.85, 1.06),
+        against("hall-sofa-east", "sofa", "Main Hall", 4.2, 4.5, "s", 1.57, 0.66, 0.8),
+        piece("hall-coffee-east", "table", "Main Hall", 4.2, 6.5, 1.44, 1.44, 0.56),
+        piece("hall-chair-east", "chair", "Main Hall", 5.9, 6.5, 0.66, 0.67, 1.06),
+        piece("hall-ottoman", "chair", "Main Hall", 2.75, 6.5, 0.62, 0.89, 0.62),
+        piece("hall-side-east", "table", "Main Hall", 5.75, 4.85, 0.55, 0.45, 0.55),
+        against("hall-console-west", "counter", "Main Hall", -2, 18.5, "n", 1.54, 0.59, 0.95),
+        against("hall-console-east", "counter", "Main Hall", 2, 18.5, "n", 1.54, 0.59, 0.95),
+        piece("hall-side-southeast", "table", "Main Hall", 5.8, 17.9, 0.55, 0.45, 0.55),
+        piece("hall-plant-door-west", "plant", "Main Hall", -1.95, 5.05, 0.6, 0.6, 0.84),
+        piece("hall-plant-door-east", "plant", "Main Hall", 1.95, 5.05, 0.6, 0.6, 0.84),
+        piece("hall-plant-southwest", "plant", "Main Hall", -5.8, 17.8, 0.6, 0.6, 1.35),
+        against("hall-luggage", "crates", "Main Hall", 7.75, 18.5, "n", 1.61, 0.3, 0.57),
+        // The meeting bell's pedestal (the map's bell, below).
+        { ...piece("hall-bell-stand", "table", "Main Hall", 0, 8.5, 0.4, 0.4, 1.03), of: "bell" },
+        // The grandfather clock's case (task-clock below), its back to the south wall.
+        { ...against("hall-clock-case", "shelf", "Main Hall", 0, 18.5, "n", 0.63, 0.43, 2.19), of: "task-clock" },
+        // The Reception, dressed: the counter near the back wall with the key rack behind it, two
+        // pillars framing it, a waiting group by the east wall.
+        piece("reception-desk", "counter", "Reception", -13.5, 15.5, 4, 1, 1.1),
+        against("reception-keys", "shelf", "Reception", -13.5, 18.5, "n", 1.8, 0.3, 2.1),
+        against("reception-commode", "counter", "Reception", -11, 18.5, "n", 1.2, 0.58, 1.21),
+        piece("reception-pillar-west", "pillar", "Reception", -15, 12.5, 0.5, 0.5, 3),
+        piece("reception-pillar-east", "pillar", "Reception", -12, 12.5, 0.5, 0.5, 3),
+        against("reception-sofa", "sofa", "Reception", -9, 9, "w", 1.81, 0.82, 0.71),
+        against("reception-side-north", "table", "Reception", -9, 7.6, "w", 0.38, 0.38, 0.76),
+        against("reception-side-south", "table", "Reception", -9, 10.4, "w", 0.38, 0.38, 0.76),
+        piece("reception-coffee", "table", "Reception", -10.65, 9, 0.97, 1.54, 0.52),
+        piece("reception-armchair-north", "chair", "Reception", -11.95, 8.4, 0.77, 0.85, 1.06),
+        piece("reception-armchair-south", "chair", "Reception", -11.95, 9.6, 0.77, 0.85, 1.06),
+        piece("reception-plant-northwest", "plant", "Reception", -16.5, 5.05, 0.6, 0.6, 1.35),
+        piece("reception-plant-east", "plant", "Reception", -9.45, 13.2, 0.6, 0.6, 0.84),
+        // The back office: a writing desk and chair, a filing cabinet, a shelf of ledgers.
+        against("office-desk", "table", "Reception", -20, 11.5, "s", 1.33, 0.56, 0.83),
+        piece("office-chair", "chair", "Reception", -20, 12.75, 0.43, 0.58, 0.97),
+        against("office-files", "shelf", "Reception", -17, 12.7, "w", 1.2, 0.5, 1.25),
+        against("office-ledgers", "shelf", "Reception", -19.5, 18.5, "n", 1.37, 0.58, 2.06),
+        // The switchboard's cabinet (task-switchboard below), from the west wall to its desk's front.
+        { ...against("office-switchboard", "shelf", "Reception", -23, 14, "e", 1.24, 0.95, 1.9), of: "task-switchboard" },
+        // The luggage room: shelves along the north wall, a steamer trunk, a crate, the trolley.
+        against("luggage-shelf-west", "shelf", "Reception", -21.4, 4.5, "s", 1.4, 0.6, 1.6),
+        against("luggage-shelf-east", "shelf", "Reception", -19.6, 4.5, "s", 1.4, 0.6, 1.6),
+        against("luggage-trunk", "crates", "Reception", -21.3, 11.5, "n", 0.96, 0.52, 0.62),
+        against("luggage-crate", "crates", "Reception", -23, 6.4, "e", 1.17, 0.53, 0.46),
+        against("luggage-trolley", "crates", "Reception", -18.3, 11.5, "n", 1, 0.6, 1.75),
+        against("luggage-cases", "crates", "Reception", -19.9, 11.5, "n", 1.61, 0.3, 0.57),
+        // The Library, dressed: bookcases line the walls, a long reading table under the chandelier,
+        // the card catalogue on the north wall, two armchairs over a game of chess.
+        against("library-books-east-north", "shelf", "Library", -11.5, -4.6, "w", 2.2, 0.42, 2.5),
+        against("library-books-east", "shelf", "Library", -11.5, 0.35, "w", 2.2, 0.42, 2.5),
+        against("library-books-east-south", "shelf", "Library", -11.5, 2.65, "w", 2.2, 0.42, 2.5),
+        against("library-books-south-west", "shelf", "Library", -15.65, 4.5, "n", 2.3, 0.42, 2.5),
+        against("library-books-south-east", "shelf", "Library", -13.25, 4.5, "n", 2.3, 0.42, 2.5),
+        against("library-catalogue", "shelf", "Library", -15.9, -6, "s", 1.72, 1.01, 1.09),
+        piece("library-table", "table", "Library", -14.6, -1.6, 1.1, 2.8, 0.78),
+        piece("library-chair-west-north", "chair", "Library", -15.4, -2.4, 0.58, 0.43, 0.97),
+        piece("library-chair-west-south", "chair", "Library", -15.4, -0.8, 0.58, 0.43, 0.97),
+        piece("library-chair-east-north", "chair", "Library", -13.8, -2.4, 0.58, 0.43, 0.97),
+        piece("library-chair-east-south", "chair", "Library", -13.8, -0.8, 0.58, 0.43, 0.97),
+        piece("library-armchair-west", "chair", "Library", -15.6, 2.3, 0.85, 0.77, 1.06),
+        piece("library-chess-table", "table", "Library", -14.6, 2.3, 0.45, 0.55, 0.55),
+        piece("library-armchair-east", "chair", "Library", -13.6, 2.3, 0.85, 0.77, 1.06),
+        // The west bay: a rocking chair by a lamp, a glazed cabinet, the jewellery box's cabinet.
+        against("library-nightstand", "table", "Library", -23, 0.65, "e", 0.57, 0.42, 0.7),
+        piece("library-rocking-chair", "chair", "Library", -21.6, 1.6, 0.85, 0.85, 0.99),
+        against("library-display-cabinet", "shelf", "Library", -19.6, 4.5, "n", 2.02, 0.67, 2.24),
+        { ...against("library-jewel-cabinet", "counter", "Library", -23, 3.5, "e", 1.0, 0.55, 0.85), of: "relic-library" },
+        // The Founder's study: the fireplace (task-letter below), his desk, an armchair by the fire.
+        { ...against("study-fireplace", "shelf", "Library", -23, -1, "e", 1.8, 0.78, 3), of: "task-letter" },
+        piece("study-desk", "table", "Library", -19.4, -3.4, 1.5, 0.8, 0.78),
+        piece("study-chair", "chair", "Library", -19.4, -4.25, 0.67, 0.66, 1.06),
+        piece("study-armchair", "chair", "Library", -21.0, -2.5, 0.85, 0.85, 1.06),
+        against("study-books", "shelf", "Library", -19.6, -6, "s", 2.0, 0.42, 2.5),
+        against("study-nightstand", "table", "Library", -17, -2.2, "w", 0.57, 0.42, 0.7),
+        // The Garden Courtyard, dressed: the fountain in a paved square, the potting bench (the
+        // roses) on the west wall, the raised flower bed (the relic) east of the fountain in three
+        // lengths, one to each place to dig, garden seats, urns, and dead rose bushes in beds by the walls.
         piece("courtyard-fountain", "fountain", "Garden Courtyard", 0, -6, 3, 3, 0.8),
-        piece("restaurant-table-west", "table", "Restaurant", 12.5, 11, 2, 1.2, 0.8),
-        piece("restaurant-table-east", "table", "Restaurant", 20, 11, 2, 1.2, 0.8),
+        { ...against("courtyard-potting-bench", "counter", "Garden Courtyard", -9, -6, "e", 1.5, 0.5, 0.95), of: "task-roses" },
+        ...COURTYARD_DIG.map(([x, z], i) => ({ ...piece(`courtyard-bed-${i + 1}`, "counter", "Garden Courtyard", x, z, 1.1, 2.0, 0.5), of: `relic-courtyard-${i + 1}` })),
+        against("courtyard-seat-west", "bench", "Garden Courtyard", -4.5, 2, "n", 1.5, 0.55, 0.86),
+        against("courtyard-seat-east", "bench", "Garden Courtyard", 4.5, 2, "n", 1.5, 0.55, 0.86),
+        piece("courtyard-seat-fountain", "bench", "Garden Courtyard", 3.3, -6, 0.55, 1.5, 0.86),
+        ...COURTYARD_URNS.map(([x, z], i) => piece(`courtyard-urn-${i + 1}`, "urn", "Garden Courtyard", x, z, 0.46, 0.46, 1.05)),
+        against("courtyard-roses-west", "counter", "Garden Courtyard", -9, -1.5, "e", 5.6, 0.8, 1.1),
+        against("courtyard-roses-east", "counter", "Garden Courtyard", 9, -1.5, "w", 5.6, 0.8, 1.1),
+        against("courtyard-roses-east-mid", "counter", "Garden Courtyard", 9, -7.4, "w", 4.4, 0.8, 1.1),
+        against("courtyard-roses-north", "counter", "Garden Courtyard", -5.9, -14, "s", 5.0, 0.8, 1.1),
+        against("courtyard-roses-north-east", "counter", "Garden Courtyard", 7.4, -14, "s", 2.2, 0.8, 1.1),
+        // The Restaurant, dressed: round tables under long cloths with chairs drawn up, the lit
+        // candelabra's table between them, a serving console on the west wall, the sideboard the
+        // salt jar stands on in the south bay.
+        ...diningTable("restaurant-table-1", 12.2, 7.9, ["n", "s", "w", "e"]),
+        ...diningTable("restaurant-table-2", 19.6, 7.9, ["n", "s", "w", "e"]),
+        ...diningTable("restaurant-table-3", 12.2, 11.2, ["n", "s", "w", "e"]),
+        ...diningTable("restaurant-table-4", 19.2, 11.0, ["n", "s", "w", "e"]),
+        ...diningTable("restaurant-table-5", 11.4, 15.8, ["w", "e"]),
+        ...diningTable("restaurant-table-6", 14.9, 15.8, ["w", "e"]),
+        { ...piece("restaurant-candelabra", "table", "Restaurant", 16, 12, 0.9, 0.9, 0.75), of: "task-candelabra" },
+        against("restaurant-console", "counter", "Restaurant", 9, 9.6, "e", 1.54, 0.59, 0.95),
+        { ...against("restaurant-sideboard", "counter", "Restaurant", 13, 18.5, "n", 1.6, 0.6, 0.79), of: "jar-restaurant" },
+        piece("restaurant-plant-northeast", "plant", "Restaurant", 22.45, 5.05, 0.6, 0.6, 1.35),
+        piece("restaurant-plant-southwest", "plant", "Restaurant", 9.55, 17.95, 0.6, 0.6, 0.84),
+        // The bar: the counter with stools on the drinkers' side, the back bar of bottles behind it,
+        // the jewellery box's cabinet in the corner, a table for two, barrels by the walls.
+        piece("bar-counter", "counter", "Restaurant", 21.0, 15.4, 0.6, 2.8, 1.05),
+        piece("bar-stool-north", "chair", "Restaurant", 20.25, 15.0, 0.48, 0.48, 0.75),
+        piece("bar-stool-middle", "chair", "Restaurant", 20.25, 15.8, 0.48, 0.48, 0.75),
+        piece("bar-stool-south", "chair", "Restaurant", 20.25, 16.6, 0.48, 0.48, 0.75),
+        against("bar-back", "shelf", "Restaurant", 23, 15.25, "w", 3.2, 0.45, 2.4),
+        { ...against("bar-jewel-cabinet", "counter", "Restaurant", 23, 17.85, "w", 1.1, 0.55, 0.85), of: "relic-restaurant" },
+        piece("bar-table", "table", "Restaurant", 18.1, 16.0, 0.8, 0.8, 0.75),
+        piece("bar-chair-north", "chair", "Restaurant", 18.1, 15.3, 0.43, 0.58, 0.97),
+        piece("bar-chair-south", "chair", "Restaurant", 18.1, 16.7, 0.43, 0.58, 0.97),
+        piece("bar-barrel-north", "crates", "Restaurant", 17.55, 14.05, 0.76, 0.76, 0.87),
+        piece("bar-barrel-south", "crates", "Restaurant", 17.55, 17.95, 0.76, 0.76, 0.87),
+        // The Kitchen, dressed: the work table under its pan rack, the range in its chimney recess on
+        // the east wall, the sink counter and cupboards along the north wall, worktops on the west
+        // and south, the dresser in the north-east corner.
         piece("kitchen-island", "counter", "Kitchen", 17, -1, 3, 1.2, 0.9),
+        { ...against("kitchen-range", "counter", "Kitchen", 23, -1, "w", 2.1, 0.7, 0.9), of: "task-stove" },
+        against("kitchen-sink", "counter", "Kitchen", 13.21, -6, "s", 3.2, 0.62, 0.9),
+        against("kitchen-cabinet", "shelf", "Kitchen", 15.42, -6, "s", 1.2, 0.62, 1.18),
+        against("kitchen-crate-north", "crates", "Kitchen", 16.5, -6, "s", 0.83, 0.41, 0.35),
+        against("kitchen-crock", "crates", "Kitchen", 20.6, -6, "s", 0.66, 0.5, 0.37),
+        against("kitchen-dresser", "shelf", "Kitchen", 22.39, -6, "s", 1.0, 0.73, 2.57),
+        against("kitchen-counter-west", "counter", "Kitchen", 11.5, 0.9, "e", 3.0, 0.62, 0.9),
+        against("kitchen-worktop", "counter", "Kitchen", 20.75, 4.5, "n", 4.29, 0.62, 0.9),
+        against("kitchen-crate-south", "crates", "Kitchen", 15.2, 4.5, "n", 0.83, 0.41, 0.35),
+        // The Ballroom, dressed: the bandstand on the north wall, the piano (task-piano below) and
+        // the jewellery box's cabinet on the west wall, gilt chairs along the walls, plants in corners.
         against("ballroom-stage", "stage", "Ballroom", -17, -20, "s", 4, 2, 0.5),
-        against("service-shelf", "shelf", "Service Room", 11.5, -18, "e", 2, 0.5, 2),
+        // The piano's case out to its keys' front edge, so nobody stands in its keyboard.
+        { ...against("ballroom-piano", "shelf", "Ballroom", -23, -13, "e", 1.5, 0.93, 1.29), of: "task-piano" },
+        { ...against("ballroom-jewel-cabinet", "counter", "Ballroom", -23, -19.39, "e", 1.0, 0.55, 0.85), of: "relic-ballroom" },
+        against("ballroom-chairs-south-west", "chair", "Ballroom", -20.1, -6, "n", 3.0, 0.45, 0.9),
+        against("ballroom-chairs-south-east", "chair", "Ballroom", -14.7, -6, "n", 3.0, 0.45, 0.9),
+        against("ballroom-chairs-east", "chair", "Ballroom", -11.5, -12.6, "w", 2.4, 0.45, 0.9),
+        piece("ballroom-plant-northwest", "plant", "Ballroom", -21.0, -19.35, 0.6, 0.6, 1.35),
+        piece("ballroom-plant-northeast", "plant", "Ballroom", -12.15, -19.35, 0.6, 0.6, 0.84),
+        piece("ballroom-plant-southwest", "plant", "Ballroom", -22.35, -6.65, 0.6, 0.6, 0.84),
+        piece("ballroom-plant-southeast", "plant", "Ballroom", -12.15, -6.65, 0.6, 0.6, 1.35),
+        // The Service Room, dressed: the servants' table with its benches under the bell board's
+        // room, the linen press and the dresser on the west wall, the sideboard the salt jar stands
+        // on under the bell board, the fuse board (the map's fuse box) and a workbench in the fuse
+        // room, the scullery sink by the drain.
+        against("service-shelf", "shelf", "Service Room", 11.5, -9, "e", 2, 0.5, 2),
+        against("service-dresser", "shelf", "Service Room", 11.5, -12.3, "e", 1.0, 0.73, 2.57),
+        piece("service-table", "table", "Service Room", 15, -11.5, 2.4, 0.9, 0.76),
+        piece("service-bench-north", "chair", "Service Room", 15, -12.22, 2.0, 0.32, 0.45),
+        piece("service-bench-south", "chair", "Service Room", 15, -10.78, 2.0, 0.32, 0.45),
+        { ...against("service-sideboard", "counter", "Service Room", 15.5, -6, "n", 1.4, 0.55, 0.79), of: "jar-service" },
+        { ...against("service-fuse-board", "shelf", "Service Room", 11.5, -20, "e", 0.9, 0.22, 2.1), of: "fuse box" },
+        against("service-fuse-bench", "table", "Service Room", 17, -18.4, "w", 1.4, 0.6, 0.85),
+        against("service-fuse-crates", "crates", "Service Room", 12.45, -22, "s", 1.17, 0.53, 0.81),
+        against("service-sink", "counter", "Service Room", 21.72, -22, "s", 2.3, 0.62, 0.9),
+        piece("service-baskets", "crates", "Service Room", 20.05, -15.9, 0.5, 0.5, 0.5),
+        // More for the hall: the bells' batteries and a painted cupboard on the south wall, chairs at
+        // the table's ends, store shelves by the back stairs, a broom in the corner by them.
+        against("service-batteries", "shelf", "Service Room", 13.2, -6, "n", 1.4, 0.45, 1.1),
+        against("service-cupboard-south", "shelf", "Service Room", 18.6, -6, "n", 1.19, 0.62, 1.18),
+        piece("service-chair-west", "chair", "Service Room", 13.35, -11.5, 0.58, 0.43, 0.97),
+        piece("service-chair-east", "chair", "Service Room", 16.65, -11.5, 0.58, 0.43, 0.97),
+        against("service-stores", "shelf", "Service Room", 20.5, -11.3, "w", 1.2, 0.45, 2.0),
+        against("service-broom", "crates", "Service Room", 23, -6.6, "w", 0.5, 0.15, 1.45),
+        // The fuse room: the dynamo, the battery rack on the north wall, a cable drum under the
+        // tool board, a ladder against the east wall; store shelves in the scullery.
+        piece("service-dynamo", "crates", "Service Room", 14.1, -20.3, 1.5, 0.76, 0.95),
+        against("service-fuse-batteries", "shelf", "Service Room", 14.25, -22, "s", 1.6, 0.45, 1.1),
+        piece("service-cable-drum", "crates", "Service Room", 12.0, -17.7, 0.45, 0.7, 0.7),
+        against("service-ladder", "shelf", "Service Room", 17, -20, "w", 0.5, 0.65, 2.6),
+        against("service-scullery-shelves", "shelf", "Service Room", 17, -20.5, "e", 1.6, 0.45, 2.0),
       ],
       saltJars: [
         { id: "jar-reception", x: -22.3, z: 18 },
         // In the nook beside the cellar stairs, where everyone starts.
         { id: "jar-hall", x: -7.3, z: 7.2 },
         { id: "jar-restaurant", x: 13, z: 17.9 },
-        { id: "jar-service", x: 15, z: -12 },
+        // On the sideboard under the bell board.
+        { id: "jar-service", x: 15.5, z: -6.375 },
       ],
       tasks: [
         // The guest book with the time to set lies on the meeting table.
-        task("task-clock", "Set the grandfather clock", "Main Hall", "clock", 0, 17.8, true, false, { x: 1.2, z: 11, heightM: 0.8 }),
+        // At the clock model's own centre (its case stands flush with the wall: 18.5 - 0.1 wall - 0.213
+        // half its depth + 0.025, the model's centre behind its footprint's middle).
+        task("task-clock", "Set the grandfather clock", "Main Hall", "clock", 0, 18.207, true, false, { x: 1.2, z: 11, heightM: 0.88 }),
         task("task-switchboard", "Repair the switchboard", "Reception", "switchboard", -22.2, 14),
         task("task-letter", "Burn the cursed letter", "Library", "letter", -22.3, -1, true),
-        task("task-piano", "Tune the piano", "Ballroom", "piano", -21.5, -13, false, true),
-        task("task-roses", "Water the dead roses", "Garden Courtyard", "roses", -4, -9),
+        // At the piano's own place, its case flush with the west wall (22.9 is the wall's face).
+        task("task-piano", "Tune the piano", "Ballroom", "piano", -22.55, -13, false, true),
+        // On the potting bench against the courtyard's west wall (its pump and pail on the bench).
+        task("task-roses", "Water the dead roses", "Garden Courtyard", "roses", -8.65, -6),
         task("task-candelabra", "Light the candelabra", "Restaurant", "candelabra", 16, 12, true),
-        task("task-stove", "Turn off the stove", "Kitchen", "stove", 22.3, -1),
+        task("task-stove", "Turn off the stove", "Kitchen", "stove", 22.55, -1),
       ],
       relicSpots: [
-        relic("relic-library", LOCKBOX, "Library", "lockbox", -22.3, 3.5),
-        relic("relic-ballroom", LOCKBOX, "Ballroom", "lockbox", -22.3, -19.3),
-        relicGroup("relic-courtyard", "Dig in the flower bed", "Garden Courtyard", "dig", [[5, -12.2], [5, -10], [5, -7.8]]),
-        relic("relic-restaurant", LOCKBOX, "Restaurant", "lockbox", 22.3, 17.8),
+        // On its cabinet against the west wall (22.9 is the wall's face; the cabinet is 0.55 deep).
+        relic("relic-library", LOCKBOX, "Library", "lockbox", -22.55, 3.5),
+        relic("relic-ballroom", LOCKBOX, "Ballroom", "lockbox", -22.55, -19.39),
+        relicGroup("relic-courtyard", "Dig in the flower bed", "Garden Courtyard", "dig", COURTYARD_DIG),
+        // On its cabinet in the bar's corner, behind the counter (the cabinet stands 0.35 deep behind it).
+        relic("relic-restaurant", LOCKBOX, "Restaurant", "lockbox", 22.55, 17.85),
         relic("relic-kitchen", "Reach into the drain", "Kitchen", "drain", 19, -5.3),
         relic("relic-service", "Reach into the drain", "Service Room", "drain", 19.5, -21.3),
       ],
@@ -229,7 +453,8 @@ export const marrowHotelGreybox = buildMap({
         { x: 1, z: 14 },
       ],
       bell: { x: 0, z: 8.5 },
-      fuseBox: { x: 12.2, z: -20 },
+      // At the fuse board's front, on the fuse room's west wall.
+      fuseBox: { x: 11.85, z: -20 },
       ghostStart: { x: -17, z: -13 },
     },
     {

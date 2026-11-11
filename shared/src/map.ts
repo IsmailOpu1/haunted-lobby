@@ -24,6 +24,12 @@ export interface RoomDef {
   maxZ: number;
   /** Open to the sky: no ceiling (the Garden Courtyard). */
   outdoor?: boolean;
+  /**
+   * A walled-off part of the room (a back office, a study), joined to the rest by an inner door.
+   * Walls go between parts, but for every rule (tasks, hiding spots, doors) it is the same room
+   * (GDD 26.15).
+   */
+  part?: string;
 }
 
 /**
@@ -42,6 +48,9 @@ export interface FurnitureDef {
   sizeX: number;
   sizeZ: number;
   heightM: number;
+  /** The station this piece is the body of (a clock case, the bell's pedestal): you use that
+   * station by standing next to the piece, so its point may sit inside it. */
+  of?: string;
 }
 
 /** A wardrobe, cupboard or curtain a player can hide in (GDD Section 6). It is also solid furniture. */

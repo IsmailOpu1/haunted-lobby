@@ -16,8 +16,13 @@
     "typecheck": "tsc -p shared --noEmit && tsc -p maps --noEmit && tsc -p server --noEmit && tsc -p client --noEmit"
   },
   "devDependencies": {
+    "@gltf-transform/cli": "4.5.1",
+    "@gltf-transform/core": "4.5.1",
+    "@gltf-transform/extensions": "4.5.1",
+    "@gltf-transform/functions": "4.5.1",
     "@types/node": "22.20.5",
     "concurrently": "10.0.6",
+    "meshoptimizer": "1.3.0",
     "typescript": "6.0.3",
     "vitest": "5.0.5"
   },
