@@ -48,7 +48,7 @@ import { loadClockParts, StationsView, type DressedClockParts } from "./stations
 import { VoiceChat } from "./voice.ts";
 import type { TaskSoundKind } from "./hands/sounds.ts";
 import { buildWorld, type DoorView, type RitualCircleView } from "./world.ts";
-import { DressedRooms, loadDressedRooms } from "./dressedRooms.ts";
+import { DressedRooms, loadDressedRooms, type LoadProgress } from "./dressedRooms.ts";
 import { PostProcessing, type QualityLevel } from "./post.ts";
 import { LightBudget } from "./lightBudget.ts";
 import { HeldFlashlight } from "./heldFlashlight.ts";
@@ -520,14 +520,17 @@ export class Game {
     });
   }
 
-  /** lowTextures: load the 1K texture set (Low quality); textures are chosen once, at load. */
-  static async create(canvas: HTMLCanvasElement, map: MapData, hud: GameHud, lowTextures: boolean): Promise<Game> {
+  /**
+   * lowTextures: load the 1K texture set (Low quality); textures are chosen once, at load.
+   * onProgress hears how much of the hotel has downloaded; the menus work while it does.
+   */
+  static async create(canvas: HTMLCanvasElement, map: MapData, hud: GameHud, lowTextures: boolean, onProgress?: LoadProgress): Promise<Game> {
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
     renderer.info.autoReset = false; // post.ts counts a whole frame
     const loaders = modelLoaders(renderer, lowTextures);
     const [, dressed, held, clockParts] = await Promise.all([
       initPhysics(),
-      loadDressedRooms(loaders, dressings[map.id]),
+      loadDressedRooms(loaders, dressings[map.id], onProgress),
       HeldFlashlight.load(loaders, renderer),
       loadClockParts(loaders),
     ]);
@@ -574,6 +577,8 @@ export class Game {
     this.room = room;
     this.stations.setSeed(room.roomId);
     room.onStateChange((state) => this.onServerState(state));
+    // The hotel can finish loading after you joined: catch up with the room as it is now.
+    if ((room.state as { players?: { size: number } } | undefined)?.players?.size) this.onServerState(room.state);
     let voiceAnswered = false;
     room.onMessage("voice", (msg: ServerMessages["voice"]) => {
       if (voiceAnswered) return; // a retry was answered twice

@@ -22,7 +22,15 @@ interface ManifestEntry {
   lightmapScale: number;
   /** Map furniture and hiding spots this build draws (their grey boxes are left out). */
   drawn: string[];
+  /** Every file the room downloads (paths under assets/, textures in both sets) → bytes. */
+  files?: Record<string, number>;
 }
+
+/** How much of the hotel has downloaded, in bytes. */
+export type LoadProgress = (loaded: number, total: number) => void;
+
+/** A loaded file's path under assets/ ("textures/ab12.ktx2"), however its URL was written. */
+const ASSET_KEY = /(?:^|\/)((?:rooms|textures|textures-1k)\/[^/?#]+)(?:[?#].*)?$/;
 
 interface Dimmable {
   material: THREE.MeshStandardMaterial;
@@ -124,7 +132,7 @@ export class DressedRooms {
 }
 
 /** Loads every built room of this map's dressing. Never fails: a room that can't load stays grey. */
-export async function loadDressedRooms(loaders: ModelLoaders, dressing: MapDressing | undefined): Promise<DressedRooms> {
+export async function loadDressedRooms(loaders: ModelLoaders, dressing: MapDressing | undefined, onProgress?: LoadProgress): Promise<DressedRooms> {
   const result = new DressedRooms();
   if (!dressing) return result;
   let manifest: Record<string, ManifestEntry>;
@@ -137,6 +145,24 @@ export async function loadDressedRooms(loaders: ModelLoaders, dressing: MapDress
   }
   const { gltf, ktx2 } = loaders;
   const base = import.meta.env.BASE_URL;
+  // The files to download, each once (rooms share textures), from the texture set being loaded.
+  const skip = loaders.lowTextures ? "textures/" : "textures-1k/";
+  const sizes = new Map<string, number>();
+  for (const room of dressing.rooms) {
+    for (const [path, bytes] of Object.entries(manifest[room.room]?.files ?? {})) if (!path.startsWith(skip)) sizes.set(path, bytes);
+  }
+  let total = 0;
+  for (const bytes of sizes.values()) total += bytes;
+  let loaded = 0;
+  onProgress?.(0, total);
+  loaders.manager.onProgress = (url) => {
+    const key = ASSET_KEY.exec(url)?.[1];
+    const bytes = key ? sizes.get(key) : undefined;
+    if (key === undefined || bytes === undefined) return;
+    sizes.delete(key); // count each file once
+    loaded += bytes;
+    onProgress?.(loaded, total);
+  };
   await Promise.all(
     dressing.rooms.map(async (room) => {
       const entry = manifest[room.room];
@@ -149,5 +175,7 @@ export async function loadDressedRooms(loaders: ModelLoaders, dressing: MapDress
       }
     }),
   );
+  loaders.manager.onProgress = () => {};
+  onProgress?.(total, total); // files that failed still end the bar
   return result;
 }
