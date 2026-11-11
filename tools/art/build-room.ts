@@ -11,6 +11,7 @@ import { dirname, join, resolve } from "node:path";
 import { HIDING_SPOT_HEIGHT_M, levelOf, stairWalls, toWorld, wallBox, wallFaces, type MapData } from "@haunted/shared";
 import { defaultMap } from "../../maps/index.ts";
 import { marrowHotelDressing } from "../../maps/marrow-hotel/dressing.ts";
+import { roomFiles } from "./roomFiles.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const BLENDER = process.env.BLENDER ?? "C:/Program Files/Blender Foundation/Blender 5.2/blender.exe";
@@ -231,8 +232,10 @@ async function build(room: string, fast: boolean, skipBlender: boolean) {
   const manifestPath = join(OUT, "rooms.json");
   // The map furniture and hiding spots this build draws, so the game leaves out their grey boxes.
   const drawn = [...new Set([...dressing.props.flatMap((p) => (p.draws ? [p.draws] : [])), ...(dressing.builds ?? []).flatMap((b) => [...("draws" in b && b.draws ? [b.draws] : []), ...("station" in b ? [b.station] : []), ...("drawsAll" in b ? (b.drawsAll ?? []) : [])]), ...shell.hidingSpots.map((h) => h.id), ...shell.stairs.map((s) => s.id)])];
-  const manifest: Record<string, { glb: string; lightmap: string; lightmapScale: number; drawn: string[] }> = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, "utf8")) : {};
-  manifest[room] = { glb: `assets/rooms/${name}.gltf`, lightmap: `assets/rooms/${name}-lightmap.ktx2`, lightmapScale: LIGHTMAP_SCALE, drawn };
+  const manifest: Record<string, { glb: string; lightmap: string; lightmapScale: number; drawn: string[]; files: Record<string, number> }> = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, "utf8")) : {};
+  // Every file the game downloads for this room, with its size, for the loading bar.
+  const files = roomFiles(dirname(OUT), `rooms/${name}.gltf`, `rooms/${name}-lightmap.ktx2`);
+  manifest[room] = { glb: `assets/rooms/${name}.gltf`, lightmap: `assets/rooms/${name}-lightmap.ktx2`, lightmapScale: LIGHTMAP_SCALE, drawn, files };
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
   console.log(`Done: ${room}`);
 }

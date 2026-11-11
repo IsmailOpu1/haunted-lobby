@@ -201,7 +201,21 @@ function showBanner(text: string, seconds: number) {
 // Textures are chosen when the game loads: the 1K set on Low (or when Auto chose Low before).
 const savedQualityAtLoad = stored("quality") ?? "auto";
 const lowTextures = savedQualityAtLoad === "low" || (savedQualityAtLoad === "auto" && stored("autoQuality") === "low");
-const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
+// The hotel downloads in the background (hundreds of megabytes the first time): the menus, Create,
+// Join and the lobby work meanwhile, and Ready, Start and Walk wait for it (PRD 9, load time).
+const worldLoad = el("world-load");
+const worldLoadText = el("world-load-text");
+const worldLoadFill = el("world-load-fill");
+const MB = 1e6;
+function showWorldLoad(loaded: number, total: number) {
+  if (!total) return;
+  worldLoadFill.style.width = `${Math.round((loaded / total) * 100)}%`;
+  worldLoadText.textContent =
+    loaded >= total ? "Preparing the hotel…" : `Loading the hotel: ${Math.round(loaded / MB)} of ${Math.round(total / MB)} MB`;
+}
+/** The game, once the hotel has loaded; null until then. */
+let game = null as Game | null;
+const gameReady = Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
   // While the mouse is captured, hide the lobby panel so the 3D view is clear.
   setLooking: (looking) => document.body.classList.toggle("looking", looking),
   setStamina: (fraction) => {
@@ -322,7 +336,7 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
         b.dataset.name = slot.id === OUIJA_UNKNOWN ? "" : slot.label;
         b.textContent = slot.label;
         b.disabled = !m.canOuija;
-        b.onclick = () => game.pushOuija(slot.id);
+        b.onclick = () => game?.pushOuija(slot.id);
         return b;
       }),
     );
@@ -337,7 +351,7 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
           const btn = document.createElement("button");
           btn.className = "small";
           btn.textContent = "Vote";
-          btn.onclick = () => game.vote(p.id);
+          btn.onclick = () => game?.vote(p.id);
           li.append(btn);
         }
         return li;
@@ -605,9 +619,9 @@ const game = await Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
     const text = name ? `Carrying ${name} (G to drop)` : "";
     if (carrying.textContent !== text) carrying.textContent = text;
   },
-}, lowTextures);
+}, lowTextures, showWorldLoad);
 
-micCheckBtn.addEventListener("click", () => game.startMicCheck());
+micCheckBtn.addEventListener("click", () => game?.startMicCheck());
 
 // Sound volume, remembered between visits (default 70%).
 const DEFAULT_VOLUME = 70;
@@ -622,11 +636,11 @@ try {
 const volumeValue = el("volume-value");
 volumeInput.value = String(savedVolume);
 volumeValue.textContent = `${savedVolume}%`;
-game.setVolume(savedVolume / 100);
+game?.setVolume(savedVolume / 100);
 volumeInput.addEventListener("input", () => {
   const value = Number(volumeInput.value);
   volumeValue.textContent = `${value}%`;
-  game.setVolume(value / 100);
+  game?.setVolume(value / 100);
   try {
     localStorage.setItem("volume", String(value));
   } catch {
@@ -664,7 +678,7 @@ function applyQuality(choice: QualityChoice) {
   const about = choice !== "auto" ? "" : autoKnown ? `Auto chose ${picked === "high" ? "High" : "Low"} for this computer.` : "Auto tests this computer the first time you walk the hotel.";
   const later = (level === "low") !== lowTextures ? " Texture detail changes the next time you open the game." : "";
   qualityNote.textContent = (about + later).trim();
-  game.setQuality(choice === "auto" && autoKnown ? picked : choice);
+  game?.setQuality(choice === "auto" && autoKnown ? picked : choice);
 }
 qualityInput.value = qualityChoice;
 applyQuality(qualityChoice);
@@ -704,18 +718,66 @@ function rangeSetting(id: string, key: string, fallback: number, min: number, ma
   });
 }
 // The Counter-Strike scale (input.ts); stored under a new name, as the old 1 to 10 numbers meant something else.
-rangeSetting("sensitivity", "mouseSensitivityCs", DEFAULT_SENSITIVITY, SENSITIVITY_MIN, SENSITIVITY_MAX, (v) => String(Math.round(v * 100) / 100), (v) => game.setSensitivity(v));
-rangeSetting("fov", "fieldOfView", DEFAULT_FOV, FOV_MIN, FOV_MAX, (v) => `${v}°`, (v) => game.setFov(v));
+rangeSetting("sensitivity", "mouseSensitivityCs", DEFAULT_SENSITIVITY, SENSITIVITY_MIN, SENSITIVITY_MAX, (v) => String(Math.round(v * 100) / 100), (v) => game?.setSensitivity(v));
+rangeSetting("fov", "fieldOfView", DEFAULT_FOV, FOV_MIN, FOV_MAX, (v) => `${v}°`, (v) => game?.setFov(v));
 
 showFpsInput.checked = stored("showFps") === "1";
-game.setFpsCounter(showFpsInput.checked);
+game?.setFpsCounter(showFpsInput.checked);
 showFpsInput.addEventListener("change", () => {
   store("showFps", showFpsInput.checked ? "1" : "0");
-  game.setFpsCounter(showFpsInput.checked);
+  game?.setFpsCounter(showFpsInput.checked);
 });
 
-// Development only: lets the browser console inspect the game (window.__game). Not in builds.
-if (import.meta.env.DEV) Object.assign(window, { __game: game });
+/** The room you are in, waiting for the hotel to load before the game joins it. */
+let pendingRoom: Room | null = null;
+/** Messages for the game that arrived before it loaded, played to it once it has. */
+let heldMessages: [string | number, unknown][] = [];
+let stopHolding: (() => void) | null = null;
+
+const worldButtons = () => [el<HTMLButtonElement>("ready-btn"), startBtn, el<HTMLButtonElement>("walk")];
+for (const b of worldButtons()) {
+  b.disabled = true;
+  b.title = "Wait for the hotel to finish loading";
+}
+
+void gameReady.then(
+  (g) => {
+    game = g;
+    worldLoad.classList.add("hidden");
+    for (const b of worldButtons()) {
+      b.disabled = false;
+      b.title = "";
+    }
+    // The settings chosen while it loaded.
+    g.setVolume(Number(volumeInput.value) / 100);
+    applyQuality(qualityInput.value as QualityChoice);
+    g.setSensitivity(Number(el<HTMLInputElement>("sensitivity").value));
+    g.setFov(Number(el<HTMLInputElement>("fov").value));
+    g.setFpsCounter(showFpsInput.checked);
+    // A click on this page (Create, Join) already allowed sound.
+    if (navigator.userActivation?.hasBeenActive) g.unlockSound();
+    if (pendingRoom) attachGame(g, pendingRoom);
+    // Development only: lets the browser console inspect the game (window.__game). Not in builds.
+    if (import.meta.env.DEV) Object.assign(window, { __game: g });
+  },
+  (err) => {
+    console.error("The hotel failed to load", err);
+    worldLoadText.textContent = "The hotel failed to load. Reload the page to try again.";
+  },
+);
+
+/** The game joins the room, with any messages it missed while loading. */
+function attachGame(g: Game, room: Room) {
+  pendingRoom = null;
+  g.attach(room);
+  if (myRole) g.setRole(myRole.role);
+  stopHolding?.();
+  stopHolding = null;
+  const missed = heldMessages;
+  heldMessages = [];
+  // dispatchMessage is how the room hands a message to its listeners (now the game's).
+  for (const [type, message] of missed) (room as unknown as { dispatchMessage(t: string | number, m: unknown): void }).dispatchMessage(type, message);
+}
 
 // An invite link looks like https://site/?room=KQXRT. Prefill the code from it.
 const linkCode = new URLSearchParams(location.search).get("room");
@@ -801,13 +863,13 @@ async function enter(connect: () => Promise<Room>) {
 }
 
 createBtn.addEventListener("click", () => {
-  game.unlockSound(); // a button click lets the browser start sound and voice
+  game?.unlockSound(); // a button click lets the browser start sound and voice
   const name = readName(nameInputs[0]!);
   if (name) enter(() => createRoom({ name }));
 });
 
 joinBtn.addEventListener("click", () => {
-  game.unlockSound();
+  game?.unlockSound();
   const name = readName(nameInputs[1]!);
   if (!name) return;
   const code = normalizeRoomCode(codeInput.value);
@@ -839,7 +901,14 @@ function addLogLine(text: string) {
 }
 
 function enterLobby(room: Room) {
-  game.attach(room);
+  if (game) attachGame(game, room);
+  else {
+    // Still loading: keep the messages meant for the game (only those nothing else listens to).
+    pendingRoom = room;
+    stopHolding = room.onMessage("*", (type: string | number, message: unknown) => {
+      heldMessages.push([type, message]);
+    });
+  }
   saveToken(room);
   roomCodeText.textContent = room.roomId;
   history.replaceState(null, "", `?room=${room.roomId}`);
@@ -860,7 +929,7 @@ function enterLobby(room: Room) {
   });
 
   // The player list, characters, Ready and settings come from the room state (GDD 5, 20).
-  lobbyView(room, { isMuted: (id) => game.isMuted(id), toggleMute: (id) => game.toggleMute(id) });
+  lobbyView(room, { isMuted: (id) => game?.isMuted(id) ?? false, toggleMute: (id) => game?.toggleMute(id) });
 
   let kickedReason = "";
   room.onMessage("kicked", (msg: ServerMessages["kicked"]) => (kickedReason = msg.reason));
@@ -911,7 +980,7 @@ function enterLobby(room: Room) {
 
   // The room page covers the hotel: this button lets you walk around it (Esc comes back).
   el("walk").onclick = () => {
-    game.unlockSound();
+    game?.unlockSound();
     lockPointer(el<HTMLCanvasElement>("scene"));
   };
 
@@ -925,7 +994,7 @@ function enterLobby(room: Room) {
   });
   room.onMessage("role", (msg: ServerMessages["role"]) => {
     myRole = msg;
-    game.setRole(msg.role);
+    game?.setRole(msg.role);
     // Your task list now shows whether it is real.
     room.send("tasksRequest");
   });
@@ -963,7 +1032,7 @@ const MEETING_STEP_TEXT: Record<string, string> = {
   result: "The vote is in.",
 };
 
-el("meeting-skip").onclick = () => game.vote(SKIP);
+el("meeting-skip").onclick = () => game?.vote(SKIP);
 
 /** A power's state in a few words: "" when ready. */
 function powerStateText(p: PowerStatus): string {
