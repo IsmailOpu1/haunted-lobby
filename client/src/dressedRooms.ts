@@ -14,6 +14,10 @@ const BULB_PREFIX = "bulb_";
 const PROBE_HEIGHT_M = 1.6;
 /** Size of each face of the captured reflection cube, in pixels. */
 const PROBE_SIZE_PX = 256;
+/** Something that moves (a door) takes its light from a room's probe no further away than this. */
+const MOVABLE_PROBE_RANGE_M = 20;
+/** A probe is on the same floor as a thing whose floor is within this of the probe's floor. */
+const SAME_FLOOR_M = 1.5;
 
 interface ManifestEntry {
   glb: string;
@@ -22,15 +26,11 @@ interface ManifestEntry {
   lightmapScale: number;
   /** Map furniture and hiding spots this build draws (their grey boxes are left out). */
   drawn: string[];
+  /** Every map room this build covers, when it is several baked as one (the corridor ring). */
+  rooms?: string[];
   /** Every file the room downloads (paths under assets/, textures in both sets) → bytes. */
   files?: Record<string, number>;
 }
-
-/** How much of the hotel has downloaded, in bytes. */
-export type LoadProgress = (loaded: number, total: number) => void;
-
-/** A loaded file's path under assets/ ("textures/ab12.ktx2"), however its URL was written. */
-const ASSET_KEY = /(?:^|\/)((?:rooms|textures|textures-1k)\/[^/?#]+)(?:[?#].*)?$/;
 
 interface Dimmable {
   material: THREE.MeshStandardMaterial;
@@ -49,6 +49,8 @@ export class DressedRooms {
   /** Each room's shiny materials and the middle of the room, for its reflection probe. */
   private probes: { at: THREE.Vector3; materials: THREE.MeshStandardMaterial[] }[] = [];
   private envTargets: THREE.WebGLRenderTarget[] = [];
+  /** Each material of something that moves, copied for each probe that lights it. */
+  private movableCopies = new Map<THREE.Material, Map<number, THREE.MeshStandardMaterial>>();
   private power = 1;
   private target = 1;
 
@@ -94,12 +96,54 @@ export class DressedRooms {
     pmrem.dispose();
   }
 
-  add(room: string, scene: THREE.Group, lightmap: THREE.Texture, scale: number, drawn: string[]) {
+  /**
+   * Lights something that moves (a door), which the baked lightmaps can't, by the nearest dressed
+   * room's probe on its floor: it takes that room's lamps, and dims with them in a blackout. With no
+   * dressed room near (an undressed floor) it is lit by the ambient light alone. floorY: the height
+   * of the floor it stands on. Call before captureReflections.
+   */
+  lightMovable(obj: THREE.Object3D, x: number, floorY: number, z: number) {
+    let nearest = -1;
+    let best = MOVABLE_PROBE_RANGE_M ** 2;
+    this.probes.forEach((p, i) => {
+      if (Math.abs(p.at.y - PROBE_HEIGHT_M - floorY) > SAME_FLOOR_M) return;
+      const d = (p.at.x - x) ** 2 + (p.at.z - z) ** 2;
+      if (d < best) [best, nearest] = [d, i];
+    });
+    if (nearest < 0) return;
+    obj.traverse((o) => {
+      if (!(o instanceof THREE.Mesh) || !(o.material instanceof THREE.MeshStandardMaterial)) return;
+      let byProbe = this.movableCopies.get(o.material);
+      if (!byProbe) this.movableCopies.set(o.material, (byProbe = new Map()));
+      let mine = byProbe.get(nearest);
+      if (!mine) {
+        mine = o.material.clone();
+        byProbe.set(nearest, mine);
+        this.probes[nearest]!.materials.push(mine);
+      }
+      o.material = mine;
+    });
+  }
+
+  /**
+   * probes: where to capture reflections (x, z in the world). A room has one, in its middle; a
+   * ring of corridors around a courtyard needs one per corridor, as its middle is out of doors.
+   * Each surface reflects the nearest; a material used near two of them is copied for each.
+   */
+  add(rooms: string[], scene: THREE.Group, lightmap: THREE.Texture, scale: number, drawn: string[], probes?: { x: number; z: number }[]) {
     lightmap.channel = 1; // the lightmap has its own UVs (TEXCOORD_1)
     // three adds the lightmap as irradiance and divides by π for diffuse; Blender baked radiance.
     const intensity = scale * Math.PI;
-    const seen = new Set<THREE.Material>();
-    const materials: THREE.MeshStandardMaterial[] = [];
+    scene.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(scene);
+    const y = bounds.min.y + PROBE_HEIGHT_M;
+    const middle = bounds.getCenter(new THREE.Vector3());
+    const groups = (probes?.length ? probes : [middle]).map((p) => ({ at: new THREE.Vector3(p.x, y, p.z), materials: [] as THREE.MeshStandardMaterial[] }));
+    /** Each original material's copy for each probe (the original itself for the first probe that uses it). */
+    const copies = new Map<THREE.Material, Map<number, THREE.MeshStandardMaterial>>();
+    const bulbsSeen = new Set<THREE.Material>();
+    const box = new THREE.Box3();
+    const centre = new THREE.Vector3();
     let missingUv = 0;
     scene.traverse((obj) => {
       if (!(obj instanceof THREE.Mesh)) return;
@@ -107,37 +151,50 @@ export class DressedRooms {
       obj.updateMatrix();
       const material = obj.material as THREE.MeshStandardMaterial;
       if (obj.name.startsWith(BULB_PREFIX)) {
-        if (!seen.has(material)) this.bulbs.push({ material, full: material.emissiveIntensity });
-      } else {
-        if (!obj.geometry.getAttribute("uv1")) missingUv++;
-        if (!seen.has(material)) {
-          material.lightMap = lightmap;
-          material.lightMapIntensity = intensity;
-          material.needsUpdate = true;
-          this.lightmaps.push({ material, full: intensity });
-          materials.push(material);
-        }
+        if (!bulbsSeen.has(material)) this.bulbs.push({ material, full: material.emissiveIntensity });
+        bulbsSeen.add(material);
+        return;
       }
-      seen.add(material);
+      if (!obj.geometry.getAttribute("uv1")) missingUv++;
+      let nearest = 0;
+      if (groups.length > 1) {
+        box.setFromObject(obj).getCenter(centre);
+        let best = Infinity;
+        groups.forEach((g, i) => {
+          const d = (g.at.x - centre.x) ** 2 + (g.at.z - centre.z) ** 2;
+          if (d < best) [best, nearest] = [d, i];
+        });
+      }
+      let byProbe = copies.get(material);
+      if (!byProbe) copies.set(material, (byProbe = new Map()));
+      let mine = byProbe.get(nearest);
+      if (!mine) {
+        mine = byProbe.size === 0 ? material : material.clone();
+        byProbe.set(nearest, mine);
+        mine.lightMap = lightmap;
+        mine.lightMapIntensity = intensity;
+        mine.needsUpdate = true;
+        this.lightmaps.push({ material: mine, full: intensity });
+        groups[nearest]!.materials.push(mine);
+      }
+      obj.material = mine;
     });
-    if (missingUv) console.warn(`${room}: ${missingUv} meshes have no lightmap UVs and will look unlit`);
-    const bounds = new THREE.Box3().setFromObject(scene);
-    const at = bounds.getCenter(new THREE.Vector3());
-    at.y = bounds.min.y + PROBE_HEIGHT_M;
-    this.probes.push({ at, materials });
-    this.rooms.add(room);
+    if (missingUv) console.warn(`${rooms[0]}: ${missingUv} meshes have no lightmap UVs and will look unlit`);
+    for (const g of groups) this.probes.push(g);
+    for (const room of rooms) this.rooms.add(room);
     for (const id of drawn) this.drawn.add(id);
     this.objects.push(scene);
   }
 }
 
 /** Loads every built room of this map's dressing. Never fails: a room that can't load stays grey. */
-export async function loadDressedRooms(loaders: ModelLoaders, dressing: MapDressing | undefined, onProgress?: LoadProgress): Promise<DressedRooms> {
+export async function loadDressedRooms(loaders: ModelLoaders, dressing: MapDressing | undefined): Promise<DressedRooms> {
   const result = new DressedRooms();
   if (!dressing) return result;
   let manifest: Record<string, ManifestEntry>;
   try {
-    const res = await fetch(`${ASSETS}rooms.json`);
+    // Always asked again (a small file): an old copy would name the wrong grey boxes to leave out.
+    const res = await fetch(`${ASSETS}rooms.json`, { cache: "no-cache" });
     if (!res.ok) return result; // nothing built yet
     manifest = await res.json();
   } catch {
@@ -145,37 +202,26 @@ export async function loadDressedRooms(loaders: ModelLoaders, dressing: MapDress
   }
   const { gltf, ktx2 } = loaders;
   const base = import.meta.env.BASE_URL;
-  // The files to download, each once (rooms share textures), from the texture set being loaded.
-  const skip = loaders.lowTextures ? "textures/" : "textures-1k/";
-  const sizes = new Map<string, number>();
-  for (const room of dressing.rooms) {
-    for (const [path, bytes] of Object.entries(manifest[room.room]?.files ?? {})) if (!path.startsWith(skip)) sizes.set(path, bytes);
+  // The files to download, for the loading bar (loaders.ts counts each once).
+  for (const room of dressing.rooms) loaders.expect(manifest[room.room]?.files ?? {});
+  // A rebuilt room keeps its file names, so each room's files are asked for under a version (the
+  // sizes of its own files added up): a browser holding an older build fetches the new one.
+  for (const entry of Object.values(manifest)) {
+    const own = Object.entries(entry.files ?? {}).filter(([path]) => path.startsWith("rooms/"));
+    const version = own.reduce((sum, [, bytes]) => sum + bytes, 0);
+    for (const [path] of own) loaders.roomVersions.set(path, version);
   }
-  let total = 0;
-  for (const bytes of sizes.values()) total += bytes;
-  let loaded = 0;
-  onProgress?.(0, total);
-  loaders.manager.onProgress = (url) => {
-    const key = ASSET_KEY.exec(url)?.[1];
-    const bytes = key ? sizes.get(key) : undefined;
-    if (key === undefined || bytes === undefined) return;
-    sizes.delete(key); // count each file once
-    loaded += bytes;
-    onProgress?.(loaded, total);
-  };
   await Promise.all(
     dressing.rooms.map(async (room) => {
       const entry = manifest[room.room];
       if (!entry) return;
       try {
         const [model, lightmap] = await Promise.all([gltf.loadAsync(base + entry.glb), ktx2.loadAsync(base + entry.lightmap)]);
-        result.add(room.room, model.scene, lightmap, entry.lightmapScale, entry.drawn ?? []);
+        result.add(entry.rooms ?? [room.room], model.scene, lightmap, entry.lightmapScale, entry.drawn ?? [], room.probes);
       } catch (err) {
         console.error(`${room.room}: its dressed room failed to load, so it is drawn as grey boxes`, err);
       }
     }),
   );
-  loaders.manager.onProgress = () => {};
-  onProgress?.(total, total); // files that failed still end the bar
   return result;
 }

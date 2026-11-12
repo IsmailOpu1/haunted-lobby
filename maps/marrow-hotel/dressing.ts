@@ -74,6 +74,8 @@ const BALLROOM_WEST_FACE = -22.895;
 const BALLROOM_EAST_FACE = -11.605;
 const BALLROOM_SOUTH_FACE = -6.105;
 const STAGE_TOP = 0.5;
+/** The refreshment table's top. */
+const REFRESH_TOP = 0.76;
 /** The piano's lid (build_room.py upright_piano: its top plus the lid), and the lid's middle out from the wall. */
 const PIANO_LID_TOP = 1.29;
 const PIANO_LID_X = -22.6;
@@ -176,6 +178,63 @@ function chairs(id: string, x: number, z: number, sides: ("n" | "s" | "w" | "e")
     return { model: "dining_chair_02", x: x + dx * out, z: z + dz * out, turn: turn + [-4, 3, 6, -7, 1][k]!, maxTris: CHAIR_TRIS, draws: `${id}-chair-${s}` };
   });
 }
+
+// The corridor ring: the corridor side of each wall (greybox.ts walls are 0.2 thick, faces 5 mm proud).
+const FRONT_SOUTH_FACE = 4.395;
+const FRONT_NORTH_FACE = 2.105;
+const WEST_WEST_FACE = -11.395;
+const WEST_EAST_FACE = -9.105;
+const EAST_WEST_FACE = 9.105;
+const EAST_EAST_FACE = 11.395;
+const NORTH_NORTH_FACE = -16.395;
+const NORTH_SOUTH_FACE = -14.105;
+const CORRIDOR_CEILING = 2.95;
+/** The runner down the middle of each corridor; the side corridors' runners stop at the long ones. */
+const RUNNER_W = 1.0;
+/** The commode's top (GothicCommode_01). */
+const COMMODE_TOP = 1.212;
+/** Which way a wall sconce faces, out of its wall. */
+const SCONCE_TURN = { n: 180, s: 0, e: 90, w: -90 } as const;
+const SCONCE_DIR = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] } as const;
+/** build_room.py wall_sconce: each candle 0.13 to the side and 0.15 out, its flame 0.23 over the plate's middle. */
+const SCONCE_CANDLE_SIDE = 0.13;
+const SCONCE_FLAME_UP = 0.23;
+/** The ring's sconces: x, z at the wall's face, the way it faces, and whether its candles still burn. */
+const CORRIDOR_SCONCES: [number, number, keyof typeof SCONCE_TURN, boolean][] = [
+  // Front Corridor: either side of the Main Hall's door, and two on the courtyard side.
+  [-7, FRONT_SOUTH_FACE, "n", false],
+  [-1.9, FRONT_SOUTH_FACE, "n", true],
+  [1.9, FRONT_SOUTH_FACE, "n", true],
+  [7, FRONT_SOUTH_FACE, "n", true],
+  [-2.6, FRONT_NORTH_FACE, "s", true],
+  [5.6, FRONT_NORTH_FACE, "s", true],
+  // West Corridor: either side of the sofa, one by the Ballroom's door, two on the courtyard side.
+  [WEST_WEST_FACE, -4.2, "e", true],
+  [WEST_WEST_FACE, -7.8, "e", false],
+  [WEST_WEST_FACE, -12.5, "e", true],
+  [WEST_EAST_FACE, -0.8, "w", true],
+  [WEST_EAST_FACE, -8.4, "w", true],
+  // East Corridor: either side of the commode, a dead one by the luggage.
+  [EAST_EAST_FACE, -4.6, "w", true],
+  [EAST_EAST_FACE, -8.4, "w", true],
+  [EAST_EAST_FACE, -12.2, "w", false],
+  [EAST_WEST_FACE, 0.5, "e", true],
+  [EAST_WEST_FACE, -9, "e", true],
+  // North Corridor: either side of the console, and along the courtyard side.
+  [-6.2, NORTH_NORTH_FACE, "s", true],
+  [-1.5, NORTH_NORTH_FACE, "s", false],
+  [3.4, NORTH_NORTH_FACE, "s", true],
+  [6.6, NORTH_NORTH_FACE, "s", true],
+  [-5.5, NORTH_SOUTH_FACE, "n", true],
+  [5.8, NORTH_SOUTH_FACE, "n", true],
+];
+/** Lanterns over the four corners where the corridors meet; two still lit. */
+const CORRIDOR_LANTERNS: [number, number, boolean][] = [
+  [-10.25, 3.25, true],
+  [10.25, 3.25, false],
+  [-10.25, -15.25, false],
+  [10.25, -15.25, true],
+];
 
 export const marrowHotelDressing: MapDressing = {
   mapId: "marrow-hotel-greybox",
@@ -299,7 +358,7 @@ export const marrowHotelDressing: MapDressing = {
         // The luggage room.
         { model: "treasure_chest", x: -21.3, z: 11.14, turn: 180, draws: "luggage-trunk" },
         { model: "vintage_suitcase", x: -19.9, z: 11.23, turn: 180, draws: "luggage-cases" },
-        { model: "wooden_crate_02", x: -22.635, z: 6.4, turn: 90, draws: "luggage-crate" },
+        { model: "wooden_crate_02", x: -22.635, z: 6.4, draws: "luggage-crate" }, // long side along the wall (z), under the candle
         { model: "wooden_candlestick", x: -22.6, z: 6.1, y: CRATE_TOP },
       ],
       builds: [
@@ -615,12 +674,46 @@ export const marrowHotelDressing: MapDressing = {
         { model: "potted_plant_02", x: -12.15, z: -19.35, turn: 130, draws: "ballroom-plant-northeast" },
         { model: "potted_plant_02", x: -22.35, z: -6.65, turn: 250, draws: "ballroom-plant-southwest" },
         { model: "potted_plant_01", x: -12.15, z: -6.65, turn: 75, draws: "ballroom-plant-southeast" },
+        // Supper tables round the dance floor, as the guests left them: chairs pushed back, a glass
+        // or a bottle still out, the candles never lit again.
+        ...chairs("ballroom-table-southwest", -20.0, -9.2, ["w", "e"], 7),
+        ...chairs("ballroom-table-southeast", -14.6, -9.2, ["w", "e"], 8),
+        ...chairs("ballroom-table-northwest", -20.0, -16.6, ["w", "e"], 9),
+        ...chairs("ballroom-table-northeast", -14.4, -16.6, ["w", "e"], 10),
+        { model: "brass_candleholders", x: -20.0, z: -9.25, y: CLOTH_TOP, turn: 30 },
+        { model: "brass_goblets", x: -14.45, z: -9.0, y: CLOTH_TOP, turn: -20 },
+        { model: "wooden_candlestick", x: -14.75, z: -9.35, y: CLOTH_TOP },
+        { model: "wine_bottles_01", x: -20.1, z: -16.5, y: CLOTH_TOP, turn: 60 },
+        { model: "wooden_candlestick", x: -19.8, z: -16.85, y: CLOTH_TOP },
+        { model: "brass_candleholders", x: -14.4, z: -16.6, y: CLOTH_TOP, turn: 120 },
+        // The refreshment table on the west wall: tea things, goblets, bottles, a candelabrum.
+        { model: "brass_candleholders", x: BALLROOM_WEST_FACE + 0.42, z: -11.7, y: REFRESH_TOP, turn: 90 },
+        { model: "tea_set_01", x: BALLROOM_WEST_FACE + 0.4, z: -11.1, y: REFRESH_TOP, turn: 90, maxTris: 12000 },
+        { model: "brass_goblets", x: BALLROOM_WEST_FACE + 0.42, z: -10.55, y: REFRESH_TOP, turn: 80 },
+        { model: "wine_bottles_01", x: BALLROOM_WEST_FACE + 0.4, z: -10.2, y: REFRESH_TOP, turn: 90 },
+        // A chair knocked over in the middle of the floor, the last dance broken off.
+        { model: "dining_chair_02", x: -17.3, z: -11.0, lay: true, turn: 8, maxTris: CHAIR_TRIS, draws: "ballroom-fallen-chair" },
+        // Somewhere to sit out a dance: a sofa by the east wall, an ottoman by the west.
+        { model: "Sofa_01", x: BALLROOM_EAST_FACE - 0.37, z: -8.1, turn: -90, draws: "ballroom-sofa" },
+        { model: "Ottoman_01", x: BALLROOM_WEST_FACE + 0.31, z: -15.0, turn: 90, draws: "ballroom-ottoman" },
       ],
       builds: [
         { kind: "bandstand", x: -17, z: -18.9, widthM: 4, depthM: 2, heightM: STAGE_TOP, material: "dark_wood", backdrop: "crepe_satin", seed: 4, stands: [[-1.2, -0.25], [0, -0.25], [1.2, -0.25]], draws: "ballroom-stage" },
         // The piano task's piano; the game draws its keys and the card on its music desk.
         { kind: "uprightPiano", x: -22.55, z: -13, turn: 90, backM: 0.35, material: "dark_wood", draws: "ballroom-piano", station: "task-piano" },
         { kind: "jewelCabinet", x: -22.55, z: -19.39, turn: 90, widthM: 1.0, backM: 0.35, frontM: 0.2, material: "dark_wood", draws: "ballroom-jewel-cabinet", station: "relic-ballroom" },
+        { kind: "clothedTable", x: -20.0, z: -9.2, diameterM: 1.2, heightM: 0.76, seed: 7, draws: "ballroom-table-southwest" },
+        { kind: "clothedTable", x: -14.6, z: -9.2, diameterM: 1.2, heightM: 0.76, seed: 8, draws: "ballroom-table-southeast" },
+        { kind: "clothedTable", x: -20.0, z: -16.6, diameterM: 1.2, heightM: 0.76, seed: 9, draws: "ballroom-table-northwest" },
+        { kind: "clothedTable", x: -14.4, z: -16.6, diameterM: 1.2, heightM: 0.76, seed: 10, draws: "ballroom-table-northeast" },
+        { kind: "banquetTable", x: BALLROOM_WEST_FACE + 0.4, z: -11, lengthM: 1.8, widthM: 0.8, heightM: REFRESH_TOP, turn: 90, material: "dark_wood", draws: "ballroom-refreshments" },
+        // Tall candelabra either side of the bandstand, burnt out.
+        { kind: "floorCandelabra", x: -19.45, z: -18.55, turn: 10, draws: "ballroom-candelabra-west" },
+        { kind: "floorCandelabra", x: -14.55, z: -18.55, turn: -15, draws: "ballroom-candelabra-east" },
+        // Music dropped from the stands and kicked across the floor, and a lady's fan.
+        { kind: "scatteredPages", x: -16.9, z: -13.3, count: 6, spreadM: 0.7, seed: 3 },
+        { kind: "scatteredPages", x: -17.4, z: -17.6, count: 3, spreadM: 0.35, seed: 5 },
+        { kind: "foldingFan", x: -18.7, z: -12.2, turn: 35 },
         // Gilt chairs round the walls, their backs just off the panelling.
         { kind: "chairRow", x: -20.1, z: -6.35, turn: 180, lengthM: 3.0, count: 5, draws: "ballroom-chairs-south-west" },
         { kind: "chairRow", x: -14.7, z: -6.35, turn: 180, lengthM: 3.0, count: 5, draws: "ballroom-chairs-south-east" },
@@ -806,5 +899,133 @@ export const marrowHotelDressing: MapDressing = {
       ],
       lights: COURTYARD_LAMPS.map(({ x, z, nx, nz }): DressingLight => ({ x: x + nx * LAMP_BULB_OUT, z: z + nz * LAMP_BULB_OUT, y: LAMP_BASE_Y + LAMP_LIGHT_UP, kelvin: 2400, watts: 70, radius: 0.03 })),
     },
+    {
+      // The corridors round the courtyard, one space built and lit together: the hotel's spine,
+      // where every chase runs. A wine runner over dark boards, grey damask over square-panelled
+      // wood, portraits and consoles between the doors; candles in brass sconces, some burnt out,
+      // so the way round goes from pool of light to dark and back.
+      room: "Front Corridor",
+      alsoRooms: ["West Corridor", "East Corridor", "North Corridor"],
+      probes: [
+        { x: 0, z: 3.25 },
+        { x: -10.25, z: -6 },
+        { x: 10.25, z: -6 },
+        { x: 0, z: -15.25 },
+      ],
+      wall: "floral_jacquard",
+      wainscot: { material: "dark_paneled_wood", heightM: 1.2, trim: "dark_wood" },
+      floor: "dark_wood",
+      ceiling: "worn_cracked_plaster",
+      rugs: [
+        { material: "velour_velvet_wine", x: 0, z: 3.25, sizeX: 21.8, sizeZ: RUNNER_W },
+        { material: "velour_velvet_wine", x: 0, z: -15.25, sizeX: 21.8, sizeZ: RUNNER_W },
+        { material: "velour_velvet_wine", x: -10.25, z: -6, sizeX: RUNNER_W, sizeZ: 17.48 },
+        { material: "velour_velvet_wine", x: 10.25, z: -6, sizeX: RUNNER_W, sizeZ: 17.48 },
+      ],
+      props: [
+        ...CORRIDOR_LANTERNS.map(([x, z]): DressingProp => ({ model: "lantern_chandelier_01", x, z, y: CORRIDOR_CEILING - LANTERN_H })),
+        // Front Corridor: a console each side of the Main Hall's door, a picture over each; a chair
+        // and a little table on the courtyard side; plants at the ends.
+        { model: "ClassicConsole_01", x: -3.5, z: FRONT_SOUTH_FACE - 0.295, turn: 180, draws: "front-console-west" },
+        { model: "brass_vase_02", x: -4.0, z: FRONT_SOUTH_FACE - 0.3, y: CONSOLE_TOP },
+        { model: "mantel_clock_01", x: -3.2, z: FRONT_SOUTH_FACE - 0.27, y: CONSOLE_TOP, turn: 180 },
+        { model: "hanging_picture_frame_01", x: -3.5, z: FRONT_SOUTH_FACE - 0.01, y: 1.95, turn: 180 },
+        { model: "ClassicConsole_01", x: 4.5, z: FRONT_SOUTH_FACE - 0.295, turn: 180, draws: "front-console-east" },
+        { model: "vintage_oil_lamp", x: 4.0, z: FRONT_SOUTH_FACE - 0.3, y: CONSOLE_TOP },
+        { model: "antique_ceramic_vase_01", x: 5.0, z: FRONT_SOUTH_FACE - 0.3, y: CONSOLE_TOP, turn: 30 },
+        { model: "hanging_picture_frame_03", x: 4.5, z: FRONT_SOUTH_FACE - 0.016, y: 1.9, turn: 180, scale: 1.4 },
+        { model: "side_table_01", x: 2.1, z: FRONT_NORTH_FACE + 0.235, turn: 10, draws: "front-side-table" },
+        { model: "standing_picture_frame_01", x: 2.15, z: FRONT_NORTH_FACE + 0.22, y: 0.551, turn: 160 },
+        { model: "GreenChair_01", x: 3.0, z: FRONT_NORTH_FACE + 0.39, turn: -8, draws: "front-chair" },
+        { model: "potted_plant_02", x: -8.3, z: FRONT_NORTH_FACE + 0.43, turn: 200, draws: "front-plant-west" },
+        { model: "potted_plant_02", x: 8.3, z: FRONT_NORTH_FACE + 0.43, turn: 15, draws: "front-plant-east" },
+        // The founders' portraits at either end, looking down the corridor.
+        { model: "fancy_picture_frame_02", x: WEST_WEST_FACE + 0.07, z: 3.25, y: 1.9, turn: 90, scale: 1.5 },
+        { model: "fancy_picture_frame_02", x: EAST_EAST_FACE - 0.07, z: 3.25, y: 1.9, turn: -90, scale: 1.5 },
+        // West Corridor: a sofa between the Library's and the Ballroom's doors under a painting; a
+        // vase on a stand across from it; a tall plant by the north corner.
+        { model: "Sofa_01", x: WEST_WEST_FACE + 0.37, z: -6, turn: 90, draws: "west-sofa" },
+        { model: "fancy_picture_frame_01", x: WEST_WEST_FACE + 0.012, z: -6, y: 1.9, turn: 90, scale: 1.4 },
+        { model: "side_table_tall_01", x: WEST_EAST_FACE - 0.2, z: -3.5, draws: "west-stand" },
+        { model: "antique_ceramic_vase_01", x: WEST_EAST_FACE - 0.2, z: -3.5, y: TALL_SIDE_TOP, turn: 120 },
+        { model: "hanging_picture_frame_03", x: WEST_EAST_FACE - 0.016, z: -3.5, y: 1.85, turn: -90 },
+        { model: "potted_plant_01", x: WEST_EAST_FACE - 0.33, z: -13.4, turn: 60, draws: "west-plant" },
+        // East Corridor: a commode under a portrait by the Kitchen's door, a guest's luggage never
+        // collected, a rocking chair turned a little from the wall.
+        { model: "GothicCommode_01", x: EAST_EAST_FACE - 0.295, z: -6.5, turn: -90, draws: "east-commode" },
+        { model: "brass_vase_01", x: EAST_EAST_FACE - 0.3, z: -6.85, y: COMMODE_TOP },
+        { model: "standing_picture_frame_01", x: EAST_EAST_FACE - 0.25, z: -6.2, y: COMMODE_TOP, turn: -70 },
+        { model: "fancy_picture_frame_02", x: EAST_EAST_FACE - 0.045, z: -6.5, y: 2.05, turn: -90 },
+        { model: "vintage_suitcase", x: EAST_EAST_FACE - 0.135, z: -10.5, turn: -90, draws: "east-suitcase" },
+        { model: "Rockingchair_01", x: EAST_WEST_FACE + 0.38, z: -3.5, turn: 78, draws: "east-rocking-chair" },
+        { model: "fancy_picture_frame_01", x: EAST_WEST_FACE + 0.012, z: -6, y: 1.9, turn: 90, scale: 1.2 },
+        { model: "potted_plant_02", x: EAST_EAST_FACE - 0.43, z: -13.4, turn: -100, draws: "east-plant" },
+        // North Corridor: a console under a portrait, a bust on its stand, chairs either side of the
+        // courtyard door, tall plants at the ends.
+        { model: "ClassicConsole_01", x: 5, z: NORTH_NORTH_FACE + 0.295, draws: "north-console" },
+        { model: "vintage_oil_lamp", x: 5.5, z: NORTH_NORTH_FACE + 0.3, y: CONSOLE_TOP },
+        { model: "brass_vase_02", x: 4.45, z: NORTH_NORTH_FACE + 0.3, y: CONSOLE_TOP },
+        { model: "hanging_picture_frame_01", x: 5, z: NORTH_NORTH_FACE + 0.01, y: 1.95 },
+        { model: "side_table_tall_01", x: -7.5, z: NORTH_NORTH_FACE + 0.2, draws: "north-stand" },
+        { model: "marble_bust_01", x: -7.5, z: NORTH_NORTH_FACE + 0.2, y: TALL_SIDE_TOP, turn: 15 },
+        { model: "GreenChair_01", x: -2.5, z: NORTH_SOUTH_FACE - 0.39, turn: 186, draws: "north-chair-west" },
+        { model: "GreenChair_01", x: 2.5, z: NORTH_SOUTH_FACE - 0.39, turn: 172, draws: "north-chair-east" },
+        { model: "fancy_picture_frame_01", x: 0, z: NORTH_NORTH_FACE + 0.012, y: 1.9, scale: 1.2 },
+        { model: "potted_plant_01", x: -9.6, z: NORTH_NORTH_FACE + 0.33, turn: 140, draws: "north-plant-west" },
+        { model: "potted_plant_01", x: 9.6, z: NORTH_NORTH_FACE + 0.33, turn: -30, draws: "north-plant-east" },
+      ],
+      builds: CORRIDOR_SCONCES.map(([x, z, dir, lit]): DressingBuild => ({ kind: "wallSconce", x, z, turn: SCONCE_TURN[dir], y: SCONCE_Y, lit })),
+      lights: [
+        // One light in each candle's flame, so its glowing bulb is the flame itself.
+        ...CORRIDOR_SCONCES.filter(([, , , lit]) => lit).flatMap(([x, z, dir]) => {
+          const [ox, oz] = SCONCE_DIR[dir];
+          return [-1, 1].map((side): DressingLight => ({
+            x: x + ox * SCONCE_OUT + Math.abs(oz) * side * SCONCE_CANDLE_SIDE,
+            z: z + oz * SCONCE_OUT + Math.abs(ox) * side * SCONCE_CANDLE_SIDE,
+            y: SCONCE_Y + SCONCE_FLAME_UP,
+            kelvin: 1900,
+            watts: 18,
+            radius: 0.012,
+          }));
+        }),
+        ...CORRIDOR_LANTERNS.filter(([, , lit]) => lit).map(([x, z]): DressingLight => ({ x, z, y: CORRIDOR_CEILING - 0.5, kelvin: 2500, watts: 90, radius: 0.08 })),
+        // The oil lamps on the front and north consoles.
+        { x: 4.0, z: FRONT_SOUTH_FACE - 0.3, y: CONSOLE_TOP + 0.45, kelvin: 2300, watts: 40, radius: 0.05 },
+        { x: 5.5, z: NORTH_NORTH_FACE + 0.3, y: CONSOLE_TOP + 0.45, kelvin: 2300, watts: 40, radius: 0.05 },
+      ],
+    },
   ],
+  // Every door's look (owner, 2026-11-12: rusty, dressed doors, a different design per room).
+  doors: {
+    "hall-front": { style: "hall" },
+    "reception-front": { style: "reception" },
+    "reception-office": { style: "reception" },
+    "reception-luggage": { style: "reception" },
+    "restaurant-front": { style: "restaurant" },
+    "restaurant-bar": { style: "restaurant" },
+    "library-west": { style: "library" },
+    "library-study": { style: "library" },
+    "ballroom-west": { style: "ballroom" },
+    "ballroom-north": { style: "ballroom" },
+    "kitchen-restaurant": { style: "service" },
+    "kitchen-east": { style: "service" },
+    "service-north": { style: "service" },
+    "service-fuse": { style: "service" },
+    "laundry-corridor": { style: "service" },
+    "laundry-north": { style: "service" },
+    "courtyard-front": { style: "courtyard" },
+    "courtyard-north": { style: "courtyard" },
+    "guest1-corridor": { style: "guest", number: 1 },
+    "guest2-corridor": { style: "guest", number: 2 },
+    "guest3-corridor": { style: "guest", number: 3 },
+    "guest4-corridor": { style: "guest", number: 4 },
+    "bridal-corridor": { style: "bridal" },
+    "nursery-corridor": { style: "nursery" },
+    "staff-corridor": { style: "staff" },
+    "passage-wine": { style: "cellar" },
+    "passage-storage": { style: "cellar" },
+    "wine-ritual": { style: "cellar" },
+    "storage-ritual": { style: "cellar" },
+    "relic-door": { style: "relic" },
+  },
 };

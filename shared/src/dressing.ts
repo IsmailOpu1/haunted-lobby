@@ -81,7 +81,39 @@ export type DressingBuild =
   | RaisedBedBuild
   | PottingBenchBuild
   | GardenBenchBuild
-  | UrnBuild;
+  | UrnBuild
+  | FloorCandelabraBuild
+  | ScatteredPagesBuild
+  | FoldingFanBuild;
+
+/** A tall brass floor candelabra with five candles, burnt out unless `lit`. */
+export interface FloorCandelabraBuild {
+  kind: "floorCandelabra";
+  x: number;
+  z: number;
+  turn?: number;
+  lit?: boolean;
+  draws?: string;
+}
+
+/** Loose pages of sheet music dropped on the floor, spread over about spreadM either way. */
+export interface ScatteredPagesBuild {
+  kind: "scatteredPages";
+  x: number;
+  z: number;
+  count?: number;
+  spreadM?: number;
+  seed?: number;
+  turn?: number;
+}
+
+/** A folding fan dropped open on the floor. */
+export interface FoldingFanBuild {
+  kind: "foldingFan";
+  x: number;
+  z: number;
+  turn?: number;
+}
 
 /** A stone fountain: an eight-sided basin of still water round a pedestal with two bowls. */
 export interface FountainBuild {
@@ -379,6 +411,8 @@ export interface WallSconceBuild {
   z: number;
   turn?: number;
   y: number;
+  /** false: its candles burnt down to stubs, no flame (give it no light either). */
+  lit?: boolean;
 }
 
 /**
@@ -815,6 +849,12 @@ export type MaterialName = string;
 
 export interface RoomDressing {
   room: string;
+  /** Map rooms dressed and baked together with this one as one space, so light flows between them
+   * (the four corridors of the ground-floor ring meet at open corners). */
+  alsoRooms?: string[];
+  /** Where reflections are captured (world x, z), when the middle of the build is not in it: one
+   * per corridor of a ring. Default: one, in the middle. */
+  probes?: { x: number; z: number }[];
   /** Wall above the panelling (or the whole wall when there is no panelling). */
   wall: MaterialName;
   /** Wood panelling up to this height in metres, with a rail on top. */
@@ -833,7 +873,56 @@ export interface RoomDressing {
   moon?: { sky: [number, number, number]; color: [number, number, number]; strength: number; elevation: number; toward: [number, number] };
 }
 
+/**
+ * How a doorway's doors look (tools/art/blender/build_doors.py). Each is built at every leaf width
+ * it is used at, so the doors in the game are models, not boxes.
+ */
+export type DoorStyle =
+  | "hall" // carved walnut, rust-stained brass push plates
+  | "reception" // six-panel mahogany, brass lever
+  | "restaurant" // aged oak with a round window
+  | "library" // tall-panelled walnut, iron studs
+  | "ballroom" // ivory paint with gilt mouldings
+  | "courtyard" // glazed garden doors
+  | "service" // chipped green paint, rusty kick plate
+  | "guest" // worn four-panel, a brass number
+  | "bridal" // ivory paint, arched top panel
+  | "nursery" // faded blue paint, small panels
+  | "staff" // painted ledged planks
+  | "cellar" // rough planks, rusted iron straps
+  | "relic"; // the heaviest planks and iron, stained dark red
+
+export interface DoorDressing {
+  style: DoorStyle;
+  /** A number plate on the door (guest rooms). */
+  number?: number;
+}
+
+/** A door is a person's height plus some; the doorway above it is a fixed panel (the transom). */
+export const DOOR_LEAF_HEIGHT_M = 2.2;
+/** The doorway's top is this much of the wall's height; the wall closes the gap above it. */
+export const DOOR_HEIGHT_FRACTION = 0.9;
+/** A doorway this wide or wider gets a pair of doors, so neither reaches across a corridor. */
+export const DOUBLE_DOOR_MIN_WIDTH_M = 1.4;
+/** The gap between a pair of doors, and round a single one. */
+export const LEAF_GAP_M = 0.01;
+
+/** How a doorway is filled: one or two leaves of this size, and the fixed panel above them. */
+export function doorLayout(doorWidth: number, wallHeight: number) {
+  const count = doorWidth >= DOUBLE_DOOR_MIN_WIDTH_M ? 2 : 1;
+  const top = wallHeight * DOOR_HEIGHT_FRACTION;
+  const leafHeight = Math.min(DOOR_LEAF_HEIGHT_M, top);
+  return { count, slot: doorWidth / count, leafWidth: doorWidth / count - LEAF_GAP_M, leafHeight, top, transomHeight: top - leafHeight };
+}
+
+/** The node in the built doors (tools/art/build-doors.ts) for one leaf or one transom. */
+export function doorModelName(style: DoorStyle, part: "leaf" | "transom", widthM: number, number?: number): string {
+  return `${style}_${part}_${Math.round(widthM * 100)}${number === undefined ? "" : `_n${number}`}`;
+}
+
 export interface MapDressing {
   mapId: string;
   rooms: RoomDressing[];
+  /** Each door's look, by door id. A door not listed stays a plain box. */
+  doors?: Record<string, DoorDressing>;
 }

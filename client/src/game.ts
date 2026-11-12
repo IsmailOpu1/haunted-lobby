@@ -48,11 +48,12 @@ import { loadClockParts, StationsView, type DressedClockParts } from "./stations
 import { VoiceChat } from "./voice.ts";
 import type { TaskSoundKind } from "./hands/sounds.ts";
 import { buildWorld, type DoorView, type RitualCircleView } from "./world.ts";
-import { DressedRooms, loadDressedRooms, type LoadProgress } from "./dressedRooms.ts";
+import { DressedRooms, loadDressedRooms } from "./dressedRooms.ts";
 import { PostProcessing, type QualityLevel } from "./post.ts";
 import { LightBudget } from "./lightBudget.ts";
 import { HeldFlashlight } from "./heldFlashlight.ts";
-import { modelLoaders } from "./loaders.ts";
+import { DoorModels, loadDoorModels } from "./doorModels.ts";
+import { modelLoaders, type LoadProgress } from "./loaders.ts";
 import { dressings } from "@haunted/maps";
 
 // Near-zero ambient light (GDD Section 23). Press L while testing to light everything up.
@@ -395,6 +396,7 @@ export class Game {
     private dressed: DressedRooms,
     private held: HeldFlashlight,
     clockParts: DressedClockParts,
+    doorModels: DoorModels | null,
   ) {
     this.scene.background = new THREE.Color(0x000000);
     this.scene.fog = new THREE.Fog(0x000000, FOG_NEAR, FOG_FAR);
@@ -402,7 +404,9 @@ export class Game {
 
     this.post = new PostProcessing(renderer, this.scene, this.camera, held.scene, this.heldCamera);
     for (const room of dressed.objects) this.scene.add(room);
-    ({ doors: this.doors, ritualCircle: this.ritualCircle } = buildWorld(this.scene, map, dressed));
+    const doorStyles = dressings[map.id]?.doors;
+    const doorLook = doorModels && doorStyles ? { models: doorModels, styles: doorStyles, light: dressed.lightMovable.bind(dressed) } : undefined;
+    ({ doors: this.doors, ritualCircle: this.ritualCircle } = buildWorld(this.scene, map, dressed, doorLook));
     dressed.captureReflections(this.renderer, this.scene); // before the flashlight is added
     const place = (x: number, z: number) => toWorld(map, x, z);
     this.remotes = new RemotePlayers(this.scene, place);
@@ -527,15 +531,17 @@ export class Game {
   static async create(canvas: HTMLCanvasElement, map: MapData, hud: GameHud, lowTextures: boolean, onProgress?: LoadProgress): Promise<Game> {
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
     renderer.info.autoReset = false; // post.ts counts a whole frame
-    const loaders = modelLoaders(renderer, lowTextures);
-    const [, dressed, held, clockParts] = await Promise.all([
+    const loaders = modelLoaders(renderer, lowTextures, onProgress);
+    const [, dressed, held, clockParts, doorModels] = await Promise.all([
       initPhysics(),
-      loadDressedRooms(loaders, dressings[map.id], onProgress),
+      loadDressedRooms(loaders, dressings[map.id]),
       HeldFlashlight.load(loaders, renderer),
       loadClockParts(loaders),
+      loadDoorModels(loaders),
     ]);
+    loaders.finishProgress();
     loaders.dispose();
-    const game = new Game(canvas, map, hud, renderer, dressed, held, clockParts);
+    const game = new Game(canvas, map, hud, renderer, dressed, held, clockParts, doorModels);
     await game.start();
     return game;
   }

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { config, doorBox, furnitureBox, HIDING_SPOT_HEIGHT_M, hidingSpotBox, levelOf, roomAt, toWorld, wallBox, wallFaces, type DoorDef, type MapData, type StairDef } from "@haunted/shared";
+import { config, DOOR_HEIGHT_FRACTION, doorBox, doorLayout, doorModelName, furnitureBox, HIDING_SPOT_HEIGHT_M, hidingSpotBox, LEAF_GAP_M, levelOf, roomAt, toWorld, wallBox, wallFaces, type DoorDef, type DoorDressing, type MapData, type RoomDef, type StairDef } from "@haunted/shared";
+import type { DoorModels } from "./doorModels.ts";
 import { liftToFloor } from "./place.ts";
 
 const WALL_COLOR = 0x8a8a8a;
@@ -14,9 +15,9 @@ const FACE_GAP_M = 0.005;
 const DOOR_COLOR = 0x6b5a45;
 const CURTAIN_COLOR = 0x4a1f24;
 const DOOR_THICKNESS = 0.08;
-/** A door panel is this much of the wall's height; the wall closes the gap above it. */
-const DOOR_HEIGHT_FRACTION = 0.9;
 const DOOR_SWING_PER_SEC = 4; // radians per second for the open/close animation
+const TRANSOM_COLOR = 0x4a3c2e;
+const CORRIDOR = /Corridor|Passage/;
 const STAIR_COLOR = 0x5e5850;
 const STEP_RISE_M = 0.2;
 /** A dressed flight's own treads and risers are this far in front of (and above) the grey steps,
@@ -36,11 +37,8 @@ const SIGN_WIDTH_M = 1.3;
 const SIGN_HEIGHT_M = 0.2;
 /** The sign's middle, on the wall between the top of the door and the ceiling. */
 const SIGN_Y_FRACTION = 0.948;
-/** Half the thickness of a sign that sticks out from a corridor wall. */
-const BLADE_GAP_M = 0.004;
 /** In a dressed room a sign stands in front of the door frame (build_room.py ARCH_D), not in it. */
 const DRESSED_SIGN_OUT_M = 0.04;
-const CORRIDOR = /Corridor|Passage/;
 const SIGN_CANVAS_PX = [512, 80] as const;
 const SIGN_PLATE = "#2a2118";
 const SIGN_TEXT = "#d8b766";
@@ -57,39 +55,89 @@ const FURNITURE_COLORS: Record<string, number> = {
   altar: 0x2a2626,
 };
 
-/** A door mesh that swings around its hinge. */
+/** One swinging leaf of a door: its hinge, and which way along the doorway it reaches (+1 or -1). */
+interface Leaf {
+  pivot: THREE.Group;
+  /** Where the hinge is along the doorway, from its middle. */
+  hinge: number;
+  reach: 1 | -1;
+  openAngle: number;
+}
+
+/** How the doors look: the built models (doorModels.ts) and each door's style (the map dressing). */
+export interface DoorLook {
+  models: DoorModels;
+  styles: Readonly<Record<string, DoorDressing>>;
+  /** Lights a door that moves, which the rooms' baked light can't (DressedRooms.lightMovable). */
+  light?(obj: THREE.Object3D, x: number, floorY: number, z: number): void;
+}
+
+/**
+ * A door that swings around its hinges. A wide doorway gets a pair of doors; a narrow one a single
+ * door. Every door opens into a room, never into a corridor, so an open door doesn't block the way.
+ * Above the doors a fixed panel fills the doorway up to its top. A door with a style (DoorLook) is
+ * its model; one without, or whose model wasn't built, is a plain box.
+ */
 export class DoorView {
-  private pivot = new THREE.Group();
-  private mesh: THREE.Mesh;
-  private targetAngle = 0;
+  private leaves: Leaf[] = [];
+  private material: THREE.MeshLambertMaterial;
+  private open = false;
   private slots: THREE.Mesh[] = [];
 
-  constructor(scene: THREE.Scene, map: MapData, private def: DoorDef, height: number) {
-    const box = doorBox(def, DOOR_THICKNESS);
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(box.sizeX, height * DOOR_HEIGHT_FRACTION, box.sizeZ),
-      new THREE.MeshLambertMaterial({ color: DOOR_COLOR }),
-    );
-    this.mesh = mesh;
-    // Hinge at one end of the doorway; the panel extends from it.
+  constructor(scene: THREE.Scene, map: MapData, private def: DoorDef, height: number, look?: DoorLook) {
+    const along = def.axis === "x";
+    const { count, slot: leafW, leafWidth, leafHeight: leafH, top: doorTop, transomHeight } = doorLayout(def.width, height);
+    this.material = new THREE.MeshLambertMaterial({ color: def.id === map.relicDoor ? RELIC_DOOR_COLOR : DOOR_COLOR });
+    const style = look?.styles[def.id];
+    const swing = swingSide(map, def);
     const half = def.width / 2;
-    if (def.axis === "x") {
-      this.pivot.position.set(def.x - half, 0, def.z);
-      mesh.position.set(half, (height * DOOR_HEIGHT_FRACTION) / 2, 0);
-    } else {
-      this.pivot.position.set(def.x, 0, def.z - half);
-      mesh.position.set(0, (height * DOOR_HEIGHT_FRACTION) / 2, half);
+    for (let i = 0; i < count; i++) {
+      const reach: 1 | -1 = i === 0 ? 1 : -1;
+      const hinge = reach === 1 ? -half : half;
+      const pivot = new THREE.Group();
+      pivot.position.set(def.x + (along ? hinge : 0), 0, def.z + (along ? 0 : hinge));
+      const model = style && look ? leafModel(look.models, style, leafWidth, i === 0) : null;
+      if (model) {
+        // Built reaching along +x from its hinge; turned to reach this leaf's way, half the gap in.
+        model.rotation.y = along ? (reach === 1 ? 0 : Math.PI) : reach === 1 ? -Math.PI / 2 : Math.PI / 2;
+        model.position.set(along ? (reach * LEAF_GAP_M) / 2 : 0, 0, along ? 0 : (reach * LEAF_GAP_M) / 2);
+        pivot.add(model);
+      } else {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(along ? leafWidth : DOOR_THICKNESS, leafH, along ? DOOR_THICKNESS : leafWidth), this.material);
+        const mid = (reach * leafW) / 2;
+        mesh.position.set(along ? mid : 0, leafH / 2, along ? 0 : mid);
+        pivot.add(mesh);
+      }
+      liftToFloor(map, pivot, def.x, def.z);
+      if (model) look?.light?.(model, def.x, pivot.position.y, def.z);
+      scene.add(pivot);
+      // Turning by +90° takes +x to -z and +z to +x; pick the turn that sends this leaf to `swing`.
+      const openAngle = (along ? -swing * reach : swing * reach) * (Math.PI / 2);
+      this.leaves.push({ pivot, hinge, reach, openAngle });
     }
-    if (def.id === map.relicDoor) (mesh.material as THREE.MeshLambertMaterial).color.setHex(RELIC_DOOR_COLOR);
-    this.pivot.add(mesh);
-    liftToFloor(map, this.pivot, def.x, def.z);
-    scene.add(this.pivot);
+    if (transomHeight > 0.01) {
+      const model = style && look ? look.models.get(doorModelName(style.style, "transom", def.width)) : null;
+      let transom: THREE.Object3D;
+      if (model) {
+        model.rotation.y = along ? 0 : Math.PI / 2;
+        model.position.set(def.x, leafH, def.z);
+        transom = model;
+      } else {
+        transom = new THREE.Mesh(
+          new THREE.BoxGeometry(along ? def.width : DOOR_THICKNESS, transomHeight, along ? DOOR_THICKNESS : def.width),
+          new THREE.MeshLambertMaterial({ color: TRANSOM_COLOR }),
+        );
+        transom.position.set(def.x, (doorTop + leafH) / 2, def.z);
+      }
+      scene.add(liftToFloor(map, transom, def.x, def.z));
+      if (model) look?.light?.(model, def.x, transom.position.y - leafH, def.z);
+    }
   }
 
   /** The relic door's slots, one per relic, lit gold once filled (GDD 10). They show on both faces. */
   setSlots(placed: number, total: number) {
     if (this.slots.length !== total) {
-      for (const slot of this.slots) this.mesh.remove(slot);
+      for (const slot of this.slots) slot.parent?.remove(slot);
       const spacing = this.def.width / (total + 1);
       const along = this.def.axis === "x";
       this.slots = Array.from({ length: total }, (_, i) => {
@@ -98,10 +146,12 @@ export class DoorView {
           new THREE.BoxGeometry(along ? SLOT_SIZE_M : depth, SLOT_SIZE_M, along ? depth : SLOT_SIZE_M),
           new THREE.MeshLambertMaterial({ color: SLOT_EMPTY_COLOR }),
         );
+        // On whichever leaf covers that spot, so it swings with it.
         const offset = -this.def.width / 2 + spacing * (i + 1);
-        const y = SLOT_HEIGHT_M - this.mesh.position.y;
-        slot.position.set(along ? offset : 0, y, along ? 0 : offset);
-        this.mesh.add(slot);
+        const leaf = this.leaves.find((l) => (offset - l.hinge) * l.reach >= 0 && Math.abs(offset - l.hinge) <= this.def.width / this.leaves.length) ?? this.leaves[0]!;
+        const local = offset - leaf.hinge;
+        slot.position.set(along ? local : 0, SLOT_HEIGHT_M, along ? 0 : local);
+        leaf.pivot.add(slot);
         return slot;
       });
     }
@@ -114,14 +164,41 @@ export class DoorView {
   }
 
   setOpen(open: boolean) {
-    this.targetAngle = open ? (this.def.axis === "x" ? Math.PI / 2 : -Math.PI / 2) : 0;
+    this.open = open;
   }
 
   update(dt: number) {
-    const diff = this.targetAngle - this.pivot.rotation.y;
     const step = DOOR_SWING_PER_SEC * dt;
-    this.pivot.rotation.y += Math.abs(diff) <= step ? diff : Math.sign(diff) * step;
+    for (const leaf of this.leaves) {
+      const diff = (this.open ? leaf.openAngle : 0) - leaf.pivot.rotation.y;
+      leaf.pivot.rotation.y += Math.abs(diff) <= step ? diff : Math.sign(diff) * step;
+    }
   }
+}
+
+/** A leaf's model: the numbered one (a guest room's number plate) for the first leaf, if built. */
+function leafModel(models: DoorModels, style: DoorDressing, width: number, first: boolean): THREE.Object3D | null {
+  const numbered = first && style.number !== undefined ? models.get(doorModelName(style.style, "leaf", width, style.number)) : null;
+  return numbered ?? models.get(doorModelName(style.style, "leaf", width));
+}
+
+/** Which side a door opens to: +1 south (or east), -1 north (or west). Into a room, not a corridor;
+ * between two rooms (or two corridors), into the bigger one. */
+function swingSide(map: MapData, def: DoorDef): 1 | -1 {
+  const probe = 0.3;
+  const [nx, nz] = def.axis === "x" ? [0, 1] : [1, 0];
+  const south = roomAt(map, def.x + nx * probe, def.z + nz * probe);
+  const north = roomAt(map, def.x - nx * probe, def.z - nz * probe);
+  if (!south) return -1;
+  if (!north) return 1;
+  const sc = CORRIDOR.test(south.name);
+  const nc = CORRIDOR.test(north.name);
+  if (sc !== nc) return sc ? -1 : 1;
+  return roomArea(south) >= roomArea(north) ? 1 : -1;
+}
+
+function roomArea(room: RoomDef): number {
+  return (room.maxX - room.minX) * (room.maxZ - room.minZ);
 }
 
 /** What dressed rooms (dressedRooms.ts) already draw, so the grey boxes leave it out. */
@@ -136,7 +213,7 @@ const NOTHING_DRESSED: Dressed = { rooms: new Set(), drawn: new Set() };
  * Builds the grey-box rooms: floors, ceilings, walls, stairs and doors, each on its own floor.
  * A dressed room keeps only its grey wall boxes (they are shared with the room next door).
  */
-export function buildWorld(scene: THREE.Scene, map: MapData, dressed: Dressed = NOTHING_DRESSED): { doors: Map<string, DoorView>; ritualCircle: RitualCircleView | null } {
+export function buildWorld(scene: THREE.Scene, map: MapData, dressed: Dressed = NOTHING_DRESSED, doorLook?: DoorLook): { doors: Map<string, DoorView>; ritualCircle: RitualCircleView | null } {
   const h = map.wallHeightM;
   const wallMat = new THREE.MeshLambertMaterial({ color: WALL_COLOR });
   // Up to the underside of the slab, not through it: a wall's top at the next floor's level shows
@@ -205,7 +282,7 @@ export function buildWorld(scene: THREE.Scene, map: MapData, dressed: Dressed = 
   for (const stair of map.stairs) buildStairs(scene, map, stair, wallMat, ceilingMat, dressed.drawn.has(stair.id));
 
   const doors = new Map<string, DoorView>();
-  for (const def of map.doors) doors.set(def.id, new DoorView(scene, map, def, h));
+  for (const def of map.doors) doors.set(def.id, new DoorView(scene, map, def, h, doorLook));
   buildDoorSigns(scene, map, h, dressed);
   return { doors, ritualCircle: circle };
 }
@@ -245,17 +322,6 @@ function buildDoorSigns(scene: THREE.Scene, map: MapData, wallHeight: number, dr
       // A plane faces +z; turn it to face into the room it hangs in.
       sign.rotation.y = Math.atan2(nx, nz);
       scene.add(liftToFloor(map, sign, def.x, def.z));
-      // In a corridor a flat sign is seen edge-on, so a second one sticks out from the wall, read
-      // from both ends of the corridor (two faces back to back, so neither reads mirrored).
-      if (!CORRIDOR.test(here) || CORRIDOR.test(beyond)) continue;
-      for (const face of [-1, 1]) {
-        const blade = new THREE.Mesh(geometry, material(beyond));
-        const [tx, tz] = [nz * face, -nx * face];
-        const out = off + SIGN_WIDTH_M / 2;
-        blade.position.set(def.x + nx * out + tx * BLADE_GAP_M, wallHeight * SIGN_Y_FRACTION, def.z + nz * out + tz * BLADE_GAP_M);
-        blade.rotation.y = Math.atan2(tx, tz);
-        scene.add(liftToFloor(map, blade, def.x, def.z));
-      }
     }
   }
 }

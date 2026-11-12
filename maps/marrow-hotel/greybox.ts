@@ -54,14 +54,14 @@ const DINING_TABLE_M = 1.2;
 const DINING_TABLE_TOP = 0.76;
 /** From the table's middle to a chair's middle: the seat tucked a little under the cloth. */
 const CHAIR_OUT_M = 0.78;
-function diningTable(id: string, x: number, z: number, sides: ("n" | "s" | "w" | "e")[]) {
+function diningTable(id: string, x: number, z: number, sides: ("n" | "s" | "w" | "e")[], room = "Restaurant") {
   const at = { n: [0, -1], s: [0, 1], w: [-1, 0], e: [1, 0] } as const;
   return [
-    piece(id, "table", "Restaurant", x, z, DINING_TABLE_M, DINING_TABLE_M, DINING_TABLE_TOP),
+    piece(id, "table", room, x, z, DINING_TABLE_M, DINING_TABLE_M, DINING_TABLE_TOP),
     ...sides.map((s) => {
       const [dx, dz] = at[s];
       // A dining chair is 0.43 wide and 0.58 deep (dining_chair_02), facing the table.
-      return piece(`${id}-chair-${s}`, "chair", "Restaurant", x + dx * CHAIR_OUT_M, z + dz * CHAIR_OUT_M, dx ? 0.58 : 0.43, dx ? 0.43 : 0.58, 0.97);
+      return piece(`${id}-chair-${s}`, "chair", room, x + dx * CHAIR_OUT_M, z + dz * CHAIR_OUT_M, dx ? 0.58 : 0.43, dx ? 0.43 : 0.58, 0.97);
     }),
   ];
 }
@@ -326,6 +326,27 @@ export const marrowHotelGreybox = buildMap({
         against("courtyard-roses-east-mid", "counter", "Garden Courtyard", 9, -7.4, "w", 4.4, 0.8, 1.1),
         against("courtyard-roses-north", "counter", "Garden Courtyard", -5.9, -14, "s", 5.0, 0.8, 1.1),
         against("courtyard-roses-north-east", "counter", "Garden Courtyard", 7.4, -14, "s", 2.2, 0.8, 1.1),
+        // The corridor ring, dressed: shallow pieces only, along the walls and clear of every door
+        // and curtain, so a chase still has about 1.5 m or more everywhere (GDD 21.1).
+        against("front-console-west", "counter", "Front Corridor", -3.5, 4.5, "n", 1.54, 0.59, 0.95),
+        against("front-console-east", "counter", "Front Corridor", 4.5, 4.5, "n", 1.54, 0.59, 0.95),
+        against("front-side-table", "table", "Front Corridor", 2.1, 2, "s", 0.55, 0.45, 0.55),
+        against("front-chair", "chair", "Front Corridor", 3.0, 2, "s", 0.67, 0.66, 1.06),
+        against("front-plant-west", "plant", "Front Corridor", -8.3, 2, "s", 0.6, 0.6, 0.84),
+        against("front-plant-east", "plant", "Front Corridor", 8.3, 2, "s", 0.6, 0.6, 0.84),
+        against("west-sofa", "sofa", "West Corridor", -11.5, -6, "e", 1.57, 0.66, 0.8),
+        against("west-stand", "table", "West Corridor", -9, -3.5, "w", 0.38, 0.38, 0.76),
+        against("west-plant", "plant", "West Corridor", -9, -13.4, "w", 0.6, 0.6, 1.35),
+        against("east-commode", "counter", "East Corridor", 11.5, -6.5, "w", 1.2, 0.58, 1.21),
+        against("east-suitcase", "crates", "East Corridor", 11.5, -10.5, "w", 1.61, 0.24, 0.57),
+        against("east-rocking-chair", "chair", "East Corridor", 9, -3.5, "e", 0.71, 0.83, 1.0),
+        against("east-plant", "plant", "East Corridor", 11.5, -13.4, "w", 0.6, 0.6, 0.84),
+        against("north-console", "counter", "North Corridor", 5, -16.5, "s", 1.54, 0.59, 0.95),
+        against("north-stand", "table", "North Corridor", -7.5, -16.5, "s", 0.38, 0.38, 0.76),
+        against("north-chair-west", "chair", "North Corridor", -2.5, -14, "n", 0.67, 0.66, 1.06),
+        against("north-chair-east", "chair", "North Corridor", 2.5, -14, "n", 0.67, 0.66, 1.06),
+        against("north-plant-west", "plant", "North Corridor", -9.6, -16.5, "s", 0.6, 0.6, 1.35),
+        against("north-plant-east", "plant", "North Corridor", 9.6, -16.5, "s", 0.6, 0.6, 1.35),
         // The Restaurant, dressed: round tables under long cloths with chairs drawn up, the lit
         // candelabra's table between them, a serving console on the west wall, the sideboard the
         // salt jar stands on in the south bay.
@@ -379,6 +400,17 @@ export const marrowHotelGreybox = buildMap({
         piece("ballroom-plant-northeast", "plant", "Ballroom", -12.15, -19.35, 0.6, 0.6, 0.84),
         piece("ballroom-plant-southwest", "plant", "Ballroom", -22.35, -6.65, 0.6, 0.6, 0.84),
         piece("ballroom-plant-southeast", "plant", "Ballroom", -12.15, -6.65, 0.6, 0.6, 1.35),
+        // The ball's supper tables at the edges of the dance floor, its middle left clear.
+        ...diningTable("ballroom-table-southwest", -20.0, -9.2, ["w", "e"], "Ballroom"),
+        ...diningTable("ballroom-table-southeast", -14.6, -9.2, ["w", "e"], "Ballroom"),
+        ...diningTable("ballroom-table-northwest", -20.0, -16.6, ["w", "e"], "Ballroom"),
+        ...diningTable("ballroom-table-northeast", -14.4, -16.6, ["w", "e"], "Ballroom"),
+        against("ballroom-refreshments", "table", "Ballroom", -23, -11, "e", 1.8, 0.8, 0.76),
+        piece("ballroom-candelabra-west", "lamp", "Ballroom", -19.45, -18.55, 0.44, 0.44, 1.83),
+        piece("ballroom-candelabra-east", "lamp", "Ballroom", -14.55, -18.55, 0.44, 0.44, 1.83),
+        piece("ballroom-fallen-chair", "chair", "Ballroom", -17.3, -11.0, 0.5, 1.0, 0.6),
+        against("ballroom-sofa", "sofa", "Ballroom", -11.5, -8.1, "w", 1.57, 0.66, 0.8),
+        against("ballroom-ottoman", "chair", "Ballroom", -23, -15.0, "e", 0.89, 0.62, 0.62),
         // The Service Room, dressed: the servants' table with its benches under the bell board's
         // room, the linen press and the dresser on the west wall, the sideboard the salt jar stands
         // on under the bell board, the fuse board (the map's fuse box) and a workbench in the fuse

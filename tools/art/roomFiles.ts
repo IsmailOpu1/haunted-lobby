@@ -5,14 +5,14 @@ import { dirname, join, posix } from "node:path";
 
 /** Paths under client/public/assets → bytes: the room's glTF, its buffers, its lightmap, and every
  * texture it uses in both sets (textures/ and textures-1k/); the game counts the set it loads. */
-export function roomFiles(assetsDir: string, gltfPath: string, lightmapPath: string): Record<string, number> {
+export function roomFiles(assetsDir: string, gltfPath: string, lightmapPath?: string): Record<string, number> {
   const files: Record<string, number> = {};
   const add = (rel: string) => {
     const full = join(assetsDir, rel);
     if (existsSync(full)) files[rel] = statSync(full).size;
   };
   add(gltfPath);
-  add(lightmapPath);
+  if (lightmapPath) add(lightmapPath);
   const gltf = JSON.parse(readFileSync(join(assetsDir, gltfPath), "utf8")) as { buffers?: { uri?: string }[]; images?: { uri?: string }[] };
   const base = dirname(gltfPath).replaceAll("\\", "/");
   for (const item of [...(gltf.buffers ?? []), ...(gltf.images ?? [])]) {
