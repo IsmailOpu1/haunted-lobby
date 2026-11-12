@@ -358,7 +358,7 @@ export const marrowHotelDressing: MapDressing = {
         // The luggage room.
         { model: "treasure_chest", x: -21.3, z: 11.14, turn: 180, draws: "luggage-trunk" },
         { model: "vintage_suitcase", x: -19.9, z: 11.23, turn: 180, draws: "luggage-cases" },
-        { model: "wooden_crate_02", x: -22.635, z: 6.4, turn: 90, draws: "luggage-crate" },
+        { model: "wooden_crate_02", x: -22.635, z: 6.4, draws: "luggage-crate" }, // long side along the wall (z), under the candle
         { model: "wooden_candlestick", x: -22.6, z: 6.1, y: CRATE_TOP },
       ],
       builds: [
