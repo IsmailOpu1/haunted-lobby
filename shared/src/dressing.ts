@@ -379,6 +379,8 @@ export interface WallSconceBuild {
   z: number;
   turn?: number;
   y: number;
+  /** false: its candles burnt down to stubs, no flame (give it no light either). */
+  lit?: boolean;
 }
 
 /**
@@ -815,6 +817,12 @@ export type MaterialName = string;
 
 export interface RoomDressing {
   room: string;
+  /** Map rooms dressed and baked together with this one as one space, so light flows between them
+   * (the four corridors of the ground-floor ring meet at open corners). */
+  alsoRooms?: string[];
+  /** Where reflections are captured (world x, z), when the middle of the build is not in it: one
+   * per corridor of a ring. Default: one, in the middle. */
+  probes?: { x: number; z: number }[];
   /** Wall above the panelling (or the whole wall when there is no panelling). */
   wall: MaterialName;
   /** Wood panelling up to this height in metres, with a rail on top. */

@@ -1908,11 +1908,15 @@ def gilt_m():
     return plain("gilt", (0.5, 0.36, 0.14), 0.55, 1.0)
 
 
-def candle(name, x, y, z, parts, h=0.12):
-    """An ivory candle standing at (x, y, z) with a small glowing flame."""
+def candle(name, x, y, z, parts, h=0.12, lit=True):
+    """An ivory candle standing at (x, y, z) with a small glowing flame (none when burnt out)."""
     wax = plain("candle_wax", (0.7, 0.66, 0.56), 0.6)
     flame = plain("candle_flame", (1.0, 0.75, 0.4), 0.5, 0.0, ((1.0, 0.62, 0.25), 6.0))
     parts.append(lathe(f"{name}_wax", [(0.0, 0.0), (0.013, 0.0), (0.013, h), (0.011, h + 0.004), (0.0, h + 0.004)], Vector((x, y, z)), wax, 12))
+    if not lit:
+        # A burnt-out stub: a blackened wick, no flame.
+        parts.append(rod(f"{name}_wick", Vector((x, y, z + h + 0.004)), Vector((x, y, z + h + 0.012)), 0.0012, plain("burnt_wick", (0.02, 0.018, 0.016), 0.8), 4))
+        return
     parts.append(lathe(f"{name}_flame", [(0.0, 0.0), (0.006, 0.006), (0.007, 0.014), (0.004, 0.024), (0.0, 0.032)], Vector((x, y, z + h + 0.006)), flame, 8))
 
 
@@ -2125,7 +2129,8 @@ def wall_sconce(i, t):
         parts.append(rod(f"sc{i}_arm{k}", Vector((0, -0.03, y)), Vector((ex, ey, y - 0.05)), 0.007, brass_m, 8))
         parts.append(rod(f"sc{i}_up{k}", Vector((ex, ey, y - 0.05)), Vector((ex, ey, y + 0.06)), 0.007, brass_m, 8))
         parts.append(lathe(f"sc{i}_cup{k}", [(0.0, 0.0), (0.014, 0.0), (0.042, 0.02), (0.038, 0.024), (0.02, 0.024), (0.018, 0.04), (0.0, 0.04)], Vector((ex, ey, y + 0.05)), brass_m, 14))
-        candle(f"sc{i}_candle{k}", ex, ey, y + 0.09, parts, 0.12)
+        # A dead sconce's candles burnt down to stubs.
+        candle(f"sc{i}_candle{k}", ex, ey, y + 0.09, parts, 0.12 if t.get("lit", True) else 0.035, t.get("lit", True))
     parts.append(lathe(f"sc{i}_drop", [(0.0, -0.08), (0.008, -0.06), (0.014, -0.03), (0.0, 0.0)], Vector((0, -0.03, y)), brass_m, 10))
     join_by_material(parts, f"sconce_{i}")
     place([o for o in statics if o.name.startswith(f"sconce_{i}_")], i, "wallSconce", t)

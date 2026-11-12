@@ -326,6 +326,27 @@ export const marrowHotelGreybox = buildMap({
         against("courtyard-roses-east-mid", "counter", "Garden Courtyard", 9, -7.4, "w", 4.4, 0.8, 1.1),
         against("courtyard-roses-north", "counter", "Garden Courtyard", -5.9, -14, "s", 5.0, 0.8, 1.1),
         against("courtyard-roses-north-east", "counter", "Garden Courtyard", 7.4, -14, "s", 2.2, 0.8, 1.1),
+        // The corridor ring, dressed: shallow pieces only, along the walls and clear of every door
+        // and curtain, so a chase still has about 1.5 m or more everywhere (GDD 21.1).
+        against("front-console-west", "counter", "Front Corridor", -3.5, 4.5, "n", 1.54, 0.59, 0.95),
+        against("front-console-east", "counter", "Front Corridor", 4.5, 4.5, "n", 1.54, 0.59, 0.95),
+        against("front-side-table", "table", "Front Corridor", 2.1, 2, "s", 0.55, 0.45, 0.55),
+        against("front-chair", "chair", "Front Corridor", 3.0, 2, "s", 0.67, 0.66, 1.06),
+        against("front-plant-west", "plant", "Front Corridor", -8.3, 2, "s", 0.6, 0.6, 0.84),
+        against("front-plant-east", "plant", "Front Corridor", 8.3, 2, "s", 0.6, 0.6, 0.84),
+        against("west-sofa", "sofa", "West Corridor", -11.5, -6, "e", 1.57, 0.66, 0.8),
+        against("west-stand", "table", "West Corridor", -9, -3.5, "w", 0.38, 0.38, 0.76),
+        against("west-plant", "plant", "West Corridor", -9, -13.4, "w", 0.6, 0.6, 1.35),
+        against("east-commode", "counter", "East Corridor", 11.5, -6.5, "w", 1.2, 0.58, 1.21),
+        against("east-suitcase", "crates", "East Corridor", 11.5, -10.5, "w", 1.61, 0.24, 0.57),
+        against("east-rocking-chair", "chair", "East Corridor", 9, -3.5, "e", 0.71, 0.83, 1.0),
+        against("east-plant", "plant", "East Corridor", 11.5, -13.4, "w", 0.6, 0.6, 0.84),
+        against("north-console", "counter", "North Corridor", 5, -16.5, "s", 1.54, 0.59, 0.95),
+        against("north-stand", "table", "North Corridor", -7.5, -16.5, "s", 0.38, 0.38, 0.76),
+        against("north-chair-west", "chair", "North Corridor", -2.5, -14, "n", 0.67, 0.66, 1.06),
+        against("north-chair-east", "chair", "North Corridor", 2.5, -14, "n", 0.67, 0.66, 1.06),
+        against("north-plant-west", "plant", "North Corridor", -9.6, -16.5, "s", 0.6, 0.6, 1.35),
+        against("north-plant-east", "plant", "North Corridor", 9.6, -16.5, "s", 0.6, 0.6, 1.35),
         // The Restaurant, dressed: round tables under long cloths with chairs drawn up, the lit
         // candelabra's table between them, a serving console on the west wall, the sideboard the
         // salt jar stands on in the south bay.

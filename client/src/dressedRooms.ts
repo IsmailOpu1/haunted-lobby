@@ -22,6 +22,8 @@ interface ManifestEntry {
   lightmapScale: number;
   /** Map furniture and hiding spots this build draws (their grey boxes are left out). */
   drawn: string[];
+  /** Every map room this build covers, when it is several baked as one (the corridor ring). */
+  rooms?: string[];
   /** Every file the room downloads (paths under assets/, textures in both sets) → bytes. */
   files?: Record<string, number>;
 }
@@ -94,12 +96,25 @@ export class DressedRooms {
     pmrem.dispose();
   }
 
-  add(room: string, scene: THREE.Group, lightmap: THREE.Texture, scale: number, drawn: string[]) {
+  /**
+   * probes: where to capture reflections (x, z in the world). A room has one, in its middle; a
+   * ring of corridors around a courtyard needs one per corridor, as its middle is out of doors.
+   * Each surface reflects the nearest; a material used near two of them is copied for each.
+   */
+  add(rooms: string[], scene: THREE.Group, lightmap: THREE.Texture, scale: number, drawn: string[], probes?: { x: number; z: number }[]) {
     lightmap.channel = 1; // the lightmap has its own UVs (TEXCOORD_1)
     // three adds the lightmap as irradiance and divides by π for diffuse; Blender baked radiance.
     const intensity = scale * Math.PI;
-    const seen = new Set<THREE.Material>();
-    const materials: THREE.MeshStandardMaterial[] = [];
+    scene.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(scene);
+    const y = bounds.min.y + PROBE_HEIGHT_M;
+    const middle = bounds.getCenter(new THREE.Vector3());
+    const groups = (probes?.length ? probes : [middle]).map((p) => ({ at: new THREE.Vector3(p.x, y, p.z), materials: [] as THREE.MeshStandardMaterial[] }));
+    /** Each original material's copy for each probe (the original itself for the first probe that uses it). */
+    const copies = new Map<THREE.Material, Map<number, THREE.MeshStandardMaterial>>();
+    const bulbsSeen = new Set<THREE.Material>();
+    const box = new THREE.Box3();
+    const centre = new THREE.Vector3();
     let missingUv = 0;
     scene.traverse((obj) => {
       if (!(obj instanceof THREE.Mesh)) return;
@@ -107,25 +122,37 @@ export class DressedRooms {
       obj.updateMatrix();
       const material = obj.material as THREE.MeshStandardMaterial;
       if (obj.name.startsWith(BULB_PREFIX)) {
-        if (!seen.has(material)) this.bulbs.push({ material, full: material.emissiveIntensity });
-      } else {
-        if (!obj.geometry.getAttribute("uv1")) missingUv++;
-        if (!seen.has(material)) {
-          material.lightMap = lightmap;
-          material.lightMapIntensity = intensity;
-          material.needsUpdate = true;
-          this.lightmaps.push({ material, full: intensity });
-          materials.push(material);
-        }
+        if (!bulbsSeen.has(material)) this.bulbs.push({ material, full: material.emissiveIntensity });
+        bulbsSeen.add(material);
+        return;
       }
-      seen.add(material);
+      if (!obj.geometry.getAttribute("uv1")) missingUv++;
+      let nearest = 0;
+      if (groups.length > 1) {
+        box.setFromObject(obj).getCenter(centre);
+        let best = Infinity;
+        groups.forEach((g, i) => {
+          const d = (g.at.x - centre.x) ** 2 + (g.at.z - centre.z) ** 2;
+          if (d < best) [best, nearest] = [d, i];
+        });
+      }
+      let byProbe = copies.get(material);
+      if (!byProbe) copies.set(material, (byProbe = new Map()));
+      let mine = byProbe.get(nearest);
+      if (!mine) {
+        mine = byProbe.size === 0 ? material : material.clone();
+        byProbe.set(nearest, mine);
+        mine.lightMap = lightmap;
+        mine.lightMapIntensity = intensity;
+        mine.needsUpdate = true;
+        this.lightmaps.push({ material: mine, full: intensity });
+        groups[nearest]!.materials.push(mine);
+      }
+      obj.material = mine;
     });
-    if (missingUv) console.warn(`${room}: ${missingUv} meshes have no lightmap UVs and will look unlit`);
-    const bounds = new THREE.Box3().setFromObject(scene);
-    const at = bounds.getCenter(new THREE.Vector3());
-    at.y = bounds.min.y + PROBE_HEIGHT_M;
-    this.probes.push({ at, materials });
-    this.rooms.add(room);
+    if (missingUv) console.warn(`${rooms[0]}: ${missingUv} meshes have no lightmap UVs and will look unlit`);
+    for (const g of groups) this.probes.push(g);
+    for (const room of rooms) this.rooms.add(room);
     for (const id of drawn) this.drawn.add(id);
     this.objects.push(scene);
   }
@@ -169,7 +196,7 @@ export async function loadDressedRooms(loaders: ModelLoaders, dressing: MapDress
       if (!entry) return;
       try {
         const [model, lightmap] = await Promise.all([gltf.loadAsync(base + entry.glb), ktx2.loadAsync(base + entry.lightmap)]);
-        result.add(room.room, model.scene, lightmap, entry.lightmapScale, entry.drawn ?? []);
+        result.add(entry.rooms ?? [room.room], model.scene, lightmap, entry.lightmapScale, entry.drawn ?? [], room.probes);
       } catch (err) {
         console.error(`${room.room}: its dressed room failed to load, so it is drawn as grey boxes`, err);
       }

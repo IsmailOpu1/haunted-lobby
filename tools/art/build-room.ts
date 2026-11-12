@@ -39,8 +39,10 @@ export function slug(room: string): string {
 /** build_room.py FACE_GAP: wall faces stand this far proud of the wall's solid box. */
 const FACE_GAP_M = 0.005;
 
-export function roomJob(map: MapData, room: string) {
-  const parts = map.rooms.filter((r) => r.name === room);
+/** also: map rooms built and baked together with this one, as one space (a ring of corridors). */
+export function roomJob(map: MapData, room: string, also: string[] = []) {
+  const names = [room, ...also];
+  const parts = map.rooms.filter((r) => names.includes(r.name));
   if (!parts.length) throw new Error(`No room named ${room}`);
   const level = levelOf(map, (parts[0]!.minX + parts[0]!.maxX) / 2, (parts[0]!.minZ + parts[0]!.maxZ) / 2);
   const sx = level.shiftX;
@@ -119,7 +121,7 @@ export function roomJob(map: MapData, room: string) {
   const inRoom = (x: number, z: number) => parts.some((p) => x >= p.minX - 1e-3 && x <= p.maxX + 1e-3 && z >= p.minZ - 1e-3 && z <= p.maxZ + 1e-3);
   const nearDoor = (x: number, z: number) => map.doors.some((d) => Math.abs(x - d.x) < d.width / 2 + T && Math.abs(z - d.z) < d.width / 2 + T);
   const faces = wallFaces(map)
-    .filter((f) => f.room === room)
+    .filter((f) => names.includes(f.room))
     .map((f) => {
       let lo = (f.axis === "x" ? f.x : f.z) - f.length / 2;
       let hi = lo + f.length;
@@ -192,7 +194,7 @@ async function build(room: string, fast: boolean, skipBlender: boolean) {
   const name = slug(room);
   const raw = join(WORK, `${name}.glb`);
   const lightmapPng = join(WORK, `${name}-lightmap.png`);
-  const shell = roomJob(defaultMap, room);
+  const shell = roomJob(defaultMap, room, dressing.alsoRooms);
   const job = {
     ...shell,
     dressing,
@@ -232,10 +234,10 @@ async function build(room: string, fast: boolean, skipBlender: boolean) {
   const manifestPath = join(OUT, "rooms.json");
   // The map furniture and hiding spots this build draws, so the game leaves out their grey boxes.
   const drawn = [...new Set([...dressing.props.flatMap((p) => (p.draws ? [p.draws] : [])), ...(dressing.builds ?? []).flatMap((b) => [...("draws" in b && b.draws ? [b.draws] : []), ...("station" in b ? [b.station] : []), ...("drawsAll" in b ? (b.drawsAll ?? []) : [])]), ...shell.hidingSpots.map((h) => h.id), ...shell.stairs.map((s) => s.id)])];
-  const manifest: Record<string, { glb: string; lightmap: string; lightmapScale: number; drawn: string[]; files: Record<string, number> }> = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, "utf8")) : {};
+  const manifest: Record<string, { glb: string; lightmap: string; lightmapScale: number; drawn: string[]; files: Record<string, number>; rooms?: string[] }> = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, "utf8")) : {};
   // Every file the game downloads for this room, with its size, for the loading bar.
   const files = roomFiles(dirname(OUT), `rooms/${name}.gltf`, `rooms/${name}-lightmap.ktx2`);
-  manifest[room] = { glb: `assets/rooms/${name}.gltf`, lightmap: `assets/rooms/${name}-lightmap.ktx2`, lightmapScale: LIGHTMAP_SCALE, drawn, files };
+  manifest[room] = { glb: `assets/rooms/${name}.gltf`, lightmap: `assets/rooms/${name}-lightmap.ktx2`, lightmapScale: LIGHTMAP_SCALE, drawn, files, ...(dressing.alsoRooms?.length ? { rooms: [room, ...dressing.alsoRooms] } : {}) };
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
   console.log(`Done: ${room}`);
 }
