@@ -42,6 +42,9 @@ Source files in `assets-src/models/<id>/`; the game gets them inside the built r
 | `sofa_02` | Sofa 02 | Kirill Sannikov | Reception (waiting sofa) |
 | `Chandelier_03` | Chandelier 03 | Kirill Sannikov | Reception, Ballroom |
 | `GothicCommode_01` | Gothic Commode 01 | Kirill Sannikov | Reception (behind the counter) |
+| `GothicBed_01` | Gothic Bed 01 | Kirill Sannikov | Guest Room 1 |
+| `old_bed_frame` | Old Bed Frame | Luca B | Upstairs guest room |
+| `painted_wooden_nightstand` | Painted Wooden Nightstand | Kirill Sannikov | Upstairs guest room |
 | `side_table_tall_01` | Side Table Tall 01 | James Ray Cock | Reception |
 | `hanging_picture_frame_01` | Hanging Picture Frame 01 | James Ray Cock | Reception |
 | `vintage_telephone_wall_clock` | Vintage Telephone Wall Clock | Adrian C | Reception (behind the counter), Service Room (staff telephone) |

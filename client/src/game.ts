@@ -44,7 +44,7 @@ import { PlayerInput, SENSITIVITY_MAX, SENSITIVITY_MIN } from "./input.ts";
 import { RelicsView } from "./relicsView.ts";
 import { MysteryView } from "./mysteryView.ts";
 import { RemotePlayers } from "./remotePlayers.ts";
-import { loadClockParts, StationsView, type DressedClockParts } from "./stations.ts";
+import { loadClockParts, loadCradleParts, loadTrunkParts, StationsView, type DressedClockParts, type DressedCradleParts, type DressedTrunkParts } from "./stations.ts";
 import { VoiceChat } from "./voice.ts";
 import type { TaskSoundKind } from "./hands/sounds.ts";
 import { buildWorld, type DoorView, type RitualCircleView } from "./world.ts";
@@ -396,6 +396,8 @@ export class Game {
     private dressed: DressedRooms,
     private held: HeldFlashlight,
     clockParts: DressedClockParts,
+    cradleParts: DressedCradleParts,
+    trunkParts: DressedTrunkParts,
     doorModels: DoorModels | null,
   ) {
     this.scene.background = new THREE.Color(0x000000);
@@ -412,7 +414,7 @@ export class Game {
     this.remotes = new RemotePlayers(this.scene, place);
     this.ghost = new GhostView(this.scene, place);
     this.items = new ItemsView(this.scene, map);
-    this.stations = new StationsView(this.scene, map, { drawn: dressed.drawn, clock: clockParts });
+    this.stations = new StationsView(this.scene, map, { drawn: dressed.drawn, clock: clockParts, cradle: cradleParts, trunk: trunkParts });
     this.relicsView = new RelicsView(this.scene, map);
     this.mystery = new MysteryView(this.scene, map);
     this.wisps = new WispsView(this.scene);
@@ -532,16 +534,18 @@ export class Game {
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
     renderer.info.autoReset = false; // post.ts counts a whole frame
     const loaders = modelLoaders(renderer, lowTextures, onProgress);
-    const [, dressed, held, clockParts, doorModels] = await Promise.all([
+    const [, dressed, held, clockParts, cradleParts, trunkParts, doorModels] = await Promise.all([
       initPhysics(),
       loadDressedRooms(loaders, dressings[map.id]),
       HeldFlashlight.load(loaders, renderer),
       loadClockParts(loaders),
+      loadCradleParts(loaders),
+      loadTrunkParts(loaders),
       loadDoorModels(loaders),
     ]);
     loaders.finishProgress();
     loaders.dispose();
-    const game = new Game(canvas, map, hud, renderer, dressed, held, clockParts, doorModels);
+    const game = new Game(canvas, map, hud, renderer, dressed, held, clockParts, cradleParts, trunkParts, doorModels);
     await game.start();
     return game;
   }
