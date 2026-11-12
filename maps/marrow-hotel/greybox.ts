@@ -54,14 +54,14 @@ const DINING_TABLE_M = 1.2;
 const DINING_TABLE_TOP = 0.76;
 /** From the table's middle to a chair's middle: the seat tucked a little under the cloth. */
 const CHAIR_OUT_M = 0.78;
-function diningTable(id: string, x: number, z: number, sides: ("n" | "s" | "w" | "e")[]) {
+function diningTable(id: string, x: number, z: number, sides: ("n" | "s" | "w" | "e")[], room = "Restaurant") {
   const at = { n: [0, -1], s: [0, 1], w: [-1, 0], e: [1, 0] } as const;
   return [
-    piece(id, "table", "Restaurant", x, z, DINING_TABLE_M, DINING_TABLE_M, DINING_TABLE_TOP),
+    piece(id, "table", room, x, z, DINING_TABLE_M, DINING_TABLE_M, DINING_TABLE_TOP),
     ...sides.map((s) => {
       const [dx, dz] = at[s];
       // A dining chair is 0.43 wide and 0.58 deep (dining_chair_02), facing the table.
-      return piece(`${id}-chair-${s}`, "chair", "Restaurant", x + dx * CHAIR_OUT_M, z + dz * CHAIR_OUT_M, dx ? 0.58 : 0.43, dx ? 0.43 : 0.58, 0.97);
+      return piece(`${id}-chair-${s}`, "chair", room, x + dx * CHAIR_OUT_M, z + dz * CHAIR_OUT_M, dx ? 0.58 : 0.43, dx ? 0.43 : 0.58, 0.97);
     }),
   ];
 }
@@ -400,6 +400,17 @@ export const marrowHotelGreybox = buildMap({
         piece("ballroom-plant-northeast", "plant", "Ballroom", -12.15, -19.35, 0.6, 0.6, 0.84),
         piece("ballroom-plant-southwest", "plant", "Ballroom", -22.35, -6.65, 0.6, 0.6, 0.84),
         piece("ballroom-plant-southeast", "plant", "Ballroom", -12.15, -6.65, 0.6, 0.6, 1.35),
+        // The ball's supper tables at the edges of the dance floor, its middle left clear.
+        ...diningTable("ballroom-table-southwest", -20.0, -9.2, ["w", "e"], "Ballroom"),
+        ...diningTable("ballroom-table-southeast", -14.6, -9.2, ["w", "e"], "Ballroom"),
+        ...diningTable("ballroom-table-northwest", -20.0, -16.6, ["w", "e"], "Ballroom"),
+        ...diningTable("ballroom-table-northeast", -14.4, -16.6, ["w", "e"], "Ballroom"),
+        against("ballroom-refreshments", "table", "Ballroom", -23, -11, "e", 1.8, 0.8, 0.76),
+        piece("ballroom-candelabra-west", "lamp", "Ballroom", -19.45, -18.55, 0.44, 0.44, 1.83),
+        piece("ballroom-candelabra-east", "lamp", "Ballroom", -14.55, -18.55, 0.44, 0.44, 1.83),
+        piece("ballroom-fallen-chair", "chair", "Ballroom", -17.3, -11.0, 0.5, 1.0, 0.6),
+        against("ballroom-sofa", "sofa", "Ballroom", -11.5, -8.1, "w", 1.57, 0.66, 0.8),
+        against("ballroom-ottoman", "chair", "Ballroom", -23, -15.0, "e", 0.89, 0.62, 0.62),
         // The Service Room, dressed: the servants' table with its benches under the bell board's
         // room, the linen press and the dresser on the west wall, the sideboard the salt jar stands
         // on under the bell board, the fuse board (the map's fuse box) and a workbench in the fuse

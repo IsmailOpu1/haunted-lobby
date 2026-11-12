@@ -74,6 +74,8 @@ const BALLROOM_WEST_FACE = -22.895;
 const BALLROOM_EAST_FACE = -11.605;
 const BALLROOM_SOUTH_FACE = -6.105;
 const STAGE_TOP = 0.5;
+/** The refreshment table's top. */
+const REFRESH_TOP = 0.76;
 /** The piano's lid (build_room.py upright_piano: its top plus the lid), and the lid's middle out from the wall. */
 const PIANO_LID_TOP = 1.29;
 const PIANO_LID_X = -22.6;
@@ -672,12 +674,46 @@ export const marrowHotelDressing: MapDressing = {
         { model: "potted_plant_02", x: -12.15, z: -19.35, turn: 130, draws: "ballroom-plant-northeast" },
         { model: "potted_plant_02", x: -22.35, z: -6.65, turn: 250, draws: "ballroom-plant-southwest" },
         { model: "potted_plant_01", x: -12.15, z: -6.65, turn: 75, draws: "ballroom-plant-southeast" },
+        // Supper tables round the dance floor, as the guests left them: chairs pushed back, a glass
+        // or a bottle still out, the candles never lit again.
+        ...chairs("ballroom-table-southwest", -20.0, -9.2, ["w", "e"], 7),
+        ...chairs("ballroom-table-southeast", -14.6, -9.2, ["w", "e"], 8),
+        ...chairs("ballroom-table-northwest", -20.0, -16.6, ["w", "e"], 9),
+        ...chairs("ballroom-table-northeast", -14.4, -16.6, ["w", "e"], 10),
+        { model: "brass_candleholders", x: -20.0, z: -9.25, y: CLOTH_TOP, turn: 30 },
+        { model: "brass_goblets", x: -14.45, z: -9.0, y: CLOTH_TOP, turn: -20 },
+        { model: "wooden_candlestick", x: -14.75, z: -9.35, y: CLOTH_TOP },
+        { model: "wine_bottles_01", x: -20.1, z: -16.5, y: CLOTH_TOP, turn: 60 },
+        { model: "wooden_candlestick", x: -19.8, z: -16.85, y: CLOTH_TOP },
+        { model: "brass_candleholders", x: -14.4, z: -16.6, y: CLOTH_TOP, turn: 120 },
+        // The refreshment table on the west wall: tea things, goblets, bottles, a candelabrum.
+        { model: "brass_candleholders", x: BALLROOM_WEST_FACE + 0.42, z: -11.7, y: REFRESH_TOP, turn: 90 },
+        { model: "tea_set_01", x: BALLROOM_WEST_FACE + 0.4, z: -11.1, y: REFRESH_TOP, turn: 90, maxTris: 12000 },
+        { model: "brass_goblets", x: BALLROOM_WEST_FACE + 0.42, z: -10.55, y: REFRESH_TOP, turn: 80 },
+        { model: "wine_bottles_01", x: BALLROOM_WEST_FACE + 0.4, z: -10.2, y: REFRESH_TOP, turn: 90 },
+        // A chair knocked over in the middle of the floor, the last dance broken off.
+        { model: "dining_chair_02", x: -17.3, z: -11.0, lay: true, turn: 8, maxTris: CHAIR_TRIS, draws: "ballroom-fallen-chair" },
+        // Somewhere to sit out a dance: a sofa by the east wall, an ottoman by the west.
+        { model: "Sofa_01", x: BALLROOM_EAST_FACE - 0.37, z: -8.1, turn: -90, draws: "ballroom-sofa" },
+        { model: "Ottoman_01", x: BALLROOM_WEST_FACE + 0.31, z: -15.0, turn: 90, draws: "ballroom-ottoman" },
       ],
       builds: [
         { kind: "bandstand", x: -17, z: -18.9, widthM: 4, depthM: 2, heightM: STAGE_TOP, material: "dark_wood", backdrop: "crepe_satin", seed: 4, stands: [[-1.2, -0.25], [0, -0.25], [1.2, -0.25]], draws: "ballroom-stage" },
         // The piano task's piano; the game draws its keys and the card on its music desk.
         { kind: "uprightPiano", x: -22.55, z: -13, turn: 90, backM: 0.35, material: "dark_wood", draws: "ballroom-piano", station: "task-piano" },
         { kind: "jewelCabinet", x: -22.55, z: -19.39, turn: 90, widthM: 1.0, backM: 0.35, frontM: 0.2, material: "dark_wood", draws: "ballroom-jewel-cabinet", station: "relic-ballroom" },
+        { kind: "clothedTable", x: -20.0, z: -9.2, diameterM: 1.2, heightM: 0.76, seed: 7, draws: "ballroom-table-southwest" },
+        { kind: "clothedTable", x: -14.6, z: -9.2, diameterM: 1.2, heightM: 0.76, seed: 8, draws: "ballroom-table-southeast" },
+        { kind: "clothedTable", x: -20.0, z: -16.6, diameterM: 1.2, heightM: 0.76, seed: 9, draws: "ballroom-table-northwest" },
+        { kind: "clothedTable", x: -14.4, z: -16.6, diameterM: 1.2, heightM: 0.76, seed: 10, draws: "ballroom-table-northeast" },
+        { kind: "banquetTable", x: BALLROOM_WEST_FACE + 0.4, z: -11, lengthM: 1.8, widthM: 0.8, heightM: REFRESH_TOP, turn: 90, material: "dark_wood", draws: "ballroom-refreshments" },
+        // Tall candelabra either side of the bandstand, burnt out.
+        { kind: "floorCandelabra", x: -19.45, z: -18.55, turn: 10, draws: "ballroom-candelabra-west" },
+        { kind: "floorCandelabra", x: -14.55, z: -18.55, turn: -15, draws: "ballroom-candelabra-east" },
+        // Music dropped from the stands and kicked across the floor, and a lady's fan.
+        { kind: "scatteredPages", x: -16.9, z: -13.3, count: 6, spreadM: 0.7, seed: 3 },
+        { kind: "scatteredPages", x: -17.4, z: -17.6, count: 3, spreadM: 0.35, seed: 5 },
+        { kind: "foldingFan", x: -18.7, z: -12.2, turn: 35 },
         // Gilt chairs round the walls, their backs just off the panelling.
         { kind: "chairRow", x: -20.1, z: -6.35, turn: 180, lengthM: 3.0, count: 5, draws: "ballroom-chairs-south-west" },
         { kind: "chairRow", x: -14.7, z: -6.35, turn: 180, lengthM: 3.0, count: 5, draws: "ballroom-chairs-south-east" },
@@ -959,4 +995,37 @@ export const marrowHotelDressing: MapDressing = {
       ],
     },
   ],
+  // Every door's look (owner, 2026-11-12: rusty, dressed doors, a different design per room).
+  doors: {
+    "hall-front": { style: "hall" },
+    "reception-front": { style: "reception" },
+    "reception-office": { style: "reception" },
+    "reception-luggage": { style: "reception" },
+    "restaurant-front": { style: "restaurant" },
+    "restaurant-bar": { style: "restaurant" },
+    "library-west": { style: "library" },
+    "library-study": { style: "library" },
+    "ballroom-west": { style: "ballroom" },
+    "ballroom-north": { style: "ballroom" },
+    "kitchen-restaurant": { style: "service" },
+    "kitchen-east": { style: "service" },
+    "service-north": { style: "service" },
+    "service-fuse": { style: "service" },
+    "laundry-corridor": { style: "service" },
+    "laundry-north": { style: "service" },
+    "courtyard-front": { style: "courtyard" },
+    "courtyard-north": { style: "courtyard" },
+    "guest1-corridor": { style: "guest", number: 1 },
+    "guest2-corridor": { style: "guest", number: 2 },
+    "guest3-corridor": { style: "guest", number: 3 },
+    "guest4-corridor": { style: "guest", number: 4 },
+    "bridal-corridor": { style: "bridal" },
+    "nursery-corridor": { style: "nursery" },
+    "staff-corridor": { style: "staff" },
+    "passage-wine": { style: "cellar" },
+    "passage-storage": { style: "cellar" },
+    "wine-ritual": { style: "cellar" },
+    "storage-ritual": { style: "cellar" },
+    "relic-door": { style: "relic" },
+  },
 };

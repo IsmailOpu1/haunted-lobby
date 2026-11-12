@@ -1,26 +1,19 @@
 // Builds dressed rooms: map data + dressing → Blender (build, light, bake) → compressed files the
 // game loads (client/public/assets/rooms). Run: npx tsx tools/art/build-room.ts "Main Hall" [--fast]
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { NodeIO } from "@gltf-transform/core";
-import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
-import { meshopt } from "@gltf-transform/functions";
-import { MeshoptDecoder, MeshoptEncoder } from "meshoptimizer";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { HIDING_SPOT_HEIGHT_M, levelOf, stairWalls, toWorld, wallBox, wallFaces, type MapData } from "@haunted/shared";
 import { defaultMap } from "../../maps/index.ts";
 import { marrowHotelDressing } from "../../maps/marrow-hotel/dressing.ts";
 import { roomFiles } from "./roomFiles.ts";
+import { writeShared } from "./sharedTextures.ts";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const BLENDER = process.env.BLENDER ?? "C:/Program Files/Blender Foundation/Blender 5.2/blender.exe";
 const TOKTX = process.env.TOKTX ?? "C:/Program Files/KTX-Software/bin/toktx.exe";
 const OUT = join(ROOT, "client/public/assets/rooms");
-/** Textures live here once each, named by their contents, and every room that uses one points to it. */
-const TEXTURES = join(ROOT, "client/public/assets/textures");
-/** The Low quality set: the same textures at most 1K, under the same names (PRD Section 9). */
-const TEXTURES_LOW = join(ROOT, "client/public/assets/textures-1k");
+/** The Low quality set: textures at most this size (PRD Section 9; sharedTextures.ts). */
 const LOW_TEXTURE_PX = 1024;
 const WORK = join(ROOT, "assets-src/build");
 /** The door panel is this much of the wall's height (client/src/world.ts DOOR_HEIGHT_FRACTION). */
@@ -156,36 +149,6 @@ export function roomJob(map: MapData, room: string, also: string[] = []) {
   };
 }
 
-/**
- * Writes the room as .gltf + .bin with its textures as separate files named by their contents, so a
- * texture used in several rooms (the same sofa, the same wallpaper) downloads once for the whole
- * hotel. Each texture's 1K copy (from texturedLow, the same room with smaller textures) goes in
- * textures-1k under the same name, so the game picks a set by folder. Meshes are compressed last.
- */
-async function writeShared(textured: string, texturedLow: string, name: string) {
-  await MeshoptEncoder.ready;
-  await MeshoptDecoder.ready;
-  const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ "meshopt.encoder": MeshoptEncoder, "meshopt.decoder": MeshoptDecoder });
-  const doc = await io.read(textured);
-  const low = (await io.read(texturedLow)).getRoot().listTextures();
-  const textures = doc.getRoot().listTextures();
-  if (low.length !== textures.length) throw new Error(`The 1K build has ${low.length} textures, the 2K build ${textures.length}`);
-  mkdirSync(TEXTURES, { recursive: true });
-  mkdirSync(TEXTURES_LOW, { recursive: true });
-  textures.forEach((texture, i) => {
-    const image = texture.getImage();
-    const small = low[i]!.getImage();
-    if (!image || !small) return;
-    const file = `${createHash("sha256").update(image).digest("hex").slice(0, 20)}.ktx2`;
-    texture.setURI(`../textures/${file}`);
-    writeFileSync(join(TEXTURES_LOW, file), small);
-  });
-  for (const buffer of doc.getRoot().listBuffers()) buffer.setURI(`${name}.bin`);
-  await doc.transform(meshopt({ encoder: MeshoptEncoder, level: "medium" }));
-  rmSync(join(OUT, `${name}.glb`), { force: true }); // the old single-file build
-  await io.write(join(OUT, `${name}.gltf`), doc);
-}
-
 async function build(room: string, fast: boolean, skipBlender: boolean) {
   const dressing = marrowHotelDressing.rooms.find((r) => r.room === room);
   if (!dressing) throw new Error(`No dressing for ${room}`);
@@ -228,7 +191,7 @@ async function build(room: string, fast: boolean, skipBlender: boolean) {
   run(["uastc", `"${clean}"`, `"${textured}"`, "--level", "2", "--zstd", "18", "--jobs", String(COMPRESS_JOBS)]);
   run(["resize", `"${clean}"`, `"${smaller}"`, "--width", String(LOW_TEXTURE_PX), "--height", String(LOW_TEXTURE_PX)]);
   run(["uastc", `"${smaller}"`, `"${texturedLow}"`, "--level", "2", "--zstd", "18", "--jobs", String(COMPRESS_JOBS)]);
-  await writeShared(textured, texturedLow, name);
+  await writeShared(textured, texturedLow, OUT, name);
   execFileSync(TOKTX, ["--t2", "--threads", String(COMPRESS_JOBS), "--encode", "uastc", "--uastc_quality", "2", "--zcmp", "19", "--assign_oetf", "srgb", join(OUT, `${name}-lightmap.ktx2`), lightmapPng], { stdio: "inherit" });
 
   const manifestPath = join(OUT, "rooms.json");

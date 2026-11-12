@@ -2849,7 +2849,133 @@ def urn(i, t):
     place([o for o in statics if o.name.startswith(f"urn_{i}_")], i, "urn", t)
 
 
-BUILDERS = {"bookcase": bookcase, "readingTable": reading_table, "pedestalDesk": pedestal_desk, "bankerLamp": banker_lamp, "fireplace": fireplace, "jewelCabinet": jewel_cabinet,
+def floor_candelabra(i, t):
+    """A tall brass floor candelabra: three scrolled feet, a turned column with knops, a drip pan and
+    a crown of four curved arms round a taller middle light, five candles (burnt out unless lit)."""
+    parts = []
+    lit = t.get("lit", False)
+    # Old bronze, tarnished dark: it catches the torch without shining like a lamp.
+    bronze = plain("aged_bronze", (0.16, 0.1, 0.045), 0.62, 1.0)
+    # The feet: each a bar from the column's foot out and down to a pad.
+    for k in range(3):
+        a = k / 3 * math.tau + math.pi / 6
+        tip = Vector((math.cos(a) * 0.21, math.sin(a) * 0.21, 0.0))
+        knee = Vector((math.cos(a) * 0.12, math.sin(a) * 0.12, 0.09))
+        parts.append(rod(f"fc{i}_leg{k}a", Vector((math.cos(a) * 0.035, math.sin(a) * 0.035, 0.17)), knee, 0.02, bronze, 12))
+        parts.append(rod(f"fc{i}_leg{k}b", knee, tip + Vector((0, 0, 0.025)), 0.017, bronze, 10))
+        parts.append(lathe(f"fc{i}_pad{k}", [(0.0, 0.0), (0.026, 0.0), (0.028, 0.012), (0.018, 0.03), (0.0, 0.03)], tip, bronze, 12))
+    crown = 1.46
+    parts.append(lathe(f"fc{i}_column", [(0.0, 0.14), (0.05, 0.14), (0.055, 0.17), (0.035, 0.21), (0.05, 0.26), (0.03, 0.31),
+                                         (0.028, 0.36), (0.025, 0.7), (0.042, 0.74), (0.048, 0.77), (0.042, 0.8), (0.025, 0.84),
+                                         (0.022, 1.2), (0.036, 1.24), (0.042, 1.27), (0.03, 1.31), (0.024, 1.36), (0.028, crown - 0.02),
+                                         (0.0, crown - 0.02)], Vector((0, 0, 0)), bronze, 24))
+    parts.append(lathe(f"fc{i}_pan", [(0.0, crown - 0.025), (0.03, crown - 0.025), (0.085, crown - 0.005), (0.09, crown + 0.004), (0.08, crown + 0.004),
+                                      (0.028, crown - 0.012), (0.0, crown - 0.012)], Vector((0, 0, 0)), bronze, 32))
+    cup = [(0.0, -0.02), (0.01, -0.02), (0.032, -0.004), (0.035, 0.0), (0.02, 0.0), (0.0, -0.006)]
+    tips = []
+    for k in range(4):
+        a = k / 4 * math.tau + math.pi / 4
+        c, s = math.cos(a), math.sin(a)
+        # Out from the pan, a dip, then up to the cup.
+        p0 = Vector((c * 0.04, s * 0.04, crown - 0.01))
+        p1 = Vector((c * 0.14, s * 0.14, crown - 0.04))
+        p2 = Vector((c * 0.22, s * 0.22, crown + 0.03))
+        p3 = Vector((c * 0.22, s * 0.22, crown + 0.1))
+        for j, (u, v) in enumerate(((p0, p1), (p1, p2), (p2, p3))):
+            parts.append(rod(f"fc{i}_arm{k}_{j}", u, v, 0.013, bronze, 12))
+        tips.append(p3)
+    tips.append(Vector((0, 0, crown + 0.2)))
+    parts.append(rod(f"fc{i}_post", Vector((0, 0, crown)), tips[-1], 0.016, bronze, 12))
+    for k, p in enumerate(tips):
+        parts.append(lathe(f"fc{i}_cup{k}", [(r, h + 0.02) for r, h in cup], p, bronze, 20))
+        candle(f"fc{i}_candle{k}", p.x, p.y, p.z + 0.02, parts, h=0.17 if k < 4 else 0.2, lit=lit)
+    join_by_material(parts, f"floorcandelabra_{i}")
+    place([o for o in statics if o.name.startswith(f"floorcandelabra_{i}_")], i, "floorCandelabra", t)
+
+
+PAGE_W, PAGE_D = 0.22, 0.29
+
+
+def scattered_pages(i, t):
+    """Loose pages of sheet music dropped on the floor: each a sheet of paper lying a little out of
+    true, one corner curling up, overlapping the others as they fell."""
+    import random
+    rnd = random.Random(t.get("seed", i))
+    paper = surface("sheet_music", 1.0)
+    spread = t.get("spreadM", 0.6)
+    parts = []
+    for k in range(t.get("count", 5)):
+        cx, cy = rnd.uniform(-spread, spread), rnd.uniform(-spread * 0.6, spread * 0.6)
+        a = rnd.uniform(0, math.tau)
+        lift = 0.002 + k * 0.0012
+        curl = rnd.uniform(0.008, 0.022)
+        corner = rnd.choice(((1, 1), (-1, 1), (1, -1), (-1, -1)))
+        nx, ny = 8, 10
+        bm = bmesh.new()
+        uvs = []
+        grid = []
+        for yy in range(ny + 1):
+            row = []
+            for xx in range(nx + 1):
+                u, v = xx / nx, yy / ny
+                px, py = (u - 0.5) * PAGE_W, (v - 0.5) * PAGE_D
+                # The curl: rising toward one corner, strongest at its tip.
+                cu = max(0.0, (u - 0.5) * corner[0] * 2 - 0.3) / 0.7
+                cv = max(0.0, (v - 0.5) * corner[1] * 2 - 0.3) / 0.7
+                z = lift + curl * (cu * cv) ** 1.5
+                x = cx + px * math.cos(a) - py * math.sin(a)
+                y = cy + px * math.sin(a) + py * math.cos(a)
+                row.append(bm.verts.new((x, y, z)))
+                uvs.append((u, v))
+            grid.append(row)
+        for yy in range(ny):
+            for xx in range(nx):
+                bm.faces.new((grid[yy][xx], grid[yy][xx + 1], grid[yy + 1][xx + 1], grid[yy + 1][xx]))
+        for f in bm.faces:
+            f.smooth = True
+        ob = finish(f"pg{i}_page{k}", bm, paper)
+        # Each page shows the whole printed sheet, not a world-tiled patch of it.
+        layer = ob.data.uv_layers["UVMap"].data
+        for loop in ob.data.loops:
+            layer[loop.index].uv = uvs[loop.vertex_index]
+        parts.append(ob)
+    join_by_material(parts, f"pages_{i}")
+    place([o for o in statics if o.name.startswith(f"pages_{i}_")], i, "scatteredPages", t)
+
+
+def folding_fan(i, t):
+    """A lady's folding fan dropped open on the floor: a pleated black silk leaf on fine sticks of
+    dark wood, two thicker guard sticks, a brass rivet at the pivot."""
+    silk = plain("fan_silk", (0.03, 0.022, 0.025), 0.55)
+    stick_m = plain("fan_stick", (0.09, 0.05, 0.03), 0.45)
+    parts = []
+    R, r0, arc = 0.25, 0.1, math.radians(150)
+    n = 18  # pleats
+    a0 = math.pi / 2 - arc / 2
+    bm = bmesh.new()
+    inner, outer = [], []
+    for k in range(n * 2 + 1):
+        a = a0 + arc * k / (n * 2)
+        # The pleats: ridges and valleys, deeper toward the rim.
+        up = 0.012 if k % 2 else 0.004
+        inner.append(bm.verts.new((math.cos(a) * r0, math.sin(a) * r0, 0.004 + up * 0.4)))
+        outer.append(bm.verts.new((math.cos(a) * R, math.sin(a) * R, 0.003 + up)))
+    for k in range(n * 2):
+        bm.faces.new((inner[k], outer[k], outer[k + 1], inner[k + 1]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    parts.append(finish(f"ff{i}_leaf", bm, silk))
+    for k in range(n + 1):
+        a = a0 + arc * k / n
+        d = Vector((math.cos(a), math.sin(a), 0))
+        guard = k in (0, n)
+        end = R + (0.006 if guard else -0.01)
+        parts.append(rod(f"ff{i}_stick{k}", d * 0.012 + Vector((0, 0, 0.004)), d * end + Vector((0, 0, 0.006 if guard else 0.004)), 0.0035 if guard else 0.0016, stick_m, 6))
+    parts.append(lathe(f"ff{i}_rivet", [(0.0, 0.0), (0.008, 0.0), (0.008, 0.01), (0.0, 0.012)], Vector((0, 0, 0)), brass_m, 12))
+    join_by_material(parts, f"fan_{i}")
+    place([o for o in statics if o.name.startswith(f"fan_{i}_")], i, "foldingFan", t)
+
+
+BUILDERS = {"floorCandelabra": floor_candelabra, "scatteredPages": scattered_pages, "foldingFan": folding_fan, "bookcase": bookcase, "readingTable": reading_table, "pedestalDesk": pedestal_desk, "bankerLamp": banker_lamp, "fireplace": fireplace, "jewelCabinet": jewel_cabinet,
             "switchboard": switchboard_cabinet,"shelfBooks": shelf_books, "luggageCart": luggage_cart, "luggageRack": luggage_rack, "fileChest": file_chest, "banquetTable": banquet_table, "grandfatherClock": grandfather_clock, "meetingBell": meeting_bell,
             "receptionCounter": reception_counter, "keyRack": key_rack, "pillar": pillar,
             "sideboard": jewel_cabinet, "clothedTable": clothed_table, "barCounter": bar_counter, "backBar": back_bar, "candelabraStand": candelabra_stand,
