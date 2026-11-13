@@ -385,7 +385,7 @@ export const marrowHotelDressing: MapDressing = {
       // A grand lobby left mid-evening: a guest book open on the table, luggage abandoned by the
       // stairs, the clock stopped, a few lamps still burning.
       room: "Main Hall",
-      wall: "decrepit_wallpaper",
+      wall: "damask_wine",
       wainscot: { material: "dark_paneled_wood", heightM: 1.05 },
       floor: "herringbone_parquet",
       ceiling: "worn_cracked_plaster",
@@ -1088,9 +1088,9 @@ export const marrowHotelDressing: MapDressing = {
         // The founders' portraits at either end, looking down the corridor.
         { model: "fancy_picture_frame_02", x: WEST_WEST_FACE + 0.07, z: 3.25, y: 1.9, turn: 90, scale: 1.5 },
         { model: "fancy_picture_frame_02", x: EAST_EAST_FACE - 0.07, z: 3.25, y: 1.9, turn: -90, scale: 1.5 },
-        // West Corridor: a sofa between the Library's and the Ballroom's doors under a painting; a
-        // vase on a stand across from it; a tall plant by the north corner.
-        { model: "Sofa_01", x: WEST_WEST_FACE + 0.37, z: -6, turn: 90, draws: "west-sofa" },
+        // West Corridor: a plain hall bench between the Library's and the Ballroom's doors under a
+        // painting (a sofa was out of place in a corridor; owner, 2026-11-13); a vase on a stand
+        // across from it; a tall plant by the north corner.
         { model: "fancy_picture_frame_01", x: WEST_WEST_FACE + 0.012, z: -6, y: 1.9, turn: 90, scale: 1.4 },
         { model: "side_table_tall_01", x: WEST_EAST_FACE - 0.2, z: -3.5, draws: "west-stand" },
         { model: "antique_ceramic_vase_01", x: WEST_EAST_FACE - 0.2, z: -3.5, y: TALL_SIDE_TOP, turn: 120 },
@@ -1120,7 +1120,10 @@ export const marrowHotelDressing: MapDressing = {
         { model: "potted_plant_01", x: -9.6, z: NORTH_NORTH_FACE + 0.33, turn: 140, draws: "north-plant-west" },
         { model: "potted_plant_01", x: 9.6, z: NORTH_NORTH_FACE + 0.33, turn: -30, draws: "north-plant-east" },
       ],
-      builds: CORRIDOR_SCONCES.map(([x, z, dir, lit]): DressingBuild => ({ kind: "wallSconce", x, z, turn: SCONCE_TURN[dir], y: SCONCE_Y, lit })),
+      builds: [
+        ...CORRIDOR_SCONCES.map(([x, z, dir, lit]): DressingBuild => ({ kind: "wallSconce", x, z, turn: SCONCE_TURN[dir], y: SCONCE_Y, lit })),
+        { kind: "bench", x: WEST_WEST_FACE + 0.21, z: -6, turn: 90, lengthM: 1.5, widthM: 0.4, heightM: 0.45, material: "dark_wood", draws: "west-bench" },
+      ],
       lights: [
         // One light in each candle's flame, so its glowing bulb is the flame itself.
         ...CORRIDOR_SCONCES.filter(([, , , lit]) => lit).flatMap(([x, z, dir]) => {
@@ -1550,9 +1553,10 @@ export const marrowHotelDressing: MapDressing = {
         // The landing at the top of the grand stairs: a painting facing the stairs.
         { model: "fancy_picture_frame_02", x: LANDING_EAST_FACE - 0.07, z: 6.25, y: 1.8, turn: -90, scale: 1.3 },
         // Upper Corridor, the east side: a tall cabinet between the Staff Quarters' and the Laundry's
-        // doors, an armchair across from it on the courtyard side.
+        // doors, a tall plant across from it on the courtyard side (not an armchair, which was out of
+        // place in a corridor; owner, 2026-11-13).
         { model: "vintage_cabinet_01", x: UPPER_EAST_EAST_FACE - 0.278, z: -5.75, turn: -90, draws: "upper-east-cabinet" },
-        { model: "ArmChair_01", x: UPPER_EAST_WEST_FACE + 0.417, z: -3.4, turn: 90, draws: "upper-east-armchair" },
+        { model: "potted_plant_02", x: UPPER_EAST_WEST_FACE + 0.43, z: -3.4, turn: 110, draws: "upper-east-plant" },
         // Guest Corridor, the west side: a hall bench facing the portraits, a plant by the corner.
         { model: "potted_plant_01", x: GUEST_WEST_WEST_FACE + 0.37, z: 1.0, turn: 20, draws: "guest-west-plant" },
         { model: "hanging_picture_frame_03", x: GUEST_WEST_WEST_FACE + 0.016, z: -5.6, y: 1.85, turn: 90 },

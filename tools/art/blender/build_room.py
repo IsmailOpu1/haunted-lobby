@@ -186,7 +186,7 @@ d = job["dressing"]
 # 0.76 m of the cloth: printed three times that size, as a wallpaper's repeat, so it reads across a room.
 # Rectangular Paving is 2 m of 20 by 40 cm slabs: printed at 3 m so they read as flagstones.
 # The courtyard's scans at their own sizes: Castle Brick 02 is 1.5 m, Grass Ground 2.51 m, Dry Decay Leaves 2 m.
-TILE_M = {"floor_tiles_06": 1.6, "terracotta_floor_tiles": 2.08, "long_white_tiles_laid": 1.27, "long_green_tiles_laid": 1.27, "damask_sage": 2.28, "diagonal_parquet": 2.36, "damask_gold": 2.28,
+TILE_M = {"floor_tiles_06": 1.6, "terracotta_floor_tiles": 2.08, "long_white_tiles_laid": 1.27, "long_green_tiles_laid": 1.27, "damask_sage": 2.28, "diagonal_parquet": 2.36, "damask_gold": 2.28, "damask_wine": 2.28,
           "rectangular_paving": 3.0, "castle_brick_02_red": 1.5, "cellar_flags": 3.0, "ritual_flags": 3.0, "cellar_brick": 1.5, "soot_brick": 1.5, "grass_ground": 2.51, "dry_decay_leaves": 2.0}
 floor_m = surface(d["floor"], TILE_M.get(d["floor"], 1.6))
 ceil_m = surface(d["ceiling"], 2.0)
@@ -3794,6 +3794,24 @@ bpy.context.view_layer.objects.active = statics[0]
 bpy.ops.object.mode_set(mode="EDIT")
 bpy.ops.mesh.select_all(action="SELECT")
 bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.003, scale_to_bounds=False)
+# Unwrapping measures each mesh in its own units, so a model stored at a hundredth of its size under
+# a scaled-up parent took 10,000 times its fair share of the lightmap and a whole wall got a few
+# hundred pixels: blotchy light on the walls (owner, 2026-11-13). Size every object's islands by its
+# real, final size before packing, so each surface gets pixels for the room it takes up.
+bpy.ops.object.mode_set(mode="OBJECT")
+for o in statics:
+    f = abs(o.matrix_world.to_3x3().determinant()) ** (1 / 3)
+    if abs(f - 1) > 1e-4:
+        uv = o.data.uv_layers["lightmap"].data
+        co = np.empty(len(uv) * 2, dtype=np.float32)
+        uv.foreach_get("uv", co)
+        uv.foreach_set("uv", co * f)
+bpy.ops.object.mode_set(mode="EDIT")
+bpy.ops.mesh.select_all(action="SELECT")
+try:
+    bpy.ops.uv.select_all(action="SELECT")
+except RuntimeError:
+    pass  # no UV selection outside a UV editor; packing then takes every selected face
 bpy.ops.uv.pack_islands(margin=0.002, rotate=True)
 bpy.ops.object.mode_set(mode="OBJECT")
 
@@ -3851,7 +3869,24 @@ bpy.ops.object.bake(type="DIFFUSE", pass_filter={"DIRECT", "INDIRECT"}, margin=6
 # Store as 8-bit sRGB, scaled so the brightest useful value fits; the game multiplies back.
 px = np.array(lm.pixels[:], dtype=np.float32).reshape(-1, 4)
 print("LIGHTMAP max", float(px[:, :3].max()), "p99", float(np.percentile(px[:, :3], 99)))
-lin = np.clip(px[:, :3] / job["lightmapScale"], 0, 1)
+# Stray bright specks ("fireflies": a few unlucky light paths) showed as glowing blobs on the walls
+# (owner, 2026-11-13). A pixel far brighter than most of the eight around it takes their median.
+# A real glow or a lit edge has bright neighbours too, so it is left as it is; nothing gets brighter.
+img = px[:, :3].reshape(SIZE, SIZE, 3)
+for _ in range(2):
+    pad = np.pad(img, ((1, 1), (1, 1), (0, 0)), mode="edge")
+    around = np.stack([pad[1 + dy:1 + dy + SIZE, 1 + dx:1 + dx + SIZE] for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx])
+    med = np.median(around, axis=0)
+    speck = img.mean(axis=2) > 2.5 * med.mean(axis=2) + 0.05
+    img[speck] = med[speck]
+    print("LIGHTMAP specks removed", int(speck.sum()))
+px[:, :3] = img.reshape(-1, 3)
+lin = np.maximum(px[:, :3] / job["lightmapScale"], 0)
+# Where light is too strong to store, scale the whole colour down together rather than clipping each
+# channel: clipping red first, then green, turned the warm glow around a candle lime green on the
+# walls (owner, 2026-11-13). The brightest channel still lands at the same top value.
+peak = lin.max(axis=1, keepdims=True)
+lin = np.where(peak > 1, lin / np.maximum(peak, 1e-6), lin)
 # A byte image's pixels are already sRGB-encoded values, so encode here (more precision in the darks).
 px[:, :3] = np.where(lin <= 0.0031308, lin * 12.92, 1.055 * np.power(lin, 1 / 2.4) - 0.055)
 px[:, 3] = 1
