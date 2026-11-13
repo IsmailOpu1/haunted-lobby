@@ -1106,6 +1106,8 @@ export interface RoomDressing {
   /** Wood panelling up to this height in metres, with a rail on top. */
   /** trim: the rail, skirting, cornice, door frames and hiding cupboards (the panelling's own wood otherwise). */
   wainscot?: { material: MaterialName; heightM: number; trim?: MaterialName };
+  /** With no panelling: the wood of the skirting, door frames and hiding cupboards (a plain dark brown otherwise). */
+  woodwork?: MaterialName;
   floor: MaterialName;
   ceiling: MaterialName;
   /** Rugs: flat rectangles on the floor. */

@@ -106,24 +106,26 @@ Source files in `assets-src/textures/<id>/` (2K JPG).
 | Id | Name | Authors | Used for |
 |---|---|---|---|
 | `dark_paneled_wood` | Dark Paneled Wood | Dimitrios Savva | Main Hall and Library wainscot, wardrobes |
-| `dark_wood` | Dark Wood | Dario Barresi, Dimitrios Savva, Rico Cilliers | Banquet table, bell pedestal, stair treads and risers, Reception panelling and built furniture, Library floor and built furniture, Restaurant panelling and built furniture, Ballroom panelling, bandstand, piano and the jewellery box's cabinet, Service Room bell board, fuse board, sideboard and dado rail, Kitchen woodwork and cupboards (and, as `scrubbed_wood`, the scrubbed pine tops: desaturated and lightened by `tools/art/tint-texture.ts`) |
+| `dark_wood` | Dark Wood | Dario Barresi, Dimitrios Savva, Rico Cilliers | The doors (as `door_walnut`, and as `door_oak` from `scrubbed_wood`, stained, and as `door_paint_*`, chipped paint over it: all made by `tools/art/door-textures.ts`; `door_paint_charcoal` is also the Upper Corridor dado), the Ritual Room benches and hiding wardrobes, Banquet table, bell pedestal, stair treads and risers, Reception panelling and built furniture, Library floor and built furniture, Restaurant panelling and built furniture, Ballroom panelling, bandstand, piano and the jewellery box's cabinet, Service Room bell board, fuse board, sideboard and dado rail, Kitchen woodwork and cupboards (and, as `scrubbed_wood`, the scrubbed pine tops: desaturated and lightened by `tools/art/tint-texture.ts`) |
 | `crepe_satin` | Crepe Satin | colormass, Rico Cilliers | Ballroom bandstand backdrop |
 | `decrepit_wallpaper` | Decrepit Wallpaper | Rob Tuytel | Main Hall, Library and Restaurant walls, the study's chimney breast |
 | `diagonal_parquet` | Diagonal Parquet | Jenelle van Heerden, Sergej Majboroda | Ballroom floor |
 | `dirty_carpet` | Dirty Carpet | Rohit Seervi | Main Hall, Reception and Library rugs, stair runners, the luggage cart |
-| `floral_jacquard` | Floral Jacquard | colormass, Rico Cilliers | Ballroom walls (as `damask_gold`: tiled 3 by 2, its pattern's contrast raised and tinted gold by `tools/art/tint-texture.ts`, hung at three times the cloth's size) |
+| `floral_jacquard` | Floral Jacquard | colormass, Rico Cilliers | Ballroom walls (as `damask_gold`: tiled 3 by 2, its pattern's contrast raised and tinted gold by `tools/art/tint-texture.ts`, hung at three times the cloth's size; and, tinted the same way, as `damask_moss`, `damask_blue` and `damask_sage`: the Guest Room 1, Guest Room 3 and Upper Corridor walls) |
 | `floor_tiles_06` | Floor Tiles 06 | Rob Tuytel | Restaurant floor |
 | `long_white_tiles` | Long White Tiles | Jenelle van Heerden, Sergej Majboroda | Kitchen wall tiles and range recess (as `long_white_tiles_laid`: turned on their sides and warmed by `tools/art/tint-texture.ts`) |
 | `herringbone_parquet` | Herringbone Parquet | Jenelle van Heerden, Sergej Majboroda | Main Hall floor |
-| `rectangular_paving` | Rectangular Paving | Dimitrios Savva | Service Room floor (flagstones), Garden Courtyard paths |
-| `castle_brick_02_red` | Castle Brick 02 Red | Rob Tuytel | Garden Courtyard walls (the hotel's outside), flower bed brickwork and kerbs |
+| `rectangular_paving` | Rectangular Paving | Dimitrios Savva | Service Room floor (flagstones), Garden Courtyard paths, the basement floors (as `cellar_flags` and, darker, `ritual_flags`: darkened and desaturated by `tools/art/tint-texture.ts`; `ritual_flags` darkened again, as `altar_stone`, is the altar) |
+| `castle_brick_02_red` | Castle Brick 02 Red | Rob Tuytel | Garden Courtyard walls (the hotel's outside), flower bed brickwork and kerbs, Laundry and Wine Cellar floors, Stairwell and Cellar Passage walls (and, as `cellar_brick` and `soot_brick`, the Wine Cellar, Storage and Ritual Room walls and vaults: darkened by `tools/art/tint-texture.ts`) |
 | `grass_ground` | Grass Ground | Charlotte Baglioni | Garden Courtyard lawn |
 | `dry_decay_leaves` | Dry Decay Leaves | Amal Kumar | Garden Courtyard flower beds |
 | `marble_01` | Marble 01 | Rob Tuytel | Reception floor and pillars |
 | `terracotta_floor_tiles` | Terracotta Floor Tiles | Dimitrios Savva | Kitchen floor |
 | `terlenka` | Terlenka | colormass, Rico Cilliers | Restaurant tablecloths |
 | `velour_velvet` | Velour Velvet | colormass, Rico Cilliers | Restaurant curtain, Ballroom curtains, pelmet, chair seats and the piano's silk (as `velour_velvet_wine`: its colour map darkened to wine red by `tools/art/tint-texture.ts`) |
-| `worn_cracked_plaster` | Worn Cracked Plaster | Amal Kumar | Main Hall and Restaurant ceilings, Reception walls and ceiling, Kitchen walls, ceiling and chimney breast, Ballroom ceiling, Service Room walls and ceiling (and, as `painted_plaster_green`, the Service Room's green dado: tinted and desaturated by `tools/art/tint-texture.ts`) |
+| `worn_cracked_plaster` | Worn Cracked Plaster | Amal Kumar | Main Hall and Restaurant ceilings, Reception walls and ceiling, Kitchen walls, ceiling and chimney breast, Ballroom ceiling, Service Room walls and ceiling (and, as `painted_plaster_green`, the Service Room's green dado: tinted and desaturated by `tools/art/tint-texture.ts`; and, as `limewash_buff`, the Staff Quarters walls: tinted the same way) |
+| `rough_pine_door` | Rough Pine Door | Dimitrios Savva | Staff Quarters floorboards, Storage boarding (and, as `cellar_oak`, the Wine Cellar and Stairwell woodwork, wine racks and tasting table and the Storage shelves: darkened by `tools/art/tint-texture.ts`; and, as `door_relic_pine`, the relic door: stained by `tools/art/door-textures.ts`) |
+| `rusty_metal_02` | Rusty Metal 02 | Rob Tuytel | The doors' hinges, straps, studs and brass (as `door_rust_iron` and `door_old_brass`, made by `tools/art/door-textures.ts`), and, as `rusty_metal_dark`, old iron in the rooms (darkened by `tools/art/tint-texture.ts`) |
 
 ## Made for this project
 

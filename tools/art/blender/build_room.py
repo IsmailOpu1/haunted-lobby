@@ -194,8 +194,8 @@ wall_m = surface(d["wall"], TILE_M.get(d["wall"], 1.4))
 wains = d.get("wainscot")
 wains_m = surface(wains["material"], TILE_M.get(wains["material"], 1.2)) if wains else None
 # A tiled dado still has wooden rails, skirting and frames: the trim's own wood if it names one.
-trim_name = (wains.get("trim") or wains["material"]) if wains else None
-trim_m = surface(trim_name, 0.6) if wains else plain("trim", (0.12, 0.07, 0.04), 0.5)
+trim_name = (wains.get("trim") or wains["material"]) if wains else d.get("woodwork")
+trim_m = surface(trim_name, 0.6) if trim_name else plain("trim", (0.12, 0.07, 0.04), 0.5)
 
 for i, p in enumerate(job["parts"]):
     quad(f"floor_{i}", [B(p["minX"], p["maxZ"]), B(p["maxX"], p["maxZ"]), B(p["maxX"], p["minZ"]), B(p["minX"], p["minZ"])], floor_m)
@@ -346,7 +346,7 @@ for i, rug in enumerate(d.get("rugs", [])):
 # ---------------------------------------------------------------- hiding spots
 # Wardrobes and cupboards are built here to the hiding spot's exact size: a plinth, a carcass, a
 # cornice, two panelled doors and brass handles. Local frame: u across the front, v out of the front.
-wood_m = surface(trim_name, 0.9) if wains else plain("wardrobe_wood", (0.10, 0.06, 0.035), 0.55)
+wood_m = surface(trim_name, 0.9) if trim_name else plain("wardrobe_wood", (0.10, 0.06, 0.035), 0.55)
 if job.get("outdoor"):
     # Out in the garden a hiding cupboard is a potting shed's tool cupboard, its paint a faded green.
     wood_m = plain("shed_paint", (0.055, 0.085, 0.06), 0.85)
@@ -3259,9 +3259,10 @@ def wine_rack(i, t):
     import random
     rnd = random.Random(t.get("seed", i))
     W, D, Ht = t["widthM"], t["depthM"], t["heightM"]
-    wood = surface(t.get("material", "rough_pine_door"), 0.8)
-    glass = plain("bottle_glass", (0.012, 0.03, 0.014), 0.35)
-    foil = plain("bottle_foil", (0.09, 0.02, 0.02), 0.5, 0.4)
+    wood = surface(t.get("material", "cellar_oak"), 0.8)
+    glass = plain("bottle_glass", (0.006, 0.018, 0.008), 0.35)
+    # Sealing wax over the corks: dark red, matt (a metal foil read pink under the torch).
+    foil = plain("bottle_seal", (0.022, 0.005, 0.004), 0.65)
     parts = []
     hw, back, front = W / 2, D / 2 - FACE_GAP, -D / 2
     side, plinth, top_t, board = 0.035, 0.08, 0.035, 0.018
@@ -3280,18 +3281,22 @@ def wine_rack(i, t):
     for r in range(1, rows):
         z = plinth + r * ch
         parts.append(box(f"wr{i}_shelf{r}", Vector((-hw + side, front + 0.01, z - board / 2)), Vector((hw - side, back - 0.012, z + board / 2)), wood))
-    # The bottles: lying along y, the punt toward the wall, the neck toward the room.
+    # The bottles: lying along y, the punt toward the back, the neck just short of the front; three
+    # to a bin in a little pyramid (two below, one in their saddle), some bins down to one or none.
     lie = Matrix.Rotation(math.radians(90), 4, "X")
     prof = [(0.0, 0.0), (0.03, 0.0), (0.037, 0.01), (0.037, 0.19), (0.03, 0.225), (0.015, 0.25), (0.013, 0.3), (0.0, 0.3)]
     for c in range(cols):
         for r in range(rows):
-            if rnd.random() < 0.18:
+            roll = rnd.random()
+            if roll < 0.12:
                 continue
-            x = -hw + side + (c + 0.5) * cw + rnd.uniform(-0.01, 0.01)
-            z = plinth + r * ch + board / 2 + 0.038
-            y0 = back - 0.015 - rnd.uniform(0.0, 0.03)
-            parts.append(lathe(f"wr{i}_bottle{c}_{r}", prof, Vector((x, y0, z)), glass, 12, lie))
-            parts.append(lathe(f"wr{i}_foil{c}_{r}", [(0.0, 0.25), (0.015, 0.25), (0.015, 0.302), (0.0, 0.302)], Vector((x, y0, z)), foil, 10, lie))
+            cx = -hw + side + (c + 0.5) * cw
+            z0 = plinth + r * ch + board / 2 + 0.038
+            spots = [(cx, z0)] if roll < 0.3 else [(cx - 0.039, z0), (cx + 0.039, z0), (cx, z0 + 0.066)]
+            for k, (x, z) in enumerate(spots):
+                y0 = front + 0.32 + rnd.uniform(0.0, 0.025)
+                parts.append(lathe(f"wr{i}_bottle{c}_{r}_{k}", prof, Vector((x, y0, z)), glass, 12, lie))
+                parts.append(lathe(f"wr{i}_foil{c}_{r}_{k}", [(0.0, 0.25), (0.015, 0.25), (0.015, 0.302), (0.0, 0.302)], Vector((x, y0, z)), foil, 10, lie))
     join_by_material(parts, f"winerack_{i}")
     place([o for o in statics if o.name.startswith(f"winerack_{i}_")], i, "wineRack", t)
 
@@ -3301,9 +3306,10 @@ def stone_altar(i, t):
     panel on its front, wax run down its back corners from old candles, and an old dark stain on the
     slab. The middle of the top stays clear: the game stands the relics there. Long side along x."""
     L, D, H = t["lengthM"], t["depthM"], t["heightM"]
-    stone = surface(t.get("material", "cellar_flags"), 1.5)
+    # The dark flags printed large, so their joints read as courses of cut stone, not floor tiles.
+    stone = surface(t.get("material", "altar_stone"), 5.0)
     wax = plain("candle_wax", (0.7, 0.66, 0.56), 0.6)
-    stain = plain("old_stain", (0.035, 0.012, 0.01), 0.35)
+    stain = plain("old_stain", (0.05, 0.016, 0.012), 0.5)
     parts = []
     hl, hd = L / 2, D / 2
     parts.append(bevelled(box(f"al{i}_plinth", Vector((-hl - 0.05, -hd - 0.05, 0.0)), Vector((hl + 0.05, hd + 0.05, 0.12)), stone), 0.015))
@@ -3322,8 +3328,9 @@ def stone_altar(i, t):
             parts.append(lathe(f"al{i}_stub{k}_{j}", [(0.0, 0.0), (0.02, 0.0), (0.02, h), (0.016, h + 0.006), (0.0, h + 0.006)], Vector((x + dx, hd - 0.12 + dy, H)), wax, 12))
         parts.append(lathe(f"al{i}_pool{k}", [(0.0, 0.0), (0.09, 0.0), (0.085, 0.003), (0.0, 0.004)], Vector((x, hd - 0.12, H)), wax, 16))
         parts.append(box(f"al{i}_drip{k}", Vector((x - 0.02, hd + 0.028, H - 0.16)), Vector((x + 0.015, hd + 0.034, H)), wax))
-    parts.append(lathe(f"al{i}_stain", [(0.0, 0.0), (0.16, 0.0), (0.14, 0.0015), (0.0, 0.002)], Vector((-hl + 0.3, -hd + 0.18, H)), stain, 20,
-                       Matrix.Diagonal((1.0, 0.6, 1.0, 1.0))))
+    for k, (sx, sy, r) in enumerate(((-hl + 0.3, -hd + 0.18, 0.09), (-hl + 0.4, -hd + 0.14, 0.05), (-hl + 0.22, -hd + 0.24, 0.035))):
+        parts.append(lathe(f"al{i}_stain{k}", [(0.0, 0.0), (r, 0.0), (r * 0.85, 0.001), (0.0, 0.0012)], Vector((sx, sy, H)), stain, 16,
+                           Matrix.Diagonal((1.0, 0.7, 1.0, 1.0))))
     join_by_material(parts, f"altar_{i}")
     place([o for o in statics if o.name.startswith(f"altar_{i}_")], i, "stoneAltar", t)
 

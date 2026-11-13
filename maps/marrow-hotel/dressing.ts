@@ -1575,6 +1575,7 @@ export const marrowHotelDressing: MapDressing = {
         { x: -7.75, z: -7 },
       ],
       wall: "castle_brick_02_red",
+      woodwork: "cellar_oak",
       floor: "cellar_flags",
       ceiling: "worn_cracked_plaster",
       props: [
@@ -1606,6 +1607,7 @@ export const marrowHotelDressing: MapDressing = {
       // where someone left glasses and a candle.
       room: "Wine Cellar",
       wall: "cellar_brick",
+      woodwork: "cellar_oak",
       floor: "castle_brick_02_red",
       ceiling: "cellar_brick",
       props: [
@@ -1621,19 +1623,22 @@ export const marrowHotelDressing: MapDressing = {
         { model: "dining_chair_02", x: -15.4, z: -2.25, turn: 180, draws: "wine-chair-1" },
         { model: "dining_chair_02", x: -14.3, z: -3.95, turn: 20, draws: "wine-chair-2" },
         { model: "Lantern_01", x: -15.0, z: -3.0, y: LANTERN_CHAIN_BOTTOM - LANTERN_SMALL_H + 0.008 },
-        { model: "Lantern_01", x: -12.0, z: -6.5, y: LANTERN_CHAIN_BOTTOM - LANTERN_SMALL_H + 0.008 },
+        { model: "Lantern_01", x: -12.0, z: -6.4, y: LANTERN_CHAIN_BOTTOM - LANTERN_SMALL_H + 0.008 },
       ],
       builds: [
         { kind: "wineRack", x: -11.5, z: WINE_NORTH_FACE + 0.3, widthM: 3, depthM: 0.6, heightM: 2, seed: 3, draws: "wine-racks" },
         { kind: "wineRack", x: -14.35, z: WINE_NORTH_FACE + 0.3, widthM: 2.5, depthM: 0.6, heightM: 2, seed: 8, draws: "wine-rack-north" },
         { kind: "wineRack", x: WINE_WEST_FACE + 0.3, z: -7.0, turn: 90, widthM: 3, depthM: 0.6, heightM: 2, seed: 13, draws: "wine-rack-west-wall" },
-        { kind: "workTable", x: -15.0, z: -3.0, lengthM: 1.6, widthM: 0.8, heightM: WINE_TABLE_TOP, top: "dark_wood", material: "dark_wood", draws: "wine-table" },
+        // A pair of racks back to back in the middle of the floor, under the second lantern.
+        { kind: "wineRack", x: -11.8, z: -4.3, turn: 180, widthM: 2.5, depthM: 0.6, heightM: 1.6, seed: 21, draws: "wine-rack-middle" },
+        { kind: "wineRack", x: -11.8, z: -3.7, widthM: 2.5, depthM: 0.6, heightM: 1.6, seed: 22 },
+        { kind: "workTable", x: -15.0, z: -3.0, lengthM: 1.6, widthM: 0.8, heightM: WINE_TABLE_TOP, top: "cellar_oak", material: "cellar_oak", draws: "wine-table" },
         { kind: "chain", x: -15.0, z: -3.0, bottomM: LANTERN_CHAIN_BOTTOM },
-        { kind: "chain", x: -12.0, z: -6.5, bottomM: LANTERN_CHAIN_BOTTOM },
+        { kind: "chain", x: -12.0, z: -6.4, bottomM: LANTERN_CHAIN_BOTTOM },
       ],
       lights: [
         { x: -15.0, z: -3.0, y: LANTERN_CHAIN_BOTTOM - LANTERN_SMALL_H - 0.03, kelvin: 2300, watts: 25, radius: 0.04 },
-        { x: -12.0, z: -6.5, y: LANTERN_CHAIN_BOTTOM - LANTERN_SMALL_H - 0.03, kelvin: 2300, watts: 22, radius: 0.04 },
+        { x: -12.0, z: -6.4, y: LANTERN_CHAIN_BOTTOM - LANTERN_SMALL_H - 0.03, kelvin: 2300, watts: 22, radius: 0.04 },
       ],
     },
     {
@@ -1654,11 +1659,16 @@ export const marrowHotelDressing: MapDressing = {
         { model: "vintage_wooden_drawer_01", x: -3.5, z: STORAGE_SOUTH_FACE - 0.44, turn: 180, draws: "storage-drawers" },
         { model: "vintage_suitcase", x: -3.5, z: STORAGE_SOUTH_FACE - 0.3, y: 1.09, turn: 184 },
         { model: "treasure_chest", x: 2.9, z: STORAGE_NORTH_FACE + 0.262, draws: "storage-chest" },
+        // An old bed frame stood against the west wall, a second stack of crates with a marble bust on it.
+        { model: "old_bed_frame", x: STORAGE_WEST_FACE + 0.455, z: -2.75, draws: "storage-bed-frame" },
+        { model: "wooden_crate_02", x: 2.2, z: -4.6, turn: 90, draws: "storage-crates-east" },
+        { model: "wooden_crate_01", x: 2.15, z: -4.6, y: 0.454, turn: 96 },
+        { model: "marble_bust_01", x: 2.15, z: -4.6, y: 0.804, turn: -70 },
         { model: "Lantern_01", x: -1.0, z: -2.0, y: LANTERN_CHAIN_BOTTOM - LANTERN_SMALL_H + 0.008 },
       ],
       builds: [
-        { kind: "storeShelves", x: STORAGE_WEST_FACE + 0.225, z: -6.0, turn: 90, widthM: 2.4, depthM: 0.45, heightM: 2.0, seed: 4, draws: "storage-shelves-west" },
-        { kind: "storeShelves", x: STORAGE_EAST_FACE - 0.225, z: -7.0, turn: -90, widthM: 2.0, depthM: 0.45, heightM: 2.0, seed: 9, draws: "storage-shelves-east" },
+        { kind: "storeShelves", x: STORAGE_WEST_FACE + 0.225, z: -6.0, turn: 90, widthM: 2.4, depthM: 0.45, heightM: 2.0, seed: 4, material: "cellar_oak", draws: "storage-shelves-west" },
+        { kind: "storeShelves", x: STORAGE_EAST_FACE - 0.225, z: -7.0, turn: -90, widthM: 2.0, depthM: 0.45, heightM: 2.0, seed: 9, material: "cellar_oak", draws: "storage-shelves-east" },
         { kind: "chain", x: -1.0, z: -2.0, bottomM: LANTERN_CHAIN_BOTTOM },
         { kind: "wallSconce", x: STORAGE_EAST_FACE, z: -4.4, turn: SCONCE_TURN.w, y: SCONCE_Y, lit: true },
       ],
@@ -1673,6 +1683,7 @@ export const marrowHotelDressing: MapDressing = {
       // circle), plain benches either side facing the altar, and chains hanging from the vault.
       room: "Ritual Room",
       wall: "soot_brick",
+      woodwork: "dark_wood",
       floor: "ritual_flags",
       ceiling: "soot_brick",
       props: [],
