@@ -1088,6 +1088,9 @@ export interface DressingLight {
   watts: number;
   /** Radius of the glowing part in metres (softer shadows when bigger). */
   radius: number;
+  /** false: no glowing ball where the light is, for a light among flames the models already have
+   *  (a cluster of floor candles). Default: a small bulb shows. */
+  bulb?: boolean;
 }
 
 /** A material name from assets-src/textures. */

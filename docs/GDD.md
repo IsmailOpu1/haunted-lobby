@@ -874,6 +874,7 @@ The owner found the hotel a maze: several rooms had 3 or 4 doors, many of them s
 | Main Hall | One wide double door, facing the courtyard across the Front Corridor. The stairs up and down are inside it. The bell moves to 4 m inside the door | The hub you always come back to |
 | Courtyard | Doors north and south only, a shortcut across the middle of the ring | Two ways round the ring, plus one risky way through |
 | Count | 37 doors became 25. Checked by a test: at most 2 ways into any room, no room-to-room doors except the ones above, at least 3 loop rooms, and still 2 routes between areas | 21.1 |
+| Two doors confirmed | The owner asked (2026-11-13) whether the Ballroom and Laundry should have one door each, and chose to keep two in the big rooms: loops keep chases alive. A double door (left and right leaf) is one door: both leaves open, close, slam and lock together, and a shut doorway blocks its whole width | Owner, 2026-11-13 |
 | Signs | Over every doorway, a brass plaque on each side names the room beyond it, flat on the wall. *(The second plaque that stuck out from the corridor wall was removed by the owner on 2026-11-12: it read as a doubled sign.)* They are lit like everything else, so you read them by flashlight | Real hotels sign their rooms; until the Phase 8 art, signs are the strongest landmark |
 
 ### 26.12 Phase 6 build choices (awaiting owner confirmation)

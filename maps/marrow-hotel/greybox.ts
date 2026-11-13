@@ -249,6 +249,7 @@ export const marrowHotelGreybox = buildMap({
         piece("hall-plant-door-west", "plant", "Main Hall", -1.95, 5.05, 0.6, 0.6, 0.84),
         piece("hall-plant-door-east", "plant", "Main Hall", 1.95, 5.05, 0.6, 0.6, 0.84),
         piece("hall-plant-southwest", "plant", "Main Hall", -5.8, 17.8, 0.6, 0.6, 1.35),
+        { ...against("hall-salt-cabinet", "counter", "Main Hall", -7.75, 8, "n", 0.9, 0.42, 0.79), of: "jar-hall" },
         against("hall-luggage", "crates", "Main Hall", 7.75, 18.5, "n", 1.61, 0.3, 0.57),
         // The meeting bell's pedestal (the map's bell, below).
         { ...piece("hall-bell-stand", "table", "Main Hall", 0, 8.5, 0.4, 0.4, 1.03), of: "bell" },
@@ -273,6 +274,7 @@ export const marrowHotelGreybox = buildMap({
         against("office-desk", "table", "Reception", -20, 11.5, "s", 1.33, 0.56, 0.83),
         piece("office-chair", "chair", "Reception", -20, 12.75, 0.43, 0.58, 0.97),
         against("office-files", "shelf", "Reception", -17, 12.7, "w", 1.2, 0.5, 1.25),
+        { ...against("office-salt-cabinet", "counter", "Reception", -22.43, 18.5, "n", 0.9, 0.42, 0.79), of: "jar-reception" },
         against("office-ledgers", "shelf", "Reception", -19.5, 18.5, "n", 1.37, 0.58, 2.06),
         // The switchboard's cabinet (task-switchboard below), from the west wall to its desk's front.
         { ...against("office-switchboard", "shelf", "Reception", -23, 14, "e", 1.24, 0.95, 1.9), of: "task-switchboard" },
@@ -443,9 +445,10 @@ export const marrowHotelGreybox = buildMap({
         against("service-scullery-shelves", "shelf", "Service Room", 17, -20.5, "e", 1.6, 0.45, 2.0),
       ],
       saltJars: [
-        { id: "jar-reception", x: -22.3, z: 18 },
-        // In the nook beside the cellar stairs, where everyone starts.
-        { id: "jar-hall", x: -7.3, z: 7.2 },
+        // On the side cabinet in the back office's corner.
+        { id: "jar-reception", x: -22.43, z: 18.1 },
+        // On the side cabinet in the nook under the cellar stairs, where everyone starts.
+        { id: "jar-hall", x: -7.75, z: 7.6 },
         { id: "jar-restaurant", x: 13, z: 17.9 },
         // On the sideboard under the bell board.
         { id: "jar-service", x: 15.5, z: -6.375 },

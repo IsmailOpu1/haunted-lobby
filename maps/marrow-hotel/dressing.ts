@@ -293,6 +293,18 @@ const SCONCE_DIR = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] } as const;
 /** build_room.py wall_sconce: each candle 0.13 to the side and 0.15 out, its flame 0.23 over the plate's middle. */
 const SCONCE_CANDLE_SIDE = 0.13;
 const SCONCE_FLAME_UP = 0.23;
+/** A lit sconce's light, split between its two candle flames (so no glowing ball hangs between them). */
+const sconceFlames = (x: number, z: number, dir: keyof typeof SCONCE_DIR, watts: number): DressingLight[] => {
+  const [ox, oz] = SCONCE_DIR[dir];
+  return [-1, 1].map((side) => ({
+    x: x + ox * SCONCE_OUT + Math.abs(oz) * side * SCONCE_CANDLE_SIDE,
+    z: z + oz * SCONCE_OUT + Math.abs(ox) * side * SCONCE_CANDLE_SIDE,
+    y: SCONCE_Y + SCONCE_FLAME_UP,
+    kelvin: 1900,
+    watts: watts / 2,
+    radius: 0.012,
+  }));
+};
 /** The ring's sconces: x, z at the wall's face, the way it faces, and whether its candles still burn. */
 const CORRIDOR_SCONCES: [number, number, keyof typeof SCONCE_TURN, boolean][] = [
   // Front Corridor: either side of the Main Hall's door, and two on the courtyard side.
@@ -433,6 +445,8 @@ export const marrowHotelDressing: MapDressing = {
         { kind: "grandfatherClock", model: "vintage_grandfather_clock_01", x: 0, z: 18.207, turn: 180, draws: "hall-clock-case", station: "task-clock" },
         // One long mahogany banquet table with a linen runner, where the meetings are held.
         { kind: "banquetTable", x: 0, z: 11, lengthM: 4.5, widthM: 1.4, heightM: MEETING_TOP, material: "dark_wood", draws: "hall-meeting-table" },
+        // The side cabinet the salt jar stands on, in the nook under the cellar stairs (the game draws the jar).
+        { kind: "sideboard", x: -7.75, z: 7.6, turn: 180, widthM: 0.9, backM: 7.895 - 7.6, frontM: 0.12, heightM: SIDEBOARD_TOP, material: "dark_wood", draws: "hall-salt-cabinet" },
       ],
       lights: [
         // Oil lamps on the consoles and the east side table: warm pools at the walls.
@@ -502,6 +516,8 @@ export const marrowHotelDressing: MapDressing = {
           shelves: [{ y: 0.11, clearM: 0.26 }, { y: 0.39, clearM: 0.26 }, { y: 0.67, clearM: 0.27 }, { y: 0.96, clearM: 0.3 }, { y: 1.28, clearM: 0.36 }, { y: 1.66, clearM: 0.38 }],
         },
         // The guest files in the office, and the porter's racks of unclaimed luggage.
+        // The side cabinet the salt jar stands on, in the office's north-west corner (the game draws the jar).
+        { kind: "sideboard", x: -22.43, z: 18.1, turn: 180, widthM: 0.9, backM: 18.395 - 18.1, frontM: 0.12, heightM: SIDEBOARD_TOP, material: "dark_wood", draws: "office-salt-cabinet" },
         { kind: "fileChest", x: -17.35, z: 12.7, widthM: 1.2, depthM: 0.5, heightM: 1.25, turn: -90, material: "dark_wood", draws: "office-files" },
         { kind: "luggageRack", x: -21.4, z: 4.9, widthM: 1.4, depthM: 0.6, heightM: 1.6, seed: 3, material: "dark_wood", draws: "luggage-shelf-west" },
         { kind: "luggageRack", x: -19.6, z: 4.9, widthM: 1.4, depthM: 0.6, heightM: 1.6, seed: 11, material: "dark_wood", draws: "luggage-shelf-east" },
@@ -852,15 +868,15 @@ export const marrowHotelDressing: MapDressing = {
         ...[-20.1, -17.4, -14.7].map((x): DressingBuild => ({ kind: "pierMirror", x, z: BALLROOM_SOUTH_FACE, turn: 180, ...PIER_MIRROR })),
         { kind: "pierMirror", x: BALLROOM_EAST_FACE, z: -12.6, turn: -90, ...PIER_MIRROR },
         { kind: "pierMirror", x: BALLROOM_WEST_FACE, z: -16.3, turn: 90, ...PIER_MIRROR },
-        ...SCONCES_SOUTH.map((x): DressingBuild => ({ kind: "wallSconce", x, z: BALLROOM_SOUTH_FACE, turn: 180, y: SCONCE_Y })),
-        ...SCONCES_WEST.map((z): DressingBuild => ({ kind: "wallSconce", x: BALLROOM_WEST_FACE, z, turn: 90, y: SCONCE_Y })),
+        ...SCONCES_SOUTH.map((x): DressingBuild => ({ kind: "wallSconce", x, z: BALLROOM_SOUTH_FACE, turn: 180, y: SCONCE_Y, lit: true })),
+        ...SCONCES_WEST.map((z): DressingBuild => ({ kind: "wallSconce", x: BALLROOM_WEST_FACE, z, turn: 90, y: SCONCE_Y, lit: true })),
       ],
       lights: [
         // Among the chandeliers' candles.
         ...BALLROOM_CHANDELIERS.map(([x, z]): DressingLight => ({ x, z, y: BALLROOM_CHANDELIER_Y + 0.25, kelvin: 2700, watts: 55, radius: 0.25 })),
         // The sconces' candles, a pair to each.
-        ...SCONCES_SOUTH.map((x): DressingLight => ({ x, z: BALLROOM_SOUTH_FACE - SCONCE_OUT, y: SCONCE_Y + 0.25, kelvin: 1900, watts: 10, radius: 0.06 })),
-        ...SCONCES_WEST.map((z): DressingLight => ({ x: BALLROOM_WEST_FACE + SCONCE_OUT, z, y: SCONCE_Y + 0.25, kelvin: 1900, watts: 10, radius: 0.06 })),
+        ...SCONCES_SOUTH.flatMap((x) => sconceFlames(x, BALLROOM_SOUTH_FACE, "n", 10)),
+        ...SCONCES_WEST.flatMap((z) => sconceFlames(BALLROOM_WEST_FACE, z, "e", 10)),
         // The piano's two candles (build_room.py upright_piano: out 0.44, 0.63 either side, flames at 1.17).
         { x: -22.55 + 0.44, z: -13.63, y: 1.17, kelvin: 1900, watts: 3, radius: 0.02 },
         { x: -22.55 + 0.44, z: -12.37, y: 1.17, kelvin: 1900, watts: 3, radius: 0.02 },
@@ -1159,7 +1175,7 @@ export const marrowHotelDressing: MapDressing = {
         { kind: "rollTopBath", x: -19.52, z: GUEST1_BATH_SOUTH_FACE - 0.39, turn: 180, draws: "guest1-roll-top-bath-1" },
         { kind: "pedestalBasin", x: GUEST1_BATH_WEST_FACE + 0.275, z: 5.9, turn: 90, draws: "guest1-pedestal-basin-1" },
         { kind: "highTankToilet", x: -18.3, z: GUEST1_NORTH_FACE + 0.345, draws: "guest1-high-tank-toilet-1" },
-        { kind: "wallSconce", x: -19.55, z: GUEST1_NORTH_FACE, y: 1.75 },
+        { kind: "wallSconce", x: -19.55, z: GUEST1_NORTH_FACE, y: 1.75, lit: true },
         // The side cabinet the salt jar stands on (the game draws the jar).
         { kind: "sideboard", x: -9.8, z: 10.8, turn: 180, widthM: 0.9, backM: GUEST1_SOUTH_FACE - 10.8, frontM: 0.12, heightM: SIDEBOARD_TOP, material: "dark_wood" },
       ],
@@ -1169,7 +1185,7 @@ export const marrowHotelDressing: MapDressing = {
         { x: -13.5, z: GUEST1_SOUTH_FACE - 0.25, y: NIGHTSTAND_TOP + 0.24, kelvin: 1900, watts: 3, radius: 0.02 },
         { x: -15.0, z: GUEST1_NORTH_FACE + 0.3, y: GOTHIC_COMMODE_TOP + 0.24, kelvin: 1900, watts: 3, radius: 0.02 },
         { x: -14.2, z: GUEST1_NORTH_FACE + 0.3, y: GOTHIC_COMMODE_TOP + 0.24, kelvin: 1900, watts: 3, radius: 0.02 },
-        { x: -19.55, z: GUEST1_NORTH_FACE + 0.2, y: 1.95, kelvin: 1900, watts: 6, radius: 0.02 },
+        ...sconceFlames(-19.55, GUEST1_NORTH_FACE, "s", 6),
       ],
     },
     {
@@ -1208,12 +1224,12 @@ export const marrowHotelDressing: MapDressing = {
         { kind: "rollTopBath", x: GUEST2_BATH_WEST_FACE + 0.39, z: -3.25, turn: 90, paint: [0.3, 0.26, 0.19], draws: "guest2-roll-top-bath-1" },
         { kind: "highTankToilet", x: -20.75, z: GUEST2_NORTH_FACE + 0.345, material: "scrubbed_wood", draws: "guest2-high-tank-toilet-1" },
         { kind: "pedestalBasin", x: -21.3, z: GUEST2_BATH_SOUTH_FACE - 0.275, turn: 180, tiles: "marble_01", draws: "guest2-pedestal-basin-1" },
-        { kind: "wallSconce", x: -20.25, z: GUEST2_BATH_SOUTH_FACE, y: 1.75, turn: 180 },
+        { kind: "wallSconce", x: -20.25, z: GUEST2_BATH_SOUTH_FACE, y: 1.75, turn: 180, lit: true },
       ],
       lights: [
         { x: -15.4, z: -1.4, y: GUEST_CEILING - 0.55, kelvin: 2400, watts: 40, radius: 0.08 },
         { x: -15.5, z: GUEST2_NORTH_FACE + 0.24, y: PAINTED_NIGHTSTAND_TOP + 0.24, kelvin: 1900, watts: 3, radius: 0.02 },
-        { x: -20.25, z: GUEST2_BATH_SOUTH_FACE - 0.2, y: 1.95, kelvin: 1900, watts: 6, radius: 0.02 },
+        ...sconceFlames(-20.25, GUEST2_BATH_SOUTH_FACE, "n", 6),
       ],
     },
     {
@@ -1244,19 +1260,19 @@ export const marrowHotelDressing: MapDressing = {
       ],
       builds: [
         { kind: "brassBed", x: -16.5, z: GUEST3_NORTH_FACE + 1.01, widthM: 1.42, lengthM: 2.0, springsY: BRASS_BED_SPRINGS, draws: "guest3-bed" },
-        { kind: "mattress", x: -16.5, z: GUEST3_NORTH_FACE + 1.01, y: BRASS_BED_SPRINGS, lengthM: 1.88, widthM: 1.3, blanket: "satin_old_gold" },
+        { kind: "mattress", x: -16.5, z: GUEST3_NORTH_FACE + 1.01, y: BRASS_BED_SPRINGS, lengthM: 1.88, widthM: 1.3, blanket: "damask_gold" },
         { kind: "pedestalDesk", x: -15.0, z: GUEST3_SOUTH_FACE - 0.36, lengthM: 1.3, widthM: 0.7, heightM: STUDY_DESK_TOP, material: "dark_wood", draws: "guest3-pedestal-desk-1" },
         // The bathroom: the bath along the north wall, the basin on the west, the closet on the south.
         { kind: "rollTopBath", x: -21.25, z: GUEST3_NORTH_FACE + 0.39, paint: [0.045, 0.008, 0.006], draws: "guest3-roll-top-bath-1" },
         { kind: "pedestalBasin", x: GUEST3_BATH_WEST_FACE + 0.275, z: -11.6, turn: 90, tiles: "floor_tiles_06", draws: "guest3-pedestal-basin-1" },
         { kind: "highTankToilet", x: -21.6, z: GUEST3_BATH_SOUTH_FACE - 0.345, turn: 180, draws: "guest3-high-tank-toilet-1" },
-        { kind: "wallSconce", x: -20.35, z: GUEST3_BATH_SOUTH_FACE, y: 1.75, turn: 180 },
+        { kind: "wallSconce", x: -20.35, z: GUEST3_BATH_SOUTH_FACE, y: 1.75, turn: 180, lit: true },
       ],
       lights: [
         { x: -15.5, z: -10.5, y: GUEST_CEILING - 0.45, kelvin: 2400, watts: 40, radius: 0.08 },
         { x: -15.45, z: GUEST3_SOUTH_FACE - 0.25, y: STUDY_DESK_TOP + 0.45, kelvin: 2300, watts: 25, radius: 0.05 },
         { x: -17.55, z: GUEST3_NORTH_FACE + 0.23, y: SIDE_TABLE_TOP + 0.24, kelvin: 1900, watts: 3, radius: 0.02 },
-        { x: -20.35, z: GUEST3_BATH_SOUTH_FACE - 0.2, y: 1.95, kelvin: 1900, watts: 6, radius: 0.02 },
+        ...sconceFlames(-20.35, GUEST3_BATH_SOUTH_FACE, "n", 6),
       ],
     },
     {
@@ -1297,13 +1313,13 @@ export const marrowHotelDressing: MapDressing = {
         { kind: "rollTopBath", x: GUEST4_BATH_EAST_FACE - 0.39, z: 6.25, turn: -90, paint: [0.07, 0.05, 0.025], draws: "guest4-roll-top-bath-1" },
         { kind: "highTankToilet", x: 18.3, z: GUEST4_BATH_NORTH_FACE + 0.345, draws: "guest4-high-tank-toilet-1" },
         { kind: "pedestalBasin", x: 18.5, z: GUEST4_BATH_SOUTH_FACE - 0.275, turn: 180, tiles: "terracotta_floor_tiles", draws: "guest4-pedestal-basin-1" },
-        { kind: "wallSconce", x: 19.4, z: GUEST4_BATH_NORTH_FACE, y: 1.75 },
+        { kind: "wallSconce", x: 19.4, z: GUEST4_BATH_NORTH_FACE, y: 1.75, lit: true },
       ],
       lights: [
         { x: 12.8, z: 7.6, y: GUEST_CEILING - 0.45, kelvin: 2400, watts: 40, radius: 0.08 },
         { ...tallCandle(GUEST4_WEST_FACE + 0.3, 8.0, 90, CONSOLE_TOP), kelvin: 1900, watts: 6, radius: 0.03 },
         { x: 11.0, z: GUEST4_SOUTH_FACE - 0.2, y: TALL_SIDE_TOP + 0.24, kelvin: 1900, watts: 3, radius: 0.02 },
-        { x: 19.4, z: GUEST4_BATH_NORTH_FACE + 0.2, y: 1.95, kelvin: 1900, watts: 6, radius: 0.02 },
+        ...sconceFlames(19.4, GUEST4_BATH_NORTH_FACE, "s", 6),
       ],
     },
     {
@@ -1391,14 +1407,14 @@ export const marrowHotelDressing: MapDressing = {
         { kind: "planter", x: 8.3, z: 17.8, drawsAll: ["relic-nursery-1", "relic-nursery-1:pot"] },
         { kind: "planter", x: 8.3, z: 15.5, drawsAll: ["relic-nursery-2", "relic-nursery-2:pot"] },
         { kind: "planter", x: 6, z: 17.8, drawsAll: ["relic-nursery-3", "relic-nursery-3:pot"] },
-        { kind: "wallSconce", x: 7.75, z: NURSERY_SOUTH_FACE, y: 1.75, turn: 180 },
+        { kind: "wallSconce", x: 7.75, z: NURSERY_SOUTH_FACE, y: 1.75, turn: 180, lit: true },
         // The low painted cupboard the salt jar stands on (the game draws the jar).
         { kind: "sideboard", x: 0.8, z: 17.8, turn: 180, widthM: 0.9, backM: NURSERY_SOUTH_FACE - 17.8, frontM: 0.12, heightM: SIDEBOARD_TOP, material: "door_paint_green" },
       ],
       lights: [
         { x: 3.2, z: 9.5, y: GUEST_CEILING - 0.55, kelvin: 2400, watts: 40, radius: 0.08 },
         { x: 1.55, z: NURSERY_SOUTH_FACE - 0.27, y: 0.619 + 0.45, kelvin: 2300, watts: 20, radius: 0.05 },
-        { x: 7.75, z: NURSERY_SOUTH_FACE - 0.2, y: 1.95, kelvin: 1900, watts: 6, radius: 0.02 },
+        ...sconceFlames(7.75, NURSERY_SOUTH_FACE, "n", 6),
       ],
     },
     {
@@ -1439,12 +1455,12 @@ export const marrowHotelDressing: MapDressing = {
         { kind: "bench", x: 17.3, z: 0.25, lengthM: 1.6, widthM: 0.3, heightM: 0.45, draws: "staff-bench-2" },
         // The cupboard the salt jar stands on (the game draws the jar).
         { kind: "sideboard", x: 19.5, z: 3.8, turn: 180, widthM: 1.1, backM: STAFF_SOUTH_FACE - 3.8, frontM: 0.12, heightM: SIDEBOARD_TOP, material: "scrubbed_wood" },
-        { kind: "wallSconce", x: STAFF_EAST_FACE, z: -3.2, y: 1.75, turn: -90 },
+        { kind: "wallSconce", x: STAFF_EAST_FACE, z: -3.2, y: 1.75, turn: -90, lit: true },
       ],
       lights: [
         { x: 17.3, z: -0.5, y: GUEST_CEILING - 0.6, kelvin: 2400, watts: 35, radius: 0.08 },
         { x: 17.6, z: -0.6, y: 0.76 + 0.15, kelvin: 2000, watts: 12, radius: 0.04 },
-        { x: STAFF_EAST_FACE - 0.2, z: -3.2, y: 1.95, kelvin: 1900, watts: 6, radius: 0.02 },
+        ...sconceFlames(STAFF_EAST_FACE, -3.2, "w", 6),
       ],
     },
     {
@@ -1486,13 +1502,13 @@ export const marrowHotelDressing: MapDressing = {
         { kind: "workTable", x: LAUNDRY_WEST_FACE + 0.35, z: -12.6, turn: 90, lengthM: 1.6, widthM: 0.7, heightM: 0.8, top: "scrubbed_wood", material: "dark_wood", draws: "laundry-work-table-1" },
         { kind: "chain", x: 15.5, z: -19.3, bottomM: LANTERN_CHAIN_BOTTOM },
         { kind: "chain", x: 13.0, z: -12.6, bottomM: LANTERN_CHAIN_BOTTOM },
-        { kind: "wallSconce", x: LAUNDRY_EAST_FACE, z: -19.6, y: 1.75, turn: -90 },
+        { kind: "wallSconce", x: LAUNDRY_EAST_FACE, z: -19.6, y: 1.75, turn: -90, lit: true },
       ],
       lights: [
         // Just under each lantern (inside its glass the light is shut in).
         { x: 15.5, z: -19.3, y: LANTERN_CHAIN_BOTTOM - LANTERN_SMALL_H - 0.03, kelvin: 2300, watts: 30, radius: 0.04 },
         { x: 13.0, z: -12.6, y: LANTERN_CHAIN_BOTTOM - LANTERN_SMALL_H - 0.03, kelvin: 2300, watts: 25, radius: 0.04 },
-        { x: LAUNDRY_EAST_FACE - 0.2, z: -19.6, y: 1.95, kelvin: 1900, watts: 6, radius: 0.02 },
+        ...sconceFlames(LAUNDRY_EAST_FACE, -19.6, "w", 6),
       ],
     },
     {
@@ -1636,7 +1652,7 @@ export const marrowHotelDressing: MapDressing = {
         // The tasting table: a row of bottles, the goblets, a jug and a candle.
         { model: "wine_bottles_01", x: -15.3, z: -3.15, y: WINE_TABLE_TOP },
         { model: "brass_goblets", x: -14.5, z: -2.9, y: WINE_TABLE_TOP, turn: 200 },
-        { model: "metal_jug", x: -14.1, z: -3.2, y: WINE_TABLE_TOP },
+        { model: "metal_jug", x: -14.6, z: -3.2, y: WINE_TABLE_TOP },
         { model: "wooden_candlestick", x: -15.65, z: -2.85, y: WINE_TABLE_TOP },
         { model: "dining_chair_02", x: -15.4, z: -2.25, turn: 180, draws: "wine-chair-1" },
         { model: "dining_chair_02", x: -14.3, z: -3.95, turn: 20, draws: "wine-chair-2" },
@@ -1718,7 +1734,7 @@ export const marrowHotelDressing: MapDressing = {
       ],
       lights: [
         ...[-9.15, -6.85].map((x): DressingLight => ({ x, z: -16.75, y: 1.75, kelvin: 1850, watts: 22, radius: 0.15 })),
-        ...RITUAL_CANDLES.filter(([, , lit]) => lit > 0).map(([x, z, lit]): DressingLight => ({ x, z, y: 0.35, kelvin: 1800, watts: 4 * lit, radius: 0.08 })),
+        ...RITUAL_CANDLES.filter(([, , lit]) => lit > 0).map(([x, z, lit]): DressingLight => ({ x, z, y: 0.35, kelvin: 1800, watts: 4 * lit, radius: 0.08, bulb: false })),
       ],
     },
   ],

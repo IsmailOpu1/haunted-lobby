@@ -3771,6 +3771,8 @@ for i, l in enumerate(d["lights"]):
     ob.location = B(l["x"], l["z"], l["y"])
     scene.collection.objects.link(ob)
     # A small glowing bulb the game can see (for bloom) and dim during Blackout.
+    if l.get("bulb") is False:
+        continue
     bpy.ops.mesh.primitive_uv_sphere_add(radius=min(0.035, l["radius"]), segments=12, ring_count=8, location=ob.location)
     bulb = bpy.context.active_object
     bulb.name = f"bulb_{i}"
