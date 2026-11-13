@@ -356,6 +356,16 @@ const RITUAL_CANDLES: [number, number, number][] = [
   [-10.2, -19.31, 0],
 ];
 
+/** brass_candleholders is three candlesticks in a row; the tall one (its candle tip 0.81 m up) stands
+ *  0.4 m along the model's own x: 0.3225 m from the middle of the footprint (-0.449 to 0.604), where
+ *  the room builder centres a model. Where its flame is for a model at (x, z) turned by turn degrees. */
+const TALL_CANDLE_OUT_M = 0.3225;
+const tallCandle = (x: number, z: number, turn: number, y: number) => ({
+  x: x + TALL_CANDLE_OUT_M * Math.cos((turn * Math.PI) / 180),
+  z: z - TALL_CANDLE_OUT_M * Math.sin((turn * Math.PI) / 180),
+  y: y + 0.83,
+});
+
 export const marrowHotelDressing: MapDressing = {
   mapId: "marrow-hotel-greybox",
   rooms: [
@@ -430,7 +440,7 @@ export const marrowHotelDressing: MapDressing = {
         { x: 2.55, z: 18.1, y: CONSOLE_TOP + 0.45, kelvin: 2300, watts: 35, radius: 0.05 },
         { x: 5.75, z: 4.85, y: SIDE_TOP + 0.45, kelvin: 2300, watts: 30, radius: 0.05 },
         // Candles on the meeting table and the west coffee table.
-        { x: -1.1, z: 11, y: MEETING_TOP + 0.8, kelvin: 1900, watts: 6, radius: 0.03 },
+        { ...tallCandle(-1.1, 11, 8, MEETING_TOP + RUNNER_M), kelvin: 1900, watts: 6, radius: 0.03 },
         { x: -3.75, z: 6.6, y: COFFEE_WEST_TOP + 0.24, kelvin: 1900, watts: 3, radius: 0.02 },
       ],
     },
@@ -680,8 +690,8 @@ export const marrowHotelDressing: MapDressing = {
         { x: RESTAURANT_WEST_FACE + 0.3, z: 9.0, y: CONSOLE_TOP + 0.45, kelvin: 2300, watts: 30, radius: 0.05 },
         { x: 21.05, z: 16.5, y: BAR_TOP + 0.45, kelvin: 2300, watts: 30, radius: 0.05 },
         // Candles on the tables, the sideboard and the bar's table; the lantern on the barrel.
-        { x: 12.2, z: 7.9, y: CLOTH_TOP + 0.8, kelvin: 1900, watts: 6, radius: 0.03 },
-        { x: 19.2, z: 11.0, y: CLOTH_TOP + 0.8, kelvin: 1900, watts: 6, radius: 0.03 },
+        { ...tallCandle(12.2, 7.9, 15, CLOTH_TOP), kelvin: 1900, watts: 6, radius: 0.03 },
+        { ...tallCandle(19.2, 11.0, 100, CLOTH_TOP), kelvin: 1900, watts: 6, radius: 0.03 },
         { x: 19.6, z: 7.75, y: CLOTH_TOP + 0.24, kelvin: 1900, watts: 3, radius: 0.02 },
         { x: 12.0, z: 11.2, y: CLOTH_TOP + 0.24, kelvin: 1900, watts: 3, radius: 0.02 },
         { x: 11.4, z: 15.8, y: CLOTH_TOP + 0.24, kelvin: 1900, watts: 3, radius: 0.02 },
@@ -1168,6 +1178,7 @@ export const marrowHotelDressing: MapDressing = {
       // still folded), a painted cupboard by the door, and a cream-painted bath next door.
       room: "Guest Room 2",
       wall: "wallpaper_rose",
+      woodwork: "dark_wood",
       floor: "scrubbed_wood",
       ceiling: "worn_cracked_plaster",
       rugs: [{ material: "terlenka", x: -15.4, z: -2.3, sizeX: 2.4, sizeZ: 1.2 }],
@@ -1189,6 +1200,8 @@ export const marrowHotelDressing: MapDressing = {
         { model: "wooden_bucket_01", x: -22.45, z: -2.0, draws: "guest2-wooden-bucket-1" },
       ],
       builds: [
+        // The jewellery box (relic-guest2) on a cabinet in the south-west corner.
+        { kind: "jewelCabinet", x: -18.85, z: 1.3, turn: 90, widthM: 0.9, backM: -18.85 - (-19.395), frontM: 0.2, material: "dark_wood", draws: "guest2-jewel-cabinet", station: "relic-guest2" },
         { kind: "mattress", x: -16.45, z: GUEST2_NORTH_FACE + 1.008, y: IRON_BED_SPRINGS, lengthM: 1.78, widthM: 0.82, blanket: "velour_velvet_wine" },
         { kind: "mattress", x: -14.35, z: GUEST2_NORTH_FACE + 1.008, y: IRON_BED_SPRINGS, lengthM: 1.78, widthM: 0.82, blanket: "velour_velvet_wine", folded: true },
         // The bathroom: the bath along the west wall, the closet on the north, the basin on the south.
@@ -1252,6 +1265,7 @@ export const marrowHotelDressing: MapDressing = {
       // tall glass and candles on the west wall, a small round tea table by the bathroom door.
       room: "Guest Room 4",
       wall: "silk_plum",
+      woodwork: "door_walnut",
       floor: "diagonal_parquet",
       ceiling: "worn_cracked_plaster",
       rugs: [{ material: "floral_jacquard", x: 12, z: 8.3, sizeX: 2.6, sizeZ: 1.8 }],
@@ -1274,6 +1288,8 @@ export const marrowHotelDressing: MapDressing = {
         { model: "Chandelier_03", x: 12.8, z: 7.6, y: GUEST_CEILING - 0.885, scale: 0.85 },
       ],
       builds: [
+        // The jewellery box (relic-guest4) on a cabinet in the south-east corner.
+        { kind: "jewelCabinet", x: 16.35, z: 10.8, turn: -90, widthM: 0.9, backM: 16.895 - 16.35, frontM: 0.2, material: "dark_wood", draws: "guest4-jewel-cabinet", station: "relic-guest4" },
         { kind: "fourPoster", x: 12, z: GUEST4_SOUTH_FACE - 1.06, turn: 180, widthM: 1.5, lengthM: 2.1, springsY: FOUR_POSTER_BOARDS, heightM: 2.3, drapes: "velvet_plum", draws: "guest4-bed" },
         { kind: "mattress", x: 12, z: GUEST4_SOUTH_FACE - 1.06, turn: 180, y: FOUR_POSTER_BOARDS, lengthM: 1.98, widthM: 1.36, blanket: "velvet_plum" },
         { kind: "pierMirror", x: GUEST4_WEST_FACE, z: 8.0, turn: 90, y: 1.05, widthM: 0.8, heightM: 1.2 },
@@ -1285,7 +1301,7 @@ export const marrowHotelDressing: MapDressing = {
       ],
       lights: [
         { x: 12.8, z: 7.6, y: GUEST_CEILING - 0.45, kelvin: 2400, watts: 40, radius: 0.08 },
-        { x: GUEST4_WEST_FACE + 0.3, z: 8.0, y: CONSOLE_TOP + 0.8, kelvin: 1900, watts: 6, radius: 0.03 },
+        { ...tallCandle(GUEST4_WEST_FACE + 0.3, 8.0, 90, CONSOLE_TOP), kelvin: 1900, watts: 6, radius: 0.03 },
         { x: 11.0, z: GUEST4_SOUTH_FACE - 0.2, y: TALL_SIDE_TOP + 0.24, kelvin: 1900, watts: 3, radius: 0.02 },
         { x: 19.4, z: GUEST4_BATH_NORTH_FACE + 0.2, y: 1.95, kelvin: 1900, watts: 6, radius: 0.02 },
       ],
@@ -1324,6 +1340,8 @@ export const marrowHotelDressing: MapDressing = {
         { model: "Chandelier_02", x: -3.4, z: 14.6, y: GUEST_CEILING - 0.85 },
       ],
       builds: [
+        // The jewellery box (relic-bridal) on its own small cabinet against the south wall.
+        { kind: "jewelCabinet", x: -4.5, z: 17.8, turn: 180, widthM: 0.8, backM: BRIDAL_SOUTH_FACE - 17.8, frontM: 0.2, material: "scrubbed_wood", draws: "bridal-jewel-cabinet", station: "relic-bridal" },
         { kind: "fourPoster", x: -6.5, z: BRIDAL_SOUTH_FACE - 1.11, turn: 180, widthM: 1.8, lengthM: 2.2, springsY: FOUR_POSTER_BOARDS, heightM: 2.35, drapes: "satin_ivory", material: "scrubbed_wood", draws: "bridal-bed" },
         // Her dressing table and swing glass on the east wall: the "Clean the mirror" task.
         { kind: "dressingTable", x: -0.7, z: 12, turn: -90, material: "scrubbed_wood", draws: "task-mirror" },
@@ -1334,7 +1352,7 @@ export const marrowHotelDressing: MapDressing = {
       lights: [
         { x: -6.6, z: 9.6, y: GUEST_CEILING - 0.6, kelvin: 2400, watts: 45, radius: 0.08 },
         { x: -3.4, z: 14.6, y: GUEST_CEILING - 0.6, kelvin: 2400, watts: 40, radius: 0.08 },
-        { x: -1.85, z: BRIDAL_NORTH_FACE + 0.3, y: CONSOLE_TOP + 0.8, kelvin: 1900, watts: 6, radius: 0.03 },
+        { ...tallCandle(-1.85, BRIDAL_NORTH_FACE + 0.3, 4, CONSOLE_TOP), kelvin: 1900, watts: 6, radius: 0.03 },
         { x: -5.25, z: BRIDAL_SOUTH_FACE - 0.25, y: NIGHTSTAND_TOP + 0.24, kelvin: 1900, watts: 3, radius: 0.02 },
       ],
     },

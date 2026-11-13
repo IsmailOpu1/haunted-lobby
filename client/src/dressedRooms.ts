@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { MapDressing } from "@haunted/shared";
+import { levelOf, toWorld, type MapData, type MapDressing } from "@haunted/shared";
 import type { ModelLoaders } from "./loaders.ts";
 
 // Dressed rooms (Phase 8): rooms built and lit in Blender (tools/art/build-room.ts), with their
@@ -18,6 +18,8 @@ const PROBE_SIZE_PX = 256;
 const MOVABLE_PROBE_RANGE_M = 20;
 /** A probe is on the same floor as a thing whose floor is within this of the probe's floor. */
 const SAME_FLOOR_M = 1.5;
+/** From this close to the end of a flight of stairs, the floor at its other end is drawn too. */
+const STAIR_VIEW_M = 8;
 
 interface ManifestEntry {
   glb: string;
@@ -184,7 +186,51 @@ export class DressedRooms {
     for (const room of rooms) this.rooms.add(room);
     for (const id of drawn) this.drawn.add(id);
     this.objects.push(scene);
+    this.built.push({ obj: scene, rooms });
   }
+
+  /** Each build with the rooms it covers, until setMap gives each its floor. */
+  private built: { obj: THREE.Object3D; rooms: string[] }[] = [];
+  /** Each build, the height of its floor, and the space it fills. */
+  private floors: { obj: THREE.Object3D; y: number; box: THREE.Box3 }[] = [];
+  /** Every flight of stairs: its two ends in the world. */
+  private flights: [THREE.Vector3, THREE.Vector3][] = [];
+
+  /** Learns which floor each built room is on, and where the stairs between floors are. */
+  setMap(map: MapData) {
+    for (const { obj, rooms } of this.built) {
+      const def = map.rooms.find((r) => r.name === rooms[0]);
+      const y = def ? levelOf(map, (def.minX + def.maxX) / 2, (def.minZ + def.maxZ) / 2).y : 0;
+      this.floors.push({ obj, y, box: new THREE.Box3().setFromObject(obj) });
+    }
+    const end = (x: number, z: number) => {
+      const p = toWorld(map, x, z);
+      return new THREE.Vector3(p.x, p.y, p.z);
+    };
+    for (const s of map.stairs) {
+      const [ux, uz] = s.dir === "+x" ? [1, 0] : s.dir === "-x" ? [-1, 0] : s.dir === "+z" ? [0, 1] : [0, -1];
+      this.flights.push([end(s.x, s.z), end(s.x + ux * s.lengthM, s.z + uz * s.lengthM)]);
+    }
+  }
+
+  /**
+   * Draws only the rooms on the floor you are on: the floors above and below are hidden behind
+   * ceilings and floors anyway, and drawing them all made upstairs slow (millions of triangles).
+   * Near a flight of stairs, or on it, the room at its other end is drawn too, so you see down
+   * (or up) the flight.
+   */
+  showFloorsNear(x: number, feetY: number, z: number) {
+    const me = this.at.set(x, feetY, z);
+    const onStairs = !this.floors.some((f) => Math.abs(f.y - feetY) < SAME_FLOOR_M);
+    for (const f of this.floors) f.obj.visible = Math.abs(f.y - feetY) < SAME_FLOOR_M || (onStairs && f.box.distanceToPoint(me) < STAIR_VIEW_M);
+    for (const [a, b] of this.flights) {
+      for (const [here, there] of [[a, b], [b, a]] as const) {
+        if (Math.abs(here.y - feetY) >= SAME_FLOOR_M || Math.hypot(here.x - x, here.z - z) >= STAIR_VIEW_M) continue;
+        for (const f of this.floors) if (f.box.distanceToPoint(there) < SAME_FLOOR_M) f.obj.visible = true;
+      }
+    }
+  }
+  private at = new THREE.Vector3();
 }
 
 /** Loads every built room of this map's dressing. Never fails: a room that can't load stays grey. */

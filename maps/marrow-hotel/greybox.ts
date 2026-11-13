@@ -573,6 +573,9 @@ export const marrowHotelGreybox = buildMap({
         against("staff-bunk", "bed", "Staff Quarters", 19, -6, "s", 2, 1, 1.6),
         against("laundry-tubs", "counter", "Laundry", 14.5, -12.5, "w", 2, 0.8, 0.9),
         // The dressed rooms upstairs: a body for each piece of furniture you would otherwise walk through.
+        { ...against("bridal-jewel-cabinet", "counter", "Bridal Suite", -4.5, 18.5, "n", 0.8, 0.8, 0.85), of: "relic-bridal" },
+        { ...against("guest2-jewel-cabinet", "counter", "Guest Room 2", -19.5, 1.3, "e", 0.9, 0.8, 0.85), of: "relic-guest2" },
+        { ...against("guest4-jewel-cabinet", "counter", "Guest Room 4", 17, 10.8, "w", 0.9, 0.8, 0.85), of: "relic-guest4" },
 piece("bridal-classic-nightstand-1", "table", "Bridal Suite", -7.75, 18.18, 0.568, 0.424, 0.7),
         piece("bridal-classic-nightstand-2", "table", "Bridal Suite", -5.25, 18.18, 0.568, 0.424, 0.7),
         piece("bridal-vintage-suitcase-1", "counter", "Bridal Suite", -6.5, 15.709, 1.608, 0.239, 0.568),
@@ -665,8 +668,8 @@ piece("bridal-classic-nightstand-1", "table", "Bridal Suite", -7.75, 18.18, 0.56
       relicSpots: [
         relic("relic-bridal", LOCKBOX, "Bridal Suite", "lockbox", -4.5, 17.8),
         relicGroup("relic-nursery", "Dig in the plant pot", "Nursery", "dig", [[8.3, 17.8], [8.3, 15.5], [6, 17.8]]),
-        relic("relic-guest2", LOCKBOX, "Guest Room 2", "lockbox", -18.8, 1.3),
-        relic("relic-guest4", LOCKBOX, "Guest Room 4", "lockbox", 16.3, 10.8),
+        relic("relic-guest2", LOCKBOX, "Guest Room 2", "lockbox", -18.85, 1.3),
+        relic("relic-guest4", LOCKBOX, "Guest Room 4", "lockbox", 16.35, 10.8),
         relic("relic-laundry", "Reach into the drain", "Laundry", "drain", 17, -21.3),
         relicGroup("relic-guest-corridor", "Dig in the plant pot", "Guest Corridor", "dig", [[-7.5, -15.965], [-5, -15.965], [-2.5, -15.965]]),
       ],

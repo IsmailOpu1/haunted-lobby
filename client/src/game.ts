@@ -406,6 +406,7 @@ export class Game {
 
     this.post = new PostProcessing(renderer, this.scene, this.camera, held.scene, this.heldCamera);
     for (const room of dressed.objects) this.scene.add(room);
+    dressed.setMap(map);
     const doorStyles = dressings[map.id]?.doors;
     const doorLook = doorModels && doorStyles ? { models: doorModels, styles: doorStyles, light: dressed.lightMovable.bind(dressed) } : undefined;
     ({ doors: this.doors, ritualCircle: this.ritualCircle } = buildWorld(this.scene, map, dressed, doorLook));
@@ -907,6 +908,8 @@ export class Game {
     const now = performance.now();
     for (const door of this.doors.values()) door.update(dt);
     this.dressed.update(dt);
+    const eye = this.camera.position;
+    this.dressed.showFloorsNear(eye.x, eye.y - this.eyeHeight, eye.z);
     this.stations.render(now / 1000);
     this.relicsView.render(now / 1000);
     this.ritualCircle?.render(now / 1000);

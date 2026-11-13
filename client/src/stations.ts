@@ -169,7 +169,7 @@ function part(mesh: THREE.Mesh, name: string): THREE.Mesh {
 }
 
 /** Turns the station to face away from the nearest wall (walls are axis-aligned). Models face +z. */
-function facingYaw(map: MapData, def: { x: number; z: number }): number {
+export function facingYaw(map: MapData, def: { x: number; z: number }): number {
   let best = Infinity;
   let yaw = 0;
   for (const [x1, z1, x2, z2] of map.walls) {
