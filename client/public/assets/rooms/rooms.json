@@ -337,9 +337,9 @@
       "reception-cupboard"
     ],
     "files": {
-      "rooms/reception.gltf": 807873,
-      "rooms/reception-lightmap.ktx2": 347599,
-      "rooms/reception.bin": 4812628,
+      "rooms/reception.gltf": 807861,
+      "rooms/reception-lightmap.ktx2": 343711,
+      "rooms/reception.bin": 4814760,
       "textures/ff0114b41a675f429166.ktx2": 3442743,
       "textures-1k/ff0114b41a675f429166.ktx2": 263387,
       "textures/7f06a6b56c0ff4ca137e.ktx2": 4511250,
@@ -570,8 +570,8 @@
     ],
     "files": {
       "rooms/library.gltf": 882889,
-      "rooms/library-lightmap.ktx2": 403360,
-      "rooms/library.bin": 4180840,
+      "rooms/library-lightmap.ktx2": 406312,
+      "rooms/library.bin": 4181860,
       "textures/e0a16b4a7908d4608e95.ktx2": 4800478,
       "textures-1k/e0a16b4a7908d4608e95.ktx2": 1181416,
       "textures/6e2b6089b80eebe29fce.ktx2": 4567290,
@@ -805,9 +805,9 @@
       "restaurant-curtain"
     ],
     "files": {
-      "rooms/restaurant.gltf": 722544,
-      "rooms/restaurant-lightmap.ktx2": 285628,
-      "rooms/restaurant.bin": 6279892,
+      "rooms/restaurant.gltf": 719646,
+      "rooms/restaurant-lightmap.ktx2": 275944,
+      "rooms/restaurant.bin": 6271264,
       "textures/ff0114b41a675f429166.ktx2": 3442743,
       "textures-1k/ff0114b41a675f429166.ktx2": 263387,
       "textures/7f06a6b56c0ff4ca137e.ktx2": 4511250,
@@ -1078,9 +1078,9 @@
       "kitchen-pantry"
     ],
     "files": {
-      "rooms/kitchen.gltf": 434147,
-      "rooms/kitchen-lightmap.ktx2": 822180,
-      "rooms/kitchen.bin": 3382468,
+      "rooms/kitchen.gltf": 434149,
+      "rooms/kitchen-lightmap.ktx2": 811636,
+      "rooms/kitchen.bin": 3387072,
       "textures/ff0114b41a675f429166.ktx2": 3442743,
       "textures-1k/ff0114b41a675f429166.ktx2": 263387,
       "textures/7f06a6b56c0ff4ca137e.ktx2": 4511250,
@@ -1274,9 +1274,9 @@
       "ballroom-wardrobe"
     ],
     "files": {
-      "rooms/ballroom.gltf": 633627,
-      "rooms/ballroom-lightmap.ktx2": 377620,
-      "rooms/ballroom.bin": 4722820,
+      "rooms/ballroom.gltf": 630897,
+      "rooms/ballroom-lightmap.ktx2": 373060,
+      "rooms/ballroom.bin": 4702824,
       "textures/ff0114b41a675f429166.ktx2": 3442743,
       "textures-1k/ff0114b41a675f429166.ktx2": 263387,
       "textures/7f06a6b56c0ff4ca137e.ktx2": 4511250,
@@ -1496,9 +1496,9 @@
       "back-stairs"
     ],
     "files": {
-      "rooms/service-room.gltf": 833231,
-      "rooms/service-room-lightmap.ktx2": 625913,
-      "rooms/service-room.bin": 6340668,
+      "rooms/service-room.gltf": 836134,
+      "rooms/service-room-lightmap.ktx2": 623840,
+      "rooms/service-room.bin": 6347432,
       "textures/ff0114b41a675f429166.ktx2": 3442743,
       "textures-1k/ff0114b41a675f429166.ktx2": 263387,
       "textures/7f06a6b56c0ff4ca137e.ktx2": 4511250,
@@ -1686,8 +1686,8 @@
     ],
     "files": {
       "rooms/garden-courtyard.gltf": 869917,
-      "rooms/garden-courtyard-lightmap.ktx2": 1222475,
-      "rooms/garden-courtyard.bin": 1697380,
+      "rooms/garden-courtyard-lightmap.ktx2": 1266265,
+      "rooms/garden-courtyard.bin": 1694260,
       "textures/284b3bd8ee8091a3e779.ktx2": 5185695,
       "textures-1k/284b3bd8ee8091a3e779.ktx2": 1307365,
       "textures/759f9f7a1802a5ca7b0a.ktx2": 5274639,
@@ -2038,8 +2038,8 @@
     ],
     "files": {
       "rooms/guest-room-1.gltf": 368144,
-      "rooms/guest-room-1-lightmap.ktx2": 1302292,
-      "rooms/guest-room-1.bin": 1922508,
+      "rooms/guest-room-1-lightmap.ktx2": 1297802,
+      "rooms/guest-room-1.bin": 1922280,
       "textures/ff0114b41a675f429166.ktx2": 3442743,
       "textures-1k/ff0114b41a675f429166.ktx2": 263387,
       "textures/7f06a6b56c0ff4ca137e.ktx2": 4511250,
@@ -2284,9 +2284,9 @@
       "guest3-curtain"
     ],
     "files": {
-      "rooms/guest-room-3.gltf": 379486,
-      "rooms/guest-room-3-lightmap.ktx2": 1403077,
-      "rooms/guest-room-3.bin": 1885548,
+      "rooms/guest-room-3.gltf": 379484,
+      "rooms/guest-room-3-lightmap.ktx2": 1382619,
+      "rooms/guest-room-3.bin": 1887404,
       "textures/ff0114b41a675f429166.ktx2": 3442743,
       "textures-1k/ff0114b41a675f429166.ktx2": 263387,
       "textures/7f06a6b56c0ff4ca137e.ktx2": 4511250,
@@ -2439,8 +2439,8 @@
     ],
     "files": {
       "rooms/guest-room-4.gltf": 358253,
-      "rooms/guest-room-4-lightmap.ktx2": 1432005,
-      "rooms/guest-room-4.bin": 2387800,
+      "rooms/guest-room-4-lightmap.ktx2": 1422191,
+      "rooms/guest-room-4.bin": 2383276,
       "textures/ff0114b41a675f429166.ktx2": 3442743,
       "textures-1k/ff0114b41a675f429166.ktx2": 263387,
       "textures/5f705b352432cd62f70c.ktx2": 4009708,
@@ -2598,9 +2598,9 @@
       "bridal-wardrobe-south"
     ],
     "files": {
-      "rooms/bridal-suite.gltf": 325216,
-      "rooms/bridal-suite-lightmap.ktx2": 1264339,
-      "rooms/bridal-suite.bin": 2850700,
+      "rooms/bridal-suite.gltf": 325217,
+      "rooms/bridal-suite-lightmap.ktx2": 1234941,
+      "rooms/bridal-suite.bin": 2853352,
       "textures/ff0114b41a675f429166.ktx2": 3442743,
       "textures-1k/ff0114b41a675f429166.ktx2": 263387,
       "textures/7f06a6b56c0ff4ca137e.ktx2": 4511250,
@@ -2763,9 +2763,9 @@
       "nursery-cupboard"
     ],
     "files": {
-      "rooms/nursery.gltf": 320159,
-      "rooms/nursery-lightmap.ktx2": 1062265,
-      "rooms/nursery.bin": 3201528,
+      "rooms/nursery.gltf": 320182,
+      "rooms/nursery-lightmap.ktx2": 820622,
+      "rooms/nursery.bin": 3272220,
       "textures/ff0114b41a675f429166.ktx2": 3442743,
       "textures-1k/ff0114b41a675f429166.ktx2": 263387,
       "textures/7f06a6b56c0ff4ca137e.ktx2": 4511250,
@@ -2904,9 +2904,9 @@
       "staff-cupboard"
     ],
     "files": {
-      "rooms/staff-quarters.gltf": 262743,
-      "rooms/staff-quarters-lightmap.ktx2": 1274220,
-      "rooms/staff-quarters.bin": 1850636,
+      "rooms/staff-quarters.gltf": 262741,
+      "rooms/staff-quarters-lightmap.ktx2": 1256586,
+      "rooms/staff-quarters.bin": 1850992,
       "textures/ff0114b41a675f429166.ktx2": 3442743,
       "textures-1k/ff0114b41a675f429166.ktx2": 263387,
       "textures/7f06a6b56c0ff4ca137e.ktx2": 4511250,
@@ -3022,9 +3022,9 @@
       "back-stairs"
     ],
     "files": {
-      "rooms/laundry.gltf": 371685,
-      "rooms/laundry-lightmap.ktx2": 903471,
-      "rooms/laundry.bin": 1827772,
+      "rooms/laundry.gltf": 371683,
+      "rooms/laundry-lightmap.ktx2": 896665,
+      "rooms/laundry.bin": 1827180,
       "textures/c562b7f2bf337e1d0e35.ktx2": 3326367,
       "textures-1k/c562b7f2bf337e1d0e35.ktx2": 677464,
       "textures/991ab1cdb0d772b155e8.ktx2": 3287806,
@@ -3371,8 +3371,8 @@
     ],
     "files": {
       "rooms/stairwell.gltf": 364353,
-      "rooms/stairwell-lightmap.ktx2": 1202087,
-      "rooms/stairwell.bin": 1293068,
+      "rooms/stairwell-lightmap.ktx2": 1201109,
+      "rooms/stairwell.bin": 1292932,
       "textures/dd471438c55a63fb546c.ktx2": 4446102,
       "textures-1k/dd471438c55a63fb546c.ktx2": 1069834,
       "textures/89347c15ba393d248aef.ktx2": 4279826,
@@ -3494,9 +3494,9 @@
       "wine-cupboard"
     ],
     "files": {
-      "rooms/wine-cellar.gltf": 318143,
-      "rooms/wine-cellar-lightmap.ktx2": 623522,
-      "rooms/wine-cellar.bin": 5496972,
+      "rooms/wine-cellar.gltf": 320077,
+      "rooms/wine-cellar-lightmap.ktx2": 621791,
+      "rooms/wine-cellar.bin": 5555788,
       "textures/dd471438c55a63fb546c.ktx2": 4446102,
       "textures-1k/dd471438c55a63fb546c.ktx2": 1069834,
       "textures/89347c15ba393d248aef.ktx2": 4279826,
@@ -3606,9 +3606,9 @@
       "storage-wardrobe"
     ],
     "files": {
-      "rooms/storage.gltf": 373654,
-      "rooms/storage-lightmap.ktx2": 572128,
-      "rooms/storage.bin": 3276732,
+      "rooms/storage.gltf": 373652,
+      "rooms/storage-lightmap.ktx2": 565820,
+      "rooms/storage.bin": 3280404,
       "textures/ff0114b41a675f429166.ktx2": 3442743,
       "textures-1k/ff0114b41a675f429166.ktx2": 263387,
       "textures/7f06a6b56c0ff4ca137e.ktx2": 4511250,
@@ -3719,9 +3719,9 @@
       "ritual-wardrobe-east"
     ],
     "files": {
-      "rooms/ritual-room.gltf": 223160,
-      "rooms/ritual-room-lightmap.ktx2": 1959049,
-      "rooms/ritual-room.bin": 890364,
+      "rooms/ritual-room.gltf": 223161,
+      "rooms/ritual-room-lightmap.ktx2": 2016640,
+      "rooms/ritual-room.bin": 891848,
       "textures/20ba3e1dfccb4b7b35e4.ktx2": 3442743,
       "textures-1k/20ba3e1dfccb4b7b35e4.ktx2": 263387,
       "textures/3cd19440abd77e750155.ktx2": 4511250,
