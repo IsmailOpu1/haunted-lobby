@@ -2,12 +2,16 @@ import * as THREE from "three";
 import { config, saltLineEnds, toWorld, type MapData } from "@haunted/shared";
 import { liftToFloor } from "./place.ts";
 import { facingYaw } from "./stations.ts";
+import { comfort } from "./comfort.ts";
 
 // Salt lines and the camera flash.
 const SALT_COLOR = 0xf2efe6;
 const SALT_LINE_THICKNESS_M = 0.18;
 const FLASH_INTENSITY = 60;
 const FLASH_SEC = 0.15;
+/** Photosensitivity mode: the flash rises and falls over this long, at this share of its strength. */
+const GENTLE_FLASH_SEC = 1.2;
+const GENTLE_FLASH_SHARE = 0.3;
 
 const JAR_FOOT_M = 0.79;
 
@@ -102,6 +106,22 @@ export class ItemsView {
     const at = toWorld(this.map, x, z);
     light.position.set(at.x, at.y + 1.6, at.z);
     this.scene.add(light);
-    setTimeout(() => this.scene.remove(light), FLASH_SEC * 1000);
+    if (!comfort.photosensitive) {
+      setTimeout(() => this.scene.remove(light), FLASH_SEC * 1000);
+      return;
+    }
+    // Photosensitivity mode (GDD 23): a soft glow that fades, never a flash.
+    const start = performance.now();
+    const fade = () => {
+      const t = (performance.now() - start) / (GENTLE_FLASH_SEC * 1000);
+      if (t >= 1) {
+        this.scene.remove(light);
+        return;
+      }
+      light.intensity = FLASH_INTENSITY * GENTLE_FLASH_SHARE * Math.sin(Math.PI * t);
+      requestAnimationFrame(fade);
+    };
+    light.intensity = 0;
+    fade();
   }
 }

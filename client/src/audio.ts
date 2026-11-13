@@ -1,4 +1,5 @@
-// Placeholder sounds made with Web Audio until the Phase 8 audio pass (GDD Section 23).
+// The game's sounds (GDD Section 23): most are made with Web Audio; the ambience and the house's
+// creaks are recordings (see AMBIENCE_LOOPS).
 // There is no music: footsteps are the background. You hear your own steps, your friends'
 // steps from where they are, the ghost's heavy steps during hunts, and now and then a few
 // distant steps that belong to no one. Plus a heartbeat that speeds up as the ghost gets
@@ -30,6 +31,26 @@ const STEP_SOUNDS: Record<StepKind, { gain: number; thudHz: number; thudMix: num
   crawl: { gain: 0.14, thudHz: 90, thudMix: 0.1, noiseHz: 600, q: 0.7, seconds: 0.28 }, // a drag, not a step
   ghost: { gain: 0.9, thudHz: 45, thudMix: 0.6, noiseHz: 260, q: 0.9, seconds: 0.22 },
 };
+
+// Recorded sounds (GDD 23 audio pass; CC0 Freesound recordings made game-ready by
+// tools/audio/prepare_sounds.py, listed in docs/ASSETS.md). Loaded after sound unlocks; until then,
+// and if a file fails, the game simply goes without them.
+const SOUND_DIR = "/assets/sounds/";
+/** The hotel's background: an old room's tone, a distant low rumble and wind behind the walls. Kept
+ * far below the footsteps, which stay the game's real background (GDD 23). */
+const AMBIENCE_LOOPS: readonly { file: string; gain: number }[] = [
+  { file: "room-tone", gain: 0.05 },
+  { file: "rumble", gain: 0.05 },
+  { file: "wind", gain: 0.035 },
+];
+const AMBIENCE_FADE_IN_SEC = 4;
+/** The house settling: a creak somewhere near you now and then (GDD 23 "creaks"). */
+const CREAK_FILES = ["creak-1", "creak-2", "creak-3", "creak-4", "creak-5"] as const;
+const CREAK_MIN_GAP_SEC = 12;
+const CREAK_MAX_GAP_SEC = 35;
+const CREAK_DISTANCE_M = [3, 9] as const;
+const CREAK_GAIN = [0.25, 0.55] as const;
+const CREAK_RATE = [0.85, 1.12] as const;
 
 // Phantom footsteps: a few distant steps from a random direction (GDD 23 "distant footsteps").
 const PHANTOM_MIN_GAP_SEC = 30;
@@ -102,6 +123,12 @@ export class SoundScape {
   private volumeNode!: GainNode;
   private volume = 1;
   private huntGain!: GainNode;
+  /** Recorded sounds by name, once loaded. */
+  private recordings = new Map<string, AudioBuffer>();
+  private nextCreakAt = 0;
+  /** Jump scares (the hunt sting, slammed doors) go through this: the Options slider (GDD 23). */
+  private scare!: GainNode;
+  private scareLevel = 1;
   private noise!: AudioBuffer;
   private nextBeatAt = 0;
   private silentUntil = 0;
@@ -129,6 +156,9 @@ export class SoundScape {
     this.master = ctx.createGain();
     this.master.gain.value = MASTER_LEVEL;
     this.master.connect(this.volumeNode);
+    this.scare = ctx.createGain();
+    this.scare.gain.value = this.scareLevel;
+    this.scare.connect(this.master);
     this.noise = whiteNoiseBuffer(ctx, 0.5);
     this.nextPhantomAt = ctx.currentTime + randomBetween(PHANTOM_MIN_GAP_SEC, PHANTOM_MAX_GAP_SEC);
 
@@ -144,6 +174,38 @@ export class SoundScape {
     wobble(ctx, pulseGain.gain, 1.2, 0.4);
     rumble.connect(pulseGain).connect(this.huntGain);
     rumble.start();
+    this.nextCreakAt = ctx.currentTime + randomBetween(CREAK_MIN_GAP_SEC, CREAK_MAX_GAP_SEC);
+    void this.loadRecordings(ctx);
+  }
+
+  private async loadRecordings(ctx: AudioContext) {
+    const names = [...AMBIENCE_LOOPS.map((l) => l.file), ...CREAK_FILES];
+    await Promise.all(
+      names.map(async (name) => {
+        try {
+          const response = await fetch(`${SOUND_DIR}${name}.wav`);
+          if (!response.ok) return;
+          this.recordings.set(name, await ctx.decodeAudioData(await response.arrayBuffer()));
+        } catch {
+          // A missing or broken file: play on without it.
+        }
+      }),
+    );
+    // The ambience runs through master, so it drops out with everything else before a hunt.
+    const now = ctx.currentTime;
+    for (const { file, gain } of AMBIENCE_LOOPS) {
+      const buffer = this.recordings.get(file);
+      if (!buffer) continue;
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      const level = ctx.createGain();
+      level.gain.setValueAtTime(0, now);
+      level.gain.linearRampToValueAtTime(gain, now + AMBIENCE_FADE_IN_SEC);
+      source.connect(level).connect(this.master);
+      // Each loop starts at a different point, so their seams never line up.
+      source.start(now, Math.random() * buffer.duration);
+    }
   }
 
   /**
@@ -152,6 +214,12 @@ export class SoundScape {
    */
   voiceOutput(): { ctx: AudioContext; out: AudioNode } | null {
     return this.ctx ? { ctx: this.ctx, out: this.volumeNode } : null;
+  }
+
+  /** Jump-scare loudness from 0 (off) to 1 (GDD 23). Works before and after sound is unlocked. */
+  setScareVolume(level: number) {
+    this.scareLevel = Math.max(0, Math.min(1, level));
+    if (this.ctx) this.scare.gain.setTargetAtTime(this.scareLevel, this.ctx.currentTime, 0.05);
   }
 
   /** Player volume from 0 (off) to 1. Works before and after sound is unlocked. */
@@ -466,16 +534,16 @@ export class SoundScape {
   }
 
   /** A panner at a place in the world, or the plain output when there is no place. */
-  private placed(at: WorldPoint | undefined, heightM: number, refDistance: number): AudioNode {
+  private placed(at: WorldPoint | undefined, heightM: number, refDistance: number, into: AudioNode = this.master): AudioNode {
     const ctx = this.ctx!;
-    if (!at) return this.master;
+    if (!at) return into;
     const panner = ctx.createPanner();
     panner.distanceModel = "inverse";
     panner.refDistance = refDistance;
     panner.positionX.value = at.x;
     panner.positionY.value = at.y + heightM;
     panner.positionZ.value = at.z;
-    panner.connect(this.master);
+    panner.connect(into);
     return panner;
   }
 
@@ -526,7 +594,7 @@ export class SoundScape {
     const ctx = this.ctx;
     if (!ctx) return;
     const t = ctx.currentTime;
-    const out = this.placed(at, 1, DOOR_REF_DISTANCE_M * 3);
+    const out = this.placed(at, 1, DOOR_REF_DISTANCE_M * 3, this.scare);
     for (const [start, hz, q, level, seconds] of [
       [0, 90, 0.8, 1.2, 0.4],
       [0.22, 1600, 6, 0.35, 0.06],
@@ -652,6 +720,7 @@ export class SoundScape {
       this.master.gain.setTargetAtTime(MASTER_LEVEL, now, 0.05);
     }
     this.updatePhantomSteps(now);
+    this.updateCreaks(now);
     if (this.silentUntil || ghostDistance > HEARTBEAT_RANGE_M) return;
     // Heartbeat: about 60 bpm at the edge of range, about 150 bpm right next to the ghost.
     const closeness = 1 - ghostDistance / HEARTBEAT_RANGE_M;
@@ -662,6 +731,27 @@ export class SoundScape {
       this.beat(now + 0.2, 0.15 + closeness * 0.25);
       this.nextBeatAt = now + interval;
     }
+  }
+
+  /** Now and then the old house creaks somewhere near you, never in the pre-hunt silence. */
+  private updateCreaks(now: number) {
+    if (now < this.nextCreakAt) return;
+    this.nextCreakAt = now + randomBetween(CREAK_MIN_GAP_SEC, CREAK_MAX_GAP_SEC);
+    if (this.silentUntil) return;
+    const buffer = this.recordings.get(CREAK_FILES[Math.floor(Math.random() * CREAK_FILES.length)]!);
+    if (!buffer) return;
+    const ctx = this.ctx!;
+    const angle = Math.random() * Math.PI * 2;
+    const dist = randomBetween(CREAK_DISTANCE_M[0], CREAK_DISTANCE_M[1]);
+    // In the floor or the walls around you, at about knee height.
+    const at = { x: this.listener.x + Math.cos(angle) * dist, y: this.listener.y - 1.6, z: this.listener.z + Math.sin(angle) * dist };
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.playbackRate.value = randomBetween(CREAK_RATE[0], CREAK_RATE[1]);
+    const gain = ctx.createGain();
+    gain.gain.value = randomBetween(CREAK_GAIN[0], CREAK_GAIN[1]);
+    source.connect(gain).connect(this.placed(at, 0.5, 2));
+    source.start(now);
   }
 
   /** Now and then, a few steps somewhere in the dark that belong to no one. */
@@ -714,7 +804,7 @@ export class SoundScape {
       const gain = ctx.createGain();
       gain.gain.setValueAtTime(0.1, now);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.4);
-      osc.connect(gain).connect(this.master);
+      osc.connect(gain).connect(this.scare);
       osc.start(now);
       osc.stop(now + 1.5);
     }

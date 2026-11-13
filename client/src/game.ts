@@ -2,6 +2,9 @@ import * as THREE from "three";
 import type { Room } from "@colyseus/sdk";
 import {
   altarStands,
+  characterById,
+  offAxis,
+  recognised,
   clueLabel,
   config,
   initPhysics,
@@ -35,6 +38,7 @@ import { SoundScape } from "./audio.ts";
 import { directionTo, roundDirection } from "./cues.ts";
 import { BeamAdaptation, createFlashlight } from "./flashlight.ts";
 import { Flicker } from "./flicker.ts";
+import { comfort } from "./comfort.ts";
 import { playerStepKind, StepTracker } from "./footsteps.ts";
 import { GhostView } from "./ghostView.ts";
 import { createHandsTask } from "./hands/tasks.ts";
@@ -44,6 +48,7 @@ import { PlayerInput, SENSITIVITY_MAX, SENSITIVITY_MIN } from "./input.ts";
 import { RelicsView } from "./relicsView.ts";
 import { MysteryView } from "./mysteryView.ts";
 import { RemotePlayers } from "./remotePlayers.ts";
+import { CharacterModels } from "./characterModels.ts";
 import { loadClockParts, loadCradleParts, loadTrunkParts, StationsView, type DressedClockParts, type DressedCradleParts, type DressedTrunkParts } from "./stations.ts";
 import { VoiceChat } from "./voice.ts";
 import type { TaskSoundKind } from "./hands/sounds.ts";
@@ -86,6 +91,11 @@ const FOG_FAR = 18;
 /** Nothing past the fog can be seen, so nothing past it is drawn (a little beyond, for the fade's tail). */
 const VIEW_FAR_M = FOG_FAR + 1;
 const CROUCH_LERP_PER_SEC = 10;
+/** Screen shake (GDD 23): a short jolt when a hunt starts, a harder one when you are knocked down. */
+const HUNT_SHAKE_SEC = 0.6;
+const HUNT_SHAKE_RAD = 0.012;
+const DOWNED_SHAKE_SEC = 0.8;
+const DOWNED_SHAKE_RAD = 0.03;
 // How fast a server correction to your own position fades out, and when to jump instead.
 const CORRECTION_FADE_PER_SEC = 20;
 const SNAP_DISTANCE = 2;
@@ -93,6 +103,10 @@ const VOICE_ANSWER_TIMEOUT_MS = 5000;
 // Sound subtitles (GDD 23, 26.10): how long the bell's stays up, and how far above or below
 // you a sound must be to say "above" or "below".
 const BELL_CUE_SEC = 4;
+/** A slammed door's subtitle stays up this long. */
+const SLAM_CUE_SEC = 3;
+/** The ghost's subtitle shows within this range, the same as the heartbeat's (audio.ts). */
+const GHOST_CUE_M = 12;
 const CUE_FLOOR_DIFF_M = 1.5;
 // Working with your hands (GDD 26.5): the view narrows a little toward what you work on.
 /**
@@ -254,6 +268,8 @@ export const POWER_NAMES: Record<PowerKind, string> = { slamDoor: "Slam Door", s
 /** The parts of a player's server state this client reads. */
 interface PlayerData {
   name: string;
+  /** The character dealt this night (GDD 26.14), "" before the first night. */
+  character: string;
   x: number;
   z: number;
   yaw: number;
@@ -359,6 +375,8 @@ export class Game {
   private handsNoiseAt = -Infinity;
   /** The place you are digging a found relic out of: its whisper has done its job and falls quiet. */
   private foundAt: { x: number; z: number } | null = null;
+  /** The last slammed door, for its subtitle. */
+  private slamCue: { at: WorldPoint; until: number } | null = null;
   /** The last bell ring, for its subtitle. */
   private bellCue: { at: WorldPoint; until: number } | null = null;
   // The possessed's powers (GDD 14). Only you know your role.
@@ -368,6 +386,12 @@ export class Game {
   private wheel: { x: number; y: number } | null = null;
   private doorsLocked = new Set<string>();
   private blackout = false;
+  /** Screen shake (GDD 23 slider): seconds left, its full length and its strength in radians. */
+  private shakeLeft = 0;
+  private shakeSec = 1;
+  private shakeRad = 0;
+  /** Your health last update, to shake the view when you are knocked down. */
+  private lastHealth = "";
   private taintLeft = 0;
   // Who was the ghost? (GDD 26.13): the ghost's name once offered right, the altar's wait, and each station's clue.
   private mystery: MysteryView;
@@ -412,7 +436,7 @@ export class Game {
     ({ doors: this.doors, ritualCircle: this.ritualCircle } = buildWorld(this.scene, map, dressed, doorLook));
     dressed.captureReflections(this.renderer, this.scene); // before the flashlight is added
     const place = (x: number, z: number) => toWorld(map, x, z);
-    this.remotes = new RemotePlayers(this.scene, place);
+    this.remotes = new RemotePlayers(this.scene, place, new CharacterModels(renderer));
     this.ghost = new GhostView(this.scene, place);
     this.items = new ItemsView(this.scene, map);
     this.stations = new StationsView(this.scene, map, { drawn: dressed.drawn, clock: clockParts, cradle: cradleParts, trunk: trunkParts });
@@ -572,6 +596,19 @@ export class Game {
     this.sound.setVolume(volume);
   }
 
+  /** Jump-scare loudness, 0 to 1 (Options, GDD 23). */
+  setScareVolume(level: number) {
+    this.sound.setScareVolume(level);
+  }
+
+  /** Shakes the view for a moment (scaled by the Options slider, GDD 23). */
+  private shakeView(seconds: number, strengthRad: number) {
+    if (comfort.shake <= 0) return;
+    this.shakeSec = seconds;
+    this.shakeLeft = seconds;
+    this.shakeRad = strengthRad * comfort.shake;
+  }
+
   /** Sound can only start from a click or key press; the Create and Join buttons count. */
   unlockSound() {
     this.sound.unlock();
@@ -617,7 +654,10 @@ export class Game {
     room.onMessage("ghost", (msg: ServerMessages["ghost"]) => this.ghost.push(msg, performance.now()));
     room.onMessage("hunt", (msg: ServerMessages["hunt"]) => {
       if (msg.phase === "warning") this.sound.huntWarning(config.ghost.preHuntSilenceSec);
-      else if (msg.phase === "start") this.sound.huntStart();
+      else if (msg.phase === "start") {
+        this.sound.huntStart();
+        this.shakeView(HUNT_SHAKE_SEC, HUNT_SHAKE_RAD);
+      }
       else this.sound.huntEnd();
     });
     room.onMessage("offering", (msg: ServerMessages["offering"]) => {
@@ -704,7 +744,11 @@ export class Game {
     room.onMessage("powerRefused", (msg: ServerMessages["powerRefused"]) => this.hud.showBanner(`${POWER_NAMES[msg.kind]}: ${msg.reason}`, 3));
     room.onMessage("powerWhisper", (msg: ServerMessages["powerWhisper"]) => this.sound.powerWhisper(this.place(msg)));
     room.onMessage("eyeGlow", (msg: ServerMessages["eyeGlow"]) => this.remotes.glowEyes(msg.id, performance.now()));
-    room.onMessage("doorSlam", (msg: ServerMessages["doorSlam"]) => this.sound.doorSlam(this.place(msg)));
+    room.onMessage("doorSlam", (msg: ServerMessages["doorSlam"]) => {
+      const at = this.place(msg);
+      this.sound.doorSlam(at);
+      this.slamCue = { at, until: performance.now() + SLAM_CUE_SEC * 1000 };
+    });
     room.send("tasksRequest");
 
     // Every handler is registered, so now ask for the voice pass; the answer cannot be missed.
@@ -845,6 +889,9 @@ export class Game {
         health: p.health,
         // A reported body, or a player voted out, is no longer there.
         hidden: !!p.hidingSpot || p.bodyGone,
+        name: p.name,
+        colour: characterById(p.character)?.colour ?? "",
+        character: p.character,
       });
     });
     this.remotes.update(snapshots, now);
@@ -852,6 +899,21 @@ export class Game {
     this.wispLight.visible = iAmDead;
     if (this.me) this.updateStatusHud(this.me);
     this.updateMeeting(state);
+  }
+
+  /** Whether you can tell who another player is right now (GDD 22.2). */
+  private recognises(id: string): boolean {
+    const other = this.others.get(id);
+    const me = this.predicted ?? this.me;
+    if (!other || !me) return false;
+    const at = other.health === "dead" ? { x: other.bodyX, z: other.bodyZ } : { x: other.x, z: other.z };
+    const distM = worldDistance(this.map, me, at);
+    const flashlightOn = this.flashlight.light.visible;
+    const meeting = !!this.meeting;
+    // The wall check is the costly part: skip it when the answer is already known.
+    const near = distM <= config.flashlight.darkVisionM;
+    const clearSight = !meeting && !near && flashlightOn && distM <= config.flashlight.nameRevealM && this.physics.lineOfSight(me, at, config.movement.eyeHeightM);
+    return recognised({ distM, offAxisRad: offAxis(me, this.input.yaw, at), flashlightOn, clearSight, meeting });
   }
 
   private moveMode(): MoveMode {
@@ -918,6 +980,7 @@ export class Game {
     this.sound.relicWhisper(whisper, whisper ? 1 - this.distanceFromMe(whisper) / config.relics.whisperM : 0);
     this.updateWhereabouts(whisper, now);
     this.ghost.render(now);
+    this.remotes.reveal((id) => this.recognises(id));
     this.remotes.render(now, dt, (at) => this.ghost.distanceTo(at));
 
     const cam = this.camera.position;
@@ -1060,6 +1123,14 @@ export class Game {
 
     this.camera.position.set(x, y + this.eyeHeight, z);
     this.camera.rotation.set(this.input.pitch, this.input.yaw, 0);
+    if (this.shakeLeft > 0) {
+      this.shakeLeft = Math.max(0, this.shakeLeft - dt);
+      const t = performance.now() / 1000;
+      const fade = (this.shakeLeft / this.shakeSec) * this.shakeRad;
+      this.camera.rotation.x += Math.sin(t * 47) * fade;
+      this.camera.rotation.y += Math.sin(t * 39 + 1.3) * fade;
+      this.camera.rotation.z = Math.sin(t * 31 + 2.1) * fade * 0.5;
+    }
 
     this.hud.setStamina(curr.stamina / m.staminaSec);
     this.hud.setPrompt(this.promptAt(curr.x, curr.z));
@@ -1329,6 +1400,8 @@ export class Game {
   }
 
   private updateStatusHud(me: PlayerData) {
+    if (me.health === "downed" && this.lastHealth === "alive") this.shakeView(DOWNED_SHAKE_SEC, DOWNED_SHAKE_RAD);
+    this.lastHealth = me.health;
     if (me.health === "downed") this.hud.setStatus({ kind: "downed", bleedLeft: me.bleedLeft });
     else if (me.health === "dead") this.hud.setStatus({ kind: "dead" });
     else if (me.hidingSpot) this.hud.setStatus({ kind: "hidden", holdingBreath: me.holdingBreath, breathCooldown: me.breathCooldown });
@@ -1394,7 +1467,23 @@ export class Game {
     const cues: SoundCue[] = [];
     if (whisper) cues.push(this.whisperCue(whisper));
     if (this.bellCue) cues.push(this.cue("The bell rings", this.bellCue.at));
+    if (this.slamCue && now > this.slamCue.until) this.slamCue = null;
+    if (this.slamCue) cues.push(this.cue("A door slams", this.slamCue.at));
+    const ghostCue = this.ghostCue();
+    if (ghostCue) cues.push(ghostCue);
     this.hud.setSoundCues(this.ended ? [] : cues);
+  }
+
+  /**
+   * The ghost nearby: while it hunts you hear its heavy steps from where it is (an arrow); otherwise
+   * only your heartbeat tells you it is close (no arrow).
+   */
+  private ghostCue(): SoundCue | null {
+    const hunting = this.ghost.huntingAt();
+    if (hunting && this.distanceFromMe(hunting) <= GHOST_CUE_M) return this.cue("Heavy footsteps", hunting);
+    const known = this.ghost.known;
+    if (known && this.distanceFromMe(known) <= GHOST_CUE_M) return { text: "Your heart pounds", angle: null, vertical: null };
+    return null;
   }
 
   /** How far a place is from your feet, in meters. */

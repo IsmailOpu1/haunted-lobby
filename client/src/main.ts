@@ -23,6 +23,8 @@ import { photoCard } from "./photoView.ts";
 import { createRoom, joinRoom, reconnectRoom } from "./network.ts";
 import { joinErrorText, lobbyView } from "./lobbyView.ts";
 import { Screens } from "./screens.ts";
+import { KEY_ACTIONS, keyName, keys } from "./keys.ts";
+import { comfort } from "./comfort.ts";
 
 function el<T extends HTMLElement = HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
@@ -102,6 +104,8 @@ const lookHint = el("look-hint");
 const itemsBox = el("items");
 const viewfinder = el("viewfinder");
 const screenFlash = el("screen-flash");
+/** Photosensitivity mode: how long the soft glow rises before it fades (matches style.css). */
+const GENTLE_FLASH_HOLD_MS = 500;
 const teamTasks = el("team-tasks");
 const teamFill = el("team-fill");
 const teamCount = el("team-count");
@@ -192,7 +196,7 @@ const NIGHT_PART_BANNERS: Record<string, string> = {
 const NIGHT_BANNER_SEC = 4;
 
 function showBanner(text: string, seconds: number) {
-  banner.textContent = text;
+  banner.textContent = keys.hint(text);
   banner.classList.remove("hidden");
   clearTimeout(bannerTimer);
   bannerTimer = setTimeout(() => banner.classList.add("hidden"), seconds * 1000);
@@ -224,7 +228,7 @@ const gameReady = Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
   },
   setPrompt: (text) => {
     prompt.classList.toggle("hidden", !text);
-    prompt.textContent = text ?? "";
+    prompt.textContent = text ? keys.hint(text) : "";
   },
   setFps: (text) => {
     const counter = el("fps");
@@ -271,7 +275,7 @@ const gameReady = Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
         ? "Holding your breath"
         : status.breathCooldown > 0
           ? `Catching your breath (${Math.ceil(status.breathCooldown)} s)`
-          : "Hidden. Hold Shift to hold your breath, hold E to step out.";
+          : keys.hint("Hidden. Hold Shift to hold your breath, hold E to step out.");
     }
   },
   setAction: (label, progress) => {
@@ -462,14 +466,20 @@ const gameReady = Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
   },
   setMicLost: (lost) => micLost.classList.toggle("hidden", !lost),
   setItems: (salt, shots, bellUses) => {
-    const text = `Salt <strong>&times;${salt}</strong> (3) &nbsp; Camera <strong>&times;${shots}</strong> (2) &nbsp; Bell <strong>&times;${bellUses}</strong>`;
+    const text = `Salt <strong>&times;${salt}</strong> (${keys.name("salt")}) &nbsp; Camera <strong>&times;${shots}</strong> (${keys.name("camera")}) &nbsp; Bell <strong>&times;${bellUses}</strong>`;
     if (itemsBox.innerHTML !== text) itemsBox.innerHTML = text;
   },
-  setCameraRaised: (raised) => viewfinder.classList.toggle("hidden", !raised),
+  setCameraRaised: (raised) => {
+    viewfinder.firstElementChild!.textContent = `Click to take the photo · ${keys.name("camera")} to lower`;
+    viewfinder.classList.toggle("hidden", !raised);
+  },
   flashScreen: () => {
+    // Photosensitivity mode (GDD 23): a soft fade, never a flash.
+    screenFlash.classList.toggle("gentle", comfort.photosensitive);
     // Restart the fade: show white instantly, then let the transition fade it out.
     screenFlash.classList.add("on");
-    requestAnimationFrame(() => requestAnimationFrame(() => screenFlash.classList.remove("on")));
+    if (comfort.photosensitive) setTimeout(() => screenFlash.classList.remove("on"), GENTLE_FLASH_HOLD_MS);
+    else requestAnimationFrame(() => requestAnimationFrame(() => screenFlash.classList.remove("on")));
   },
   setTasks: (list) => {
     floorPlan.setTaskRooms(list.filter((t) => !t.done).map((t) => t.room));
@@ -616,7 +626,7 @@ const gameReady = Game.create(el<HTMLCanvasElement>("scene"), defaultMap, {
   },
   setCarrying: (name) => {
     carrying.classList.toggle("hidden", !name);
-    const text = name ? `Carrying ${name} (G to drop)` : "";
+    const text = name ? keys.hint(`Carrying ${name} (G to drop)`) : "";
     if (carrying.textContent !== text) carrying.textContent = text;
   },
 }, lowTextures, showWorldLoad);
@@ -721,6 +731,82 @@ function rangeSetting(id: string, key: string, fallback: number, min: number, ma
 rangeSetting("sensitivity", "mouseSensitivityCs", DEFAULT_SENSITIVITY, SENSITIVITY_MIN, SENSITIVITY_MAX, (v) => String(Math.round(v * 100) / 100), (v) => game?.setSensitivity(v));
 rangeSetting("fov", "fieldOfView", DEFAULT_FOV, FOV_MIN, FOV_MAX, (v) => `${v}°`, (v) => game?.setFov(v));
 
+// Comfort (GDD 23): photosensitivity mode, jump-scare volume and screen shake.
+const photosensitiveInput = el<HTMLInputElement>("photosensitive");
+function setPhotosensitive(on: boolean) {
+  comfort.photosensitive = on;
+  photosensitiveInput.checked = on;
+  store("photosensitive", on ? "1" : "0");
+}
+comfort.photosensitive = stored("photosensitive") === "1";
+photosensitiveInput.checked = comfort.photosensitive;
+photosensitiveInput.addEventListener("change", () => setPhotosensitive(photosensitiveInput.checked));
+rangeSetting("scare-volume", "scareVolume", 100, 0, 100, (v) => `${v}%`, (v) => {
+  comfort.scareVolume = v / 100;
+  game?.setScareVolume(comfort.scareVolume);
+});
+rangeSetting("shake", "screenShake", 100, 0, 100, (v) => `${v}%`, (v) => (comfort.shake = v / 100));
+// The warning on first launch (GDD 23), until the player answers it once.
+const photoWarning = el("photo-warning");
+if (stored("photoWarningSeen") === null) photoWarning.classList.remove("hidden");
+for (const [id, on] of [["photo-warning-on", true], ["photo-warning-ok", false]] as const) {
+  el(id).addEventListener("click", () => {
+    if (on) setPhotosensitive(true);
+    store("photoWarningSeen", "1");
+    photoWarning.classList.add("hidden");
+  });
+}
+
+// Remappable keys (GDD 23): click a key, press the new one. A key another action used swaps over.
+let listeningFor: { button: HTMLButtonElement; stop: () => void } | null = null;
+function drawKeyRows() {
+  const rows = el("key-rows");
+  rows.replaceChildren();
+  for (const { action, label } of KEY_ACTIONS) {
+    const tr = document.createElement("tr");
+    const keyCell = document.createElement("td");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "key-button";
+    button.textContent = keyName(keys.code(action));
+    button.setAttribute("aria-label", `${label}: ${keyName(keys.code(action))}. Click to change`);
+    button.addEventListener("click", () => {
+      listeningFor?.stop();
+      button.classList.add("listening");
+      button.textContent = "Press a key";
+      const onKey = (e: KeyboardEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.code !== "Escape" && !keys.set(action, e.code)) {
+          button.textContent = "Not that key";
+          return;
+        }
+        stop();
+        drawKeyRows();
+      };
+      const stop = () => {
+        window.removeEventListener("keydown", onKey, true);
+        listeningFor = null;
+        button.classList.remove("listening");
+        button.textContent = keyName(keys.code(action));
+      };
+      window.addEventListener("keydown", onKey, true);
+      listeningFor = { button, stop };
+    });
+    keyCell.append(button);
+    const what = document.createElement("td");
+    what.textContent = label;
+    tr.append(keyCell, what);
+    rows.append(tr);
+  }
+}
+drawKeyRows();
+el("keys-reset").addEventListener("click", () => {
+  listeningFor?.stop();
+  keys.reset();
+  drawKeyRows();
+});
+
 showFpsInput.checked = stored("showFps") === "1";
 game?.setFpsCounter(showFpsInput.checked);
 showFpsInput.addEventListener("change", () => {
@@ -750,6 +836,7 @@ void gameReady.then(
     }
     // The settings chosen while it loaded.
     g.setVolume(Number(volumeInput.value) / 100);
+    g.setScareVolume(comfort.scareVolume);
     applyQuality(qualityInput.value as QualityChoice);
     g.setSensitivity(Number(el<HTMLInputElement>("sensitivity").value));
     g.setFov(Number(el<HTMLInputElement>("fov").value));
@@ -1060,7 +1147,7 @@ function showIntro(stage: string, secondsLeft: number, character?: string) {
       const partners = myRole.partners.length ? `Also possessed: ${myRole.partners.join(", ")}. ` : "";
       // Only the possessed know who the ghost was (GDD 26.13): lie about the clues.
       const ghost = myRole.ghost ? `The ghost was ${myRole.ghost}. Lead the team to the wrong relic. ` : "";
-      introExtra.textContent = `${character ? `You are ${character}. ` : ""}${partners}${ghost}Hold R for your powers.`;
+      introExtra.textContent = `${character ? `You are ${character}. ` : ""}${partners}${ghost}${keys.hint("Hold R")} for your powers.`;
     } else {
       introTitle.textContent = "INVESTIGATOR";
       introText.textContent = "Do your tasks, find the relics, finish the ritual before dawn.";

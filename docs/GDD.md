@@ -578,14 +578,14 @@ Each player is dealt one of 8 characters at random, a new one each night (26.14)
 
 | Character | Recognized by |
 |---|---|
-| The Priest | Long robe, holds a cross |
-| The Journalist | Long coat, notebook |
-| The Nurse | Cap, medicine bag |
-| The Student | Backpack, school uniform |
-| The Detective | Hat, trench coat |
-| The Photographer | Big old camera on the chest |
-| The Mechanic | Overalls, toolbox |
-| The Caretaker | Hunched back, lantern |
+| The Priest | Dark suit, purple stole, gold cross on the chest (was "long robe, holds a cross"; the model's looks, 26.15) |
+| The Journalist | Striped jumper, satchel, notebook in hand (was "long coat, notebook", 26.15) |
+| The Nurse | White top, nurse's cap with a red cross, doctor's bag (was "cap, medicine bag", 26.15) |
+| The Student | Red T-shirt, shorts, backpack (was "backpack, school uniform", 26.15) |
+| The Detective | Fedora, magnifying glass (was "hat, trench coat", 26.15) |
+| The Photographer | Big old box camera on the chest |
+| The Mechanic | Hard hat, hi-vis vest, toolbox (was "overalls, toolbox", 26.15) |
+| The Caretaker | Work apron, lantern (a young caretaker; changed from "hunched back" by the owner, 26.15) |
 
 Cosmetics (outfits, hats, flashlight styles) can come later.
 
@@ -970,3 +970,10 @@ The owner approved `docs/plans/mystery-pilot.md` with the suggested answers. Wha
 | Texture quality | Every texture stays in the highest-quality GPU format (KTX2 UASTC), never the smaller ETC1S, even though the Main Hall is 288 MB against 131 MB. Downloads shrink only in ways that change nothing on screen: each prop's textures sized to the prop (about 10 pixels per cm), textures shared between rooms so each downloads once, and a 1K set for weak computers chosen by the quality setting | Owner compared both in the game, 2026-11-10, and chose quality |
 | Placeholders | Nothing from the grey-box days stays in a dressed room: the clock, bell, stations, relics and fuse box get models in the room's style | Owner, after the look test screenshots (2026-11-10) |
 | Field of view and turning | The field of view is measured side to side (Section 23's 70 to 100), default 90; it had been a fixed 75 up and down, about 106 side to side on a wide screen. Mouse sensitivity uses the Counter-Strike scale (0.022 degrees per mouse count times the number, 0.1 to 10, default 2.5, typed or slid) and reads the raw mouse, so Windows mouse acceleration no longer makes slow turns stutter and fast ones fly. Your hand and torch keep their size at any field of view. Walking speeds stay as 26.5 set them | Owner, after the browser was fixed to use the graphics card (2026-11-11): the game felt like a 2x speed run and turning was too fast |
+| Character models (2026-11-14) | Eight Mixamo characters (free with an Adobe account, the owner downloads them): Joe the Priest, Elizabeth the Journalist, Suzie the Nurse, Bryce the Student, Brian the Detective, Kate the Photographer, Pete the Mechanic, Megan the Caretaker (chosen so no two share a face: Mixamo reuses heads, owner 2026-11-14), all sharing one Mixamo animation set; each gets its props (22.1) in Blender. Replaces the one-base-character plan above | Owner's choice: realistic people with every animation the game needs (walk, run, crouch, crawl, downed) |
+| The Caretaker (2026-11-14) | A young caretaker in a work apron with a lantern, not an old hunched man | Owner: no one wants to play an old man |
+| Looks follow the models (2026-11-14) | Each character is recognised by its Mixamo clothes plus the props built for it (22.1 updated): the Priest's purple stole and gold cross, the Journalist's satchel and notebook, the Nurse's cap and doctor's bag, the Student's backpack, the Detective's fedora and magnifying glass, the Photographer's box camera, the Mechanic's toolbox, the Caretaker's apron and lantern | The Mixamo people come dressed; a robe, trench coat or uniform would mean new clothes, not props |
+| Downed and dead bodies (2026-11-14) | A downed player falls onto their back, lies writhing on the floor, and crawls on their back pushing with their feet, turned so they go head first the way they move; a dead player lies still. Every body moves on the spot (the server moves the player); clips are Mixamo's "Knocked Out" (falling to back, its first 2.7 s), "Writhing In Pain", "Crawl Backwards" and "Dying" | The first set mixed a fall onto the stomach, a lying idle made for a bed 1 m up and a crawl on hands and knees, so the body flipped and floated (found in the 2-player test) |
+| Character downloads (2026-11-14) | A character is downloaded only once someone in your night has been dealt it (6 to 11 MB each, the 9 animations 0.6 MB); until it arrives the player shows as the plain shadow body. Textures stay UASTC at 2048 px (hair 1024) | Keeps the hotel's loading time as it was; quality kept (Texture quality above) |
+| Unrecognised players (2026-11-14) | A model is darkened toward the shadow colour until recognised (22.2) and shows its own colours once recognised; the name floats above the head | 22.2 with real models instead of a coloured capsule |
+| Recorded sounds (2026-11-14) | CC0 recordings from Freesound picked by Claude and downloaded by the owner (no Sonniss bundles): a room tone, a distant rumble and wind as quiet loops, and five creaks heard now and then | Owner's choice; Freesound's real recordings over an AI-made pack |

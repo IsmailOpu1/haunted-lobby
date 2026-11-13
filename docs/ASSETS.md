@@ -127,6 +127,34 @@ Source files in `assets-src/textures/<id>/` (2K JPG).
 | `rough_pine_door` | Rough Pine Door | Dimitrios Savva | Staff Quarters floorboards, Storage boarding (and, as `cellar_oak`, the Wine Cellar and Stairwell woodwork, wine racks and tasting table and the Storage shelves: darkened by `tools/art/tint-texture.ts`; and, as `door_relic_pine`, the relic door: stained by `tools/art/door-textures.ts`) |
 | `rusty_metal_02` | Rusty Metal 02 | Rob Tuytel | The doors' hinges, straps, studs and brass (as `door_rust_iron` and `door_old_brass`, made by `tools/art/door-textures.ts`), and, as `rusty_metal_dark`, old iron in the rooms (darkened by `tools/art/tint-texture.ts`) |
 
+## Characters and animations (Mixamo, Adobe)
+
+Downloaded from mixamo.com (Adobe account, free) on 2026-11-13 and 2026-11-14 into `assets-src/characters/mixamo` (not in git); built with their props by `tools/art/blender/build_character.py` and packed by `tools/art/build-characters.ts` into `client/public/assets/characters`. Adobe's Mixamo terms let characters and animations be used royalty-free in games and other projects, commercial or not; the raw files themselves must not be shared on their own (they are not in git and the game ships them only inside its built models).
+
+| File | Mixamo name | Used as |
+|---|---|---|
+| `joe.fbx` | Joe | The Priest (`priest.glb`) |
+| `elizabeth.fbx` | Elizabeth | The Journalist (`journalist.glb`) |
+| `suzie.fbx` | Suzie | The Nurse (`nurse.glb`) |
+| `bryce.fbx` | Bryce | The Student (`student.glb`) |
+| `brian.fbx` | Brian | The Detective (`detective.glb`) |
+| `kate.fbx` | Kate | The Photographer (`photographer.glb`) |
+| `pete.fbx` | Pete | The Mechanic (`mechanic.glb`) |
+| `megan.fbx` | Megan | The Caretaker (`caretaker.glb`) |
+| `anim-idle.fbx` | Breathing Idle | `idle` in `anims.glb` |
+| `anim-walk.fbx` | Male Standard Walk | `walk` |
+| `anim-run.fbx` | Running (forward, quickly) | `run` |
+| `anim-crouch-idle.fbx` | Low Crouching Idle | `crouch-idle` |
+| `anim-crouch-walk.fbx` | Crouched Walk | `crouch-walk` |
+| `anim-knocked-out-back.fbx` | Knocked Out (falling to back) | `knocked-down` |
+| `anim-writhing.fbx` | Writhing In Pain | `downed-idle` |
+| `anim-crawl-back.fbx` | Crawl Backwards (in fear) | `crawl` |
+| `anim-dying.fbx` | Dying (laying on the ground) | `dying` |
+
+Downloaded but not used (replaced, GDD 26.15): `anim-crawl.fbx`, `anim-downed-idle.fbx`, `anim-knocked-down.fbx`.
+
+The props on each character (stole, crosses, satchel, notebook, cap, bags, backpack, fedora, magnifier, box camera, toolbox, apron, lantern) are made for this project by the same script.
+
 ## Made for this project
 
 No outside licence; part of this project.
@@ -167,4 +195,15 @@ No outside licence; part of this project.
 
 ## Sounds
 
-None yet (step 3: Sonniss free bundles and CC0 Freesound sounds, each listed here with its link).
+Most sounds are made in code (`client/src/audio.ts`). The ambience and the house creaks are recordings from Freesound, each checked as **CC0** on its page on 2026-11-14 (no credit required, credited here anyway). Source files in `assets-src/audio/`; `tools/audio/prepare_sounds.py` makes the game files in `client/public/assets/sounds/` (loops and trimmed one-shots, 16-bit WAV).
+
+| Game file | Freesound sound | Author | Used for |
+|---|---|---|---|
+| `room-tone.wav` | [room small night](https://freesound.org/people/Yuval/sounds/210091/) | Yuval | Ambience: an old room at night (a 30 s loop) |
+| `rumble.wav` | [Bass Rumble In The Distance](https://freesound.org/people/BrainClaim/sounds/273805/) | BrainClaim | Ambience: a distant low rumble (a 40 s loop) |
+| `wind.wav` | [Strong Winds inside house 01](https://freesound.org/people/khenshom/sounds/623604/) | khenshom | Ambience: wind behind the walls (a 36 s loop) |
+| `creak-1.wav` | [Wood Creak Single V1](https://freesound.org/people/Rudmer_Rotteveel/sounds/502505/) | Rudmer_Rotteveel | The house creaking |
+| `creak-2.wav` | [Wood Creak Single V2](https://freesound.org/people/Rudmer_Rotteveel/sounds/502504/) | Rudmer_Rotteveel | The house creaking |
+| `creak-3.wav` | [Wood Creak Single V3](https://freesound.org/people/Rudmer_Rotteveel/sounds/502511/) | Rudmer_Rotteveel | The house creaking |
+| `creak-4.wav` | [creaking floor OWI](https://freesound.org/people/miekyj/sounds/326460/) | miekyj | The house creaking |
+| `creak-5.wav` | [Creaking in Room 6](https://freesound.org/people/Greg_Surr/sounds/590169/) | Greg_Surr | The house creaking |

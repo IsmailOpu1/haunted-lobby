@@ -38,7 +38,7 @@ export const config = {
   interact: { rangeM: 2, reviveRangeM: 1.5, hideRangeM: 1.5 },
   health: { reviveSec: 5, bleedOutSec: 30, postReviveImmunitySec: 3 },
   // coneHalfAngleDeg: how wide the beam is, for what it lights (the client's beam and a possessed's glowing eyes).
-  flashlight: { coneM: 12, coneHalfAngleDeg: 26, darkVisionM: 2, flickerGhostM: 15, deadGhostM: 5, deadSec: 2 },
+  flashlight: { coneM: 12, coneHalfAngleDeg: 26, darkVisionM: 2, nameRevealM: 10, flickerGhostM: 15, deadGhostM: 5, deadSec: 2 },
   camera: {
     shotsPerPlayer: 1,
     shotOptions: [0, 1, 2, 3],

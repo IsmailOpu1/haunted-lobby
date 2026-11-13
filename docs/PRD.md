@@ -562,7 +562,7 @@ export const config = {
     hideEnterExitSec: 1, breathHoldSec: 6, breathCooldownSec: 12,
   },
   health: { reviveSec: 5, bleedOutSec: 30, postReviveImmunitySec: 3 },
-  flashlight: { coneM: 12, darkVisionM: 2, flickerGhostM: 15, deadGhostM: 5, deadSec: 2 },
+  flashlight: { coneM: 12, darkVisionM: 2, nameRevealM: 10, flickerGhostM: 15, deadGhostM: 5, deadSec: 2 },
   camera: {
     shotsPerPlayer: 1, shotOptions: [0, 1, 2, 3],
     curseGlowSec: 10, captureRangeM: 10,

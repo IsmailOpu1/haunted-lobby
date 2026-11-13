@@ -1,5 +1,5 @@
-// Keyboard and mouse for first-person play (GDD Section 6).
-// Remapping comes with the accessibility options (Phase 8).
+// Keyboard and mouse for first-person play (GDD Section 6). Keys are remappable (keys.ts, GDD 23).
+import { KEY_ACTIONS, keys, type KeyAction } from "./keys.ts";
 
 /**
  * Mouse sensitivity uses the standard scale of Counter-Strike and other Source games: each count
@@ -69,7 +69,7 @@ export interface InputActions {
 }
 
 /** Keys that walk: pressing one while working stops the work. */
-const MOVE_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD"]);
+const MOVE_ACTIONS: readonly KeyAction[] = ["forward", "back", "left", "right"];
 
 export class PlayerInput {
   yaw = 0;
@@ -92,34 +92,35 @@ export class PlayerInput {
     window.addEventListener("keydown", (e) => {
       actions.onUserGesture();
       this.keys.add(e.code);
-      // Tab would otherwise move focus to the room panel's buttons.
-      if (e.code === "Tab" && this.looking) e.preventDefault();
+      const is = (action: KeyAction) => keys.is(e.code, action);
+      // Tab, Space and the like would otherwise move focus or scroll while you play.
+      if (this.looking && e.code !== "Escape" && KEY_ACTIONS.some(({ action }) => is(action))) e.preventDefault();
       if (!this.looking || e.repeat) return;
-      if (e.code === "Tab") actions.onStatusPanel(true);
+      if (is("status")) actions.onStatusPanel(true);
       if (this.working) {
-        if (e.code === "KeyE" || MOVE_KEYS.has(e.code)) actions.onStopWork();
-        if (e.code === "Digit1") actions.onFlashlight();
+        if (is("use") || MOVE_ACTIONS.some(is)) actions.onStopWork();
+        if (is("flashlight")) actions.onFlashlight();
         return;
       }
-      if (e.code === "KeyR") actions.onPowerWheel("open");
-      if (e.code === "Space") actions.onFloorKey(1);
-      if (e.code === "KeyC") actions.onFloorKey(-1);
-      if (e.code === "KeyG") actions.onDropRelic();
-      if (e.code === "KeyE") actions.onUse(true);
-      if (e.code === "Digit1") actions.onFlashlight();
-      if (e.code === "Digit2") {
+      if (is("powers")) actions.onPowerWheel("open");
+      if (is("floatUp")) actions.onFloorKey(1);
+      if (is("crouch")) actions.onFloorKey(-1);
+      if (is("drop")) actions.onDropRelic();
+      if (is("use")) actions.onUse(true);
+      if (is("flashlight")) actions.onFlashlight();
+      if (is("camera")) {
         this.cameraRaised = !this.cameraRaised;
         actions.onCameraToggle(this.cameraRaised);
       }
-      if (e.code === "Digit3") actions.onPourSalt();
+      if (is("salt")) actions.onPourSalt();
       if (e.code === "KeyL") actions.onToggleDebugLights();
       if (e.code === "KeyK") actions.onToggleGhost();
     });
     window.addEventListener("keyup", (e) => {
       this.keys.delete(e.code);
-      if (e.code === "KeyE") actions.onUse(false);
-      if (e.code === "Tab") actions.onStatusPanel(false);
-      if (e.code === "KeyR" && this.wheelOpen) actions.onPowerWheel("use");
+      if (keys.is(e.code, "use")) actions.onUse(false);
+      if (keys.is(e.code, "status")) actions.onStatusPanel(false);
+      if (keys.is(e.code, "powers") && this.wheelOpen) actions.onPowerWheel("use");
     });
     window.addEventListener("blur", () => {
       this.keys.clear();
@@ -206,12 +207,12 @@ export class PlayerInput {
   /** The movement keys held right now. Nothing counts while the mouse is not captured. */
   movement() {
     if (!this.looking || this.working) return { forward: 0, right: 0, run: false, crouch: false };
-    const k = this.keys;
+    const held = (action: KeyAction) => [...this.keys].some((code) => keys.is(code, action));
     return {
-      forward: (k.has("KeyW") ? 1 : 0) - (k.has("KeyS") ? 1 : 0),
-      right: (k.has("KeyD") ? 1 : 0) - (k.has("KeyA") ? 1 : 0),
-      run: k.has("ShiftLeft") || k.has("ShiftRight"),
-      crouch: k.has("KeyC"),
+      forward: (held("forward") ? 1 : 0) - (held("back") ? 1 : 0),
+      right: (held("right") ? 1 : 0) - (held("left") ? 1 : 0),
+      run: held("run"),
+      crouch: held("crouch"),
     };
   }
 }
