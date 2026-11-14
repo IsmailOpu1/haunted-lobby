@@ -1049,6 +1049,7 @@ export class Game {
   private applyQuality(level: QualityLevel) {
     this.post.setQuality(level);
     this.dressed.setLowQuality(level === "low");
+    this.remotes.setLowQuality(level === "low");
     this.resize();
   }
 
