@@ -37,6 +37,7 @@ import { WispsView } from "./wispsView.ts";
 import { SoundScape } from "./audio.ts";
 import { directionTo, roundDirection } from "./cues.ts";
 import { BeamAdaptation, createFlashlight } from "./flashlight.ts";
+import { SpeedTest } from "./speedTest.ts";
 import { Flicker } from "./flicker.ts";
 import { comfort } from "./comfort.ts";
 import { playerStepKind, StepTracker } from "./footsteps.ts";
@@ -328,6 +329,10 @@ export class Game {
   /** Auto quality's measurement: seconds watched and frames drawn (null once it has chosen). */
   private autoQuality: { seconds: number; frames: number } | null = null;
   private fps = { shown: false, seconds: 0, frames: 0 };
+  /** The quality drawn now, and the speed test while one runs (speedTest). */
+  private level: QualityLevel = "high";
+  private speed: SpeedTest | null = null;
+  private stopSpeed: (() => void) | null = null;
   private flicker = new Flicker();
   private beamAdapt: BeamAdaptation;
   private sound = new SoundScape();
@@ -996,12 +1001,14 @@ export class Game {
         this.accumulator -= SIM_DT;
         if (!this.ended) this.simulateStep();
       }
-      this.updateCamera(dt);
+      if (!this.speed) this.updateCamera(dt);
     }
     this.updateHands(dt);
     const now = performance.now();
     for (const door of this.doors.values()) door.update(dt);
     this.dressed.update(dt);
+    this.speed?.place();
+    if (this.speed) this.flashlight.light.visible = true; // a match is played by torchlight
     const eye = this.camera.position;
     this.camera.updateMatrixWorld();
     this.view.setFromProjectionMatrix(this.viewMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
@@ -1041,8 +1048,62 @@ export class Game {
     this.lightBudget.update();
     this.heldCamera.position.copy(this.camera.position);
     this.heldCamera.quaternion.copy(this.camera.quaternion);
+    this.speed?.beginDraw();
     this.post.render(now / 1000);
+    this.speed?.endDraw();
+    this.speed?.frame(dt);
     this.measureFrame(dt);
+  }
+
+  /**
+   * The speed test (Options, speedTest.ts): the camera visits the busiest views at Low and High and
+   * the frames are timed. say hears its progress; the answer is the result as text. Afterwards the
+   * camera, the torch and the quality are put back.
+   */
+  async speedTest(say: (text: string) => void): Promise<string> {
+    if (this.speed) return "A speed test is already running.";
+    const camera = this.camera;
+    const was = { position: camera.position.clone(), rotation: camera.rotation.clone(), torch: this.flashlight.light.visible, auto: this.autoQuality, level: this.level };
+    this.autoQuality = null;
+    const test = new SpeedTest(
+      {
+        renderer: this.renderer,
+        camera,
+        spots: () =>
+          this.map.rooms.map((r) => {
+            const at = this.place({ x: (r.minX + r.maxX) / 2, z: (r.minZ + r.maxZ) / 2 });
+            return { name: r.name, x: at.x, y: at.y + this.eyeHeight, z: at.z };
+          }),
+        drawOnce: () => {
+          camera.updateMatrixWorld();
+          this.view.setFromProjectionMatrix(this.viewMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+          this.dressed.showFloorsNear(camera.position.x, camera.position.y - this.eyeHeight, camera.position.z, { view: this.view, eye: camera.position });
+          this.post.render(performance.now() / 1000);
+        },
+        setLevel: (level) => this.applyQuality(level),
+        busy: () => this.dressed.makingLighter,
+      },
+      say,
+    );
+    this.speed = test;
+    this.stopSpeed = () => test.stop();
+    void test.scan();
+    try {
+      return await test.finished;
+    } finally {
+      this.speed = null;
+      this.stopSpeed = null;
+      camera.position.copy(was.position);
+      camera.rotation.copy(was.rotation);
+      this.flashlight.light.visible = was.torch;
+      this.applyQuality(was.level);
+      this.autoQuality = was.auto;
+    }
+  }
+
+  /** Stops a speed test that is running (Esc). */
+  stopSpeedTest() {
+    this.stopSpeed?.();
   }
 
   /**
@@ -1056,6 +1117,7 @@ export class Game {
   }
 
   private applyQuality(level: QualityLevel) {
+    this.level = level;
     this.post.setQuality(level);
     this.dressed.setLowQuality(level === "low");
     this.remotes.setLowQuality(level === "low");

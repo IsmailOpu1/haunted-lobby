@@ -809,6 +809,29 @@ el("keys-reset").addEventListener("click", () => {
   drawKeyRows();
 });
 
+// The speed test (speedTest.ts): Esc stops it; the result stays in Options to copy.
+const speedBtn = el<HTMLButtonElement>("speed-test");
+const speedBanner = el("speed-banner");
+speedBtn.addEventListener("click", async () => {
+  if (!game) return void (el("speed-test-note").textContent = "Wait for the hotel to finish loading.");
+  if (document.body.classList.contains("in-room")) return void (el("speed-test-note").textContent = "Leave the room first: the test moves the camera round the hotel.");
+  const stopOnEsc = (e: KeyboardEvent) => e.code === "Escape" && game?.stopSpeedTest();
+  window.addEventListener("keydown", stopOnEsc);
+  document.body.classList.add("speed-testing");
+  speedBanner.classList.remove("hidden");
+  const say = (text: string) => (speedBanner.textContent = `${text}   (Esc stops)`);
+  say("Starting…");
+  const result = await game.speedTest(say);
+  window.removeEventListener("keydown", stopOnEsc);
+  document.body.classList.remove("speed-testing");
+  speedBanner.classList.add("hidden");
+  el("speed-result-text").textContent = result;
+  el("speed-result").classList.remove("hidden");
+});
+el("speed-copy").addEventListener("click", () => {
+  void navigator.clipboard?.writeText(el("speed-result-text").textContent ?? "").then(() => (el("speed-copy").textContent = "Copied"));
+});
+
 showFpsInput.checked = stored("showFps") === "1";
 game?.setFpsCounter(showFpsInput.checked);
 showFpsInput.addEventListener("change", () => {

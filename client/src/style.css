@@ -222,6 +222,35 @@ button.mute {
   accent-color: var(--accent);
 }
 
+/* The speed test (Options): the menus step aside, a line at the top says how far it is. */
+body.speed-testing .screen {
+  display: none;
+}
+#speed-banner {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  padding: 6px 12px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: #ece6d8;
+  background: rgba(10, 9, 12, 0.75);
+}
+#speed-result pre {
+  max-height: 260px;
+  overflow: auto;
+  margin: 0 0 8px;
+  padding: 10px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  color: var(--paper);
+  background: rgba(236, 230, 216, 0.05);
+  border: 1px solid var(--line);
+}
+
 #fps {
   position: fixed;
   top: 10px;
