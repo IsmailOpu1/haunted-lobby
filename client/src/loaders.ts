@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
+import { type StreamGroup, TextureStream } from "./textureStream.ts";
 
 // Loaders for the built art (tools/art): glTF with KTX2 textures and Meshopt-compressed meshes.
 
@@ -38,8 +39,12 @@ export interface ModelLoaders {
   expect(files: Record<string, number>): void;
   /** Ends the loading bar (files that failed to load still end it). */
   finishProgress(): void;
-  /** Stops the texture workers once everything is loaded. */
+  /** Stops the texture workers once everything is loaded (the streamed room textures too). */
   dispose(): void;
+  /** The rooms' textures, which arrive after the match can start (textureStream.ts). */
+  stream: TextureStream;
+  /** A loader for one room: its textures are stand-ins until the stream brings them. */
+  roomLoader(group: StreamGroup): GLTFLoader;
 }
 
 export function modelLoaders(renderer: THREE.WebGLRenderer, lowTextures: boolean, onProgress?: LoadProgress): ModelLoaders {
@@ -77,5 +82,12 @@ export function modelLoaders(renderer: THREE.WebGLRenderer, lowTextures: boolean
   });
   const ktx2 = new KTX2Loader(manager).setTranscoderPath(TRANSCODER).detectSupport(renderer);
   const gltf = new GLTFLoader(manager).setKTX2Loader(ktx2).setMeshoptDecoder(MeshoptDecoder);
-  return { gltf, ktx2, manager, lowTextures, roomVersions, expect, finishProgress, dispose: () => ktx2.dispose() };
+  const stream = new TextureStream();
+  const roomLoader = (group: StreamGroup) => {
+    const loader = new GLTFLoader(manager).setKTX2Loader(ktx2).setMeshoptDecoder(MeshoptDecoder);
+    // Ahead of the loader's own KTX2 handling, so it is asked first.
+    (loader as unknown as { pluginCallbacks: unknown[] }).pluginCallbacks.unshift(stream.plugin(group));
+    return loader;
+  };
+  return { gltf, ktx2, manager, lowTextures, roomVersions, expect, finishProgress, dispose: () => ktx2.dispose(), stream, roomLoader };
 }

@@ -13,6 +13,10 @@ function serverUrl(): string {
 
 const client = new Client(serverUrl());
 
+// The free online server sleeps when nobody has played for a while and takes up to a minute to
+// wake. Knock as soon as the page opens, so it is awake by the time the hotel has loaded.
+fetch(`${serverUrl().replace(/^ws/, "http")}/health`, { mode: "no-cors", cache: "no-store" }).catch(() => {});
+
 export function createRoom(options: JoinOptions): Promise<Room> {
   return client.create(ROOM_NAME, options);
 }

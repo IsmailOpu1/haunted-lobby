@@ -202,9 +202,11 @@ function showBanner(text: string, seconds: number) {
   bannerTimer = setTimeout(() => banner.classList.add("hidden"), seconds * 1000);
 }
 
-// Textures are chosen when the game loads: the 1K set on Low (or when Auto chose Low before).
+// Textures are chosen when the game loads: the 1K set on Low, and on Auto unless it has found this
+// computer fast enough for High before. So a first visit downloads the smaller set (owner,
+// 2026-11-14), and a fast computer gets the sharp one from its next visit on.
 const savedQualityAtLoad = stored("quality") ?? "auto";
-const lowTextures = savedQualityAtLoad === "low" || (savedQualityAtLoad === "auto" && stored("autoQuality") === "low");
+const lowTextures = savedQualityAtLoad === "low" || (savedQualityAtLoad === "auto" && stored("autoQuality") !== "high");
 // The hotel downloads in the background (hundreds of megabytes the first time): the menus, Create,
 // Join and the lobby work meanwhile, and Ready, Start and Walk wait for it (PRD 9, load time).
 const worldLoad = el("world-load");

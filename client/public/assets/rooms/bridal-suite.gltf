@@ -10979,7 +10979,7 @@
     {
       "name": "dark_wood_rough_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/ad3a9f1a7d0688475c86.ktx2"
+      "uri": "../textures/bbc6042c526a2aa3922b.ktx2"
     },
     {
       "name": "scrubbed_wood_diff_2k",
@@ -10999,7 +10999,7 @@
     {
       "name": "satin_ivory_rough_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/9e68f0d3dd07c0a75e8d.ktx2"
+      "uri": "../textures/49bdf02f7fc6ed7aed58.ktx2"
     },
     {
       "name": "terlenka_nor_gl_2k",
@@ -11014,7 +11014,7 @@
     {
       "name": "terlenka_rough_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/cba4df48cfe207afca2e.ktx2"
+      "uri": "../textures/9638a239300ed971c497.ktx2"
     },
     {
       "name": "worn_cracked_plaster_nor_gl_2k",
@@ -11029,7 +11029,7 @@
     {
       "name": "worn_cracked_plaster_rough_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/327a0d1dd6542223ece6.ktx2"
+      "uri": "../textures/47a81e8083ab2c6fc855.ktx2"
     },
     {
       "name": "ClassicNightstand_01_nor_gl_2k",
@@ -11044,7 +11044,7 @@
     {
       "name": "ClassicNightstand_01_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/7c474cc2d01c690c7553.ktx2"
+      "uri": "../textures/91996a1ef3fabc2886f4.ktx2"
     },
     {
       "name": "antique_ceramic_vase_01_nor_gl_2k",
@@ -11059,7 +11059,7 @@
     {
       "name": "antique_ceramic_vase_01_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/f6cbb1d599f14e141f0c.ktx2"
+      "uri": "../textures/cb8f0b090e58b691e1a8.ktx2"
     },
     {
       "name": "wooden_candlestick_nor_gl_2k",
@@ -11074,7 +11074,7 @@
     {
       "name": "wooden_candlestick_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/063d344d4defee24d462.ktx2"
+      "uri": "../textures/6258c0f8c8a08bc7f71c.ktx2"
     },
     {
       "name": "vintage_suitcase_01_nor_gl_2k",
@@ -11089,7 +11089,7 @@
     {
       "name": "vintage_suitcase_01_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/7fd292c6ea2d330721b8.ktx2"
+      "uri": "../textures/25e3bb5bc580e1342be9.ktx2"
     },
     {
       "name": "vintage_suitcase_02_nor_gl_2k",
@@ -11104,7 +11104,7 @@
     {
       "name": "vintage_suitcase_02_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/bd08a1cdd80de6d9a870.ktx2"
+      "uri": "../textures/0d5b4c151b35a3cc28b6.ktx2"
     },
     {
       "name": "fancy_picture_frame_02_nor_gl_2k",
@@ -11119,7 +11119,7 @@
     {
       "name": "fancy_picture_frame_02_rough_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/8546e774350cd0ca9945.ktx2"
+      "uri": "../textures/9ec7b4e0a917940a2875.ktx2"
     },
     {
       "name": "fancy_picture_frame_02_canvas_nor_gl_2k",
@@ -11134,7 +11134,7 @@
     {
       "name": "fancy_picture_frame_02_canvas_rough_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/31103475fe2ea9455d59.ktx2"
+      "uri": "../textures/8e5ae16ae08232d9d954.ktx2"
     },
     {
       "name": "sofa_03_nor_gl_2k",
@@ -11149,7 +11149,7 @@
     {
       "name": "sofa_03_rough_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/c07d1dbcbbf03d9f0977.ktx2"
+      "uri": "../textures/70dde8fa7bd094f9d803.ktx2"
     },
     {
       "name": "sofa_03_diff_2k",
@@ -11169,7 +11169,7 @@
     {
       "name": "gothic_coffee_table_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/8ae3603f3ba8a977ce2b.ktx2"
+      "uri": "../textures/389af5a32963147c7d59.ktx2"
     },
     {
       "name": "tea_set_01_nor_gl_2k",
@@ -11184,7 +11184,7 @@
     {
       "name": "tea_set_01_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/e4171611ac51cb42c93c.ktx2"
+      "uri": "../textures/0d17ea00d089ec203492.ktx2"
     },
     {
       "name": "Sofa_01_nor_gl_2k",
@@ -11199,7 +11199,7 @@
     {
       "name": "Sofa_01_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/84ef38c480123904dd88.ktx2"
+      "uri": "../textures/351ad46376063a607e52.ktx2"
     },
     {
       "name": "ClassicConsole_01_nor_gl_2k",
@@ -11214,62 +11214,62 @@
     {
       "name": "ClassicConsole_01_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/676b58892bfd004a9ee6.ktx2"
+      "uri": "../textures/d4d6fa41fcc96b671acf.ktx2"
     },
     {
       "name": "brass_candleholders_01_nor_gl_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/2464a006e995df373e06.ktx2"
+      "uri": "../textures/84363ef44b96b6e5f3cd.ktx2"
     },
     {
       "name": "brass_candleholders_01_diff_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/aa5cc39001c8f8b7234d.ktx2"
+      "uri": "../textures/bce6e29b2bd3b4172938.ktx2"
     },
     {
       "name": "brass_candleholders_01_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/2b2179bba7fa5c69eac2.ktx2"
+      "uri": "../textures/0286f6eb4d07dabe7953.ktx2"
     },
     {
       "name": "brass_candleholders_flame_diff_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/f3a745895d7dd7ce0d1b.ktx2"
+      "uri": "../textures/3b20701c1bfec85dad10.ktx2"
     },
     {
       "name": "brass_candleholders_flame_diff_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/87f5cade2496653dba74.ktx2"
+      "uri": "../textures/3b705189c44098083aa7.ktx2"
     },
     {
       "name": "brass_candleholders_02_nor_gl_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/a5ff68550f9d38392a40.ktx2"
+      "uri": "../textures/c8856e641207c303c0d4.ktx2"
     },
     {
       "name": "brass_candleholders_02_diff_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/597ed20d9719498d1418.ktx2"
+      "uri": "../textures/8016737c147dcc01e7c0.ktx2"
     },
     {
       "name": "brass_candleholders_02_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/ebe60e62d2d74702626c.ktx2"
+      "uri": "../textures/b1800b4f7cc7c535b10e.ktx2"
     },
     {
       "name": "brass_candleholders_candles_nor_gl_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/18b2e55019e00cb5fb36.ktx2"
+      "uri": "../textures/d337284028cc7359ae40.ktx2"
     },
     {
       "name": "brass_candleholders_candles_diff_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/28fac520f478bb7c0e05.ktx2"
+      "uri": "../textures/f477b51752eb3564a71e.ktx2"
     },
     {
       "name": "brass_candleholders_candles_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/1997c1084076d7bb54ac.ktx2"
+      "uri": "../textures/d05a95baba8d43d4881c.ktx2"
     },
     {
       "name": "brass_candleholders_03_nor_gl_2k",
@@ -11284,7 +11284,7 @@
     {
       "name": "brass_candleholders_03_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/6ca7715f5f9957bd4bb6.ktx2"
+      "uri": "../textures/81c65423f9789e6bf603.ktx2"
     },
     {
       "name": "Chandelier_02_nor_gl_2k",
@@ -11299,7 +11299,7 @@
     {
       "name": "Chandelier_02_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/3ff46d8ec6c844d530be.ktx2"
+      "uri": "../textures/c3349791309ca46fac3b.ktx2"
     },
     {
       "name": "dirty_carpet_nor_gl_2k",
@@ -11314,7 +11314,7 @@
     {
       "name": "dirty_carpet_rough_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/215c157830e2829a508a.ktx2"
+      "uri": "../textures/776da1617509457c092c.ktx2"
     }
   ],
   "buffers": [

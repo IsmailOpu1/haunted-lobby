@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import { levelOf, toWorld, type MapData, type MapDressing } from "@haunted/shared";
 import type { ModelLoaders } from "./loaders.ts";
-import { MeshoptSimplifier } from "meshoptimizer";
+import { type LighterDone, type LighterJob, type LighterPiece, LOW_DETAIL_MIN_TRIANGLES } from "./lighter.ts";
 import { RoomSight } from "./roomSight.ts";
+import type { StreamGroup } from "./textureStream.ts";
 
 // Dressed rooms (Phase 8): rooms built and lit in Blender (tools/art/build-room.ts), with their
 // lamps baked into a lightmap. A room with no build, or whose files fail to load, stays grey boxes.
@@ -16,6 +17,11 @@ const BULB_PREFIX = "bulb_";
 const PROBE_HEIGHT_M = 1.6;
 /** Size of each face of the captured reflection cube, in pixels. */
 const PROBE_SIZE_PX = 256;
+/** While reflections are taken the fog is moved this far away (metres), so it shows in none of them. */
+const FOG_AWAY_M = 100_000;
+/** What a reflection sees: from this close to this far (metres). */
+const PROBE_NEAR_M = 0.05;
+const PROBE_FAR_M = 50;
 /**
  * On Low quality, glass that bends what is behind it (bottles, spectacles, lantern panes) is drawn
  * as plain see-through glass this solid instead: real glass makes the renderer draw the whole room
@@ -25,17 +31,6 @@ const PROBE_SIZE_PX = 256;
 const PLAIN_GLASS_ALPHA = 0.3;
 /** Plain glass's own colour is this dark (glass shows what is behind it, not a lit surface of its own). */
 const PLAIN_GLASS_SHADE = 0.3;
-/**
- * On Low quality, a piece this detailed or more (triangles) is drawn from a lighter copy: the
- * free models are made for close-ups (a candlestick of 20,000 triangles), and a laptop can't draw
- * the hotel's millions. The copy keeps about this share of the triangles, and its surface stays
- * within this share of the piece's size of the original (1% of a 20 cm candlestick is 2 mm).
- */
-const LOW_DETAIL_MIN_TRIANGLES = 1500;
-const LOW_DETAIL_SHARE = 0.25;
-const LOW_DETAIL_ERROR = 0.01;
-/** A lighter copy is only kept if it saves at least this share of the triangles. */
-const LOW_DETAIL_WORTH = 0.3;
 /** Something that moves (a door) takes its light from a room's probe no further away than this. */
 const MOVABLE_PROBE_RANGE_M = 20;
 /** A probe is on the same floor as a thing whose floor is within this of the probe's floor. */
@@ -56,6 +51,27 @@ interface ManifestEntry {
   rooms?: string[];
   /** Every file the room downloads (paths under assets/, textures in both sets) → bytes. */
   files?: Record<string, number>;
+}
+
+/** How many jobs of detailed pieces the lighter-copy worker is given at once. */
+const LIGHTER_JOBS_AT_ONCE = 2;
+
+/** Detailed pieces waiting for their lighter copies: one on its own, or a batch's (by instance). */
+type Lighten = (
+  | { mesh: THREE.Mesh }
+  | {
+      batch: { mesh: THREE.BatchedMesh; vertices: number; indices: number };
+      pieces: { geometry: THREE.BufferGeometry; full: number; instances: number[] }[];
+    }
+) & { sent?: THREE.BufferGeometry[] };
+
+/** A build, the height of its floor, the space it fills, the map rooms it covers, and whether it has stairs. */
+interface BuiltFloor {
+  obj: THREE.Object3D;
+  y: number;
+  box: THREE.Box3;
+  rooms: string[];
+  stairs: boolean;
 }
 
 interface Dimmable {
@@ -83,6 +99,15 @@ export class DressedRooms {
   /** Pieces with a lighter copy for Low quality: in a batch (by instance) or on their own. */
   private lighter: { batch: THREE.BatchedMesh; instance: number; full: number; low: number }[] = [];
   private lighterSingles: { mesh: THREE.Mesh; full: THREE.BufferGeometry; low: THREE.BufferGeometry }[] = [];
+  /** Detailed pieces whose lighter copies are made once Low is first chosen (lighter.ts). */
+  private toLighten: Lighten[] = [];
+  /** Each detailed piece's lighter copy once made (null: it has none). */
+  private lowOf = new Map<THREE.BufferGeometry, THREE.BufferGeometry | null>();
+  private lighterWorker: Worker | null = null;
+  /** Jobs sent to the worker and not yet answered, by id. */
+  private lightening = new Map<number, Lighten>();
+  private nextLighterJob = 0;
+  private lowQuality = false;
   private target = 1;
 
   /** Blackout turns the lamps off; fixing the fuse box turns them back on. */
@@ -91,6 +116,8 @@ export class DressedRooms {
   }
 
   update(dt: number) {
+    this.retakeStep();
+    this.sendLighterJob();
     if (this.power === this.target) return;
     const step = POWER_FADE_PER_SEC * dt;
     const diff = this.target - this.power;
@@ -106,32 +133,150 @@ export class DressedRooms {
   }
 
   /**
-   * Gives each dressed room's metal, glass and mirrors something to reflect: one snapshot of the
-   * lit room, all around, from its middle (a reflection probe). Call once the whole world is in
-   * the scene, with any light that moves (the flashlight) switched off.
+   * Gets each dressed room's metal, glass and mirrors ready to reflect: they get a blank
+   * reflection now, so their shaders are built once, with the game's, already as they will be
+   * drawn. Call once the whole world is in the scene and before anything else (players, lights
+   * that move): only what is in the scene now shows in reflections. captureReflections takes them.
    */
-  captureReflections(renderer: THREE.WebGLRenderer, scene: THREE.Scene) {
+  prepareReflections(renderer: THREE.WebGLRenderer, scene: THREE.Scene) {
     const pmrem = new THREE.PMREMGenerator(renderer);
-    const fog = scene.fog;
-    scene.fog = null;
-    for (const probe of this.probes) {
-      const target = pmrem.fromScene(scene, 0, 0.05, 50, { size: PROBE_SIZE_PX, position: probe.at });
-      this.envTargets.push(target);
-      for (const m of probe.materials) {
-        m.envMap = target.texture;
+    const blank = pmrem.fromScene(new THREE.Scene(), 0, PROBE_NEAR_M, PROBE_FAR_M, { size: PROBE_SIZE_PX });
+    this.reflect = { scene, pmrem, world: new Set(scene.children), blank };
+    for (const p of this.probes) {
+      for (const m of p.materials) {
+        m.envMap = blank.texture;
         m.envMapIntensity = this.power;
         m.needsUpdate = true;
       }
     }
-    scene.fog = fog;
-    pmrem.dispose();
   }
+
+  /**
+   * Takes every room's reflection: one snapshot of the lit room, all around, from its middle (a
+   * reflection probe). Call after prepareReflections, once the shaders are built.
+   */
+  captureReflections() {
+    this.capture(this.probes.map((_, i) => i));
+  }
+
+  /**
+   * A room's textures have all arrived (textureStream.ts). The reflections were first taken with
+   * stand-ins, so each probe is taken again, once, when every room it sees has its textures: one
+   * probe a frame (update).
+   */
+  texturesArrived(root: THREE.Object3D) {
+    this.texturesIn.add(root);
+    this.probes.forEach((_, i) => {
+      if (this.final.has(i) || this.retake.includes(i)) return;
+      if (this.seenBy(i).every((f) => this.texturesIn.has(f.obj))) this.retake.push(i);
+    });
+  }
+
+  /** Every room's textures are in (the stream has finished): any probe not yet taken again is. */
+  allTexturesArrived() {
+    for (const f of this.floors) this.texturesIn.add(f.obj);
+    this.probes.forEach((_, i) => {
+      if (!this.final.has(i) && !this.retake.includes(i)) this.retake.push(i);
+    });
+  }
+
+  /**
+   * Draws the probes given. Each shows only the rooms as lit, never another reflection (every
+   * reflection is blank while they are drawn), so each is the same whichever is drawn first.
+   */
+  private capture(indices: number[]) {
+    if (!this.reflect) return;
+    const { scene, pmrem, blank } = this.reflect;
+    const reflections = this.probes.map((p) => p.materials.map((m) => m.envMap));
+    for (const p of this.probes) for (const m of p.materials) m.envMap = blank.texture;
+    const taken = indices.map((i) => this.worldOnly(i, () => pmrem.fromScene(scene, 0, PROBE_NEAR_M, PROBE_FAR_M, { size: PROBE_SIZE_PX, position: this.probes[i]!.at })));
+    this.probes.forEach((p, n) => p.materials.forEach((m, k) => (m.envMap = reflections[n]![k]!)));
+    indices.forEach((i, n) => {
+      this.setProbe(i, taken[n]!);
+      if (this.seenBy(i).every((f) => this.texturesIn.has(f.obj))) this.final.add(i);
+    });
+  }
+
+  /** Takes the next probe waiting to be taken again, if any. */
+  private retakeStep() {
+    const probe = this.retake.shift();
+    if (probe !== undefined) this.capture([probe]);
+  }
+
+  private setProbe(i: number, target: THREE.WebGLRenderTarget) {
+    this.envTargets[i]?.dispose();
+    this.envTargets[i] = target;
+    for (const m of this.probes[i]!.materials) m.envMap = target.texture;
+  }
+
+  /**
+   * Runs draw with only the world showing, as probe i sees it: never players, or the light of
+   * anything that moves. Every light stays in the scene (unlit), and the fog stays (out of reach),
+   * so the shaders drawing it are the game's own, already built: changing either makes three build
+   * every shader again, which froze the game each time a room's textures arrived. Rooms on other
+   * floors are left out (they are behind floors and ceilings: the hotel six times over was slow),
+   * except from a room with stairs, which sees up and down them.
+   */
+  private worldOnly<T>(i: number, draw: () => T): T {
+    const { scene, world } = this.reflect!;
+    const hidden: THREE.Object3D[] = [];
+    const unlit: { light: THREE.Light; intensity: number }[] = [];
+    for (const child of scene.children) {
+      if (world.has(child)) continue;
+      child.traverse((o) => {
+        if ((o as THREE.Light).isLight) {
+          const light = o as THREE.Light;
+          unlit.push({ light, intensity: light.intensity });
+          light.intensity = 0;
+        } else if (o.visible && ((o as THREE.Mesh).isMesh || (o as THREE.Points).isPoints || (o as THREE.Line).isLine || (o as THREE.Sprite).isSprite)) {
+          hidden.push(o);
+          o.visible = false;
+        }
+      });
+    }
+    const wasShown = this.floors.map((f) => f.obj.visible);
+    const seen = new Set(this.seenBy(i));
+    for (const f of this.floors) f.obj.visible = seen.has(f);
+    const fog = scene.fog as THREE.Fog | null;
+    const fogAt = fog?.isFog ? { near: fog.near, far: fog.far } : null;
+    if (fog?.isFog) [fog.near, fog.far] = [FOG_AWAY_M, FOG_AWAY_M * 2];
+    try {
+      return draw();
+    } finally {
+      if (fog && fogAt) Object.assign(fog, fogAt);
+      this.floors.forEach((f, n) => (f.obj.visible = wasShown[n]!));
+      for (const o of hidden) o.visible = true;
+      for (const u of unlit) u.light.intensity = u.intensity;
+    }
+  }
+
+  /**
+   * The rooms (builds) probe i sees: those on the floor it is on, as well as its own; every floor
+   * from a room with stairs, which sees up and down them.
+   */
+  private seenBy(i: number): BuiltFloor[] {
+    const own = this.floors.find((f) => this.probesOf.get(f.obj)?.includes(i));
+    const feet = this.probes[i]!.at.y - PROBE_HEIGHT_M;
+    const floorY = own && !own.stairs ? this.floors.find((f) => Math.abs(f.y - feet) < SAME_FLOOR_M)?.y : undefined;
+    if (floorY === undefined) return this.floors;
+    return this.floors.filter((f) => f === own || Math.abs(f.y - floorY) < SAME_FLOOR_M);
+  }
+
+  /** What reflections are taken with: the scene, what belonged to the world, and the blank one. */
+  private reflect: { scene: THREE.Scene; pmrem: THREE.PMREMGenerator; world: Set<THREE.Object3D>; blank: THREE.WebGLRenderTarget } | null = null;
+  /** Each build's reflection probes (indices into probes). */
+  private probesOf = new Map<THREE.Object3D, number[]>();
+  /** Probes to take again, now the rooms they see have their textures; those taken with them all. */
+  private retake: number[] = [];
+  private final = new Set<number>();
+  /** Builds whose textures have all arrived. */
+  private texturesIn = new Set<THREE.Object3D>();
 
   /**
    * Lights something that moves (a door), which the baked lightmaps can't, by the nearest dressed
    * room's probe on its floor: it takes that room's lamps, and dims with them in a blackout. With no
    * dressed room near (an undressed floor) it is lit by the ambient light alone. floorY: the height
-   * of the floor it stands on. Call before captureReflections.
+   * of the floor it stands on. Call before prepareReflections.
    */
   lightMovable(obj: THREE.Object3D, x: number, floorY: number, z: number) {
     let nearest = -1;
@@ -211,7 +356,9 @@ export class DressedRooms {
       obj.material = mine;
     });
     if (missingUv) console.warn(`${rooms[0]}: ${missingUv} meshes have no lightmap UVs and will look unlit`);
+    const first = this.probes.length;
     for (const g of groups) this.probes.push(g);
+    this.probesOf.set(scene, groups.map((_, i) => first + i));
     for (const room of rooms) this.rooms.add(room);
     for (const id of drawn) this.drawn.add(id);
     this.objects.push(scene);
@@ -252,35 +399,29 @@ export class DressedRooms {
       });
       for (const meshes of groups.values()) {
         const geometries = [...new Set(meshes.map((m) => m.geometry))];
-        const lowOf = new Map<THREE.BufferGeometry, THREE.BufferGeometry>();
-        for (const g of geometries) {
-          const low = lighterCopy(g);
-          if (low) lowOf.set(g, low);
-        }
         if (meshes.length < 2) {
           const mesh = meshes[0]!;
-          const low = lowOf.get(mesh.geometry);
-          if (low) this.lighterSingles.push({ mesh, full: mesh.geometry, low });
+          if (detailed(mesh.geometry)) this.toLighten.push({ mesh });
           continue;
         }
-        const all = [...geometries, ...lowOf.values()];
-        const vertices = all.reduce((n, g) => n + g.getAttribute("position").count, 0);
-        const indices = all.reduce((n, g) => n + (g.index?.count ?? 0), 0);
+        const vertices = geometries.reduce((n, g) => n + g.getAttribute("position").count, 0);
+        const indices = Math.max(geometries.reduce((n, g) => n + (g.index?.count ?? 0), 0), 1);
         const first = meshes[0]!;
-        const batch = new THREE.BatchedMesh(meshes.length, vertices, Math.max(indices, 1), first.material as THREE.Material);
+        const batch = new THREE.BatchedMesh(meshes.length, vertices, indices, first.material as THREE.Material);
         batch.name = `batch_${first.name}`;
         batch.castShadow = first.castShadow;
         batch.receiveShadow = first.receiveShadow;
         batch.renderOrder = first.renderOrder;
-        const ids = new Map<THREE.BufferGeometry, number>();
-        for (const g of all) ids.set(g, batch.addGeometry(g));
+        const pieces = new Map<THREE.BufferGeometry, { geometry: THREE.BufferGeometry; full: number; instances: number[] }>();
+        for (const g of geometries) pieces.set(g, { geometry: g, full: batch.addGeometry(g), instances: [] });
         for (const mesh of meshes) {
-          const full = ids.get(mesh.geometry)!;
-          const id = batch.addInstance(full);
+          const piece = pieces.get(mesh.geometry)!;
+          const id = batch.addInstance(piece.full);
           batch.setMatrixAt(id, local.multiplyMatrices(inverse, mesh.matrixWorld));
-          const low = lowOf.get(mesh.geometry);
-          if (low) this.lighter.push({ batch, instance: id, full, low: ids.get(low)! });
+          piece.instances.push(id);
         }
+        const heavy = [...pieces.values()].filter((p) => detailed(p.geometry));
+        if (heavy.length) this.toLighten.push({ batch: { mesh: batch, vertices, indices }, pieces: heavy });
         for (const mesh of meshes) mesh.removeFromParent();
         root.add(batch);
       }
@@ -292,9 +433,72 @@ export class DressedRooms {
    * detailed pieces. High: everything as it was made.
    */
   setLowQuality(low: boolean) {
+    this.lowQuality = low;
     this.setPlainGlass(low);
     for (const l of this.lighter) l.batch.setGeometryIdAt(l.instance, low ? l.low : l.full);
     for (const l of this.lighterSingles) l.mesh.geometry = low ? l.low : l.full;
+    if (low && !this.lighterWorker && this.toLighten.length && typeof Worker !== "undefined") {
+      this.lighterWorker = new Worker(new URL("./lighterWorker.ts", import.meta.url), { type: "module" });
+      this.lighterWorker.onmessage = (e: MessageEvent<LighterDone>) => this.lighterDone(e.data);
+    }
+  }
+
+  /** Gives the worker the next detailed pieces: a job a frame, at most LIGHTER_JOBS_AT_ONCE unanswered. */
+  private sendLighterJob() {
+    if (!this.lighterWorker || this.lightening.size >= LIGHTER_JOBS_AT_ONCE) return;
+    const job = this.toLighten.shift();
+    if (!job) {
+      if (!this.lightening.size) {
+        this.lighterWorker.terminate();
+        this.lighterWorker = null;
+      }
+      return;
+    }
+    const geometries = "mesh" in job ? [job.mesh.geometry] : job.pieces.map((p) => p.geometry);
+    job.sent = geometries.filter((g) => !this.lowOf.has(g));
+    const id = this.nextLighterJob++;
+    this.lightening.set(id, job);
+    const pieces = job.sent.map(lighterPiece);
+    const message: LighterJob = { id, pieces };
+    this.lighterWorker.postMessage(message, pieces.flatMap((p) => [p.positions.buffer, p.normals.buffer, p.indices.buffer]));
+  }
+
+  /** The worker's answer: the lighter copies are made and put in, and drawn at once on Low. */
+  private lighterDone(done: LighterDone) {
+    const job = this.lightening.get(done.id);
+    if (!job) return;
+    this.lightening.delete(done.id);
+    job.sent?.forEach((g, i) => {
+      const kept = done.kept[i];
+      this.lowOf.set(g, kept ? lighterGeometry(g, kept) : null);
+    });
+    if ("mesh" in job) {
+      const low = this.lowOf.get(job.mesh.geometry);
+      if (!low) return;
+      this.lighterSingles.push({ mesh: job.mesh, full: job.mesh.geometry, low });
+      if (this.lowQuality) job.mesh.geometry = low;
+      return;
+    }
+    const lows = job.pieces.filter((p) => this.lowOf.get(p.geometry));
+    if (!lows.length) return;
+    const { batch } = job;
+    const lowGeometries = [...new Set(lows.map((p) => this.lowOf.get(p.geometry)!))];
+    const needVertices = lowGeometries.reduce((n, g) => n + g.getAttribute("position").count, 0);
+    const needIndices = lowGeometries.reduce((n, g) => n + g.index!.count, 0);
+    if (needVertices > batch.mesh.unusedVertexCount || needIndices > batch.mesh.unusedIndexCount) {
+      batch.vertices += Math.max(0, needVertices - batch.mesh.unusedVertexCount);
+      batch.indices += Math.max(0, needIndices - batch.mesh.unusedIndexCount);
+      batch.mesh.setGeometrySize(batch.vertices, batch.indices);
+    }
+    const ids = new Map<THREE.BufferGeometry, number>();
+    for (const g of lowGeometries) ids.set(g, batch.mesh.addGeometry(g));
+    for (const p of lows) {
+      const low = ids.get(this.lowOf.get(p.geometry)!)!;
+      for (const instance of p.instances) {
+        this.lighter.push({ batch: batch.mesh, instance, full: p.full, low });
+        if (this.lowQuality) batch.mesh.setGeometryIdAt(instance, low);
+      }
+    }
   }
 
   private setPlainGlass(plain: boolean) {
@@ -312,7 +516,7 @@ export class DressedRooms {
   /** Each build with the rooms it covers, until setMap gives each its floor. */
   private built: { obj: THREE.Object3D; rooms: string[] }[] = [];
   /** Each build, the height of its floor, the space it fills, and the map rooms it covers. */
-  private floors: { obj: THREE.Object3D; y: number; box: THREE.Box3; rooms: string[] }[] = [];
+  private floors: BuiltFloor[] = [];
   private sight: RoomSight | null = null;
   /** Where the rooms in sight were last worked out, and what they were (null: between floors). */
   private sightAt = new THREE.Vector3(Infinity, 0, 0);
@@ -325,7 +529,7 @@ export class DressedRooms {
     for (const { obj, rooms } of this.built) {
       const def = map.rooms.find((r) => r.name === rooms[0]);
       const y = def ? levelOf(map, (def.minX + def.maxX) / 2, (def.minZ + def.maxZ) / 2).y : 0;
-      this.floors.push({ obj, y, box: new THREE.Box3().setFromObject(obj), rooms });
+      this.floors.push({ obj, y, box: new THREE.Box3().setFromObject(obj), rooms, stairs: false });
     }
     this.sight = new RoomSight(map);
     const end = (x: number, z: number) => {
@@ -334,7 +538,15 @@ export class DressedRooms {
     };
     for (const s of map.stairs) {
       const [ux, uz] = s.dir === "+x" ? [1, 0] : s.dir === "-x" ? [-1, 0] : s.dir === "+z" ? [0, 1] : [0, -1];
-      this.flights.push([end(s.x, s.z), end(s.x + ux * s.lengthM, s.z + uz * s.lengthM)]);
+      const ends: [number, number][] = [[s.x, s.z], [s.x + ux * s.lengthM, s.z + uz * s.lengthM]];
+      this.flights.push([end(...ends[0]!), end(...ends[1]!)]);
+      // A build with either end of the flight in one of its rooms, on its floor, has stairs.
+      for (const f of this.floors) {
+        f.stairs ||= ends.some(([x, z]) => {
+          if (Math.abs(toWorld(map, x, z).y - f.y) >= SAME_FLOOR_M) return false;
+          return map.rooms.some((r) => f.rooms.includes(r.name) && x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ);
+        });
+      }
     }
   }
 
@@ -367,14 +579,14 @@ export class DressedRooms {
   private at = new THREE.Vector3();
 }
 
-/**
- * A lighter copy of a detailed piece for Low quality (LOW_DETAIL_*), using only the corners it
- * still needs, or null if the piece is light already or simplifying would not save enough.
- */
-function lighterCopy(geometry: THREE.BufferGeometry): THREE.BufferGeometry | null {
-  const index = geometry.index;
+/** A piece detailed enough that Low quality draws a lighter copy of it (lighter.ts). */
+function detailed(geometry: THREE.BufferGeometry): boolean {
+  return !!geometry.index && geometry.index.count / 3 >= LOW_DETAIL_MIN_TRIANGLES;
+}
+
+/** A piece's corners, normals and triangles, as the worker that makes its lighter copy reads them. */
+function lighterPiece(geometry: THREE.BufferGeometry): LighterPiece {
   const position = geometry.getAttribute("position");
-  if (!index || !MeshoptSimplifier.supported || index.count / 3 < LOW_DETAIL_MIN_TRIANGLES) return null;
   const positions = new Float32Array(position.count * 3);
   for (let i = 0; i < position.count; i++) {
     positions[i * 3] = position.getX(i);
@@ -390,11 +602,14 @@ function lighterCopy(geometry: THREE.BufferGeometry): THREE.BufferGeometry | nul
       normals[i * 3 + 2] = normal.getZ(i);
     }
   }
-  const indices = Uint32Array.from({ length: index.count }, (_, i) => index.getX(i));
-  const target = Math.floor((index.count * LOW_DETAIL_SHARE) / 3) * 3;
-  const [kept] = MeshoptSimplifier.simplifyWithAttributes(indices, positions, 3, normals, 3, [0.5, 0.5, 0.5], null, target, LOW_DETAIL_ERROR);
-  if (kept.length > index.count * (1 - LOW_DETAIL_WORTH) || kept.length === 0) return null;
-  // Only the corners the lighter copy uses, in the same kinds of numbers as the original.
+  const index = geometry.index!;
+  const indices = new Uint32Array(index.count);
+  for (let i = 0; i < index.count; i++) indices[i] = index.getX(i);
+  return { positions, normals, indices };
+}
+
+/** A piece's lighter copy from the triangles it keeps: only the corners those use, in the same kinds of numbers. */
+function lighterGeometry(geometry: THREE.BufferGeometry, kept: Uint32Array): THREE.BufferGeometry {
   const remap = new Map<number, number>();
   const newIndex = new Uint32Array(kept.length);
   for (let i = 0; i < kept.length; i++) {
@@ -453,26 +668,36 @@ export async function loadDressedRooms(loaders: ModelLoaders, dressing: MapDress
   } catch {
     return result;
   }
-  const { gltf, ktx2 } = loaders;
+  const { ktx2 } = loaders;
   const base = import.meta.env.BASE_URL;
-  // The files to download, for the loading bar (loaders.ts counts each once).
-  for (const room of dressing.rooms) loaders.expect(manifest[room.room]?.files ?? {});
-  // A rebuilt room keeps its file names, so each room's files are asked for under a version (the
-  // sizes of its own files added up): a browser holding an older build fetches the new one.
-  for (const entry of Object.values(manifest)) {
-    const own = Object.entries(entry.files ?? {}).filter(([path]) => path.startsWith("rooms/"));
-    const version = own.reduce((sum, [, bytes]) => sum + bytes, 0);
-    for (const [path] of own) loaders.roomVersions.set(path, version);
+  // The files to download before the match can start, for the loading bar (loaders.ts counts each
+  // once): the models and lightmaps. Textures stream in afterwards (textureStream.ts).
+  for (const room of dressing.rooms) {
+    const files = Object.entries(manifest[room.room]?.files ?? {}).filter(([path]) => path.startsWith("rooms/"));
+    loaders.expect(Object.fromEntries(files));
   }
-  // The lighter copies for Low quality are made as the rooms are put together (DressedRooms.batch).
-  await MeshoptSimplifier.ready;
+  // A rebuilt room keeps its file names, so each room's files are asked for under a version (from
+  // every file it uses, by name and size): a browser holding an older build fetches the new one,
+  // even when only the textures it points to changed (tools/art/shrink-textures.ts) and its own
+  // files kept their sizes.
+  for (const entry of Object.values(manifest)) {
+    const files = Object.entries(entry.files ?? {});
+    let version = 5381;
+    for (const [path, bytes] of files.sort(([a], [b]) => (a < b ? -1 : 1))) {
+      for (const c of `${path}:${bytes};`) version = (Math.imul(version, 33) + c.charCodeAt(0)) >>> 0;
+    }
+    for (const [path] of files) if (path.startsWith("rooms/")) loaders.roomVersions.set(path, version);
+  }
   await Promise.all(
     dressing.rooms.map(async (room) => {
       const entry = manifest[room.room];
       if (!entry) return;
+      const group: StreamGroup = { centre: null, pending: new Set() };
       try {
-        const [model, lightmap] = await Promise.all([gltf.loadAsync(base + entry.glb), ktx2.loadAsync(base + entry.lightmap)]);
+        const [model, lightmap] = await Promise.all([loaders.roomLoader(group).loadAsync(base + entry.glb), ktx2.loadAsync(base + entry.lightmap)]);
         result.add(entry.rooms ?? [room.room], model.scene, lightmap, entry.lightmapScale, entry.drawn ?? [], room.probes);
+        group.centre = new THREE.Box3().setFromObject(model.scene).getCenter(new THREE.Vector3());
+        group.onDone = () => result.texturesArrived(model.scene);
       } catch (err) {
         console.error(`${room.room}: its dressed room failed to load, so it is drawn as grey boxes`, err);
       }
