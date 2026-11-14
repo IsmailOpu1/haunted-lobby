@@ -2438,9 +2438,9 @@
       "guest4-wardrobe-south"
     ],
     "files": {
-      "rooms/guest-room-4.gltf": 358253,
-      "rooms/guest-room-4-lightmap.ktx2": 1422191,
-      "rooms/guest-room-4.bin": 2383276,
+      "rooms/guest-room-4.gltf": 358261,
+      "rooms/guest-room-4-lightmap.ktx2": 1413084,
+      "rooms/guest-room-4.bin": 2384912,
       "textures/ff0114b41a675f429166.ktx2": 3442743,
       "textures-1k/ff0114b41a675f429166.ktx2": 263387,
       "textures/5f705b352432cd62f70c.ktx2": 4009708,
@@ -2475,12 +2475,12 @@
       "textures-1k/38839250c3bcacda10ec.ktx2": 1212728,
       "textures/1ae89a832fac0418d232.ktx2": 2286421,
       "textures-1k/1ae89a832fac0418d232.ktx2": 542813,
-      "textures/99e7f183cd805ead23fe.ktx2": 3885075,
-      "textures-1k/99e7f183cd805ead23fe.ktx2": 1077762,
-      "textures/6bdc113897d150cfb206.ktx2": 3218759,
-      "textures-1k/6bdc113897d150cfb206.ktx2": 326593,
-      "textures/cba4df48cfe207afca2e.ktx2": 3761546,
-      "textures-1k/cba4df48cfe207afca2e.ktx2": 908555,
+      "textures/d42cfeaec2229b449b6f.ktx2": 2397992,
+      "textures-1k/d42cfeaec2229b449b6f.ktx2": 597402,
+      "textures/97febfcf9dc90825231c.ktx2": 2437508,
+      "textures-1k/97febfcf9dc90825231c.ktx2": 626494,
+      "textures/663ced79121cd85deca5.ktx2": 1866223,
+      "textures-1k/663ced79121cd85deca5.ktx2": 464396,
       "textures/a48653d02ec8fb22e275.ktx2": 572225,
       "textures-1k/a48653d02ec8fb22e275.ktx2": 491855,
       "textures/84554c338f115d35bb0f.ktx2": 850902,
@@ -3022,9 +3022,9 @@
       "back-stairs"
     ],
     "files": {
-      "rooms/laundry.gltf": 371683,
-      "rooms/laundry-lightmap.ktx2": 896665,
-      "rooms/laundry.bin": 1827180,
+      "rooms/laundry.gltf": 369492,
+      "rooms/laundry-lightmap.ktx2": 813154,
+      "rooms/laundry.bin": 1819860,
       "textures/c562b7f2bf337e1d0e35.ktx2": 3326367,
       "textures-1k/c562b7f2bf337e1d0e35.ktx2": 677464,
       "textures/991ab1cdb0d772b155e8.ktx2": 3287806,
@@ -3146,9 +3146,9 @@
       "grand-stairs"
     ],
     "files": {
-      "rooms/upper-corridor.gltf": 935449,
-      "rooms/upper-corridor-lightmap.ktx2": 360246,
-      "rooms/upper-corridor.bin": 5048380,
+      "rooms/upper-corridor.gltf": 935222,
+      "rooms/upper-corridor-lightmap.ktx2": 361277,
+      "rooms/upper-corridor.bin": 5081224,
       "textures/ff0114b41a675f429166.ktx2": 3442743,
       "textures-1k/ff0114b41a675f429166.ktx2": 263387,
       "textures/7f06a6b56c0ff4ca137e.ktx2": 4511250,
@@ -3370,9 +3370,9 @@
       "cellar-stairs"
     ],
     "files": {
-      "rooms/stairwell.gltf": 364353,
-      "rooms/stairwell-lightmap.ktx2": 1201109,
-      "rooms/stairwell.bin": 1292932,
+      "rooms/stairwell.gltf": 364354,
+      "rooms/stairwell-lightmap.ktx2": 1133901,
+      "rooms/stairwell.bin": 1293024,
       "textures/dd471438c55a63fb546c.ktx2": 4446102,
       "textures-1k/dd471438c55a63fb546c.ktx2": 1069834,
       "textures/89347c15ba393d248aef.ktx2": 4279826,
@@ -3494,9 +3494,9 @@
       "wine-cupboard"
     ],
     "files": {
-      "rooms/wine-cellar.gltf": 320077,
-      "rooms/wine-cellar-lightmap.ktx2": 621791,
-      "rooms/wine-cellar.bin": 5555788,
+      "rooms/wine-cellar.gltf": 320076,
+      "rooms/wine-cellar-lightmap.ktx2": 425650,
+      "rooms/wine-cellar.bin": 5557344,
       "textures/dd471438c55a63fb546c.ktx2": 4446102,
       "textures-1k/dd471438c55a63fb546c.ktx2": 1069834,
       "textures/89347c15ba393d248aef.ktx2": 4279826,
@@ -3606,9 +3606,9 @@
       "storage-wardrobe"
     ],
     "files": {
-      "rooms/storage.gltf": 373652,
-      "rooms/storage-lightmap.ktx2": 565820,
-      "rooms/storage.bin": 3280404,
+      "rooms/storage.gltf": 373657,
+      "rooms/storage-lightmap.ktx2": 504273,
+      "rooms/storage.bin": 3279864,
       "textures/ff0114b41a675f429166.ktx2": 3442743,
       "textures-1k/ff0114b41a675f429166.ktx2": 263387,
       "textures/7f06a6b56c0ff4ca137e.ktx2": 4511250,

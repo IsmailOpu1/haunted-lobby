@@ -51,6 +51,8 @@ export interface InputActions {
   onToggleDebugLights(): void;
   /** K: send the ghost away or bring it back (debug servers only). */
   onToggleGhost(): void;
+  /** B: open the basement now, without the relics (debug servers only). */
+  onOpenBasement(): void;
   onLookChange(looking: boolean): void;
   /** Any click or key press (browsers only start sound after one). */
   onUserGesture(): void;
@@ -115,6 +117,7 @@ export class PlayerInput {
       if (is("salt")) actions.onPourSalt();
       if (e.code === "KeyL") actions.onToggleDebugLights();
       if (e.code === "KeyK") actions.onToggleGhost();
+      if (e.code === "KeyB") actions.onOpenBasement();
     });
     window.addEventListener("keyup", (e) => {
       this.keys.delete(e.code);

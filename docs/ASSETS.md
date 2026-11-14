@@ -111,7 +111,7 @@ Source files in `assets-src/textures/<id>/` (2K JPG).
 | `decrepit_wallpaper` | Decrepit Wallpaper | Rob Tuytel | Main Hall, Library and Restaurant walls, the study's chimney breast |
 | `diagonal_parquet` | Diagonal Parquet | Jenelle van Heerden, Sergej Majboroda | Ballroom floor |
 | `dirty_carpet` | Dirty Carpet | Rohit Seervi | Main Hall, Reception and Library rugs, stair runners, the luggage cart |
-| `floral_jacquard` | Floral Jacquard | colormass, Rico Cilliers | Ballroom walls (as `damask_gold`: tiled 3 by 2, its pattern's contrast raised and tinted gold by `tools/art/tint-texture.ts`, hung at three times the cloth's size; and, tinted the same way, as `damask_moss`, `damask_blue` and `damask_sage`: the Guest Room 1, Guest Room 3 and Upper Corridor walls; and as `damask_wine`, tinted wine red, the Main Hall walls) |
+| `floral_jacquard` | Floral Jacquard | colormass, Rico Cilliers | Ballroom walls (as `damask_gold`: tiled 3 by 2, its pattern's contrast raised and tinted gold by `tools/art/tint-texture.ts`, hung at three times the cloth's size; and, tinted the same way, as `damask_moss`, `damask_blue` and `damask_sage`: the Guest Room 1, Guest Room 3 and Upper Corridor walls; as `damask_plum`, the Guest Room 4 walls; and as `damask_wine`, tinted wine red, the Main Hall walls) |
 | `floor_tiles_06` | Floor Tiles 06 | Rob Tuytel | Restaurant floor |
 | `long_white_tiles` | Long White Tiles | Jenelle van Heerden, Sergej Majboroda | Kitchen wall tiles and range recess (as `long_white_tiles_laid`: turned on their sides and warmed by `tools/art/tint-texture.ts`) |
 | `herringbone_parquet` | Herringbone Parquet | Jenelle van Heerden, Sergej Majboroda | Main Hall floor |

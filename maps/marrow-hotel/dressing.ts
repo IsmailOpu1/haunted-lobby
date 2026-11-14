@@ -155,6 +155,8 @@ const DRESSER_SHELVES = [1.58, 1.894, 2.189];
 const RANGE_MANTEL_X = 22.27;
 const LANTERN_SMALL_H = 0.294;
 const LANTERN_CHAIN_BOTTOM = 2.255;
+/** A hanging lantern's light (and its glowing bulb) in the middle of its glass, not under it. */
+const LANTERN_LIGHT_Y = LANTERN_CHAIN_BOTTOM - 0.15;
 const KITCHEN_LANTERNS: [number, number][] = [
   [13.6, -3.6],
   [13.6, 2.3],
@@ -791,7 +793,7 @@ export const marrowHotelDressing: MapDressing = {
       ],
       lights: [
         // Inside the hanging lanterns.
-        ...KITCHEN_LANTERNS.map(([x, z]): DressingLight => ({ x, z, y: LANTERN_CHAIN_BOTTOM - 0.15, kelvin: 2300, watts: 60, radius: 0.04 })),
+        ...KITCHEN_LANTERNS.map(([x, z]): DressingLight => ({ x, z, y: LANTERN_LIGHT_Y, kelvin: 2300, watts: 60, radius: 0.04 })),
         // The oil lamp on the south worktop, the candle on the range's mantel.
         { x: 21.9, z: 4.15, y: WORK_TOP + 0.45, kelvin: 2300, watts: 30, radius: 0.05 },
         { x: RANGE_MANTEL_X, z: -0.6, y: RANGE_MANTEL_TOP + 0.24, kelvin: 1900, watts: 3, radius: 0.02 },
@@ -966,7 +968,7 @@ export const marrowHotelDressing: MapDressing = {
         { kind: "storeShelves", x: 17.325, z: -20.5, turn: 90, widthM: 1.6, depthM: 0.45, heightM: 2.0, seed: 7, draws: "service-scullery-shelves" },
       ],
       lights: [
-        ...SERVICE_LANTERNS.map(([x, z]): DressingLight => ({ x, z, y: LANTERN_CHAIN_BOTTOM - 0.15, kelvin: 2300, watts: 65, radius: 0.04 })),
+        ...SERVICE_LANTERNS.map(([x, z]): DressingLight => ({ x, z, y: LANTERN_LIGHT_Y, kelvin: 2300, watts: 65, radius: 0.04 })),
         // The candles on the table and sideboard, the lamp on the workbench.
         { x: 15.1, z: -11.5, y: SERVANTS_TABLE_TOP + 0.24, kelvin: 1900, watts: 3, radius: 0.02 },
         { x: 16.0, z: -6.4, y: SERVICE_SIDEBOARD_TOP + 0.24, kelvin: 1900, watts: 3, radius: 0.02 },
@@ -1279,11 +1281,11 @@ export const marrowHotelDressing: MapDressing = {
       ],
     },
     {
-      // Guest Room 4, upstairs on the east: the widow's room. Plum silk on the walls, a diagonal
+      // Guest Room 4, upstairs on the east: the widow's room. Plum damask on the walls, a diagonal
       // parquet, a four-poster hung with plum velvet against the south wall, a dressing table with a
       // tall glass and candles on the west wall, a small round tea table by the bathroom door.
       room: "Guest Room 4",
-      wall: "silk_plum",
+      wall: "damask_plum",
       woodwork: "door_walnut",
       floor: "diagonal_parquet",
       ceiling: "worn_cracked_plaster",
@@ -1509,8 +1511,8 @@ export const marrowHotelDressing: MapDressing = {
       ],
       lights: [
         // Just under each lantern (inside its glass the light is shut in).
-        { x: 15.5, z: -19.3, y: LANTERN_CHAIN_BOTTOM - LANTERN_SMALL_H - 0.03, kelvin: 2300, watts: 30, radius: 0.04 },
-        { x: 13.0, z: -12.6, y: LANTERN_CHAIN_BOTTOM - LANTERN_SMALL_H - 0.03, kelvin: 2300, watts: 25, radius: 0.04 },
+        { x: 15.5, z: -19.3, y: LANTERN_LIGHT_Y, kelvin: 2300, watts: 30, radius: 0.04 },
+        { x: 13.0, z: -12.6, y: LANTERN_LIGHT_Y, kelvin: 2300, watts: 25, radius: 0.04 },
         ...sconceFlames(LAUNDRY_EAST_FACE, -19.6, "w", 6),
       ],
     },
@@ -1542,8 +1544,9 @@ export const marrowHotelDressing: MapDressing = {
         // Upper Corridor, the front: a console between the Bridal Suite's and the Nursery's doors with
         // a picture over it; a chair and a little table on the courtyard side; plants.
         { model: "ClassicConsole_01", x: -2.3, z: UPPER_SOUTH_FACE - 0.295, turn: 180, draws: "upper-console" },
-        { model: "vintage_oil_lamp", x: -2.75, z: UPPER_SOUTH_FACE - 0.3, y: CONSOLE_TOP },
-        { model: "brass_candleholders", x: -1.9, z: UPPER_SOUTH_FACE - 0.28, y: CONSOLE_TOP, turn: 180 },
+        { model: "vintage_oil_lamp", x: -2.85, z: UPPER_SOUTH_FACE - 0.3, y: CONSOLE_TOP },
+        // The set is about 1.05 m wide: centred here every candlestick stands on the console top.
+        { model: "brass_candleholders", x: -2.15, z: UPPER_SOUTH_FACE - 0.28, y: CONSOLE_TOP, turn: 180 },
         { model: "fancy_picture_frame_01", x: -2.3, z: UPPER_SOUTH_FACE - 0.012, y: 1.95, turn: 180, scale: 1.2 },
         { model: "side_table_01", x: 3.85, z: UPPER_NORTH_FACE + 0.23, draws: "upper-side-table" },
         { model: "wooden_candlestick", x: 3.85, z: UPPER_NORTH_FACE + 0.23, y: SIDE_TABLE_TOP },
@@ -1598,7 +1601,7 @@ export const marrowHotelDressing: MapDressing = {
           }));
         }),
         // The oil lamp on the front console.
-        { x: -2.75, z: UPPER_SOUTH_FACE - 0.3, y: CONSOLE_TOP + 0.45, kelvin: 2300, watts: 40, radius: 0.05 },
+        { x: -2.85, z: UPPER_SOUTH_FACE - 0.3, y: CONSOLE_TOP + 0.45, kelvin: 2300, watts: 40, radius: 0.05 },
       ],
     },
     {
@@ -1633,7 +1636,7 @@ export const marrowHotelDressing: MapDressing = {
         { kind: "wallSconce", x: PASSAGE_WEST_FACE, z: -8.6, turn: SCONCE_TURN.e, y: SCONCE_Y, lit: false },
       ],
       lights: [
-        { x: -7.75, z: 4.6, y: LANTERN_CHAIN_BOTTOM - LANTERN_SMALL_H - 0.03, kelvin: 2300, watts: 25, radius: 0.04 },
+        { x: -7.75, z: 4.6, y: LANTERN_LIGHT_Y, kelvin: 2300, watts: 25, radius: 0.04 },
         ...([[STAIRWELL_EAST_FACE, 3.2], [PASSAGE_EAST_FACE, -3.6]] as const).flatMap(([x, z]) =>
           [-1, 1].map((side): DressingLight => ({ x: x - SCONCE_OUT, z: z + side * SCONCE_CANDLE_SIDE, y: SCONCE_Y + SCONCE_FLAME_UP, kelvin: 1900, watts: 14, radius: 0.012 })),
         ),
@@ -1675,8 +1678,8 @@ export const marrowHotelDressing: MapDressing = {
         { kind: "chain", x: -12.0, z: -6.4, bottomM: LANTERN_CHAIN_BOTTOM },
       ],
       lights: [
-        { x: -15.0, z: -3.0, y: LANTERN_CHAIN_BOTTOM - LANTERN_SMALL_H - 0.03, kelvin: 2300, watts: 25, radius: 0.04 },
-        { x: -12.0, z: -6.4, y: LANTERN_CHAIN_BOTTOM - LANTERN_SMALL_H - 0.03, kelvin: 2300, watts: 22, radius: 0.04 },
+        { x: -15.0, z: -3.0, y: LANTERN_LIGHT_Y, kelvin: 2300, watts: 25, radius: 0.04 },
+        { x: -12.0, z: -6.4, y: LANTERN_LIGHT_Y, kelvin: 2300, watts: 22, radius: 0.04 },
       ],
     },
     {
@@ -1711,7 +1714,7 @@ export const marrowHotelDressing: MapDressing = {
         { kind: "wallSconce", x: STORAGE_EAST_FACE, z: -4.4, turn: SCONCE_TURN.w, y: SCONCE_Y, lit: true },
       ],
       lights: [
-        { x: -1.0, z: -2.0, y: LANTERN_CHAIN_BOTTOM - LANTERN_SMALL_H - 0.03, kelvin: 2300, watts: 25, radius: 0.04 },
+        { x: -1.0, z: -2.0, y: LANTERN_LIGHT_Y, kelvin: 2300, watts: 25, radius: 0.04 },
         ...[-1, 1].map((side): DressingLight => ({ x: STORAGE_EAST_FACE - SCONCE_OUT, z: -4.4 + side * SCONCE_CANDLE_SIDE, y: SCONCE_Y + SCONCE_FLAME_UP, kelvin: 1900, watts: 14, radius: 0.012 })),
       ],
     },

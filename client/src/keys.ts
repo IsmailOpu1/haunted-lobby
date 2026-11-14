@@ -53,7 +53,7 @@ export const DEFAULT_KEYS: Readonly<Record<KeyAction, string>> = {
 };
 
 /** Keys that can never be bound: Esc frees the mouse, and the debug keys stay where they are. */
-export const RESERVED_KEYS: ReadonlySet<string> = new Set(["Escape", "KeyL", "KeyK"]);
+export const RESERVED_KEYS: ReadonlySet<string> = new Set(["Escape", "KeyL", "KeyK", "KeyB"]);
 
 const STORAGE_KEY = "keyBindings";
 

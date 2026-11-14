@@ -484,6 +484,7 @@ export class Game {
         this.updateAmbient();
       },
       onToggleGhost: () => this.room?.send("debug", { toggleGhost: true }),
+      onOpenBasement: () => this.room?.send("debug", { openBasement: true }),
       onLookChange: (looking) => hud.setLooking(looking),
       onUserGesture: () => this.sound.unlock(),
       onHand: (down) => this.hands.press(down),
@@ -687,6 +688,7 @@ export class Game {
     room.onMessage("debugGhost", (msg: ServerMessages["debugGhost"]) => {
       this.hud.showBanner(msg.paused ? "Ghost paused for testing (K to bring it back)" : "Ghost is back", 3);
     });
+    room.onMessage("debugBasement", () => this.hud.showBanner("Basement door opened for testing", 3));
     room.onMessage("photoTaken", (msg: ServerMessages["photoTaken"]) => {
       this.hud.showBanner(`Photo taken. It develops by the next meeting. Shots left: ${msg.shotsLeft}`, 4);
     });

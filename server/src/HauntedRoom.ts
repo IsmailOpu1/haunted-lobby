@@ -417,7 +417,12 @@ export class HauntedRoom extends Room<{ state: GameState }> {
           this.state.settings = JSON.stringify(this.settings);
         }
         // Skip to the offering (to try the mystery): every relic is placed and the basement opens.
-        if (msg?.openBasement && this.state.stage === "night") this.debugOpenBasement();
+        // Open the basement without the relics (to walk it alone), in the night or walking the hotel before it.
+        if (msg?.openBasement && (this.state.stage === "night" || this.state.stage === "waiting")) {
+          this.debugOpenBasement();
+          const opened: ServerMessages["debugBasement"] = {};
+          this.broadcast("debugBasement", opened);
+        }
         // Swap your first task for this station's (to try a particular task).
         const mine = this.sims.get(client.sessionId);
         if (mine && typeof msg?.giveTask === "string" && this.map.tasks.some((t) => t.id === msg.giveTask)) {
