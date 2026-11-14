@@ -315,6 +315,9 @@ export class Game {
   private camera = new THREE.PerspectiveCamera(75, 1, 0.05, VIEW_FAR_M);
   /** The rooms' textures still arriving (textureStream.ts). */
   textureStream: TextureStream | null = null;
+  /** What the camera sees this frame (for drawing only what can show). */
+  private view = new THREE.Frustum();
+  private viewMatrix = new THREE.Matrix4();
   private heldCamera = new THREE.PerspectiveCamera(HELD_FOV_DEG, 1, 0.05, VIEW_FAR_M);
   private fovDeg = DEFAULT_FOV;
   private ambient = new THREE.HemisphereLight(0xb8c0d0, 0x202020, DARK_AMBIENT);
@@ -440,12 +443,16 @@ export class Game {
     ({ doors: this.doors, ritualCircle: this.ritualCircle } = buildWorld(this.scene, map, dressed, doorLook));
     performance.mark("hotel:world-built");
     dressed.prepareReflections(this.renderer, this.scene); // before players and the flashlight are added
+    const still = [...this.scene.children];
     performance.mark("hotel:reflections");
     const place = (x: number, z: number) => toWorld(map, x, z);
     this.remotes = new RemotePlayers(this.scene, place, new CharacterModels(renderer));
     this.ghost = new GhostView(this.scene, place);
     this.items = new ItemsView(this.scene, map);
+    const beforeStations = new Set(this.scene.children);
     this.stations = new StationsView(this.scene, map, { drawn: dressed.drawn, clock: clockParts, cradle: cradleParts, trunk: trunkParts });
+    // The task stations stay put too, so they are drawn with their rooms like the world.
+    dressed.followWorld([...still, ...this.scene.children.filter((c) => !beforeStations.has(c))]);
     this.relicsView = new RelicsView(this.scene, map);
     this.mystery = new MysteryView(this.scene, map);
     this.wisps = new WispsView(this.scene);
@@ -895,6 +902,7 @@ export class Game {
     state.players?.forEach((p: PlayerData, id: string) => {
       if (id === room.sessionId) {
         this.me = p;
+        void this.held.wear(p.character, this.heldCamera);
         this.reconcile(p);
         return;
       }
@@ -995,7 +1003,9 @@ export class Game {
     for (const door of this.doors.values()) door.update(dt);
     this.dressed.update(dt);
     const eye = this.camera.position;
-    this.dressed.showFloorsNear(eye.x, eye.y - this.eyeHeight, eye.z);
+    this.camera.updateMatrixWorld();
+    this.view.setFromProjectionMatrix(this.viewMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
+    this.dressed.showFloorsNear(eye.x, eye.y - this.eyeHeight, eye.z, { view: this.view, eye });
     this.stations.render(now / 1000);
     this.relicsView.render(now / 1000);
     this.ritualCircle?.render(now / 1000);
@@ -1048,6 +1058,7 @@ export class Game {
   private applyQuality(level: QualityLevel) {
     this.post.setQuality(level);
     this.dressed.setLowQuality(level === "low");
+    this.remotes.setLowQuality(level === "low");
     this.resize();
   }
 

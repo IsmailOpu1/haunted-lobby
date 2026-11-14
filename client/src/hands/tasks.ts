@@ -326,7 +326,7 @@ class ClockTask implements HandsTask {
 }
 
 class BoilerTask implements HandsTask {
-  readonly hint = "Point at the wheel, hold the mouse button and drag right to open the valve, left to close it. Bring the needle into the green and keep it there.";
+  readonly hint = "Point at the wheel, hold the mouse button and drag right to open the valve, left to close it. Bring the needle into the dark green band on the dial and keep it there.";
   readonly parts: THREE.Object3D[];
   private logic: BoilerLogic;
 
@@ -462,17 +462,17 @@ class RosesTask implements HandsTask {
 }
 
 class SwitchboardTask implements HandsTask {
-  readonly hint = "Point at a plug, hold the mouse button and drag it up to the socket of the same colour. Hold it there until the lamp lights. The wrong socket sparks.";
+  readonly hint = "Point at a plug, hold the mouse button and drag it up to the socket with the same sign and colour. Hold it there until the lamp lights. The wrong socket sparks.";
   readonly parts: THREE.Object3D[];
   private logic: SwitchboardLogic;
 
   constructor(private model: Extract<HandsModel, { kind: "switchboard" }>, events: HandsEvents) {
     this.logic = new SwitchboardLogic(events.play, model.hooks, model.sockets);
     this.parts = model.plugs;
-    // Each socket wears the colour of the cable that belongs in it.
-    const colors: number[] = [];
-    this.logic.socketOf.forEach((socket, cable) => (colors[socket] = model.colors[cable]!));
-    model.setSockets(colors);
+    // Each socket wears the colour and sign of the cable that belongs in it.
+    const cables: number[] = [];
+    this.logic.socketOf.forEach((socket, cable) => (cables[socket] = cable));
+    model.setSockets(cables);
     this.show();
   }
 

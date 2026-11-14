@@ -67,6 +67,10 @@ const BOARD_FRONT_Z = -0.025;
 const BOARD_ROW_M = 0.2;
 const SOCKET_GAP_M = 0.2;
 const CABLE_COLORS = [0xb03a2e, 0x2e7d4f, 0x2f5fa8, 0xc9a23a, 0x8a4aa0, 0xd8d0c0];
+/** Each cable's sign, painted on its plug and beside its socket, so colour is never all that tells them apart (GDD 23). */
+const CABLE_SIGNS = ["circle", "triangle", "square", "cross", "diamond", "star"] as const;
+/** The enamel plate under each socket, with the sign of the cable that belongs there. */
+const SOCKET_PLATE_M = 0.07;
 const MIRROR_Y = 1.45;
 const TRUNK_LID_OPEN_RAD = 0.6;
 const TRUNK_RATTLE_RAD = 0.04;
@@ -133,9 +137,8 @@ export type HandsModel =
       plugs: THREE.Mesh[];
       hooks: FacePoint[];
       sockets: FacePoint[];
-      /** The colour of each cable. */
-      colors: readonly number[];
-      setSockets(colors: readonly number[]): void;
+      /** Marks each socket with the colour and sign of the cable that belongs in it (by socket). */
+      setSockets(cables: readonly number[]): void;
       setPlugs(at: readonly FacePoint[], lit: readonly boolean[]): void;
     }
   | { kind: "mirror"; glass: THREE.Mesh; setFog(fog: readonly number[], face: number): void }
@@ -1171,6 +1174,7 @@ function switchboard(dressed = false): StationView {
   const hooks: FacePoint[] = [];
   const sockets: FacePoint[] = [];
   const rings: THREE.MeshLambertMaterial[] = [];
+  const plates: THREE.MeshLambertMaterial[] = [];
   const lamps: THREE.MeshLambertMaterial[] = [];
   const plugs: THREE.Mesh[] = [];
   const wires: THREE.Mesh[] = [];
@@ -1185,6 +1189,11 @@ function switchboard(dressed = false): StationView {
     group.add(ring);
     rings.push(ringMat);
     group.add(box(0.035, 0.035, 0.01, 0x050403, u, BOARD_Y + BOARD_ROW_M, BOARD_FRONT_Z));
+    const plateMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+    const plate = new THREE.Mesh(new THREE.PlaneGeometry(SOCKET_PLATE_M, SOCKET_PLATE_M), plateMat);
+    plate.position.set(u, BOARD_Y + BOARD_ROW_M - 0.085, BOARD_FRONT_Z + 0.004);
+    group.add(plate);
+    plates.push(plateMat);
     const lampMat = new THREE.MeshLambertMaterial({ color: 0x3a3020 });
     const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 6), lampMat);
     lamp.position.set(u, BOARD_Y + BOARD_ROW_M + 0.1, BOARD_FRONT_Z + 0.01);
@@ -1193,6 +1202,11 @@ function switchboard(dressed = false): StationView {
     group.add(box(0.05, 0.012, 0.04, BRASS, u, BOARD_Y - BOARD_ROW_M - 0.035, BOARD_FRONT_Z + 0.02)); // hook
     const plug = part(new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.024, 0.06, 10), new THREE.MeshLambertMaterial({ color: CABLE_COLORS[i] })), `plug:${i}`);
     plug.rotation.x = Math.PI / 2;
+    // Its sign on the end you look at (the plug's top, turned to face out of the board).
+    const cap = new THREE.Mesh(new THREE.CircleGeometry(0.017, 20), new THREE.MeshLambertMaterial({ map: signTexture(i) }));
+    cap.position.y = 0.0305;
+    cap.rotation.x = -Math.PI / 2;
+    plug.add(cap);
     group.add(plug);
     plugs.push(plug);
     const wire = rod(0.008, CABLE_COLORS[i]!);
@@ -1221,11 +1235,55 @@ function switchboard(dressed = false): StationView {
       plugs,
       hooks,
       sockets,
-      colors: CABLE_COLORS.slice(0, cables),
-      setSockets: (colors) => rings.forEach((m, j) => m.color.setHex(colors[j] ?? 0x555555)),
+      setSockets: (cablesBySocket) => {
+        rings.forEach((m, j) => m.color.setHex(CABLE_COLORS[cablesBySocket[j]!] ?? 0x555555));
+        plates.forEach((m, j) => {
+          m.map = signTexture(cablesBySocket[j]!);
+          m.color.setHex(0xffffff);
+          m.needsUpdate = true;
+        });
+      },
       setPlugs,
     },
   };
+}
+
+const signTextures = new Map<number, THREE.CanvasTexture>();
+
+/** A cable's sign in ink on enamel, with a ring of the cable's colour round it. */
+function signTexture(cable: number): THREE.CanvasTexture {
+  const made = signTextures.get(cable);
+  if (made) return made;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 64;
+  const g = canvas.getContext("2d")!;
+  // Mid-tone enamel: anything paler blows out white under the torch at arm's length.
+  g.fillStyle = "#9c917a";
+  g.fillRect(0, 0, 64, 64);
+  g.strokeStyle = `#${(CABLE_COLORS[cable] ?? 0x555555).toString(16).padStart(6, "0")}`;
+  g.lineWidth = 8;
+  g.strokeRect(4, 4, 56, 56);
+  g.fillStyle = g.strokeStyle = "#140d08";
+  g.lineWidth = 7;
+  g.beginPath();
+  const sign = CABLE_SIGNS[cable % CABLE_SIGNS.length]!;
+  if (sign === "circle") g.arc(32, 32, 15, 0, Math.PI * 2);
+  else if (sign === "triangle") g.moveTo(32, 15), g.lineTo(49, 46), g.lineTo(15, 46), g.closePath();
+  else if (sign === "square") g.rect(18, 18, 28, 28);
+  else if (sign === "diamond") g.moveTo(32, 13), g.lineTo(51, 32), g.lineTo(32, 51), g.lineTo(13, 32), g.closePath();
+  else if (sign === "cross") g.moveTo(18, 18), g.lineTo(46, 46), g.moveTo(46, 18), g.lineTo(18, 46);
+  else for (let k = 0; k < 10; k++) {
+    const r = k % 2 ? 8 : 19;
+    const a = -Math.PI / 2 + (k * Math.PI) / 5;
+    g.lineTo(32 + r * Math.cos(a), 33 + r * Math.sin(a));
+  }
+  if (sign === "cross" || sign === "circle") g.stroke(); // an open ring, so it never reads as the square
+  else if (sign === "star") g.fill();
+  else (g.closePath(), g.fill());
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  signTextures.set(cable, texture);
+  return texture;
 }
 
 /** A pale face, for the mirror. */

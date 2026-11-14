@@ -35,6 +35,16 @@ const PLAIN_GLASS_SHADE = 0.3;
 const MOVABLE_PROBE_RANGE_M = 20;
 /** A probe is on the same floor as a thing whose floor is within this of the probe's floor. */
 const SAME_FLOOR_M = 1.5;
+/** How near a room a piece of the world must be to be drawn with it: across, and up and down (metres). */
+const FOLLOW_MARGIN = new THREE.Vector3(0.6, 0.05, 0.6);
+/** Round a flight and its opening, for deciding whether you can see it (metres). */
+const FLIGHT_MARGIN_M = 0.3;
+/** Eyes this close to the height of a stair hole see through it at a slant too steep to narrow the view by. */
+const HOLE_EYE_GAP_M = 0.5;
+/** Something of another floor reaching this far past a stair hole's floor is on this side of it too. */
+const HOLE_CROSS_M = 0.05;
+/** A room's space stops this far under the next floor up, so what stands on that floor is not in it. */
+const ROOM_TOP_GAP_M = 0.3;
 /** Which rooms might be seen is worked out again once you have moved this far (roomSight.ts allows for it). */
 const SIGHT_MOVE_M = 0.25;
 /** From this close to the end of a flight of stairs, the floor at its other end is drawn too. */
@@ -235,8 +245,10 @@ export class DressedRooms {
       });
     }
     const wasShown = this.floors.map((f) => f.obj.visible);
+    const followersShown = this.followers.map((f) => f.obj.visible);
     const seen = new Set(this.seenBy(i));
     for (const f of this.floors) f.obj.visible = seen.has(f);
+    this.showFollowers();
     const fog = scene.fog as THREE.Fog | null;
     const fogAt = fog?.isFog ? { near: fog.near, far: fog.far } : null;
     if (fog?.isFog) [fog.near, fog.far] = [FOG_AWAY_M, FOG_AWAY_M * 2];
@@ -245,6 +257,7 @@ export class DressedRooms {
     } finally {
       if (fog && fogAt) Object.assign(fog, fogAt);
       this.floors.forEach((f, n) => (f.obj.visible = wasShown[n]!));
+      this.followers.forEach((f, n) => (f.obj.visible = followersShown[n]!));
       for (const o of hidden) o.visible = true;
       for (const u of unlit) u.light.intensity = u.intensity;
     }
@@ -523,6 +536,8 @@ export class DressedRooms {
   private seen: Set<string> | null = null;
   /** Every flight of stairs: its two ends in the world. */
   private flights: [THREE.Vector3, THREE.Vector3][] = [];
+  /** Each flight's space, with the hole in the ceiling above it (same order as flights). */
+  private openings: THREE.Box3[] = [];
 
   /** Learns which floor each built room is on, and where the stairs between floors are. */
   setMap(map: MapData) {
@@ -532,6 +547,16 @@ export class DressedRooms {
       this.floors.push({ obj, y, box: new THREE.Box3().setFromObject(obj), rooms, stairs: false });
     }
     this.sight = new RoomSight(map);
+    for (const r of map.rooms) {
+      // The room's floor from its middle (a corner can sit on the edge of another floor's area),
+      // and up to just under the floor above.
+      const level = levelOf(map, (r.minX + r.maxX) / 2, (r.minZ + r.maxZ) / 2);
+      const box = new THREE.Box3(
+        new THREE.Vector3(r.minX + level.shiftX, level.y, r.minZ + level.shiftZ),
+        new THREE.Vector3(r.maxX + level.shiftX, level.y + map.wallHeightM - ROOM_TOP_GAP_M, r.maxZ + level.shiftZ),
+      );
+      this.roomBoxes.push({ key: roomKey(r.name, level.y), box });
+    }
     const end = (x: number, z: number) => {
       const p = toWorld(map, x, z);
       return new THREE.Vector3(p.x, p.y, p.z);
@@ -539,7 +564,13 @@ export class DressedRooms {
     for (const s of map.stairs) {
       const [ux, uz] = s.dir === "+x" ? [1, 0] : s.dir === "-x" ? [-1, 0] : s.dir === "+z" ? [0, 1] : [0, -1];
       const ends: [number, number][] = [[s.x, s.z], [s.x + ux * s.lengthM, s.z + uz * s.lengthM]];
-      this.flights.push([end(...ends[0]!), end(...ends[1]!)]);
+      const [a, b] = [end(...ends[0]!), end(...ends[1]!)];
+      this.flights.push([a, b]);
+      // The flight and the hole above it: all of the other floor you can see from this one is seen through it.
+      const opening = new THREE.Box3().setFromPoints([a, b]);
+      opening.max.y += map.wallHeightM;
+      opening.expandByVector(new THREE.Vector3(s.widthM / 2 + FLIGHT_MARGIN_M, FLIGHT_MARGIN_M, s.widthM / 2 + FLIGHT_MARGIN_M));
+      this.openings.push(opening);
       // A build with either end of the flight in one of its rooms, on its floor, has stairs.
       for (const f of this.floors) {
         f.stairs ||= ends.some(([x, z]) => {
@@ -554,10 +585,12 @@ export class DressedRooms {
    * Draws only the rooms on the floor you are on: the floors above and below are hidden behind
    * ceilings and floors anyway, and drawing them all made upstairs slow (millions of triangles).
    * Near a flight of stairs, or on it, the room at its other end is drawn too, so you see down
-   * (or up) the flight. On your own floor, a room behind walls you can't see past is not drawn
-   * either (roomSight.ts).
+   * (or up) the flight. Given the camera (`look`), that room and the world following it are drawn
+   * only if some of it lies in line of sight through the hole the flight passes through: the
+   * floor between the two floors hides everything else of it. On your own floor, a room behind
+   * walls you can't see past is not drawn either (roomSight.ts).
    */
-  showFloorsNear(x: number, feetY: number, z: number) {
+  showFloorsNear(x: number, feetY: number, z: number, look?: { view: THREE.Frustum; eye: THREE.Vector3 }) {
     const me = this.at.set(x, feetY, z);
     const onStairs = !this.floors.some((f) => Math.abs(f.y - feetY) < SAME_FLOOR_M);
     if (this.sight && this.sightAt.distanceTo(me) > SIGHT_MOVE_M) {
@@ -569,14 +602,143 @@ export class DressedRooms {
       const mine = Math.abs(f.y - feetY) < SAME_FLOOR_M;
       f.obj.visible = mine ? !seen || f.rooms.some((r) => seen.has(r)) : onStairs && f.box.distanceToPoint(me) < STAIR_VIEW_M;
     }
-    for (const [a, b] of this.flights) {
+    let holes = 0;
+    for (const [n, [a, b]] of this.flights.entries()) {
       for (const [here, there] of [[a, b], [b, a]] as const) {
         if (Math.abs(here.y - feetY) >= SAME_FLOOR_M || Math.hypot(here.x - x, here.z - z) >= STAIR_VIEW_M) continue;
-        for (const f of this.floors) if (f.box.distanceToPoint(there) < SAME_FLOOR_M) f.obj.visible = true;
+        if (look) this.throughHole(holes++, this.openings[n]!, Math.max(a.y, b.y), look);
+        for (const f of this.floors) {
+          if (f.box.distanceToPoint(there) < SAME_FLOOR_M && (!look || this.seenThroughHoles(f.box, holes, look))) f.obj.visible = true;
+        }
       }
     }
+    this.showFollowers(seen, feetY, look && !onStairs ? { holes, look } : null);
   }
+
+  /**
+   * Whether some of a box on another floor can be seen through the first `holes` stair holes
+   * (throughHole): anything reaching up (or down) past the hole's floor, like a stairwell's walls,
+   * is seen as on this floor, wherever it is in view.
+   */
+  private seenThroughHoles(box: THREE.Box3, holes: number, look: { view: THREE.Frustum; eye: THREE.Vector3 }) {
+    for (let n = 0; n < holes; n++) {
+      const y = this.holeY[n]!;
+      const crosses = look.eye.y < y ? box.min.y < y - HOLE_CROSS_M : box.max.y > y + HOLE_CROSS_M;
+      if ((crosses ? look.view : this.holes[n]!).intersectsBox(box)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * What can be seen from `look.eye` through a flight's hole in the floor between two floors (the
+   * opening's footprint at height `y`), within the camera's view: the n-th reused frustum, which
+   * holds nothing if the hole is out of view.
+   */
+  private throughHole(n: number, opening: THREE.Box3, y: number, look: { view: THREE.Frustum; eye: THREE.Vector3 }) {
+    const eye = look.eye;
+    const flat = this.holeBox.set(this.holeMin.set(opening.min.x, y, opening.min.z), this.holeMax.set(opening.max.x, y, opening.max.z));
+    const hole = (this.holes[n] ??= new THREE.Frustum());
+    this.holeY[n] = y;
+    if (Math.abs(eye.y - y) < HOLE_EYE_GAP_M) return hole.copy(look.view); // level with it: no narrower view through it
+    if (!look.view.intersectsBox(flat)) {
+      hole.planes[0]!.set(this.holeNormal.set(0, 1, 0), -Infinity); // the hole is out of view: nothing is seen through it
+      return hole;
+    }
+    const corners = this.holeCorners;
+    corners[0]!.set(opening.min.x, y, opening.min.z);
+    corners[1]!.set(opening.max.x, y, opening.min.z);
+    corners[2]!.set(opening.max.x, y, opening.max.z);
+    corners[3]!.set(opening.min.x, y, opening.max.z);
+    const middle = this.holeMiddle.set((opening.min.x + opening.max.x) / 2, y, (opening.min.z + opening.max.z) / 2);
+    const beyond = this.holeBeyond.copy(middle).sub(eye).add(middle); // a point past the hole, seen through it
+    for (let i = 0; i < 4; i++) {
+      const plane = hole.planes[i]!.setFromCoplanarPoints(eye, corners[i]!, corners[(i + 1) % 4]!);
+      if (plane.distanceToPoint(beyond) < 0) plane.negate();
+    }
+    // Only beyond the hole, and only what the camera itself sees past it.
+    hole.planes[4]!.setFromNormalAndCoplanarPoint(this.holeNormal.set(0, Math.sign(y - eye.y), 0), middle);
+    hole.planes[5]!.copy(look.view.planes[5]!);
+    return hole;
+  }
+
+
+  /**
+   * The rest of the hotel's still world (doors, transoms, signs, grey walls and floors: world.ts)
+   * is drawn only with a room it touches, like the rooms above. Drawing every door in the hotel
+   * from every room was most of Low's draw calls. Anything holding a light is left alone (hiding a
+   * light makes three build every shader again), as is anything touching no room.
+   */
+  followWorld(still: THREE.Object3D[]) {
+    const builds = new Set(this.floors.map((f) => f.obj));
+    const box = new THREE.Box3();
+    for (const obj of still) {
+      if (builds.has(obj)) continue;
+      let light = false;
+      obj.traverse((o) => (light ||= (o as THREE.Light).isLight === true));
+      if (light) continue;
+      box.setFromObject(obj);
+      if (box.isEmpty()) continue;
+      box.expandByVector(FOLLOW_MARGIN);
+      const rooms = new Set(this.roomBoxes.filter((r) => r.box.intersectsBox(box)).map((r) => r.key));
+      if (rooms.size) this.followers.push({ obj, rooms, box: box.clone() });
+    }
+  }
+
+  /**
+   * The world that follows the rooms is drawn with the rooms drawn: on your own floor only the
+   * rooms you can see into (a build can be several rooms, all four ground-floor corridors), and
+   * every room of a build drawn on another floor. `seen` null: every room of the builds drawn.
+   */
+  private showFollowers(
+    seen: Set<string> | null = null,
+    feetY = 0,
+    through: { holes: number; look: { view: THREE.Frustum; eye: THREE.Vector3 } } | null = null,
+  ) {
+    const shown = new Set<string>();
+    const elsewhere = new Set<string>();
+    for (const f of this.floors) {
+      if (!f.obj.visible) continue;
+      const mine = Math.abs(f.y - feetY) < SAME_FLOOR_M;
+      for (const r of f.rooms) {
+        if (mine && seen && !seen.has(r)) continue;
+        shown.add(roomKey(r, f.y));
+        if (!mine) elsewhere.add(roomKey(r, f.y));
+      }
+    }
+    for (const f of this.followers) {
+      let show = false;
+      let onlyElsewhere = true;
+      for (const r of f.rooms) {
+        if (!shown.has(r)) continue;
+        show = true;
+        onlyElsewhere &&= elsewhere.has(r);
+      }
+      // Of another floor, only what can be seen through a hole in the floor between.
+      if (show && onlyElsewhere && through) show = this.seenThroughHoles(f.box, through.holes, through.look);
+      f.obj.visible = show;
+    }
+  }
+
+  private followers: { obj: THREE.Object3D; rooms: Set<string>; box: THREE.Box3 }[] = [];
+  /** The views through the stairs' holes this frame (reused). */
+  private holes: THREE.Frustum[] = [];
+  /** The height of each of those holes. */
+  private holeY: number[] = [];
+  private holeBox = new THREE.Box3();
+  private holeMin = new THREE.Vector3();
+  private holeMax = new THREE.Vector3();
+  private holeCorners = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+  private holeMiddle = new THREE.Vector3();
+  private holeBeyond = new THREE.Vector3();
+  private holeNormal = new THREE.Vector3();
+  /** Each room's space, by roomKey: what decides which rooms the still world follows. */
+  private roomBoxes: { key: string; box: THREE.Box3 }[] = [];
   private at = new THREE.Vector3();
+}
+
+/** A room on a floor: rooms are named by the map, floors told apart by height. */
+function roomKey(name: string, y: number): string {
+  return `${name}@${Math.round(y)}`;
 }
 
 /** A piece detailed enough that Low quality draws a lighter copy of it (lighter.ts). */

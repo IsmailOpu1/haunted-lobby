@@ -198,7 +198,7 @@ Everyone starts with the same three items.
 |---|---|---|---|---|
 | Light the candelabra | Restaurant | Light 5 wicks with a match. Move too fast and the match goes out | Yes | No |
 | Turn the boiler valve | Laundry | Turn the heavy valve wheel until the gauge's needle sits in the safe zone for 5 s | No | No |
-| Repair the switchboard | Reception | Plug 4 cables into the sockets of their own colour | No | No |
+| Repair the switchboard | Reception | Plug 4 cables into the sockets of their own colour and sign | No | No |
 | Burn the cursed letter | Library | Hold a match under the swaying letter until it catches fire | Yes (fireplace) | No |
 | Set the grandfather clock | Main Hall | Puzzle: the guest book on the hall's meeting table says when to wake the house (a different time each match). Grab the clock face and turn the hands to that time | Yes (pendulum, and the hands show the time) | No |
 | Clean the mirror | Bridal Suite | Wipe the fog away. Sometimes a face appears behind you (scare only) | No | No |

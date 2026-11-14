@@ -80,7 +80,9 @@ class RemotePlayer {
 
   /** The character's model, once loaded; until then the plain body stands in. */
   private model: CharacterBody | null = null;
+  /** The file the model is from (CharacterModels.fileFor), and its character. */
   private modelFor = "";
+  private modelCharacter = "";
   private mixer: THREE.AnimationMixer | null = null;
   private actions = new Map<ClipName, THREE.AnimationAction>();
   private clip: ClipName | null = null;
@@ -180,7 +182,7 @@ class RemotePlayer {
       this.body.position.y = (config.body.heightM / 2) * this.body.scale.y;
       this.head.position.y = crouching ? config.movement.crouchEyeHeightM : config.movement.eyeHeightM;
     }
-    if (b.character !== this.modelFor) this.useCharacter(b.character);
+    if (this.models.fileFor(b.character) !== this.modelFor) this.useCharacter(b.character);
     this.measureSpeed(renderTime);
     if (b.name !== this.labelText) this.drawLabel(b.name);
     this.ownColour.set(b.colour || BODY_COLOR);
@@ -190,13 +192,18 @@ class RemotePlayer {
     this.lens.visible = b.flashlightOn;
   }
 
-  /** Swaps in this character's model (or the plain body while it loads, or with none dealt). */
+  /**
+   * Swaps in this character's model (or the plain body while it loads, or with none dealt). When
+   * only the quality changed, the model they have stays until the other copy is in.
+   */
   private useCharacter(character: string) {
-    this.modelFor = character;
-    this.dropModel();
+    const file = this.models.fileFor(character);
+    if (this.modelCharacter !== character) this.dropModel();
+    this.modelFor = file;
+    this.modelCharacter = character;
     if (!character) return;
     void this.models.body(character).then((model) => {
-      if (!model || this.modelFor !== character || !this.root.parent) return;
+      if (!model || this.modelFor !== file || !this.root.parent) return;
       this.dropModel();
       this.model = model;
       this.mixer = new THREE.AnimationMixer(model.root);
@@ -354,6 +361,11 @@ export class RemotePlayers {
     private toWorld: (x: number, z: number) => WorldPoint,
     private models: CharacterModels,
   ) {}
+
+  /** Low quality draws every player's Low copy; each swaps over once it has loaded. */
+  setLowQuality(low: boolean) {
+    this.models.setLowQuality(low);
+  }
 
   /** Records the latest server state for every other player, and removes players who left. */
   update(states: Map<string, Omit<Snapshot, "t" | "y">>, now: number) {

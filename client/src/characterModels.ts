@@ -62,15 +62,31 @@ export class CharacterModels {
   private loaders: ModelLoaders | null = null;
   private anims: Promise<GLTF> | null = null;
   private loaded = new Map<string, Promise<Loaded>>();
+  /**
+   * Low quality (Options): each character's Low copy (characters/low, build-characters.ts), a
+   * quarter of the triangles in a few draw calls with 1K textures, so seven players in view keep
+   * Low under its limits (PRD 9).
+   */
+  private low = false;
 
   constructor(private renderer: THREE.WebGLRenderer) {}
 
+  setLowQuality(low: boolean) {
+    this.low = low;
+  }
+
+  /** Which file a body of this character comes from now ("" for none dealt). */
+  fileFor(character: string): string {
+    return character && (this.low ? `low/${character}` : character);
+  }
+
   /** A fresh body of this character, or null if it can't be loaded. */
   async body(character: string): Promise<CharacterBody | null> {
-    let entry = this.loaded.get(character);
+    const file = this.fileFor(character);
+    let entry = this.loaded.get(file);
     if (!entry) {
-      entry = this.load(character);
-      this.loaded.set(character, entry);
+      entry = this.load(file);
+      this.loaded.set(file, entry);
     }
     try {
       const { gltf, clips, scale } = await entry;
@@ -95,7 +111,7 @@ export class CharacterModels {
       root.add(model);
       return { root, clips, materials };
     } catch (err) {
-      console.warn(`Character ${character} failed to load`, err);
+      console.warn(`Character ${file} failed to load`, err);
       return null;
     }
   }
@@ -105,10 +121,10 @@ export class CharacterModels {
     return this.loaders.gltf;
   }
 
-  private async load(character: string): Promise<Loaded> {
+  private async load(file: string): Promise<Loaded> {
     const loader = this.gltfLoader();
     this.anims ??= loader.loadAsync(`${FOLDER}anims.glb`);
-    const [gltf, anims] = await Promise.all([loader.loadAsync(`${FOLDER}${character}.glb`), this.anims]);
+    const [gltf, anims] = await Promise.all([loader.loadAsync(`${FOLDER}${file}.glb`), this.anims]);
     gltf.scene.updateMatrixWorld(true);
     const top = gltf.scene.getObjectByName(HEAD_TOP);
     const topY = top ? top.getWorldPosition(new THREE.Vector3()).y : config.body.heightM;
