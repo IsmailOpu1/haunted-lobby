@@ -433,8 +433,8 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 - Audio pass: ambience, footsteps, heartbeat, pre-hunt silence, relic whispers, the Bellboy's bell
 - Names shown only when lit (GDD 22.2)
 - Accessibility options (GDD 23)
-- Tutorial and solo Training Room
-- **Done when:** a stranger can join, learn from the tutorial, and finish a match without asking anything.
+- Tutorial and solo Training Room: moved to after Phase 9 (owner, 2026-11-14; see Phase 9b)
+- **Done when:** a full match plays on the dressed hotel at Low and High quality, within Section 9's targets. (Was: a stranger learns from the tutorial and finishes a match; that test moves with the tutorial to Phase 9b.)
 
 **Phase 9: Playtest and balance (about 4 weeks)**
 - Play 20 Standard matches with 4 to 6 players and review the match log
@@ -443,6 +443,10 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 - Test 8 players on the server, a low-end laptop, and 200 ms artificial latency
 - Fix the top 10 bugs from playtests
 - **Done when:** every balance target is inside its range.
+
+**Phase 9b: Tutorial and Training Room (owner moved them here, 2026-11-14)**
+- Tutorial (about 3 minutes) and solo Training Room (GDD 26.15), built once balance has settled so they teach the final rules
+- **Done when:** a stranger can join, learn from the tutorial, and finish a match without asking anything.
 
 **Phase 10: Release (1 to 2 weeks)**
 - Production server and a domain
