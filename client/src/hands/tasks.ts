@@ -326,7 +326,7 @@ class ClockTask implements HandsTask {
 }
 
 class BoilerTask implements HandsTask {
-  readonly hint = "Point at the wheel, hold the mouse button and drag right to open the valve, left to close it. Bring the needle into the green and keep it there.";
+  readonly hint = "Point at the wheel, hold the mouse button and drag right to open the valve, left to close it. Bring the needle into the dark green band on the dial and keep it there.";
   readonly parts: THREE.Object3D[];
   private logic: BoilerLogic;
 
