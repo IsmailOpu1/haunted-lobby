@@ -43,6 +43,10 @@ const FLIGHT_MARGIN_M = 0.3;
 const HOLE_EYE_GAP_M = 0.5;
 /** Something of another floor reaching this far past a stair hole's floor is on this side of it too. */
 const HOLE_CROSS_M = 0.05;
+/** Room pieces are taken as this much bigger, so a lighter copy or rounding never hides a visible edge. */
+const PIECE_MARGIN_M = 0.05;
+/** A room's floor reaches this far below the floor height (rugs, steps) when looking for it in view. */
+const SPOT_BELOW_M = 0.3;
 /** A room's space stops this far under the next floor up, so what stands on that floor is not in it. */
 const ROOM_TOP_GAP_M = 0.3;
 /** Which rooms might be seen is worked out again once you have moved this far (roomSight.ts allows for it). */
@@ -244,6 +248,7 @@ export class DressedRooms {
         }
       });
     }
+    for (const f of [...this.trimmed]) this.untrim(f); // reflections see whole rooms; the next frame trims again
     const wasShown = this.floors.map((f) => f.obj.visible);
     const followersShown = this.followers.map((f) => f.obj.visible);
     const seen = new Set(this.seenBy(i));
@@ -534,6 +539,8 @@ export class DressedRooms {
   /** Where the rooms in sight were last worked out, and what they were (null: between floors). */
   private sightAt = new THREE.Vector3(Infinity, 0, 0);
   private seen: Set<string> | null = null;
+  private spot = new THREE.Box3();
+  private wallHeight = 0;
   /** Every flight of stairs: its two ends in the world. */
   private flights: [THREE.Vector3, THREE.Vector3][] = [];
   /** Each flight's space, with the hole in the ceiling above it (same order as flights). */
@@ -547,6 +554,7 @@ export class DressedRooms {
       this.floors.push({ obj, y, box: new THREE.Box3().setFromObject(obj), rooms, stairs: false });
     }
     this.sight = new RoomSight(map);
+    this.wallHeight = map.wallHeightM;
     for (const r of map.rooms) {
       // The room's floor from its middle (a corner can sit on the edge of another floor's area),
       // and up to just under the floor above.
@@ -597,7 +605,8 @@ export class DressedRooms {
       this.sightAt.copy(me);
       this.seen = this.sight.seen(x, feetY, z);
     }
-    const seen = onStairs ? null : this.seen;
+    // Of the rooms in sight from here, only those some of which lies the way you look.
+    const seen = onStairs || !this.seen ? null : look ? this.sight!.inView(x, feetY, z, this.seen, (sx, sz, half) => this.spotInView(sx, feetY, sz, half, look.view)) : this.seen;
     for (const f of this.floors) {
       const mine = Math.abs(f.y - feetY) < SAME_FLOOR_M;
       f.obj.visible = mine ? !seen || f.rooms.some((r) => seen.has(r)) : onStairs && f.box.distanceToPoint(me) < STAIR_VIEW_M;
@@ -612,7 +621,60 @@ export class DressedRooms {
         }
       }
     }
+    // A build on another floor, seen only through a stair hole, draws only the pieces seen through it.
+    for (const f of this.floors) {
+      const throughHole = look && !onStairs && f.obj.visible && Math.abs(f.y - feetY) >= SAME_FLOOR_M;
+      if (throughHole) this.trim(f, holes, look);
+      else if (this.trimmed.has(f)) this.untrim(f);
+    }
     this.showFollowers(seen, feetY, look && !onStairs ? { holes, look } : null);
+  }
+
+  /** Whether the floor-to-ceiling square of floor plan around (x, z), `half` each way, is in the view. */
+  private spotInView(x: number, feetY: number, z: number, half: number, view: THREE.Frustum) {
+    this.spot.min.set(x - half, feetY - SPOT_BELOW_M, z - half);
+    this.spot.max.set(x + half, feetY + this.wallHeight, z + half);
+    return view.intersectsBox(this.spot);
+  }
+
+  /** Each build's pieces and their spaces in the world (worked out when first needed). */
+  private piecesOf(f: BuiltFloor) {
+    let pieces = this.pieces.get(f);
+    if (pieces) return pieces;
+    pieces = { meshes: [], instances: [] };
+    f.obj.updateMatrixWorld(true);
+    const matrix = new THREE.Matrix4();
+    f.obj.traverse((o) => {
+      if (o instanceof THREE.BatchedMesh) {
+        const info = (o as unknown as { _instanceInfo: { active: boolean }[] })._instanceInfo;
+        for (let id = 0; id < o.instanceCount; id++) {
+          if (!info[id]?.active || !o.getVisibleAt(id)) continue; // a piece hidden on purpose stays hidden
+          o.getMatrixAt(id, matrix).premultiply(o.matrixWorld);
+          const box = o.getBoundingBoxAt(o.getGeometryIdAt(id), new THREE.Box3());
+          if (box) pieces!.instances.push({ batch: o, id, box: box.applyMatrix4(matrix).expandByScalar(PIECE_MARGIN_M) });
+        }
+      } else if (o instanceof THREE.Mesh && o.visible) {
+        pieces!.meshes.push({ mesh: o, box: new THREE.Box3().setFromObject(o).expandByScalar(PIECE_MARGIN_M) });
+      }
+    });
+    this.pieces.set(f, pieces);
+    return pieces;
+  }
+
+  /** Draws only the pieces of a build that can be seen through the first `holes` stair holes. */
+  private trim(f: BuiltFloor, holes: number, look: { view: THREE.Frustum; eye: THREE.Vector3 }) {
+    const { meshes, instances } = this.piecesOf(f);
+    for (const m of meshes) m.mesh.visible = this.seenThroughHoles(m.box, holes, look);
+    for (const i of instances) i.batch.setVisibleAt(i.id, this.seenThroughHoles(i.box, holes, look));
+    this.trimmed.add(f);
+  }
+
+  /** Every piece of the build drawn again. */
+  private untrim(f: BuiltFloor) {
+    const { meshes, instances } = this.piecesOf(f);
+    for (const m of meshes) m.mesh.visible = true;
+    for (const i of instances) i.batch.setVisibleAt(i.id, true);
+    this.trimmed.delete(f);
   }
 
   /**
@@ -722,6 +784,9 @@ export class DressedRooms {
   private followers: { obj: THREE.Object3D; rooms: Set<string>; box: THREE.Box3 }[] = [];
   /** The views through the stairs' holes this frame (reused). */
   private holes: THREE.Frustum[] = [];
+  /** Builds drawing only what is seen through a stair hole (trim), and every build's pieces. */
+  private trimmed = new Set<BuiltFloor>();
+  private pieces = new Map<BuiltFloor, { meshes: { mesh: THREE.Mesh; box: THREE.Box3 }[]; instances: { batch: THREE.BatchedMesh; id: number; box: THREE.Box3 }[] }>();
   /** The height of each of those holes. */
   private holeY: number[] = [];
   private holeBox = new THREE.Box3();

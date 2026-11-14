@@ -33,6 +33,24 @@ describe("which rooms might be seen", () => {
     }
   });
 
+  it("looking a given way, only the rooms some of which lie that way; looking every way, all of them", () => {
+    let fewer = 0;
+    for (const room of map.rooms) {
+      const w = world((room.minX + room.maxX) / 2, (room.minZ + room.maxZ) / 2);
+      const all = sight.seen(w.x, w.y, w.z)!;
+      expect([...sight.inView(w.x, w.y, w.z, all, () => true)].sort()).toEqual([...all].sort());
+      // Looking only east: no room wholly west of you is seen, but your own room always is.
+      const east = sight.inView(w.x, w.y, w.z, all, (x, _z, half) => x + half >= w.x);
+      expect(east.has(room.name), room.name).toBe(true);
+      for (const name of east) {
+        const rects = map.rooms.filter((r) => r.name === name).map((r) => world(r.maxX, r.maxZ).x);
+        expect(Math.max(...rects), `${name} from ${room.name}`).toBeGreaterThanOrEqual(w.x - 1.5);
+      }
+      if (east.size < all.size) fewer++;
+    }
+    expect(fewer).toBeGreaterThan(0);
+  });
+
   it("leaves out rooms behind walls, so it saves drawing", () => {
     // From the middle of each room, some room on its floor is hidden.
     let hiddenSomewhere = 0;

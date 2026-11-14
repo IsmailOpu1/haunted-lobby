@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { config, searchPlaces, type MapData, type RelicMinigame, type TaskMinigame } from "@haunted/shared";
 import { liftToFloor } from "./place.ts";
 import type { ModelLoaders } from "./loaders.ts";
@@ -794,6 +795,27 @@ function roses(dressed = false): StationView {
 }
 
 /** A painted louvred shutter, 0.54 x 1.3 x 0.04, its hinge side at x 0: stiles, rails and slats. */
+/**
+ * The group's pieces as one mesh: they share one material and never move apart, so drawing them
+ * one by one only cost draw calls (PRD 9: under 250 on Low). Looks exactly the same.
+ */
+function joined(g: THREE.Group): THREE.Group {
+  const pieces = g.children.filter((c): c is THREE.Mesh => c instanceof THREE.Mesh);
+  if (pieces.length < 2) return g;
+  const geometries = pieces.map((m) => {
+    m.updateMatrix();
+    return m.geometry.clone().applyMatrix4(m.matrix);
+  });
+  const one = new THREE.Mesh(mergeGeometries(geometries), pieces[0]!.material);
+  for (const m of pieces) {
+    m.removeFromParent();
+    m.geometry.dispose();
+  }
+  for (const geometry of geometries) geometry.dispose();
+  g.add(one);
+  return g;
+}
+
 function louvredShutter(): THREE.Group {
   const paint = new THREE.MeshStandardMaterial({ color: 0x27331f, roughness: 0.72 });
   const g = new THREE.Group();
@@ -809,7 +831,7 @@ function louvredShutter(): THREE.Group {
   for (const [from, to] of [[-0.59, -0.03], [0.03, 0.59]] as const) {
     for (let k = 0; k < 7; k++) add(0.44, 0.07, 0.008, 0.27, from + ((k + 0.5) * (to - from)) / 7, 0, -0.6);
   }
-  return g;
+  return joined(g);
 }
 
 /** dressed: the room's bake has the windows (build_room.py shutter_windows); draw painted louvred
@@ -934,7 +956,7 @@ function giltFrame(y: number): THREE.Group {
   bar(0.5, 0.06, 0, -0.295);
   bar(0.06, 0.65, -0.22, 0);
   bar(0.06, 0.65, 0.22, 0);
-  return g;
+  return joined(g);
 }
 
 /** dressed: in a dressed corridor, gilt frames round small dark oil portraits (the plain boxes the
