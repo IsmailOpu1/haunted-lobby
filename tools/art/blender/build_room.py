@@ -186,16 +186,16 @@ d = job["dressing"]
 # 0.76 m of the cloth: printed three times that size, as a wallpaper's repeat, so it reads across a room.
 # Rectangular Paving is 2 m of 20 by 40 cm slabs: printed at 3 m so they read as flagstones.
 # The courtyard's scans at their own sizes: Castle Brick 02 is 1.5 m, Grass Ground 2.51 m, Dry Decay Leaves 2 m.
-TILE_M = {"floor_tiles_06": 1.6, "terracotta_floor_tiles": 2.08, "long_white_tiles_laid": 1.27, "diagonal_parquet": 2.36, "damask_gold": 2.28,
-          "rectangular_paving": 3.0, "castle_brick_02_red": 1.5, "grass_ground": 2.51, "dry_decay_leaves": 2.0}
+TILE_M = {"floor_tiles_06": 1.6, "terracotta_floor_tiles": 2.08, "long_white_tiles_laid": 1.27, "long_green_tiles_laid": 1.27, "damask_sage": 2.28, "diagonal_parquet": 2.36, "damask_gold": 2.28, "damask_wine": 2.28,
+          "rectangular_paving": 3.0, "castle_brick_02_red": 1.5, "cellar_flags": 3.0, "ritual_flags": 3.0, "cellar_brick": 1.5, "soot_brick": 1.5, "grass_ground": 2.51, "dry_decay_leaves": 2.0}
 floor_m = surface(d["floor"], TILE_M.get(d["floor"], 1.6))
 ceil_m = surface(d["ceiling"], 2.0)
 wall_m = surface(d["wall"], TILE_M.get(d["wall"], 1.4))
 wains = d.get("wainscot")
 wains_m = surface(wains["material"], TILE_M.get(wains["material"], 1.2)) if wains else None
 # A tiled dado still has wooden rails, skirting and frames: the trim's own wood if it names one.
-trim_name = (wains.get("trim") or wains["material"]) if wains else None
-trim_m = surface(trim_name, 0.6) if wains else plain("trim", (0.12, 0.07, 0.04), 0.5)
+trim_name = (wains.get("trim") or wains["material"]) if wains else d.get("woodwork")
+trim_m = surface(trim_name, 0.6) if trim_name else plain("trim", (0.12, 0.07, 0.04), 0.5)
 
 for i, p in enumerate(job["parts"]):
     quad(f"floor_{i}", [B(p["minX"], p["maxZ"]), B(p["maxX"], p["maxZ"]), B(p["maxX"], p["minZ"]), B(p["minX"], p["minZ"])], floor_m)
@@ -346,7 +346,7 @@ for i, rug in enumerate(d.get("rugs", [])):
 # ---------------------------------------------------------------- hiding spots
 # Wardrobes and cupboards are built here to the hiding spot's exact size: a plinth, a carcass, a
 # cornice, two panelled doors and brass handles. Local frame: u across the front, v out of the front.
-wood_m = surface(trim_name, 0.9) if wains else plain("wardrobe_wood", (0.10, 0.06, 0.035), 0.55)
+wood_m = surface(trim_name, 0.9) if trim_name else plain("wardrobe_wood", (0.10, 0.06, 0.035), 0.55)
 if job.get("outdoor"):
     # Out in the garden a hiding cupboard is a potting shed's tool cupboard, its paint a faded green.
     wood_m = plain("shed_paint", (0.055, 0.085, 0.06), 0.85)
@@ -2975,6 +2975,701 @@ def folding_fan(i, t):
     place([o for o in statics if o.name.startswith(f"fan_{i}_")], i, "foldingFan", t)
 
 
+def superellipse(a, b, z, n=3.2, steps=48, y0=0.0):
+    """Points round a rounded rectangle (a superellipse) of half-sizes a by b at height z."""
+    pts = []
+    for k in range(steps):
+        t = math.tau * k / steps
+        c, s = math.cos(t), math.sin(t)
+        pts.append(Vector((a * math.copysign(abs(c) ** (2 / n), c), y0 + b * math.copysign(abs(s) ** (2 / n), s), z)))
+    return pts
+
+
+def ring_loft(name, rings, mat, cap_first=False, cap_last=False):
+    """A surface through rings of points (each the same count), joined in order; a cap closes the
+    first or last ring with a fan to its middle."""
+    bm = bmesh.new()
+    vs = [[bm.verts.new(p) for p in ring] for ring in rings]
+    n = len(rings[0])
+    for r in range(len(vs) - 1):
+        for k in range(n):
+            a, b = vs[r][k], vs[r][(k + 1) % n]
+            c, d = vs[r + 1][(k + 1) % n], vs[r + 1][k]
+            bm.faces.new((a, b, c, d))
+    for flag, ring in ((cap_first, vs[0]), (cap_last, vs[-1])):
+        if flag:
+            mid = bm.verts.new(sum((v.co for v in ring), Vector()) / n)
+            for k in range(n):
+                bm.faces.new((ring[k], ring[(k + 1) % n], mid))
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-6)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    return finish(name, bm, mat)
+
+
+def enamel_m():
+    # Old enamel, ivory gone grey: pale but kept near 0.3 so the torch at arm length does not blow it out.
+    return plain("enamel", (0.32, 0.31, 0.28), 0.32)
+
+
+def pillar_tap(name, x, y, z, parts, h=0.11):
+    """A brass pillar tap standing on a rim at (x, y, z): a turned body, a spout, a cross head."""
+    parts.append(lathe(f"{name}_body", [(0.0, 0.0), (0.022, 0.0), (0.02, 0.01), (0.012, 0.025), (0.012, h - 0.02), (0.016, h - 0.012), (0.0, h - 0.008)], Vector((x, y, z)), brass_m, 14))
+    parts.append(rod(f"{name}_spout", Vector((x, y, z + h * 0.62)), Vector((x, y - 0.06, z + h * 0.52)), 0.007, brass_m, 8))
+    parts.append(rod(f"{name}_stem", Vector((x, y, z + h - 0.01)), Vector((x, y, z + h + 0.02)), 0.005, brass_m, 8))
+    parts.append(rod(f"{name}_cross", Vector((x - 0.028, y, z + h + 0.02)), Vector((x + 0.028, y, z + h + 0.02)), 0.005, brass_m, 8))
+
+
+def roll_top_bath(i, t):
+    """A cast-iron roll-top bath on four claw feet, ivory enamel inside, painted dark outside, brass
+    taps at its foot. Long side along x; its back (a long side) to the wall at +y."""
+    L, W = t.get("lengthM", 1.7), t.get("widthM", 0.77)
+    a, b = L / 2, W / 2
+    rgb = tuple(t.get("paint", (0.025, 0.035, 0.03)))
+    paint = plain(f"bath_paint_{rgb[0]:.3f}_{rgb[1]:.3f}_{rgb[2]:.3f}", rgb, 0.55)
+    enamel = enamel_m()
+    parts = []
+    outer = [(a - 0.13, b - 0.08, 0.17), (a - 0.07, b - 0.04, 0.22), (a - 0.025, b - 0.015, 0.4), (a - 0.005, b - 0.005, 0.585)]
+    roll = [(a, b, 0.6), (a - 0.004, b - 0.004, 0.622), (a - 0.022, b - 0.022, 0.628), (a - 0.035, b - 0.035, 0.61)]
+    inner = [(a - 0.05, b - 0.05, 0.58), (a - 0.075, b - 0.065, 0.42), (a - 0.14, b - 0.1, 0.25), (a - 0.22, b - 0.13, 0.205)]
+    parts.append(ring_loft(f"bath{i}_outer", [superellipse(x, y, z) for x, y, z in outer], paint, cap_first=True))
+    parts.append(ring_loft(f"bath{i}_inner", [superellipse(x, y, z) for x, y, z in [outer[-1]] + roll + inner], enamel, cap_last=True))
+    # Claw feet, painted with the bath (brass feet caught the torch like lamps): a leg swelling out of the belly to a ball on the floor.
+    for k, (fx, fy) in enumerate(((-a + 0.2, -b + 0.12), (a - 0.2, -b + 0.12), (-a + 0.2, b - 0.12), (a - 0.2, b - 0.12))):
+        parts.append(lathe(f"bath{i}_foot{k}", [(0.0, 0.0), (0.035, 0.0), (0.042, 0.02), (0.036, 0.045), (0.022, 0.07), (0.026, 0.12), (0.04, 0.19), (0.0, 0.2)], Vector((fx, fy, 0.0)), paint, 12))
+    # Taps on the rim at its foot (-x end), a waste in the bottom.
+    for k, ty in enumerate((-0.09, 0.09)):
+        pillar_tap(f"bath{i}_tap{k}", -a + 0.035, ty, 0.628, parts)
+    dark = plain("plug_dark", (0.02, 0.02, 0.02), 0.6)
+    parts.append(lathe(f"bath{i}_waste", [(0.0, 0.0), (0.028, 0.0), (0.028, 0.003), (0.0, 0.003)], Vector((-a + 0.3, 0.0, 0.206)), dark, 16))
+    join_by_material(parts, f"bath_{i}")
+    place([o for o in statics if o.name.startswith(f"bath_{i}_")], i, "rollTopBath", t)
+
+
+def high_tank_toilet(i, t):
+    """A pedestal water closet with a mahogany seat, its cast-iron cistern high on brackets, a flush
+    pipe down the wall and a pull chain. Faces -y, its back to the wall at +y = backM."""
+    back = t.get("backM", 0.34)
+    clay = enamel_m()
+    wood = surface(t.get("material", "dark_wood"), 0.5)
+    iron = _iron()
+    parts = []
+    oval = Matrix.Diagonal((1.0, 1.28, 1.0, 1.0))
+    by = back - 0.27
+    parts.append(lathe(f"wc{i}_bowl", [(0.0, 0.0), (0.12, 0.0), (0.125, 0.015), (0.1, 0.05), (0.095, 0.17), (0.13, 0.28), (0.175, 0.36), (0.185, 0.39), (0.175, 0.4), (0.15, 0.39), (0.08, 0.27), (0.0, 0.25)],
+                       Vector((0, by, 0)), clay, 28, oval))
+    parts.append(lathe(f"wc{i}_seat", [(0.115, 0.0), (0.185, 0.0), (0.19, 0.012), (0.18, 0.025), (0.12, 0.025), (0.11, 0.012)], Vector((0, by, 0.4)), wood, 28, oval))
+    # The lid stands up against the flush pipe.
+    parts.append(bevelled(box(f"wc{i}_lid", Vector((-0.17, back - 0.07, 0.43)), Vector((0.17, back - 0.045, 0.86)), wood), 0.012))
+    # Cistern on two brackets, the flush pipe down to the back of the bowl.
+    cz = t.get("cisternY", 2.05)
+    parts.append(bevelled(box(f"wc{i}_cistern", Vector((-0.24, back - 0.2, cz)), Vector((0.24, back - 0.005, cz + 0.27)), iron), 0.015))
+    parts.append(box(f"wc{i}_cisternLid", Vector((-0.26, back - 0.215, cz + 0.27)), Vector((0.26, back - 0.005, cz + 0.29)), iron))
+    for k, x in enumerate((-0.18, 0.18)):
+        parts.append(box(f"wc{i}_bracket{k}", Vector((x - 0.012, back - 0.17, cz - 0.16)), Vector((x + 0.012, back - 0.005, cz)), iron))
+        parts.append(rod(f"wc{i}_brace{k}", Vector((x, back - 0.01, cz - 0.16)), Vector((x, back - 0.16, cz - 0.005)), 0.008, iron, 8))
+    py = back - 0.05
+    # Painted iron: a polished brass pipe showed as a white line under the torch.
+    parts.append(rod(f"wc{i}_pipe", Vector((0, py, cz)), Vector((0, py, 0.5)), 0.022, iron, 14))
+    parts.append(rod(f"wc{i}_pipeBend", Vector((0, py, 0.5)), Vector((0, by + 0.17, 0.33)), 0.022, iron, 14))
+    # The lever and its chain, a turned wooden pull at its end.
+    parts.append(rod(f"wc{i}_lever", Vector((0.2, back - 0.15, cz + 0.2)), Vector((0.3, back - 0.24, cz + 0.2)), 0.007, iron, 8))
+    chain(f"wc{i}_chain", 0.3, back - 0.24, cz - 0.55, cz + 0.2, parts, iron)  # brass glinted as a bright line under the torch
+    parts.append(lathe(f"wc{i}_pull", [(0.0, 0.0), (0.012, 0.005), (0.018, 0.03), (0.016, 0.06), (0.008, 0.08), (0.0, 0.085)], Vector((0.3, back - 0.24, cz - 0.64)), wood, 12))
+    join_by_material(parts, f"wc_{i}")
+    place([o for o in statics if o.name.startswith(f"wc_{i}_")], i, "highTankToilet", t)
+
+
+def brass_bed(i, t):
+    """A brass bedstead: four posts with ball finials, the head end (+y) taller than the foot, each
+    end a top rail, a rail under it and a row of spindles down to a low rail; iron side rails and a
+    spring deck between the ends. Aged, rubbed brass (rough enough not to glare under the torch)."""
+    W, L, sy = t["widthM"], t["lengthM"], t["springsY"]
+    hw, hl = W / 2, L / 2
+    brass = plain("aged_brass", (0.42, 0.3, 0.12), 0.58, 1.0)
+    iron = _iron()
+    parts = []
+    px = hw - 0.03
+    for end, (y, H) in enumerate(((hl - 0.03, 1.32), (-hl + 0.03, 0.95))):
+        for k, x in enumerate((-px, px)):
+            parts.append(rod(f"bb{i}_post{end}{k}", Vector((x, y, 0.0)), Vector((x, y, H)), 0.026, brass, 16))
+            # A collar near the floor and under the top, a ball finial on top.
+            for c, z in enumerate((0.06, H - 0.12)):
+                parts.append(lathe(f"bb{i}_collar{end}{k}{c}", [(0.0, 0.0), (0.034, 0.0), (0.036, 0.012), (0.034, 0.024), (0.0, 0.024)], Vector((x, y, z)), brass, 16))
+            parts.append(lathe(f"bb{i}_ball{end}{k}", [(0.0, 0.0), (0.02, 0.0), (0.016, 0.012), (0.032, 0.03), (0.045, 0.06), (0.032, 0.09), (0.012, 0.104), (0.0, 0.108)], Vector((x, y, H)), brass, 20))
+        top, under, low = H - 0.07, H - 0.24, sy + 0.08
+        for name, z, r in (("top", top, 0.02), ("under", under, 0.013), ("low", low, 0.015)):
+            parts.append(rod(f"bb{i}_{name}{end}", Vector((-px, y, z)), Vector((px, y, z)), r, brass, 12))
+        n = 9 if end == 0 else 7
+        for k in range(n):
+            x = -px + (k + 1) * 2 * px / (n + 1)
+            parts.append(rod(f"bb{i}_spindle{end}{k}", Vector((x, y, low)), Vector((x, y, top)), 0.008, brass, 8))
+            if k % 2 == 0:
+                # Every other spindle carries a small turned knop between the rails.
+                parts.append(lathe(f"bb{i}_knop{end}{k}", [(0.0, 0.0), (0.016, 0.0), (0.022, 0.02), (0.016, 0.04), (0.0, 0.04)], Vector((x, y, (under + top) / 2 - 0.02)), brass, 12))
+    # Iron side rails from end to end, and the spring deck they carry.
+    for k, x in enumerate((-px, px)):
+        parts.append(box(f"bb{i}_side{k}", Vector((x - 0.012, -hl + 0.06, sy - 0.1)), Vector((x + 0.012, hl - 0.06, sy)), iron))
+    parts.append(box(f"bb{i}_springs", Vector((-px + 0.012, -hl + 0.06, sy - 0.03)), Vector((px - 0.012, hl - 0.06, sy)), iron))
+    join_by_material(parts, f"bb_{i}")
+    place([o for o in statics if o.name.startswith(f"bb_{i}_")], i, "brassBed", t)
+
+
+def four_poster(i, t):
+    """A four-poster: turned posts to a canopy, a panelled head end (+y), a low foot board, side
+    rails and boards for the mattress; a fabric tester over the top with a valance round it, and
+    curtains gathered in folds at each post, tied back to the corners."""
+    W, L, sy, H = t["widthM"], t["lengthM"], t["springsY"], t["heightM"]
+    hw, hl = W / 2, L / 2
+    wood = surface(t.get("material", "dark_wood"), 0.7)
+    cloth = surface(t["drapes"], 0.6)
+    parts = []
+    px, py = hw - 0.05, hl - 0.05
+    post = [(0.0, 0.0), (0.05, 0.0), (0.05, 0.3), (0.036, 0.36), (0.048, 0.5), (0.034, 0.66), (0.03, 0.9), (0.042, 1.1), (0.03, 1.3),
+            (0.026, H - 0.3), (0.036, H - 0.2), (0.036, H - 0.16), (0.0, H - 0.16)]
+    for k, (x, y) in enumerate(((-px, py), (px, py), (-px, -py), (px, -py))):
+        parts.append(lathe(f"fp{i}_post{k}", post, Vector((x, y, 0.0)), wood, 16))
+    # The head end: a panelled board between the head posts; the foot board between the foot posts.
+    parts.append(bevelled(box(f"fp{i}_head", Vector((-px, py - 0.02, sy - 0.05)), Vector((px, py + 0.02, sy + 0.95)), wood), 0.008))
+    for k in range(3):
+        x0 = -px + 0.08 + k * (2 * px - 0.16) / 3
+        x1 = x0 + (2 * px - 0.16) / 3 - 0.06
+        parts.append(bevelled(box(f"fp{i}_panel{k}", Vector((x0 + 0.03, py - 0.032, sy + 0.12)), Vector((x1 + 0.03, py - 0.02, sy + 0.82)), wood), 0.01))
+    parts.append(bevelled(box(f"fp{i}_headCap", Vector((-px - 0.02, py - 0.04, sy + 0.95)), Vector((px + 0.02, py + 0.04, sy + 1.0)), wood), 0.008))
+    parts.append(bevelled(box(f"fp{i}_foot", Vector((-px, -py - 0.02, sy - 0.2)), Vector((px, -py + 0.02, sy + 0.3)), wood), 0.008))
+    for k, x in enumerate((-px, px)):
+        parts.append(bevelled(box(f"fp{i}_rail{k}", Vector((x - 0.02, -py, sy - 0.22)), Vector((x + 0.02, py, sy)), wood), 0.006))
+    parts.append(box(f"fp{i}_boards", Vector((-px + 0.02, -py, sy - 0.03)), Vector((px - 0.02, py, sy)), wood))
+    # The tester frame on the posts, the cloth over it and the valance hanging round it.
+    top = H - 0.16
+    for k, (a, b) in enumerate((((-px - 0.04, -py - 0.04), (px + 0.04, -py + 0.04)), ((-px - 0.04, py - 0.04), (px + 0.04, py + 0.04)),
+                                ((-px - 0.04, -py), (-px + 0.04, py)), ((px - 0.04, -py), (px + 0.04, py)))):
+        parts.append(bevelled(box(f"fp{i}_tester{k}", Vector((a[0], a[1], top)), Vector((b[0], b[1], top + 0.1)), wood), 0.01))
+    parts.append(box(f"fp{i}_roof", Vector((-px - 0.04, -py - 0.04, top + 0.1)), Vector((px + 0.04, py + 0.04, top + 0.115)), cloth))
+    vb, vt = top - 0.22, top + 0.1
+    for k, (a, b) in enumerate((((-px - 0.06, -py - 0.06), (px + 0.06, -py - 0.045)), ((-px - 0.06, py + 0.045), (px + 0.06, py + 0.06)),
+                                ((-px - 0.06, -py - 0.06), (-px - 0.045, py + 0.06)), ((px + 0.045, -py - 0.06), (px + 0.06, py + 0.06)))):
+        parts.append(box(f"fp{i}_valance{k}", Vector((a[0], a[1], vb)), Vector((b[0], b[1], vt)), cloth))
+    # Curtains gathered at each post along the bed's sides: folds as a row of soft rounded columns.
+    for k, (x, y, d) in enumerate(((-px, py, -1), (px, py, -1), (-px, -py, 1), (px, -py, 1))):
+        for f in range(5):
+            fy = y + d * (0.06 + f * 0.055)
+            r = 0.04 if f % 2 == 0 else 0.032
+            fx = x + (-1 if x < 0 else 1) * (0.03 + (0.012 if f % 2 else 0.0))
+            parts.append(rod(f"fp{i}_fold{k}_{f}", Vector((fx, fy, 0.03)), Vector((fx, fy, vb + 0.02)), r, cloth, 10))
+        # The tie-back, a band of the same cloth round the folds at the height of the head board.
+        ty = y + d * 0.17
+        parts.append(box(f"fp{i}_tie{k}", Vector((x - 0.08, ty - 0.17, sy + 0.62)), Vector((x + 0.08, ty + 0.17, sy + 0.68)), cloth))
+    join_by_material(parts, f"fp_{i}")
+    place([o for o in statics if o.name.startswith(f"fp_{i}_")], i, "fourPoster", t)
+
+
+def dressing_table(i, t):
+    """A dressing table at the mirror task: a top on four turned legs, an apron with a drawer, and two
+    turned uprights holding a gilt swing frame round the glass the game draws (0.6 by 0.9, centred
+    1.45 up, 0.02 in front of the task's place). Front toward -y, back toward the wall at +y."""
+    wood = surface(t.get("material", "dark_wood"), 0.7)
+    gilt = plain("gilt", (0.36, 0.26, 0.1), 0.55, 1.0)
+    parts = []
+    hl, y0, y1, Ht = 0.55, -0.3, 0.12, 0.76
+    parts.append(bevelled(box(f"dt{i}_top", Vector((-hl, y0, Ht - 0.03)), Vector((hl, y1, Ht)), wood), 0.008))
+    a0, a1 = Ht - 0.03 - 0.13, Ht - 0.03
+    for k, (x, y) in enumerate(((-hl + 0.05, y0 + 0.05), (hl - 0.05, y0 + 0.05), (-hl + 0.05, y1 - 0.05), (hl - 0.05, y1 - 0.05))):
+        parts.append(box(f"dt{i}_block{k}", Vector((x - 0.025, y - 0.025, a0)), Vector((x + 0.025, y + 0.025, a1)), wood))
+        parts.append(turned_leg(f"dt{i}_leg{k}", x, y, a0, 0.025, wood))
+    parts.append(box(f"dt{i}_apronF", Vector((-hl + 0.05, y0 + 0.03, a0)), Vector((hl - 0.05, y0 + 0.05, a1)), wood))
+    parts.append(box(f"dt{i}_apronB", Vector((-hl + 0.05, y1 - 0.05, a0)), Vector((hl - 0.05, y1 - 0.03, a1)), wood))
+    for k, x in enumerate((-hl + 0.03, hl - 0.05)):
+        parts.append(box(f"dt{i}_apronS{k}", Vector((x, y0 + 0.05, a0)), Vector((x + 0.02, y1 - 0.05, a1)), wood))
+    parts.append(bevelled(box(f"dt{i}_drawer", Vector((-0.3, y0 + 0.018, a0 + 0.015)), Vector((0.3, y0 + 0.03, a1 - 0.015)), wood), 0.004, 1))
+    parts.append(lathe(f"dt{i}_knob", [(0.0, 0.0), (0.01, 0.0), (0.014, 0.012), (0.0, 0.02)], Vector((0.0, y0 + 0.018, (a0 + a1) / 2)), gilt, 12, Matrix.Rotation(math.radians(90), 4, "X")))
+    # The swing frame round the glass, a backing board behind it, a crest on top.
+    gw, gh, gz, gy = 0.6, 0.9, 1.45, 0.02
+    b = 0.07
+    fy0, fy1 = gy + 0.002, gy + 0.04
+    for k, (lo, hi) in enumerate((((-gw / 2 - b, gz + gh / 2), (gw / 2 + b, gz + gh / 2 + b)), ((-gw / 2 - b, gz - gh / 2 - b), (gw / 2 + b, gz - gh / 2)),
+                                  ((-gw / 2 - b, gz - gh / 2), (-gw / 2, gz + gh / 2)), ((gw / 2, gz - gh / 2), (gw / 2 + b, gz + gh / 2)))):
+        parts.append(bevelled(box(f"dt{i}_frame{k}", Vector((lo[0], fy0, lo[1])), Vector((hi[0], fy1, hi[1])), gilt), 0.012))
+    parts.append(box(f"dt{i}_back", Vector((-gw / 2, gy + 0.03, gz - gh / 2)), Vector((gw / 2, gy + 0.04, gz + gh / 2)), wood))
+    parts.append(lathe(f"dt{i}_crest", [(0.0, 0.0), (0.09, 0.0), (0.07, 0.03), (0.04, 0.06), (0.05, 0.08), (0.0, 0.1)], Vector((0.0, (fy0 + fy1) / 2, gz + gh / 2 + b)), gilt, 16, Matrix.Diagonal((1.6, 0.25, 1.0, 1.0))))
+    # Two turned uprights from the top to above the frame's middle, a pin into each side.
+    ux = gw / 2 + b + 0.035
+    for k, x in enumerate((-ux, ux)):
+        parts.append(lathe(f"dt{i}_upright{k}", [(0.0, 0.0), (0.03, 0.0), (0.03, 0.03), (0.018, 0.06), (0.016, 0.5), (0.024, 0.6), (0.016, 0.7), (0.015, gz + 0.12 - Ht), (0.024, gz + 0.16 - Ht), (0.0, gz + 0.2 - Ht)],
+                           Vector((x, (fy0 + fy1) / 2, Ht)), wood, 12))
+        parts.append(rod(f"dt{i}_pin{k}", Vector((x, (fy0 + fy1) / 2, gz)), Vector((x - math.copysign(0.035, x), (fy0 + fy1) / 2, gz)), 0.01, gilt, 8))
+    join_by_material(parts, f"dt_{i}")
+    place([o for o in statics if o.name.startswith(f"dt_{i}_")], i, "dressingTable", t)
+
+
+def shutter_windows(i, t):
+    """The shutters task's triple window on the courtyard wall, its back to the wall at +y = backM:
+    three sash windows of night-dark glass (0.55 x 1.3, centres 0.7 apart, 0.85 to 2.15 m up) with
+    glazing bars, one moulded architrave round all three and a sill. The game hangs the shutters."""
+    back = t["backM"] - FACE_GAP
+    # Old window glass at night: dark, with a faint soft shine (a full reflection threw the torch back as a glare).
+    glass = plain("night_glass", (0.006, 0.008, 0.012), 0.22)
+    glass.node_tree.nodes["Principled BSDF"].inputs["Specular IOR Level"].default_value = 0.12
+    paint = plain("sash_paint", (0.2, 0.19, 0.165), 0.6)
+    wood = surface(t.get("material", "dark_wood"), 0.8)
+    parts = []
+    lo, hi, hw = 0.85, 2.15, 0.275
+    for k in range(3):
+        cx = (k - 1) * 0.7
+        parts.append(box(f"sw{i}_glass{k}", Vector((cx - hw, back - 0.006, lo)), Vector((cx + hw, back, hi)), glass))
+        # The sash frame, and its bars: two panes across, three up.
+        for j, (a, b) in enumerate((((cx - hw, lo), (cx + hw, lo + 0.05)), ((cx - hw, hi - 0.045), (cx + hw, hi)), ((cx - hw, lo), (cx - hw + 0.045, hi)), ((cx + hw - 0.045, lo), (cx + hw, hi)),
+                                    ((cx - hw, 1.48), (cx + hw, 1.52)))):
+            parts.append(bevelled(box(f"sw{i}_sash{k}_{j}", Vector((a[0], back - 0.03, a[1])), Vector((b[0], back - 0.004, b[1])), paint), 0.004))
+        parts.append(box(f"sw{i}_barV{k}", Vector((cx - 0.011, back - 0.022, lo)), Vector((cx + 0.011, back - 0.004, hi)), paint))
+        for j, z in enumerate((1.07, 1.93)):
+            parts.append(box(f"sw{i}_barH{k}_{j}", Vector((cx - hw, back - 0.022, z - 0.011)), Vector((cx + hw, back - 0.004, z + 0.011)), paint))
+    # The architrave round the three, and the sill under them.
+    X = 1.0 + 0.075
+    for j, (a, b) in enumerate((((-X, 0.79), (-X + 0.075, 2.22)), ((X - 0.075, 0.79), (X, 2.22)), ((-X, 2.15), (X, 2.22)))):
+        parts.append(bevelled(box(f"sw{i}_arch{j}", Vector((a[0], back - 0.035, a[1])), Vector((b[0], back, b[1])), wood), 0.008))
+    parts.append(bevelled(box(f"sw{i}_sill", Vector((-X - 0.04, back - 0.12, 0.79)), Vector((X + 0.04, back, 0.85)), wood), 0.008))
+    parts.append(bevelled(box(f"sw{i}_apron", Vector((-X, back - 0.025, 0.66)), Vector((X, back, 0.79)), wood), 0.006))
+    join_by_material(parts, f"shwin_{i}")
+    place([o for o in statics if o.name.startswith(f"shwin_{i}_")], i, "shutterWindows", t)
+
+
+def picture_rail(i, t):
+    """A picture rail on a wall at its face (y = 0, the wall behind at +y), facing -y: a moulding at
+    height y, a brass hook over it at each hook offset, and two cords from each hook down to a brass
+    nail head at hookY, outM out from the wall, where a frame hangs."""
+    L, y0, hy, out = t["lengthM"], t["y"], t["hookY"], t["outM"]
+    wood = surface(t.get("material", "dark_wood"), 0.8)
+    brass = plain("rail_brass", (0.3, 0.2, 0.08), 0.55, 1.0)
+    cord = plain("picture_cord", (0.12, 0.07, 0.04), 0.85)
+    parts = [bevelled(box(f"pr{i}_rail", Vector((-L / 2, -0.03, y0 - 0.045)), Vector((L / 2, 0.0, y0)), wood), 0.006)]
+    for k, hx in enumerate(t["hooks"]):
+        parts.append(rod(f"pr{i}_hook{k}", Vector((hx, -0.03, y0 - 0.005)), Vector((hx, -0.045, y0 - 0.03)), 0.005, brass, 6))
+        parts.append(lathe(f"pr{i}_nail{k}", [(0.0, 0.0), (0.012, 0.0), (0.012, 0.006), (0.0, 0.008)], Vector((hx, -out, hy)), brass, 10,
+                           Matrix.Rotation(math.radians(90), 4, "X")))
+        for j, s in enumerate((-1, 1)):
+            parts.append(rod(f"pr{i}_cord{k}_{j}", Vector((hx, -0.045, y0 - 0.03)), Vector((hx + s * 0.09, -out + 0.004, hy - 0.02)), 0.0025, cord, 5))
+    join_by_material(parts, f"prail_{i}")
+    place([o for o in statics if o.name.startswith(f"prail_{i}_")], i, "pictureRail", t)
+
+
+def wine_rack(i, t):
+    """A cellar's wine rack against a wall (back at +y), facing -y: a plinth, sides, a top and a back
+    board, divided into square bins, each with a dusty bottle lying neck-out (a few bins empty,
+    seeded so each rack differs)."""
+    import random
+    rnd = random.Random(t.get("seed", i))
+    W, D, Ht = t["widthM"], t["depthM"], t["heightM"]
+    wood = surface(t.get("material", "cellar_oak"), 0.8)
+    glass = plain("bottle_glass", (0.006, 0.018, 0.008), 0.35)
+    # Sealing wax over the corks: dark red, matt (a metal foil read pink under the torch).
+    foil = plain("bottle_seal", (0.022, 0.005, 0.004), 0.65)
+    parts = []
+    hw, back, front = W / 2, D / 2 - FACE_GAP, -D / 2
+    side, plinth, top_t, board = 0.035, 0.08, 0.035, 0.018
+    parts.append(bevelled(box(f"wr{i}_plinth", Vector((-hw, front + 0.02, 0.0)), Vector((hw, back, plinth)), wood), 0.005))
+    parts.append(bevelled(box(f"wr{i}_top", Vector((-hw - 0.015, front - 0.015, Ht - top_t)), Vector((hw + 0.015, back, Ht)), wood), 0.006))
+    parts.append(box(f"wr{i}_back", Vector((-hw, back - 0.012, plinth)), Vector((hw, back, Ht - top_t)), wood))
+    for k, x in enumerate((-hw, hw - side)):
+        parts.append(bevelled(box(f"wr{i}_side{k}", Vector((x, front, 0.0)), Vector((x + side, back, Ht - top_t)), wood), 0.005))
+    cols = max(1, round((W - 2 * side) / 0.26))
+    rows = max(1, round((Ht - plinth - top_t) / 0.26))
+    cw = (W - 2 * side) / cols
+    ch = (Ht - plinth - top_t) / rows
+    for c in range(1, cols):
+        x = -hw + side + c * cw
+        parts.append(box(f"wr{i}_div{c}", Vector((x - board / 2, front + 0.01, plinth)), Vector((x + board / 2, back - 0.012, Ht - top_t)), wood))
+    for r in range(1, rows):
+        z = plinth + r * ch
+        parts.append(box(f"wr{i}_shelf{r}", Vector((-hw + side, front + 0.01, z - board / 2)), Vector((hw - side, back - 0.012, z + board / 2)), wood))
+    # The bottles: lying along y, the punt toward the back, the neck just short of the front; three
+    # to a bin in a little pyramid (two below, one in their saddle), some bins down to one or none.
+    lie = Matrix.Rotation(math.radians(90), 4, "X")
+    prof = [(0.0, 0.0), (0.03, 0.0), (0.037, 0.01), (0.037, 0.19), (0.03, 0.225), (0.015, 0.25), (0.013, 0.3), (0.0, 0.3)]
+    for c in range(cols):
+        for r in range(rows):
+            roll = rnd.random()
+            if roll < 0.12:
+                continue
+            cx = -hw + side + (c + 0.5) * cw
+            z0 = plinth + r * ch + board / 2 + 0.038
+            spots = [(cx, z0)] if roll < 0.3 else [(cx - 0.039, z0), (cx + 0.039, z0), (cx, z0 + 0.066)]
+            for k, (x, z) in enumerate(spots):
+                y0 = front + 0.32 + rnd.uniform(0.0, 0.025)
+                parts.append(lathe(f"wr{i}_bottle{c}_{r}_{k}", prof, Vector((x, y0, z)), glass, 12, lie))
+                parts.append(lathe(f"wr{i}_foil{c}_{r}_{k}", [(0.0, 0.25), (0.015, 0.25), (0.015, 0.302), (0.0, 0.302)], Vector((x, y0, z)), foil, 10, lie))
+    join_by_material(parts, f"winerack_{i}")
+    place([o for o in statics if o.name.startswith(f"winerack_{i}_")], i, "wineRack", t)
+
+
+def stone_altar(i, t):
+    """The Ritual Room's altar: a dressed stone block on a plinth under an overhanging slab, a sunk
+    panel on its front, wax run down its back corners from old candles, and an old dark stain on the
+    slab. The middle of the top stays clear: the game stands the relics there. Long side along x."""
+    L, D, H = t["lengthM"], t["depthM"], t["heightM"]
+    # The dark flags printed large, so their joints read as courses of cut stone, not floor tiles.
+    stone = surface(t.get("material", "altar_stone"), 5.0)
+    wax = plain("candle_wax", (0.7, 0.66, 0.56), 0.6)
+    stain = plain("old_stain", (0.05, 0.016, 0.012), 0.5)
+    parts = []
+    hl, hd = L / 2, D / 2
+    parts.append(bevelled(box(f"al{i}_plinth", Vector((-hl - 0.05, -hd - 0.05, 0.0)), Vector((hl + 0.05, hd + 0.05, 0.12)), stone), 0.015))
+    parts.append(bevelled(box(f"al{i}_body", Vector((-hl + 0.06, -hd + 0.06, 0.12)), Vector((hl - 0.06, hd - 0.06, H - 0.1)), stone), 0.01))
+    parts.append(bevelled(box(f"al{i}_slab", Vector((-hl - 0.03, -hd - 0.03, H - 0.1)), Vector((hl + 0.03, hd + 0.03, H)), stone), 0.02))
+    # The sunk panel's raised frame on the front (-y) and the back.
+    for s, nm in ((-1, "f"), (1, "b")):
+        y = s * (hd - 0.06)
+        y0, y1 = (y - 0.02, y) if s < 0 else (y, y + 0.02)
+        for j, (a, b) in enumerate((((-hl + 0.16, 0.24), (hl - 0.16, 0.3)), ((-hl + 0.16, H - 0.22), (hl - 0.16, H - 0.16)),
+                                    ((-hl + 0.16, 0.24), (-hl + 0.22, H - 0.16)), ((hl - 0.22, 0.24), (hl - 0.16, H - 0.16)))):
+            parts.append(bevelled(box(f"al{i}_frame{nm}{j}", Vector((a[0], y0, a[1])), Vector((b[0], y1, b[1])), stone), 0.006))
+    # Old candles burnt down at the back corners, their wax run over the edge.
+    for k, x in enumerate((-hl + 0.12, hl - 0.12)):
+        for j, (dx, dy, h) in enumerate(((0.0, 0.0, 0.05), (0.06, -0.05, 0.09), (-0.05, -0.04, 0.03))):
+            parts.append(lathe(f"al{i}_stub{k}_{j}", [(0.0, 0.0), (0.02, 0.0), (0.02, h), (0.016, h + 0.006), (0.0, h + 0.006)], Vector((x + dx, hd - 0.12 + dy, H)), wax, 12))
+        parts.append(lathe(f"al{i}_pool{k}", [(0.0, 0.0), (0.09, 0.0), (0.085, 0.003), (0.0, 0.004)], Vector((x, hd - 0.12, H)), wax, 16))
+        parts.append(box(f"al{i}_drip{k}", Vector((x - 0.02, hd + 0.028, H - 0.16)), Vector((x + 0.015, hd + 0.034, H)), wax))
+    for k, (sx, sy, r) in enumerate(((-hl + 0.3, -hd + 0.18, 0.09), (-hl + 0.4, -hd + 0.14, 0.05), (-hl + 0.22, -hd + 0.24, 0.035))):
+        parts.append(lathe(f"al{i}_stain{k}", [(0.0, 0.0), (r, 0.0), (r * 0.85, 0.001), (0.0, 0.0012)], Vector((sx, sy, H)), stain, 16,
+                           Matrix.Diagonal((1.0, 0.7, 1.0, 1.0))))
+    join_by_material(parts, f"altar_{i}")
+    place([o for o in statics if o.name.startswith(f"altar_{i}_")], i, "stoneAltar", t)
+
+
+def floor_candles(i, t):
+    """A cluster of church candles standing straight on the floor: different heights and girths,
+    each in a puddle of its own wax; the first few lit, the rest burnt out (seeded)."""
+    import random
+    rnd = random.Random(t.get("seed", i))
+    wax = plain("church_wax", (0.6, 0.56, 0.47), 0.55)
+    flame = plain("candle_flame", (1.0, 0.75, 0.4), 0.5, 0.0, ((1.0, 0.62, 0.25), 6.0))
+    wick = plain("burnt_wick", (0.02, 0.018, 0.016), 0.8)
+    parts = []
+    spread = t.get("spreadM", 0.18)
+    placed = []
+    for k in range(t.get("count", 5)):
+        for _ in range(30):
+            x, y = rnd.uniform(-spread, spread), rnd.uniform(-spread, spread)
+            r = rnd.uniform(0.022, 0.04)
+            if all(math.hypot(x - px, y - py) > r + pr + 0.012 for px, py, pr in placed):
+                break
+        placed.append((x, y, r))
+        h = rnd.uniform(0.07, 0.34)
+        parts.append(lathe(f"fcn{i}_pool{k}", [(0.0, 0.0), (r + 0.035, 0.0), (r + 0.03, 0.003), (0.0, 0.005)], Vector((x, y, 0.0)), wax, 14))
+        parts.append(lathe(f"fcn{i}_wax{k}", [(0.0, 0.0), (r, 0.0), (r * 0.98, h * 0.6), (r, h), (r * 0.85, h + 0.006), (0.0, h - 0.004)], Vector((x, y, 0.0)), wax, 14))
+        parts.append(rod(f"fcn{i}_wick{k}", Vector((x, y, h - 0.004)), Vector((x, y, h + 0.01)), 0.0013, wick, 4))
+        if k < t.get("lit", 0):
+            parts.append(lathe(f"fcn{i}_flame{k}", [(0.0, 0.0), (0.007, 0.007), (0.008, 0.016), (0.005, 0.027), (0.0, 0.036)], Vector((x, y, h + 0.008)), flame, 8))
+    join_by_material(parts, f"floorcandles_{i}")
+    place([o for o in statics if o.name.startswith(f"floorcandles_{i}_")], i, "floorCandles", t)
+
+
+def boiler(i, t):
+    """The boiler task's riveted iron boiler on a brick plinth, its back to the wall at +y = backM:
+    a domed shell (centre 0.1 m back from the station point, 0.45 m round), iron bands, a firebox door
+    low on the front, a flue and a steam pipe to the ceiling, the valve's pipe stub and bonnet (the
+    game adds the red wheel at 1.1 m) and the gauge's brass case (the game adds the dial at 1.4 m)."""
+    back = t["backM"] - FACE_GAP
+    top = H - SLAB
+    rust = surface("rusty_metal_dark", 1.0)
+    iron = plain("wrought_iron", (0.035, 0.034, 0.036), 0.55, 1.0)
+    brass = plain("boiler_brass", (0.3, 0.2, 0.08), 0.55, 1.0)
+    brick = surface("castle_brick_02_red", TILE_M["castle_brick_02_red"])
+    cy, R = 0.1, 0.45
+    parts = []
+    parts.append(box(f"bo{i}_plinth", Vector((-0.58, -0.48, 0.0)), Vector((0.58, back, 0.14)), brick))
+    parts.append(lathe(f"bo{i}_shell", [(0.0, 0.14), (R + 0.02, 0.14), (R + 0.02, 0.2), (R, 0.2), (R, 1.6), (R + 0.02, 1.6), (R + 0.02, 1.64),
+                                         (R - 0.01, 1.67), (0.4, 1.76), (0.3, 1.83), (0.16, 1.87), (0.0, 1.88)], Vector((0, cy, 0)), rust, 36))
+    for k, z in enumerate((0.6, 1.15)):
+        parts.append(lathe(f"bo{i}_band{k}", [(R - 0.002, z - 0.03), (R + 0.012, z - 0.022), (R + 0.012, z + 0.022), (R - 0.002, z + 0.03)], Vector((0, cy, 0)), iron, 36))
+    # The flue up through the ceiling, a collar where it meets it; a steam pipe beside it.
+    parts.append(rod(f"bo{i}_flue", Vector((0.0, cy, 1.84)), Vector((0.0, cy, top)), 0.085, iron, 16))
+    parts.append(lathe(f"bo{i}_collar", [(0.0, top - 0.05), (0.15, top - 0.05), (0.15, top), (0.0, top)], Vector((0, cy, 0)), iron, 16))
+    parts.append(rod(f"bo{i}_steam", Vector((-0.28, cy + 0.12, 1.72)), Vector((-0.28, cy + 0.12, top)), 0.028, iron, 10))
+    parts.append(lathe(f"bo{i}_safety", [(0.0, 0.0), (0.03, 0.0), (0.03, 0.05), (0.045, 0.06), (0.045, 0.09), (0.012, 0.11), (0.0, 0.12)], Vector((0.2, cy - 0.1, 1.8)), brass, 14))
+    # A feed pipe low into the wall.
+    parts.append(rod(f"bo{i}_feed", Vector((0.32, cy + 0.25, 0.42)), Vector((0.32, back, 0.42)), 0.03, iron, 10))
+    # The firebox door, low on the front, with its latch handle.
+    fy = cy - R
+    parts.append(bevelled(box(f"bo{i}_door", Vector((-0.17, fy - 0.035, 0.27)), Vector((0.17, fy + 0.06, 0.55)), iron), 0.01))
+    parts.append(rod(f"bo{i}_handle", Vector((0.08, fy - 0.035, 0.41)), Vector((0.08, fy - 0.075, 0.41)), 0.01, brass, 8))
+    parts.append(rod(f"bo{i}_grip", Vector((0.0, fy - 0.075, 0.41)), Vector((0.14, fy - 0.075, 0.41)), 0.012, brass, 8))
+    # The valve: a pipe stub out of the shell, its bonnet, the stem the game's wheel sits on.
+    vx, vz = 0.25, 1.1
+    vy = cy - math.sqrt(R * R - vx * vx)
+    parts.append(rod(f"bo{i}_vpipe", Vector((vx, vy + 0.03, vz)), Vector((vx, -0.345, vz)), 0.042, iron, 12))
+    parts.append(bevelled(box(f"bo{i}_bonnet", Vector((vx - 0.055, -0.39, vz - 0.055)), Vector((vx + 0.055, -0.345, vz + 0.055)), iron), 0.008))
+    parts.append(rod(f"bo{i}_stem", Vector((vx, -0.39, vz)), Vector((vx, -0.418, vz)), 0.012, brass, 8))
+    # The gauge's brass case, the dial (the game's) on its face at y -0.37.
+    gx, gz = -0.2, 1.4
+    gy = cy - math.sqrt(R * R - gx * gx)
+    parts.append(rod(f"bo{i}_gstem", Vector((gx, gy + 0.02, gz - 0.16)), Vector((gx, -0.33, gz - 0.16)), 0.012, brass, 8))
+    parts.append(rod(f"bo{i}_gcase", Vector((gx, -0.31, gz)), Vector((gx, -0.368, gz)), 0.135, brass, 28))
+    parts.append(rod(f"bo{i}_gneck", Vector((gx, -0.33, gz - 0.16)), Vector((gx, -0.33, gz - 0.12)), 0.012, brass, 8))
+    join_by_material(parts, f"boiler_{i}")
+    place([o for o in statics if o.name.startswith(f"boiler_{i}_")], i, "boiler", t)
+
+
+def sump(i, t):
+    """The drain relic spot's sump: a granite curb round a square of black water (the game draws the
+    water, and your arm in it) and an iron grate in the floor beside it. Faces -y."""
+    stone = plain("granite_curb", (0.085, 0.085, 0.08), 0.7)
+    iron = plain("wrought_iron", (0.035, 0.034, 0.036), 0.55, 1.0)
+    dark = plain("sump_dark", (0.008, 0.009, 0.008), 0.9)
+    half, w, h = 0.28, 0.07, 0.08
+    o = half + w
+    parts = []
+    for k, (lo, hi) in enumerate((((-o, -o), (o, -half)), ((-o, half), (o, o)), ((-o, -half), (-half, half)), ((half, -half), (o, half)))):
+        parts.append(bevelled(box(f"sp{i}_curb{k}", Vector((lo[0], lo[1], 0.0)), Vector((hi[0], hi[1], h)), stone), 0.012))
+    parts.append(box(f"sp{i}_well", Vector((-half, -half, 0.0)), Vector((half, half, 0.01)), dark))
+    # The grate beside it, flush with the floor: a frame and bars.
+    gx0, gx1, gy = o + 0.09, o + 0.39, 0.27
+    parts.append(box(f"sp{i}_gdark", Vector((gx0, -gy, 0.0)), Vector((gx1, gy, 0.004)), dark))
+    for k, (lo, hi) in enumerate((((gx0, -gy), (gx1, -gy + 0.025)), ((gx0, gy - 0.025), (gx1, gy)), ((gx0, -gy), (gx0 + 0.025, gy)), ((gx1 - 0.025, -gy), (gx1, gy)))):
+        parts.append(box(f"sp{i}_gframe{k}", Vector((lo[0], lo[1], 0.0)), Vector((hi[0], hi[1], 0.012)), iron))
+    for k in range(6):
+        x = gx0 + 0.025 + (k + 0.5) * (gx1 - gx0 - 0.05) / 6
+        parts.append(box(f"sp{i}_gbar{k}", Vector((x - 0.009, -gy + 0.025, 0.0)), Vector((x + 0.009, gy - 0.025, 0.01)), iron))
+    join_by_material(parts, f"sump_{i}")
+    place([o for o in statics if o.name.startswith(f"sump_{i}_")], i, "sump", t)
+
+
+def mangle(i, t):
+    """A cast-iron box mangle: splayed side frames, two wooden rollers, a pressure screw with a
+    handwheel on top, a big flywheel and crank at the +x end, a feed board in front. Faces -y."""
+    iron = plain("cast_iron", (0.018, 0.018, 0.02), 0.6, 1.0)
+    wood = surface(t.get("material", "scrubbed_wood"), 0.8)
+    parts = []
+    sx = 0.36
+    for k, s in enumerate((-1, 1)):
+        x = s * sx
+        parts.append(rod(f"mg{i}_legF{k}", Vector((x, -0.26, 0.0)), Vector((x, -0.05, 0.9)), 0.028, iron, 10))
+        parts.append(rod(f"mg{i}_legB{k}", Vector((x, 0.26, 0.0)), Vector((x, 0.05, 0.9)), 0.028, iron, 10))
+        parts.append(rod(f"mg{i}_foot{k}", Vector((x, -0.28, 0.02)), Vector((x, 0.28, 0.02)), 0.022, iron, 8))
+        parts.append(bevelled(box(f"mg{i}_cheek{k}", Vector((x - 0.025, -0.09, 0.84)), Vector((x + 0.025, 0.09, 1.22)), iron), 0.01))
+        parts.append(rod(f"mg{i}_post{k}", Vector((x, 0.0, 1.22)), Vector((x, 0.0, 1.38)), 0.02, iron, 8))
+    parts.append(rod(f"mg{i}_stretch", Vector((-sx, 0.0, 0.25)), Vector((sx, 0.0, 0.25)), 0.02, iron, 8))
+    parts.append(bevelled(box(f"mg{i}_cross", Vector((-sx - 0.04, -0.035, 1.36)), Vector((sx + 0.04, 0.035, 1.42)), iron), 0.01))
+    parts.append(rod(f"mg{i}_screw", Vector((0.0, 0.0, 1.13)), Vector((0.0, 0.0, 1.52)), 0.016, iron, 8))
+    parts.append(lathe(f"mg{i}_handwheel", [(0.1, 1.5), (0.12, 1.51), (0.12, 1.53), (0.1, 1.54), (0.1, 1.5)], Vector((0, 0, 0)), iron, 20))
+    for k, z in enumerate((0.95, 1.1)):
+        parts.append(rod(f"mg{i}_roller{k}", Vector((-sx + 0.03, 0.0, z)), Vector((sx - 0.03, 0.0, z)), 0.068, wood, 20))
+        parts.append(rod(f"mg{i}_axle{k}", Vector((-sx - 0.03, 0.0, z)), Vector((sx + 0.06, 0.0, z)), 0.018, iron, 8))
+    # The flywheel on the lower roller's axle, outside the +x frame, with four spokes and a crank.
+    fx, fz, FR = sx + 0.09, 0.95, 0.34
+    side = Matrix.Rotation(math.radians(90), 4, "Y")
+    parts.append(lathe(f"mg{i}_rim", [(FR - 0.035, -0.018), (FR, -0.018), (FR, 0.018), (FR - 0.035, 0.018), (FR - 0.035, -0.018)], Vector((fx, 0.0, fz)), iron, 32, side))
+    parts.append(lathe(f"mg{i}_hub", [(0.0, -0.03), (0.05, -0.03), (0.05, 0.03), (0.0, 0.03)], Vector((fx, 0.0, fz)), iron, 14, side))
+    for k in range(4):
+        a = math.tau * k / 4 + math.radians(20)
+        parts.append(rod(f"mg{i}_spoke{k}", Vector((fx, 0.0, fz)), Vector((fx, math.cos(a) * (FR - 0.02), fz + math.sin(a) * (FR - 0.02))), 0.016, iron, 8))
+    hy, hz = math.cos(math.radians(20)) * (FR - 0.02), fz + math.sin(math.radians(20)) * (FR - 0.02)
+    parts.append(rod(f"mg{i}_crank", Vector((fx, hy, hz)), Vector((fx + 0.14, hy, hz)), 0.014, iron, 8))
+    parts.append(rod(f"mg{i}_knob", Vector((fx + 0.04, hy, hz)), Vector((fx + 0.15, hy, hz)), 0.022, wood, 10))
+    # The feed board in front of the rollers.
+    parts.append(box(f"mg{i}_board", Vector((-sx + 0.02, -0.32, 0.93)), Vector((sx - 0.02, -0.08, 0.95)), wood))
+    parts.append(rod(f"mg{i}_boardL", Vector((-sx, -0.3, 0.93)), Vector((-sx, -0.08, 0.93)), 0.012, iron, 6))
+    parts.append(rod(f"mg{i}_boardR", Vector((sx, -0.3, 0.93)), Vector((sx, -0.08, 0.93)), 0.012, iron, 6))
+    join_by_material(parts, f"mangle_{i}")
+    place([o for o in statics if o.name.startswith(f"mangle_{i}_")], i, "mangle", t)
+
+
+def drape(name, x0, x1, y, z_top, z_bot, side, mat, seed=0.0):
+    """Cloth hanging from z_top down to z_bot along x at y, falling in soft folds that deepen toward
+    its hem, toward side (-1 or +1); two-sided (a back face 4 mm behind the front)."""
+    bm = bmesh.new()
+    nx, nz = 28, 8
+    grids = []
+    for skin, inset in ((0, 0.0), (1, -0.004)):
+        grid = []
+        for a in range(nx + 1):
+            x = x0 + (x1 - x0) * a / nx
+            col = []
+            for b in range(nz + 1):
+                f = b / nz
+                z = z_top - (z_top - z_bot) * f
+                fold = 0.004 + f * 0.028 * (0.5 + 0.5 * math.sin(x * 15.0 + seed)) + f * 0.008 * math.sin(x * 37.0 + seed * 2)
+                col.append(bm.verts.new((x, y + side * (fold + inset), z)))
+            grid.append(col)
+        grids.append(grid)
+    front, back = grids
+    for a in range(nx):
+        for b in range(nz):
+            q = (front[a][b], front[a + 1][b], front[a + 1][b + 1], front[a][b + 1])
+            bm.faces.new(q if side > 0 else tuple(reversed(q)))
+            r = (back[a][b], back[a][b + 1], back[a + 1][b + 1], back[a + 1][b])
+            bm.faces.new(r if side > 0 else tuple(reversed(r)))
+    # Close the hem and the ends so no edge shows as a hairline.
+    for a in range(nx):
+        hem = (front[a][nz], front[a + 1][nz], back[a + 1][nz], back[a][nz])
+        bm.faces.new(hem if side > 0 else tuple(reversed(hem)))
+    for a, flip in ((0, True), (nx, False)):
+        for b in range(nz):
+            e = (front[a][b], front[a][b + 1], back[a][b + 1], back[a][b])
+            bm.faces.new(e if (side > 0) == flip else tuple(reversed(e)))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    ob = finish(name, bm, mat)
+    for p in ob.data.polygons:
+        p.use_smooth = True
+    return ob
+
+
+def airer(i, t):
+    """A ceiling clothes airer: four wooden slats between cast-iron end brackets at height y, hung
+    from the ceiling on ropes, sheets and a towel drying over the slats. Long side along x."""
+    L, y0 = t["lengthM"], t["y"]
+    top = H - SLAB
+    iron = plain("cast_iron", (0.018, 0.018, 0.02), 0.6, 1.0)
+    wood = surface(t.get("material", "scrubbed_wood"), 0.8)
+    rope = plain("hemp_rope", (0.2, 0.17, 0.12), 0.9)
+    cloth = surface(t.get("cloth", "terlenka"), 1.2)
+    towel = surface(t.get("towel", "wool_grey"), 0.6)
+    parts = []
+    hl = L / 2
+    for k, y in enumerate((-0.24, -0.08, 0.08, 0.24)):
+        parts.append(rod(f"ai{i}_slat{k}", Vector((-hl, y, y0)), Vector((hl, y, y0)), 0.016, wood, 10))
+    for k, x in enumerate((-hl + 0.12, hl - 0.12)):
+        parts.append(bevelled(box(f"ai{i}_end{k}", Vector((x - 0.01, -0.29, y0 - 0.03)), Vector((x + 0.01, 0.29, y0 + 0.03)), iron), 0.006))
+        parts.append(rod(f"ai{i}_arch{k}", Vector((x, -0.29, y0 + 0.02)), Vector((x, 0.0, y0 + 0.16)), 0.009, iron, 6))
+        parts.append(rod(f"ai{i}_archB{k}", Vector((x, 0.29, y0 + 0.02)), Vector((x, 0.0, y0 + 0.16)), 0.009, iron, 6))
+        parts.append(rod(f"ai{i}_rope{k}", Vector((x, 0.0, y0 + 0.16)), Vector((x, 0.0, top - 0.06)), 0.005, rope, 6))
+        parts.append(lathe(f"ai{i}_pulley{k}", [(0.0, 0.0), (0.03, 0.0), (0.04, 0.03), (0.03, 0.06), (0.0, 0.06)], Vector((x, 0.0, top - 0.06)), iron, 12))
+    # Two sheets over the outer slats, hanging both sides; a towel over an inner one.
+    for k, (y, x0, x1, drop) in enumerate(((-0.24, -hl + 0.2, hl - 0.25, 0.75), (0.24, -hl + 0.3, hl - 0.2, 0.62))):
+        parts.append(drape(f"ai{i}_sheetA{k}", x0, x1, y - 0.017, y0 + 0.012, y0 - drop, -1, cloth, k * 1.7))
+        parts.append(drape(f"ai{i}_sheetB{k}", x0, x1, y + 0.017, y0 + 0.012, y0 - drop + 0.12, 1, cloth, k * 1.7 + 0.9))
+        parts.append(box(f"ai{i}_sheetTop{k}", Vector((x0, y - 0.021, y0 + 0.012)), Vector((x1, y + 0.021, y0 + 0.02)), cloth))
+    parts.append(drape(f"ai{i}_towelA", -0.3, 0.25, -0.097, y0 + 0.012, y0 - 0.38, -1, towel, 3.1))
+    parts.append(drape(f"ai{i}_towelB", -0.3, 0.25, -0.063, y0 + 0.012, y0 - 0.3, 1, towel, 4.2))
+    parts.append(box(f"ai{i}_towelTop", Vector((-0.3, -0.1, y0 + 0.012)), Vector((0.25, -0.06, y0 + 0.02)), towel))
+    join_by_material(parts, f"airer_{i}")
+    place([o for o in statics if o.name.startswith(f"airer_{i}_")], i, "airer", t)
+
+
+def bunk_bed(i, t):
+    """A servants' bunk bed: four square posts, two decks of boards between rails (tops at 0.32 and
+    1.12 m), panelled ends, a guard rail round the top bunk (open at the ladder) and a ladder hooked on
+    the front at the +x end. Long side along x, back (+y) to the wall."""
+    L, D, Ht = t["lengthM"], t["depthM"], t["heightM"]
+    wood = surface(t.get("material", "scrubbed_wood"), 0.75)
+    parts = []
+    hl, hd, P = L / 2, D / 2, 0.035
+    for k, (x, y) in enumerate(((-hl + P, -hd + P), (hl - P, -hd + P), (-hl + P, hd - P), (hl - P, hd - P))):
+        parts.append(bevelled(box(f"bk{i}_post{k}", Vector((x - P, y - P, 0.0)), Vector((x + P, y + P, Ht)), wood), 0.006))
+        parts.append(bevelled(box(f"bk{i}_cap{k}", Vector((x - P - 0.008, y - P - 0.008, Ht)), Vector((x + P + 0.008, y + P + 0.008, Ht + 0.025)), wood), 0.006))
+    for deck, top in enumerate((0.32, 1.12)):
+        # Side rails along the front and back, end rails across, boards between.
+        for j, y in enumerate((-hd + P, hd - P)):
+            parts.append(bevelled(box(f"bk{i}_rail{deck}{j}", Vector((-hl + 2 * P, y - 0.022, top - 0.16)), Vector((hl - 2 * P, y + 0.022, top)), wood), 0.004))
+        for j, x in enumerate((-hl + P, hl - P)):
+            parts.append(bevelled(box(f"bk{i}_end{deck}{j}", Vector((x - 0.022, -hd + 2 * P, top - 0.16)), Vector((x + 0.022, hd - 2 * P, top)), wood), 0.004))
+        n = 9
+        for s in range(n):
+            x0 = -hl + 2 * P + s * (L - 4 * P) / n
+            parts.append(box(f"bk{i}_board{deck}_{s}", Vector((x0 + 0.01, -hd + 2 * P, top - 0.03)), Vector((x0 + (L - 4 * P) / n - 0.01, hd - 2 * P, top - 0.005)), wood))
+    # Panelled ends: a board between the posts under each deck's rail and over the top bunk.
+    for j, x in enumerate((-hl + P, hl - P)):
+        for k, (z0, z1) in enumerate(((0.36, 0.62), (1.16, Ht - 0.1))):
+            parts.append(bevelled(box(f"bk{i}_panel{j}{k}", Vector((x - 0.012, -hd + 2 * P, z0)), Vector((x + 0.012, hd - 2 * P, z1)), wood), 0.004))
+    # Guard rail round the top bunk: along the back, and along the front up to the ladder.
+    parts.append(bevelled(box(f"bk{i}_guardB", Vector((-hl + 2 * P, hd - P - 0.02, Ht - 0.24)), Vector((hl - 2 * P, hd - P + 0.02, Ht - 0.15)), wood), 0.004))
+    gx = hl - 0.55
+    parts.append(bevelled(box(f"bk{i}_guardF", Vector((-hl + 2 * P, -hd + P - 0.02, Ht - 0.24)), Vector((gx, -hd + P + 0.02, Ht - 0.15)), wood), 0.004))
+    parts.append(bevelled(box(f"bk{i}_guardPost", Vector((gx - 0.02, -hd + P - 0.02, 1.12)), Vector((gx + 0.02, -hd + P + 0.02, Ht - 0.15)), wood), 0.004))
+    # The ladder, leaning a touch out from the front rail at the +x end.
+    lx0, lx1 = hl - 0.47, hl - 0.13
+    foot, head = -hd - 0.16, -hd - 0.025
+    for k, x in enumerate((lx0, lx1)):
+        parts.append(rod(f"bk{i}_stile{k}", Vector((x, foot, 0.0)), Vector((x, head, 1.2)), 0.02, wood, 8))
+    for r in range(4):
+        z = 0.28 + r * 0.25
+        y = foot + (head - foot) * z / 1.2
+        parts.append(rod(f"bk{i}_rung{r}", Vector((lx0, y, z)), Vector((lx1, y, z)), 0.014, wood, 8))
+    join_by_material(parts, f"bunk_{i}")
+    place([o for o in statics if o.name.startswith(f"bunk_{i}_")], i, "bunkBed", t)
+
+
+def planter(i, t):
+    """A square planter box for a dig spot: corner posts with ball finials, a panelled side between
+    each pair, a moulded rim round a 0.72 m well; the well's floor is soil far down, the game draws
+    the loose soil (top 0.48 m up, like a raised bed's) that sinks as it is dug."""
+    paint = surface(t.get("material", "door_paint_green"), 0.6)
+    soil = _soil()
+    parts = []
+    S, P, H = 0.86, 0.72, 0.5
+    s, p = S / 2, P / 2
+    for k, (x, y) in enumerate(((-s, -s), (s, -s), (-s, s), (s, s))):
+        cx, cy = x - math.copysign(0.035, x), y - math.copysign(0.035, y)
+        parts.append(bevelled(box(f"pl{i}_post{k}", Vector((cx - 0.035, cy - 0.035, 0.0)), Vector((cx + 0.035, cy + 0.035, H + 0.03)), paint), 0.006))
+        parts.append(lathe(f"pl{i}_ball{k}", [(0.0, 0.0), (0.02, 0.0), (0.014, 0.012), (0.03, 0.03), (0.034, 0.045), (0.024, 0.065), (0.0, 0.075)], Vector((cx, cy, H + 0.03)), paint, 14))
+    # The four sides: a panel between the posts, a raised field on its face.
+    for k, (lo, hi, out) in enumerate((((-s + 0.07, -s, 0.05), (s - 0.07, -p, H - 0.03), (0, -1)), ((-s + 0.07, p, 0.05), (s - 0.07, s, H - 0.03), (0, 1)),
+                                       ((-s, -s + 0.07, 0.05), (-p, s - 0.07, H - 0.03), (-1, 0)), ((p, -s + 0.07, 0.05), (s, s - 0.07, H - 0.03), (1, 0)))):
+        parts.append(box(f"pl{i}_side{k}", Vector(lo), Vector(hi), paint))
+        ox, oy = out
+        if oy:
+            y = s if oy > 0 else -s
+            parts.append(bevelled(box(f"pl{i}_field{k}", Vector((-s + 0.13, y - oy * 0.001, 0.11)), Vector((s - 0.13, y + oy * 0.012, H - 0.09)), paint), 0.005))
+        else:
+            x = s if ox > 0 else -s
+            parts.append(bevelled(box(f"pl{i}_field{k}", Vector((x - ox * 0.001, -s + 0.13, 0.11)), Vector((x + ox * 0.012, s - 0.13, H - 0.09)), paint), 0.005))
+    # The rim round the well, standing a little proud.
+    for k, (lo, hi) in enumerate((((-s - 0.01, -s - 0.01), (s + 0.01, -p)), ((-s - 0.01, p), (s + 0.01, s + 0.01)), ((-s - 0.01, -p), (-p, p)), ((p, -p), (s + 0.01, p)))):
+        parts.append(bevelled(box(f"pl{i}_rim{k}", Vector((lo[0], lo[1], H - 0.03)), Vector((hi[0], hi[1], H)), paint), 0.006))
+    parts.append(box(f"pl{i}_floor", Vector((-p, -p, 0.06)), Vector((p, p, 0.08)), soil))
+    join_by_material(parts, f"pl_{i}")
+    place([o for o in statics if o.name.startswith(f"pl_{i}_")], i, "planter", t)
+
+
+def mattress(i, t):
+    """A mattress on a bed's springs at height y: striped ticking, a sheet over it, a pillow at the
+    head (+y) and a wool blanket, either tucked over the lower part or folded at the foot."""
+    L, W, y0 = t["lengthM"], t["widthM"], t["y"]
+    hl, hw = L / 2, W / 2
+    ticking = plain("ticking", (0.3, 0.28, 0.24), 0.85)
+    sheet = plain("bed_sheet", (0.4, 0.38, 0.34), 0.85)
+    wool = surface(t["blanket"], 0.5)
+    parts = []
+    top = y0 + 0.15
+    parts.append(bevelled(box(f"mat{i}_body", Vector((-hw, -hl, y0)), Vector((hw, hl, top)), ticking), 0.035, 3))
+    parts.append(bevelled(box(f"mat{i}_sheet", Vector((-hw - 0.006, -hl - 0.006, top - 0.07)), Vector((hw + 0.006, hl + 0.006, top + 0.006)), sheet), 0.03, 3))
+    # Pillow at the head, plumped in the middle.
+    pw, pd, ph = W - 0.14, 0.36, 0.11
+    py = hl - 0.06 - pd / 2
+    parts.append(bevelled(box(f"mat{i}_pillow", Vector((-pw / 2, py - pd / 2, top)), Vector((pw / 2, py + pd / 2, top + ph)), sheet), 0.045, 4))
+    if t.get("folded"):
+        # Folded in four at the foot.
+        fd = 0.42
+        parts.append(bevelled(box(f"mat{i}_blanket", Vector((-hw + 0.05, -hl + 0.04, top + 0.006)), Vector((hw - 0.05, -hl + 0.04 + fd, top + 0.07)), wool), 0.02, 3))
+    else:
+        # Over the lower part of the bed and down its sides, the sheet turned back over its top edge.
+        edge = hl - 0.58
+        parts.append(bevelled(box(f"mat{i}_blanket", Vector((-hw - 0.025, -hl - 0.025, top - 0.2)), Vector((hw + 0.025, edge, top + 0.02)), wool), 0.025, 3))
+        parts.append(bevelled(box(f"mat{i}_turn", Vector((-hw - 0.03, edge - 0.12, top + 0.005)), Vector((hw + 0.03, edge + 0.02, top + 0.032)), sheet), 0.012, 2))
+    join_by_material(parts, f"mat_{i}")
+    place([o for o in statics if o.name.startswith(f"mat_{i}_")], i, "mattress", t)
+
+
+def pedestal_basin(i, t):
+    """A fireclay wash basin on its pedestal, a tiled splashback and brass pillar taps. Faces -y, its
+    back to the wall at +y = backM."""
+    back = t.get("backM", 0.27)
+    clay = enamel_m()
+    tiles = surface(t.get("tiles", "long_white_tiles_laid"), 0.6)
+    parts = []
+    by = back - 0.25
+    parts.append(lathe(f"basin{i}_pedestal", [(0.0, 0.0), (0.12, 0.0), (0.12, 0.03), (0.085, 0.08), (0.065, 0.4), (0.075, 0.6), (0.11, 0.66), (0.0, 0.66)], Vector((0, by, 0)), clay, 24))
+    wide = Matrix.Diagonal((1.3, 0.92, 1.0, 1.0))
+    parts.append(lathe(f"basin{i}_bowl", [(0.0, 0.63), (0.09, 0.63), (0.2, 0.7), (0.26, 0.79), (0.275, 0.83), (0.262, 0.842), (0.235, 0.83), (0.15, 0.76), (0.04, 0.715), (0.0, 0.712)],
+                       Vector((0, by, 0)), clay, 32, wide))
+    parts.append(bevelled(box(f"basin{i}_splash", Vector((-0.42, back - 0.025, 0.8)), Vector((0.42, back - 0.004, 1.12)), tiles), 0.004))
+    dark = plain("plug_dark", (0.02, 0.02, 0.02), 0.6)
+    parts.append(lathe(f"basin{i}_waste", [(0.0, 0.0), (0.02, 0.0), (0.02, 0.003), (0.0, 0.003)], Vector((0, by, 0.713)), dark, 14))
+    for k, x in enumerate((-0.14, 0.14)):
+        pillar_tap(f"basin{i}_tap{k}", x, back - 0.07, 0.83, parts, 0.1)
+    join_by_material(parts, f"basin_{i}")
+    place([o for o in statics if o.name.startswith(f"basin_{i}_")], i, "pedestalBasin", t)
+
+
 BUILDERS = {"floorCandelabra": floor_candelabra, "scatteredPages": scattered_pages, "foldingFan": folding_fan, "bookcase": bookcase, "readingTable": reading_table, "pedestalDesk": pedestal_desk, "bankerLamp": banker_lamp, "fireplace": fireplace, "jewelCabinet": jewel_cabinet,
             "switchboard": switchboard_cabinet,"shelfBooks": shelf_books, "luggageCart": luggage_cart, "luggageRack": luggage_rack, "fileChest": file_chest, "banquetTable": banquet_table, "grandfatherClock": grandfather_clock, "meetingBell": meeting_bell,
             "receptionCounter": reception_counter, "keyRack": key_rack, "pillar": pillar,
@@ -2983,7 +3678,9 @@ BUILDERS = {"floorCandelabra": floor_candelabra, "scatteredPages": scattered_pag
             "uprightPiano": upright_piano, "bandstand": bandstand, "chairRow": chair_row, "pierMirror": pier_mirror, "wallSconce": wall_sconce,
             "bench": bench, "bellBoard": bell_board, "fuseBoard": fuse_board, "linenShelves": linen_shelves,
             "batteryRack": battery_rack, "dynamo": dynamo, "cableDrum": cable_drum, "toolBoard": tool_board, "ladder": ladder, "storeShelves": store_shelves,
-            "fountain": fountain, "paving": paving, "leafBed": leaf_bed, "raisedBed": raised_bed, "pottingBench": potting_bench, "gardenBench": garden_bench, "urn": urn}
+            "fountain": fountain, "paving": paving, "leafBed": leaf_bed, "raisedBed": raised_bed, "pottingBench": potting_bench, "gardenBench": garden_bench, "urn": urn,
+            "rollTopBath": roll_top_bath, "highTankToilet": high_tank_toilet, "pedestalBasin": pedestal_basin, "mattress": mattress, "brassBed": brass_bed, "fourPoster": four_poster, "dressingTable": dressing_table, "planter": planter, "bunkBed": bunk_bed,
+            "boiler": boiler, "sump": sump, "mangle": mangle, "airer": airer, "shutterWindows": shutter_windows, "pictureRail": picture_rail, "wineRack": wine_rack, "stoneAltar": stone_altar, "floorCandles": floor_candles}
 for i, t in enumerate(d.get("builds", [])):
     BUILDERS[t["kind"]](i, t)
 
@@ -3074,6 +3771,8 @@ for i, l in enumerate(d["lights"]):
     ob.location = B(l["x"], l["z"], l["y"])
     scene.collection.objects.link(ob)
     # A small glowing bulb the game can see (for bloom) and dim during Blackout.
+    if l.get("bulb") is False:
+        continue
     bpy.ops.mesh.primitive_uv_sphere_add(radius=min(0.035, l["radius"]), segments=12, ring_count=8, location=ob.location)
     bulb = bpy.context.active_object
     bulb.name = f"bulb_{i}"
@@ -3095,6 +3794,24 @@ bpy.context.view_layer.objects.active = statics[0]
 bpy.ops.object.mode_set(mode="EDIT")
 bpy.ops.mesh.select_all(action="SELECT")
 bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.003, scale_to_bounds=False)
+# Unwrapping measures each mesh in its own units, so a model stored at a hundredth of its size under
+# a scaled-up parent took 10,000 times its fair share of the lightmap and a whole wall got a few
+# hundred pixels: blotchy light on the walls (owner, 2026-11-13). Size every object's islands by its
+# real, final size before packing, so each surface gets pixels for the room it takes up.
+bpy.ops.object.mode_set(mode="OBJECT")
+for o in statics:
+    f = abs(o.matrix_world.to_3x3().determinant()) ** (1 / 3)
+    if abs(f - 1) > 1e-4:
+        uv = o.data.uv_layers["lightmap"].data
+        co = np.empty(len(uv) * 2, dtype=np.float32)
+        uv.foreach_get("uv", co)
+        uv.foreach_set("uv", co * f)
+bpy.ops.object.mode_set(mode="EDIT")
+bpy.ops.mesh.select_all(action="SELECT")
+try:
+    bpy.ops.uv.select_all(action="SELECT")
+except RuntimeError:
+    pass  # no UV selection outside a UV editor; packing then takes every selected face
 bpy.ops.uv.pack_islands(margin=0.002, rotate=True)
 bpy.ops.object.mode_set(mode="OBJECT")
 
@@ -3152,7 +3869,24 @@ bpy.ops.object.bake(type="DIFFUSE", pass_filter={"DIRECT", "INDIRECT"}, margin=6
 # Store as 8-bit sRGB, scaled so the brightest useful value fits; the game multiplies back.
 px = np.array(lm.pixels[:], dtype=np.float32).reshape(-1, 4)
 print("LIGHTMAP max", float(px[:, :3].max()), "p99", float(np.percentile(px[:, :3], 99)))
-lin = np.clip(px[:, :3] / job["lightmapScale"], 0, 1)
+# Stray bright specks ("fireflies": a few unlucky light paths) showed as glowing blobs on the walls
+# (owner, 2026-11-13). A pixel far brighter than most of the eight around it takes their median.
+# A real glow or a lit edge has bright neighbours too, so it is left as it is; nothing gets brighter.
+img = px[:, :3].reshape(SIZE, SIZE, 3)
+for _ in range(2):
+    pad = np.pad(img, ((1, 1), (1, 1), (0, 0)), mode="edge")
+    around = np.stack([pad[1 + dy:1 + dy + SIZE, 1 + dx:1 + dx + SIZE] for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dy or dx])
+    med = np.median(around, axis=0)
+    speck = img.mean(axis=2) > 2.5 * med.mean(axis=2) + 0.05
+    img[speck] = med[speck]
+    print("LIGHTMAP specks removed", int(speck.sum()))
+px[:, :3] = img.reshape(-1, 3)
+lin = np.maximum(px[:, :3] / job["lightmapScale"], 0)
+# Where light is too strong to store, scale the whole colour down together rather than clipping each
+# channel: clipping red first, then green, turned the warm glow around a candle lime green on the
+# walls (owner, 2026-11-13). The brightest channel still lands at the same top value.
+peak = lin.max(axis=1, keepdims=True)
+lin = np.where(peak > 1, lin / np.maximum(peak, 1e-6), lin)
 # A byte image's pixels are already sRGB-encoded values, so encode here (more precision in the darks).
 px[:, :3] = np.where(lin <= 0.0031308, lin * 12.92, 1.055 * np.power(lin, 1 / 2.4) - 0.055)
 px[:, 3] = 1

@@ -169,7 +169,7 @@ function part(mesh: THREE.Mesh, name: string): THREE.Mesh {
 }
 
 /** Turns the station to face away from the nearest wall (walls are axis-aligned). Models face +z. */
-function facingYaw(map: MapData, def: { x: number; z: number }): number {
+export function facingYaw(map: MapData, def: { x: number; z: number }): number {
   let best = Infinity;
   let yaw = 0;
   for (const [x1, z1, x2, z2] of map.walls) {
@@ -366,6 +366,48 @@ export async function loadClockParts(loaders: ModelLoaders): Promise<DressedCloc
     console.error("The clock hands failed to load, so plain ones are drawn", err);
   }
   return { hands: null };
+}
+
+/** The cradle's model (tools/art/blender/build_cradle.py): the rocking cradle, the baby, the stand and
+ *  the mobile, each at its pivot; null to draw the plain one. */
+export interface DressedCradleParts {
+  parts: { cradle: THREE.Object3D; baby: THREE.Object3D; stand: THREE.Object3D; mobile: THREE.Object3D } | null;
+}
+
+const CRADLE_URL = `${import.meta.env.BASE_URL}assets/stations/cradle.glb`;
+
+/** Loads the cradle. Without it (a failed load) the plain one is drawn. */
+export async function loadCradleParts(loaders: ModelLoaders): Promise<DressedCradleParts> {
+  try {
+    const gltf = await loaders.gltf.loadAsync(CRADLE_URL);
+    const [cradle, baby, stand, mobile] = ["cradle", "baby", "stand", "mobile"].map((n) => gltf.scene.getObjectByName(n));
+    if (cradle && baby && stand && mobile) return { parts: { cradle, baby, stand, mobile } };
+    console.error("The cradle file is missing a part, so the plain cradle is drawn");
+  } catch (err) {
+    console.error("The cradle failed to load, so the plain cradle is drawn", err);
+  }
+  return { parts: null };
+}
+
+/** The trunk's model (tools/art/blender/build_trunk.py): the body, the lid at its hinge, one catch
+ *  and one latch at its pivot; null to draw the plain one. */
+export interface DressedTrunkParts {
+  parts: { body: THREE.Object3D; lid: THREE.Object3D; catch: THREE.Object3D; latch: THREE.Object3D } | null;
+}
+
+const TRUNK_URL = `${import.meta.env.BASE_URL}assets/stations/trunk.glb`;
+
+/** Loads the trunk. Without it (a failed load) the plain one is drawn. */
+export async function loadTrunkParts(loaders: ModelLoaders): Promise<DressedTrunkParts> {
+  try {
+    const gltf = await loaders.gltf.loadAsync(TRUNK_URL);
+    const [body, lid, hasp, latch] = ["body", "lid", "catch", "latch"].map((n) => gltf.scene.getObjectByName(n));
+    if (body && lid && hasp && latch) return { parts: { body, lid, catch: hasp, latch } };
+    console.error("The trunk file is missing a part, so the plain trunk is drawn");
+  } catch (err) {
+    console.error("The trunk failed to load, so the plain trunk is drawn", err);
+  }
+  return { parts: null };
 }
 
 function dressedClock(parts: DressedClockParts): StationView {
@@ -583,11 +625,14 @@ function fireplace(dressed = false): StationView {
   };
 }
 
-function boiler(): StationView {
+/** dressed: the room's bake has the boiler (build_room.py boiler); draw only the wheel and the dial. */
+function boiler(dressed = false): StationView {
   const group = new THREE.Group();
-  const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 1.8, 16), new THREE.MeshLambertMaterial({ color: 0x4a3a2a }));
-  tank.position.set(0, 0.9, -0.1);
-  group.add(tank);
+  if (!dressed) {
+    const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 1.8, 16), new THREE.MeshLambertMaterial({ color: 0x4a3a2a }));
+    tank.position.set(0, 0.9, -0.1);
+    group.add(tank);
+  }
   // The valve wheel turns about the axis pointing at you; its rim and spokes are all handles.
   const wheelPivot = new THREE.Group();
   wheelPivot.position.set(0.25, 1.1, 0.42);
@@ -745,18 +790,44 @@ function roses(dressed = false): StationView {
   return { group, setDone() {}, hands: { kind: "roses", jugs, mats, vase, pump, bucket, setPuzzle, setWater } };
 }
 
-function shutters(): StationView {
+/** A painted louvred shutter, 0.54 x 1.3 x 0.04, its hinge side at x 0: stiles, rails and slats. */
+function louvredShutter(): THREE.Group {
+  const paint = new THREE.MeshStandardMaterial({ color: 0x27331f, roughness: 0.72 });
+  const g = new THREE.Group();
+  const add = (w: number, h: number, d: number, x: number, y: number, z = 0, tilt = 0) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), paint);
+    m.position.set(x, y, z);
+    m.rotation.x = tilt;
+    g.add(m);
+  };
+  add(0.05, 1.3, 0.04, 0.025, 0);
+  add(0.05, 1.3, 0.04, 0.515, 0);
+  for (const y of [-0.62, 0, 0.62]) add(0.44, 0.06, 0.036, 0.27, y);
+  for (const [from, to] of [[-0.59, -0.03], [0.03, 0.59]] as const) {
+    for (let k = 0; k < 7; k++) add(0.44, 0.07, 0.008, 0.27, from + ((k + 0.5) * (to - from)) / 7, 0, -0.6);
+  }
+  return g;
+}
+
+/** dressed: the room's bake has the windows (build_room.py shutter_windows); draw painted louvred
+ *  shutters over them (the plain boxes the hand grabs are kept, never drawn). */
+function shutters(dressed = false): StationView {
   // Three windows on the wall, each with a shutter banging in the wind until the task closes it.
   // A shutter hangs on its left side; open 1 is swung out into the corridor, 0 is shut.
   const group = new THREE.Group();
   const hinges: THREE.Group[] = [];
   const panels: THREE.Mesh[] = [];
+  const unseen = new THREE.MeshBasicMaterial({ visible: false });
   for (let i = -1; i <= 1; i++) {
     const x = i * 0.7;
-    group.add(box(0.55, 1.3, 0.06, 0x0b1018, x, 1.5, -0.08));
+    if (!dressed) group.add(box(0.55, 1.3, 0.06, 0x0b1018, x, 1.5, -0.08));
     const hinge = new THREE.Group();
     hinge.position.set(x - 0.27, 1.5, -0.02);
     const panel = part(box(0.54, 1.3, 0.04, 0x5e4630, 0.27, 0, 0), `shutter:${i + 1}`);
+    if (dressed) {
+      panel.material = unseen;
+      hinge.add(louvredShutter());
+    }
     hinge.add(panel);
     group.add(hinge);
     hinges.push(hinge);
@@ -787,18 +858,105 @@ function shutters(): StationView {
   };
 }
 
-function portraits(): StationView {
+/** A small dark oil portrait painted on a canvas: a sitter's head and shoulders against a murky
+ *  ground, each of the three in its own colours. */
+function portraitCanvas(n: number): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 128;
+  c.height = 176;
+  const g = c.getContext("2d")!;
+  const grounds = [["#2a2418", "#0e0b07"], ["#1d2421", "#090b0a"], ["#2b1d1b", "#0d0808"]][n]!;
+  const coats = ["#141210", "#1c1a2a", "#2a1712"][n]!;
+  const grad = g.createRadialGradient(64, 70, 10, 64, 88, 110);
+  grad.addColorStop(0, grounds[0]!);
+  grad.addColorStop(1, grounds[1]!);
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 176);
+  // Shoulders and coat, a white collar, the face and the hair.
+  g.fillStyle = coats;
+  g.beginPath();
+  g.ellipse(64, 176, 60, 62, 0, Math.PI, 0);
+  g.fill();
+  g.fillStyle = "#8f8676";
+  g.beginPath();
+  g.moveTo(52, 118);
+  g.lineTo(64, 132);
+  g.lineTo(76, 118);
+  g.fill();
+  g.fillStyle = "#a08066";
+  g.beginPath();
+  g.ellipse(64, 84, 21, 28, 0, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = "rgba(20,12,8,0.55)";
+  g.beginPath();
+  g.ellipse(70, 88, 14, 24, 0, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = ["#1a120c", "#3a3026", "#0c0a08"][n]!;
+  g.beginPath();
+  g.ellipse(64, 66, 24, 16, 0, Math.PI, 0);
+  g.fill();
+  g.fillStyle = "#120c08";
+  g.fillRect(55, 82, 6, 3);
+  g.fillRect(68, 82, 6, 3);
+  // Old varnish: a warm, darkened film with a craquelure of fine lines.
+  g.fillStyle = "rgba(60,40,10,0.25)";
+  g.fillRect(0, 0, 128, 176);
+  g.strokeStyle = "rgba(0,0,0,0.25)";
+  for (let k = 0; k < 40; k++) {
+    const x = (k * 37) % 128;
+    const y = (k * 61) % 176;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x + ((k % 5) - 2) * 6, y + 9);
+    g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/** A gilt frame 0.5 x 0.65, 0.05 deep, centred at (0, y): four moulded bars and a sight edge. */
+function giltFrame(y: number): THREE.Group {
+  const gilt = new THREE.MeshStandardMaterial({ color: 0x7a5a24, metalness: 1, roughness: 0.55 });
+  const g = new THREE.Group();
+  const bar = (w: number, h: number, x: number, yy: number) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.05), gilt);
+    m.position.set(x, y + yy, 0);
+    g.add(m);
+    const lip = new THREE.Mesh(new THREE.BoxGeometry(w * (w > h ? 0.8 : 0.4), h * (h > w ? 0.8 : 0.4), 0.012), gilt);
+    lip.position.set(x, y + yy, 0.03);
+    g.add(lip);
+  };
+  bar(0.5, 0.06, 0, 0.295);
+  bar(0.5, 0.06, 0, -0.295);
+  bar(0.06, 0.65, -0.22, 0);
+  bar(0.06, 0.65, 0.22, 0);
+  return g;
+}
+
+/** dressed: in a dressed corridor, gilt frames round small dark oil portraits (the plain boxes the
+ *  hand grabs are kept, never drawn). */
+function portraits(dressed = false): StationView {
   const group = new THREE.Group();
   const pivots: THREE.Group[] = [];
   const frames: THREE.Mesh[] = [];
   const tilts = [17, -26, 14];
+  const unseen = new THREE.MeshBasicMaterial({ visible: false });
   for (let i = -1; i <= 1; i++) {
     // Each hangs from a nail at the top and swings about it.
     const pivot = new THREE.Group();
     pivot.position.set(i * 0.75, 1.9, -0.06);
     const frame = part(box(0.5, 0.65, 0.05, BRASS, 0, -0.4, 0), `portrait:${i + 1}`);
     pivot.add(frame);
-    pivot.add(box(0.4, 0.55, 0.02, 0x2e2a24, 0, -0.4, 0.03));
+    if (dressed) {
+      frame.material = unseen;
+      pivot.add(giltFrame(-0.4));
+      const canvas = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.53), new THREE.MeshStandardMaterial({ map: portraitCanvas(i + 1), roughness: 0.75 }));
+      canvas.position.set(0, -0.4, 0.02);
+      pivot.add(canvas);
+    } else {
+      pivot.add(box(0.4, 0.55, 0.02, 0x2e2a24, 0, -0.4, 0.03));
+    }
     group.add(pivot);
     pivots.push(pivot);
     frames.push(frame);
@@ -913,40 +1071,33 @@ function drawPianoCard(g: CanvasRenderingContext2D, c: PianoCard) {
   }
 }
 
-/** The cradle: it rocks on its rockers, the baby in it stirs and cries, and a mobile above turns as it calms. */
-function cradle(): StationView {
+/** The cradle: it rocks on its rockers, the baby in it stirs and cries, and a mobile above turns as it
+ *  calms. With its model loaded, a painted cradle on rockers across its ends, rocking side to side,
+ *  its hood toward the wall; otherwise plain boxes. */
+function cradle(model: DressedCradleParts["parts"] = null): StationView {
   const group = new THREE.Group();
   const rock = new THREE.Group();
   group.add(rock);
-  rock.add(box(1.0, 0.05, 0.08, 0x5a3a22, 0, 0.12, 0.22));
-  rock.add(box(1.0, 0.05, 0.08, 0x5a3a22, 0, 0.12, -0.22));
-  const basket = part(box(0.9, 0.35, 0.5, 0x6b4a2e, 0, 0.5, 0), "basket");
-  rock.add(basket);
   const baby = new THREE.Group();
-  baby.add(box(0.36, 0.1, 0.24, 0xd8cfc0, -0.05, 0.7, 0));
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), new THREE.MeshLambertMaterial({ color: 0xc8a890 }));
-  head.position.set(0.2, 0.72, 0);
-  baby.add(head);
-  rock.add(baby);
-  // A mobile on a post over the cradle.
-  group.add(box(0.04, 1.4, 0.04, 0x5a3a22, -0.55, 0.7, -0.3));
-  const arm = rod(0.012, 0x5a3a22);
-  stretch(arm, new THREE.Vector3(-0.55, 1.38, -0.3), new THREE.Vector3(0, 1.38, 0));
-  group.add(arm);
   const mobile = new THREE.Group();
   mobile.position.set(0, 1.3, 0);
-  for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * Math.PI * 2;
-    const x = Math.cos(a) * 0.12;
-    const z = Math.sin(a) * 0.12;
-    const string = rod(0.002, 0x8a8070);
-    stretch(string, new THREE.Vector3(x, 0.08, z), new THREE.Vector3(x, -0.08, z));
-    mobile.add(string);
-    const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.035), new THREE.MeshLambertMaterial({ color: 0xc9a640 }));
-    star.position.set(x, -0.1, z);
-    mobile.add(star);
+  let basket: THREE.Mesh;
+  if (model) {
+    rock.add(model.cradle.clone());
+    baby.add(model.baby.clone());
+    rock.add(baby);
+    group.add(model.stand.clone());
+    const hanging = model.mobile.clone();
+    hanging.position.set(0, 0, 0);
+    mobile.add(hanging);
+    group.add(mobile);
+    // What the hand grabs: the basket's shape, never drawn.
+    basket = part(new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.45, 0.92), new THREE.MeshBasicMaterial({ visible: false })), "basket");
+    basket.position.set(0, 0.5, 0);
+    rock.add(basket);
+  } else {
+    basket = plainCradle(rock, baby, group, mobile);
   }
-  group.add(mobile);
   let angle = 0;
   let calm = 0;
   let crying = false;
@@ -971,6 +1122,37 @@ function cradle(): StationView {
       },
     },
   };
+}
+
+/** The plain cradle (its model failed to load): boxes, a ball for the head, a post and a mobile of stars. */
+function plainCradle(rock: THREE.Group, baby: THREE.Group, group: THREE.Group, mobile: THREE.Group): THREE.Mesh {
+  rock.add(box(1.0, 0.05, 0.08, 0x5a3a22, 0, 0.12, 0.22));
+  rock.add(box(1.0, 0.05, 0.08, 0x5a3a22, 0, 0.12, -0.22));
+  const basket = part(box(0.9, 0.35, 0.5, 0x6b4a2e, 0, 0.5, 0), "basket");
+  rock.add(basket);
+  baby.add(box(0.36, 0.1, 0.24, 0xd8cfc0, -0.05, 0.7, 0));
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), new THREE.MeshLambertMaterial({ color: 0xc8a890 }));
+  head.position.set(0.2, 0.72, 0);
+  baby.add(head);
+  rock.add(baby);
+  // A mobile on a post over the cradle.
+  group.add(box(0.04, 1.4, 0.04, 0x5a3a22, -0.55, 0.7, -0.3));
+  const arm = rod(0.012, 0x5a3a22);
+  stretch(arm, new THREE.Vector3(-0.55, 1.38, -0.3), new THREE.Vector3(0, 1.38, 0));
+  group.add(arm);
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    const x = Math.cos(a) * 0.12;
+    const z = Math.sin(a) * 0.12;
+    const string = rod(0.002, 0x8a8070);
+    stretch(string, new THREE.Vector3(x, 0.08, z), new THREE.Vector3(x, -0.08, z));
+    mobile.add(string);
+    const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.035), new THREE.MeshLambertMaterial({ color: 0xc9a640 }));
+    star.position.set(x, -0.1, z);
+    mobile.add(star);
+  }
+  group.add(mobile);
+  return basket;
 }
 
 /**
@@ -1074,10 +1256,12 @@ function faceTexture(): THREE.CanvasTexture {
 }
 
 /** The mirror over the dresser, fogged over; the glass is (0, 0) at its middle. */
-function mirror(): StationView {
+/** The mirror to clean. Dressed, the room's dressing table and its gilt frame are baked in; only the
+ *  glass, the face and the fog are drawn here. */
+function mirror(dressed = false): StationView {
   const group = new THREE.Group();
   const { widthM, heightM, cols, rows } = config.tasks.hands.mirror;
-  group.add(box(widthM + 0.16, heightM + 0.16, 0.05, BRASS, 0, MIRROR_Y, -0.05));
+  if (!dressed) group.add(box(widthM + 0.16, heightM + 0.16, 0.05, BRASS, 0, MIRROR_Y, -0.05));
   const glass = part(new THREE.Mesh(new THREE.PlaneGeometry(widthM, heightM), new THREE.MeshPhongMaterial({ color: 0x1c2226, specular: 0x667078, shininess: 90 })), "glass");
   glass.position.set(0, MIRROR_Y, -0.02);
   group.add(glass);
@@ -1092,7 +1276,7 @@ function mirror(): StationView {
   const fog = new THREE.Mesh(new THREE.PlaneGeometry(widthM, heightM), new THREE.MeshLambertMaterial({ map: fogTexture, transparent: true, depthWrite: false }));
   fog.position.set(0, MIRROR_Y, -0.016);
   group.add(fog);
-  group.add(box(0.9, 0.8, 0.4, WOOD, 0, 0.4, 0.1)); // dresser
+  if (!dressed) group.add(box(0.9, 0.8, 0.4, WOOD, 0, 0.4, 0.1)); // dresser
   const setFog = (patches: readonly number[], showFace: number) => {
     patches.forEach((f, i) => {
       data.set([200, 204, 206, Math.round(225 * f)], i * 4);
@@ -1104,14 +1288,27 @@ function mirror(): StationView {
   return { group, setDone() {}, hands: { kind: "mirror", glass, setFog } };
 }
 
-/** The old trunk: a sprung lid hinged at the back, and three latches on the front. */
-function trunk(): StationView {
+/** The old trunk: a sprung lid hinged at the back, and three latches on the front. With its model
+ *  loaded, a canvas steamer trunk with iron corners and brass turn-buttons (the boxes the hand grabs
+ *  are kept, never drawn); otherwise plain boxes. */
+function trunk(model: DressedTrunkParts["parts"] = null): StationView {
   const group = new THREE.Group();
-  group.add(box(1.0, 0.5, 0.55, 0x4b3420, 0, 0.25, 0));
-  group.add(box(0.94, 0.02, 0.49, 0x0b0807, 0, 0.495, 0)); // the dark inside
+  const unseen = new THREE.MeshBasicMaterial({ visible: false });
+  if (model) {
+    group.add(model.body.clone());
+  } else {
+    group.add(box(1.0, 0.5, 0.55, 0x4b3420, 0, 0.25, 0));
+    group.add(box(0.94, 0.02, 0.49, 0x0b0807, 0, 0.495, 0)); // the dark inside
+  }
   const hinge = new THREE.Group();
   hinge.position.set(0, 0.5, -0.285);
   const lid = part(box(1.02, 0.12, 0.57, 0x553a22, 0, 0.06, 0.285), "lid");
+  if (model) {
+    lid.material = unseen;
+    const drawn = model.lid.clone();
+    drawn.position.set(0, 0, 0);
+    hinge.add(drawn);
+  }
   hinge.add(lid);
   group.add(hinge);
   const pivots: THREE.Group[] = [];
@@ -1119,10 +1316,22 @@ function trunk(): StationView {
   const { latches: count } = config.tasks.hands.trunk;
   for (let i = 0; i < count; i++) {
     const x = (i - (count - 1) / 2) * 0.3;
-    group.add(box(0.06, 0.06, 0.01, 0x2a2016, x, 0.44, 0.28)); // the catch
+    if (model) {
+      const hasp = model.catch.clone();
+      hasp.position.set(x, 0.44, 0.28);
+      group.add(hasp);
+    } else {
+      group.add(box(0.06, 0.06, 0.01, 0x2a2016, x, 0.44, 0.28)); // the catch
+    }
     const pivot = new THREE.Group();
     pivot.position.set(x, 0.44, 0.29);
     const latch = part(box(0.026, 0.1, 0.016, BRASS, 0, 0, 0.006), `latch:${i}`);
+    if (model) {
+      latch.material = unseen;
+      const drawn = model.latch.clone();
+      drawn.position.set(0, 0, 0);
+      pivot.add(drawn);
+    }
     pivot.add(latch);
     group.add(pivot);
     pivots.push(pivot);
@@ -1147,9 +1356,10 @@ function trunk(): StationView {
 }
 
 /** A sheet on the table, folded in half each time: toward you, right to left, toward you. */
-function sheets(): StationView {
+/** dressed: the room's bake has the table (build_room.py work_table); draw only the sheet. */
+function sheets(dressed = false): StationView {
   const group = new THREE.Group();
-  group.add(box(1.2, 0.75, 0.7, WOOD, 0, 0.375, 0)); // table
+  if (!dressed) group.add(box(1.2, 0.75, 0.7, WOOD, 0, 0.375, 0)); // table
   const top = 0.75;
   const flat = box(1, SHEET_THICK_M, 1, LINEN);
   group.add(flat);
@@ -1266,8 +1476,10 @@ function lockboxSpot(dressed = false): PlaceView {
  * dressed: a pit in the courtyard's baked raised bed (build_room.py raised_bed), not a pot. The bed
  * is drawn by the bake; here only the loose soil that sinks, a dead rose's stalks, the heap of dug
  * soil (on the bed beside the pit) and the relic. Not turned to face a wall: the bed runs north-south.
+ * pot: the pit is a baked planter box's whole well (build_room.py planter, its soil at the same
+ * height), so the heap of dug soil goes on the floor beside it, to the west.
  */
-function digSpot(dressed = false): PlaceView {
+function digSpot(dressed = false, pot = false): PlaceView {
   const group = new THREE.Group();
   if (!dressed) group.add(box(0.8, 0.5, 0.8, 0x5a3b22, 0, 0.25, 0));
   // In a bed the loose soil starts flush with the bed's soil (build_room.py raised_bed: 0.48 on top).
@@ -1290,7 +1502,7 @@ function digSpot(dressed = false): PlaceView {
   }
   group.add(plant);
   // Soil thrown out of a dug pot, and the relic glinting at the bottom.
-  const heap = dressed ? box(0.3, 0.12, 0.3, 0x2e2014, 0, 0.56, 0.68) : box(0.3, 0.12, 0.3, 0x2e2014, 0.55, 0.06, 0.2);
+  const heap = pot ? box(0.3, 0.12, 0.3, 0x2e2014, -0.62, 0.06, 0) : dressed ? box(0.3, 0.12, 0.3, 0x2e2014, 0, 0.56, 0.68) : box(0.3, 0.12, 0.3, 0x2e2014, 0.55, 0.06, 0.2);
   heap.visible = false;
   group.add(heap);
   const relic = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.08), new THREE.MeshLambertMaterial({ color: 0xc9a640, emissive: 0x3a2a08 }));
@@ -1314,21 +1526,26 @@ function digSpot(dressed = false): PlaceView {
 }
 
 /** A drain in the floor with its grate lifted off and laid beside it: dark water in a stone curb. */
-function drainSpot(): PlaceView {
+/** dressed: the room's bake has the curb and grate (build_room.py sump); draw only the water, as a
+ *  still, glossy black. */
+function drainSpot(dressed = false): PlaceView {
   const group = new THREE.Group();
   const stone = 0x4a4a44;
   const half = DRAIN_INNER_M / 2;
   const t = DRAIN_CURB_WIDTH_M;
   const outer = DRAIN_INNER_M + 2 * t;
-  for (const s of [-1, 1]) {
-    group.add(box(outer, DRAIN_CURB_M, t, stone, 0, DRAIN_CURB_M / 2, s * (half + t / 2)));
-    group.add(box(t, DRAIN_CURB_M, DRAIN_INNER_M, stone, s * (half + t / 2), DRAIN_CURB_M / 2, 0));
+  if (!dressed) {
+    for (const s of [-1, 1]) {
+      group.add(box(outer, DRAIN_CURB_M, t, stone, 0, DRAIN_CURB_M / 2, s * (half + t / 2)));
+      group.add(box(t, DRAIN_CURB_M, DRAIN_INNER_M, stone, s * (half + t / 2), DRAIN_CURB_M / 2, 0));
+    }
   }
-  const water = part(new THREE.Mesh(new THREE.PlaneGeometry(DRAIN_INNER_M, DRAIN_INNER_M), new THREE.MeshLambertMaterial({ color: 0x10160f })), "water");
+  const waterMaterial = dressed ? new THREE.MeshStandardMaterial({ color: 0x0b100d, roughness: 0.12, metalness: 0 }) : new THREE.MeshLambertMaterial({ color: 0x10160f });
+  const water = part(new THREE.Mesh(new THREE.PlaneGeometry(DRAIN_INNER_M, DRAIN_INNER_M), waterMaterial), "water");
   water.rotation.x = -Math.PI / 2;
   water.position.y = DRAIN_WATER_Y;
   group.add(water);
-  for (let i = -2; i <= 2; i++) group.add(box(0.03, 0.02, 0.5, 0x555048, half + t + 0.16 + i * 0.05, 0.01, 0)); // the grate
+  if (!dressed) for (let i = -2; i <= 2; i++) group.add(box(0.03, 0.02, 0.5, 0x555048, half + t + 0.16 + i * 0.05, 0.01, 0)); // the grate
   const ripple = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 24), new THREE.MeshBasicMaterial({ color: 0xa0b0a0, transparent: true, opacity: 0, depthWrite: false }));
   ripple.rotation.x = -Math.PI / 2;
   ripple.visible = false;
@@ -1365,11 +1582,15 @@ export class StationsView {
   private clues: { id: string; book: { setTime(minutes: number): void } }[] = [];
 
   /** drawn: stations whose look a dressed room's build draws (the clock's case, the switchboard's cabinet); clock: its live parts. */
-  constructor(scene: THREE.Scene, map: MapData, dressed: { drawn: ReadonlySet<string>; clock: DressedClockParts }) {
+  constructor(scene: THREE.Scene, map: MapData, dressed: { drawn: ReadonlySet<string>; clock: DressedClockParts; cradle: DressedCradleParts; trunk: DressedTrunkParts }) {
     for (const def of map.tasks) {
       const drawn = dressed.drawn.has(def.id);
       const view =
-        def.minigame === "clock" && drawn
+        def.minigame === "cradle"
+          ? cradle(dressed.cradle.parts)
+          : def.minigame === "trunk"
+          ? trunk(dressed.trunk.parts)
+          : def.minigame === "clock" && drawn
           ? dressedClock(dressed.clock)
           : def.minigame === "switchboard" && drawn
             ? switchboard(true)
@@ -1383,6 +1604,16 @@ export class StationsView {
                     ? piano(true)
                     : def.minigame === "roses" && drawn
                       ? roses(true)
+                      : def.minigame === "sheets" && drawn
+                        ? sheets(true)
+                      : def.minigame === "mirror" && drawn
+                        ? mirror(true)
+                      : def.minigame === "boiler" && drawn
+                        ? boiler(true)
+                      : def.minigame === "shutters" && drawn
+                        ? shutters(true)
+                      : def.minigame === "portraits" && dressed.drawn.has("guest-west-bench")
+                        ? portraits(true)
                       : MODELS[def.minigame]();
       view.group.position.set(def.x, 0, def.z);
       liftToFloor(map, view.group);
@@ -1404,7 +1635,13 @@ export class StationsView {
       for (const place of searchPlaces(spot)) {
         const drawn = dressed.drawn.has(place.id);
         const view =
-          spot.minigame === "lockbox" && drawn ? lockboxSpot(true) : spot.minigame === "dig" && drawn ? digSpot(true) : RELIC_SPOTS[spot.minigame]();
+          spot.minigame === "lockbox" && drawn
+            ? lockboxSpot(true)
+            : spot.minigame === "drain" && drawn
+            ? drainSpot(true)
+            : spot.minigame === "dig" && drawn
+              ? digSpot(true, dressed.drawn.has(`${place.id}:pot`))
+              : RELIC_SPOTS[spot.minigame]();
         view.group.position.set(place.x, 0, place.z);
         liftToFloor(map, view.group);
         // A pit in a bed is laid out with the map (the heap along the bed), not turned to a wall.

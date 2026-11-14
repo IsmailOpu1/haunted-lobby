@@ -19,4 +19,5 @@ export * from "./meetings.ts";
 export * from "./mystery.ts";
 export * from "./settings.ts";
 export * from "./characters.ts";
+export * from "./darkness.ts";
 export * from "./dressing.ts";

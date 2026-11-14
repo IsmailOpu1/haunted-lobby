@@ -42,6 +42,9 @@ Source files in `assets-src/models/<id>/`; the game gets them inside the built r
 | `sofa_02` | Sofa 02 | Kirill Sannikov | Reception (waiting sofa) |
 | `Chandelier_03` | Chandelier 03 | Kirill Sannikov | Reception, Ballroom |
 | `GothicCommode_01` | Gothic Commode 01 | Kirill Sannikov | Reception (behind the counter) |
+| `GothicBed_01` | Gothic Bed 01 | Kirill Sannikov | Guest Room 1 |
+| `old_bed_frame` | Old Bed Frame | Luca B | Upstairs guest room |
+| `painted_wooden_nightstand` | Painted Wooden Nightstand | Kirill Sannikov | Upstairs guest room |
 | `side_table_tall_01` | Side Table Tall 01 | James Ray Cock | Reception |
 | `hanging_picture_frame_01` | Hanging Picture Frame 01 | James Ray Cock | Reception |
 | `vintage_telephone_wall_clock` | Vintage Telephone Wall Clock | Adrian C | Reception (behind the counter), Service Room (staff telephone) |
@@ -103,24 +106,54 @@ Source files in `assets-src/textures/<id>/` (2K JPG).
 | Id | Name | Authors | Used for |
 |---|---|---|---|
 | `dark_paneled_wood` | Dark Paneled Wood | Dimitrios Savva | Main Hall and Library wainscot, wardrobes |
-| `dark_wood` | Dark Wood | Dario Barresi, Dimitrios Savva, Rico Cilliers | Banquet table, bell pedestal, stair treads and risers, Reception panelling and built furniture, Library floor and built furniture, Restaurant panelling and built furniture, Ballroom panelling, bandstand, piano and the jewellery box's cabinet, Service Room bell board, fuse board, sideboard and dado rail, Kitchen woodwork and cupboards (and, as `scrubbed_wood`, the scrubbed pine tops: desaturated and lightened by `tools/art/tint-texture.ts`) |
+| `dark_wood` | Dark Wood | Dario Barresi, Dimitrios Savva, Rico Cilliers | The doors (as `door_walnut`, and as `door_oak` from `scrubbed_wood`, stained, and as `door_paint_*`, chipped paint over it: all made by `tools/art/door-textures.ts`; `door_paint_charcoal` is also the Upper Corridor dado), the Ritual Room benches and hiding wardrobes, Banquet table, bell pedestal, stair treads and risers, Reception panelling and built furniture, Library floor and built furniture, Restaurant panelling and built furniture, Ballroom panelling, bandstand, piano and the jewellery box's cabinet, Service Room bell board, fuse board, sideboard and dado rail, Kitchen woodwork and cupboards (and, as `scrubbed_wood`, the scrubbed pine tops: desaturated and lightened by `tools/art/tint-texture.ts`) |
 | `crepe_satin` | Crepe Satin | colormass, Rico Cilliers | Ballroom bandstand backdrop |
 | `decrepit_wallpaper` | Decrepit Wallpaper | Rob Tuytel | Main Hall, Library and Restaurant walls, the study's chimney breast |
 | `diagonal_parquet` | Diagonal Parquet | Jenelle van Heerden, Sergej Majboroda | Ballroom floor |
 | `dirty_carpet` | Dirty Carpet | Rohit Seervi | Main Hall, Reception and Library rugs, stair runners, the luggage cart |
-| `floral_jacquard` | Floral Jacquard | colormass, Rico Cilliers | Ballroom walls (as `damask_gold`: tiled 3 by 2, its pattern's contrast raised and tinted gold by `tools/art/tint-texture.ts`, hung at three times the cloth's size) |
+| `floral_jacquard` | Floral Jacquard | colormass, Rico Cilliers | Ballroom walls (as `damask_gold`: tiled 3 by 2, its pattern's contrast raised and tinted gold by `tools/art/tint-texture.ts`, hung at three times the cloth's size; and, tinted the same way, as `damask_moss`, `damask_blue` and `damask_sage`: the Guest Room 1, Guest Room 3 and Upper Corridor walls; as `damask_plum`, the Guest Room 4 walls; and as `damask_wine`, tinted wine red, the Main Hall walls) |
 | `floor_tiles_06` | Floor Tiles 06 | Rob Tuytel | Restaurant floor |
 | `long_white_tiles` | Long White Tiles | Jenelle van Heerden, Sergej Majboroda | Kitchen wall tiles and range recess (as `long_white_tiles_laid`: turned on their sides and warmed by `tools/art/tint-texture.ts`) |
 | `herringbone_parquet` | Herringbone Parquet | Jenelle van Heerden, Sergej Majboroda | Main Hall floor |
-| `rectangular_paving` | Rectangular Paving | Dimitrios Savva | Service Room floor (flagstones), Garden Courtyard paths |
-| `castle_brick_02_red` | Castle Brick 02 Red | Rob Tuytel | Garden Courtyard walls (the hotel's outside), flower bed brickwork and kerbs |
+| `rectangular_paving` | Rectangular Paving | Dimitrios Savva | Service Room floor (flagstones), Garden Courtyard paths, the basement floors (as `cellar_flags` and, darker, `ritual_flags`: darkened and desaturated by `tools/art/tint-texture.ts`; `ritual_flags` darkened again, as `altar_stone`, is the altar) |
+| `castle_brick_02_red` | Castle Brick 02 Red | Rob Tuytel | Garden Courtyard walls (the hotel's outside), flower bed brickwork and kerbs, Laundry and Wine Cellar floors, Stairwell and Cellar Passage walls (and, as `cellar_brick` and `soot_brick`, the Wine Cellar, Storage and Ritual Room walls and vaults: darkened by `tools/art/tint-texture.ts`) |
 | `grass_ground` | Grass Ground | Charlotte Baglioni | Garden Courtyard lawn |
 | `dry_decay_leaves` | Dry Decay Leaves | Amal Kumar | Garden Courtyard flower beds |
 | `marble_01` | Marble 01 | Rob Tuytel | Reception floor and pillars |
 | `terracotta_floor_tiles` | Terracotta Floor Tiles | Dimitrios Savva | Kitchen floor |
 | `terlenka` | Terlenka | colormass, Rico Cilliers | Restaurant tablecloths |
 | `velour_velvet` | Velour Velvet | colormass, Rico Cilliers | Restaurant curtain, Ballroom curtains, pelmet, chair seats and the piano's silk (as `velour_velvet_wine`: its colour map darkened to wine red by `tools/art/tint-texture.ts`) |
-| `worn_cracked_plaster` | Worn Cracked Plaster | Amal Kumar | Main Hall and Restaurant ceilings, Reception walls and ceiling, Kitchen walls, ceiling and chimney breast, Ballroom ceiling, Service Room walls and ceiling (and, as `painted_plaster_green`, the Service Room's green dado: tinted and desaturated by `tools/art/tint-texture.ts`) |
+| `worn_cracked_plaster` | Worn Cracked Plaster | Amal Kumar | Main Hall and Restaurant ceilings, Reception walls and ceiling, Kitchen walls, ceiling and chimney breast, Ballroom ceiling, Service Room walls and ceiling (and, as `painted_plaster_green`, the Service Room's green dado: tinted and desaturated by `tools/art/tint-texture.ts`; and, as `limewash_buff`, the Staff Quarters walls: tinted the same way) |
+| `rough_pine_door` | Rough Pine Door | Dimitrios Savva | Staff Quarters floorboards, Storage boarding (and, as `cellar_oak`, the Wine Cellar and Stairwell woodwork, wine racks and tasting table and the Storage shelves: darkened by `tools/art/tint-texture.ts`; and, as `door_relic_pine`, the relic door: stained by `tools/art/door-textures.ts`) |
+| `rusty_metal_02` | Rusty Metal 02 | Rob Tuytel | The doors' hinges, straps, studs and brass (as `door_rust_iron` and `door_old_brass`, made by `tools/art/door-textures.ts`), and, as `rusty_metal_dark`, old iron in the rooms (darkened by `tools/art/tint-texture.ts`) |
+
+## Characters and animations (Mixamo, Adobe)
+
+Downloaded from mixamo.com (Adobe account, free) on 2026-11-13 and 2026-11-14 into `assets-src/characters/mixamo` (not in git); built with their props by `tools/art/blender/build_character.py` and packed by `tools/art/build-characters.ts` into `client/public/assets/characters`. Adobe's Mixamo terms let characters and animations be used royalty-free in games and other projects, commercial or not; the raw files themselves must not be shared on their own (they are not in git and the game ships them only inside its built models).
+
+| File | Mixamo name | Used as |
+|---|---|---|
+| `joe.fbx` | Joe | The Priest (`priest.glb`) |
+| `elizabeth.fbx` | Elizabeth | The Journalist (`journalist.glb`) |
+| `suzie.fbx` | Suzie | The Nurse (`nurse.glb`) |
+| `bryce.fbx` | Bryce | The Student (`student.glb`) |
+| `brian.fbx` | Brian | The Detective (`detective.glb`) |
+| `kate.fbx` | Kate | The Photographer (`photographer.glb`) |
+| `pete.fbx` | Pete | The Mechanic (`mechanic.glb`) |
+| `megan.fbx` | Megan | The Caretaker (`caretaker.glb`) |
+| `anim-idle.fbx` | Breathing Idle | `idle` in `anims.glb` |
+| `anim-walk.fbx` | Male Standard Walk | `walk` |
+| `anim-run.fbx` | Running (forward, quickly) | `run` |
+| `anim-crouch-idle.fbx` | Low Crouching Idle | `crouch-idle` |
+| `anim-crouch-walk.fbx` | Crouched Walk | `crouch-walk` |
+| `anim-knocked-out-back.fbx` | Knocked Out (falling to back) | `knocked-down` |
+| `anim-writhing.fbx` | Writhing In Pain | `downed-idle` |
+| `anim-crawl-back.fbx` | Crawl Backwards (in fear) | `crawl` |
+| `anim-dying.fbx` | Dying (laying on the ground) | `dying` |
+
+Downloaded but not used (replaced, GDD 26.15): `anim-crawl.fbx`, `anim-downed-idle.fbx`, `anim-knocked-down.fbx`.
+
+The props on each character (stole, crosses, satchel, notebook, cap, bags, backpack, fedora, magnifier, box camera, toolbox, apron, lantern) are made for this project by the same script.
 
 ## Made for this project
 
@@ -162,4 +195,15 @@ No outside licence; part of this project.
 
 ## Sounds
 
-None yet (step 3: Sonniss free bundles and CC0 Freesound sounds, each listed here with its link).
+Most sounds are made in code (`client/src/audio.ts`). The ambience and the house creaks are recordings from Freesound, each checked as **CC0** on its page on 2026-11-14 (no credit required, credited here anyway). Source files in `assets-src/audio/`; `tools/audio/prepare_sounds.py` makes the game files in `client/public/assets/sounds/` (loops and trimmed one-shots, 16-bit WAV).
+
+| Game file | Freesound sound | Author | Used for |
+|---|---|---|---|
+| `room-tone.wav` | [room small night](https://freesound.org/people/Yuval/sounds/210091/) | Yuval | Ambience: an old room at night (a 30 s loop) |
+| `rumble.wav` | [Bass Rumble In The Distance](https://freesound.org/people/BrainClaim/sounds/273805/) | BrainClaim | Ambience: a distant low rumble (a 40 s loop) |
+| `wind.wav` | [Strong Winds inside house 01](https://freesound.org/people/khenshom/sounds/623604/) | khenshom | Ambience: wind behind the walls (a 36 s loop) |
+| `creak-1.wav` | [Wood Creak Single V1](https://freesound.org/people/Rudmer_Rotteveel/sounds/502505/) | Rudmer_Rotteveel | The house creaking |
+| `creak-2.wav` | [Wood Creak Single V2](https://freesound.org/people/Rudmer_Rotteveel/sounds/502504/) | Rudmer_Rotteveel | The house creaking |
+| `creak-3.wav` | [Wood Creak Single V3](https://freesound.org/people/Rudmer_Rotteveel/sounds/502511/) | Rudmer_Rotteveel | The house creaking |
+| `creak-4.wav` | [creaking floor OWI](https://freesound.org/people/miekyj/sounds/326460/) | miekyj | The house creaking |
+| `creak-5.wav` | [Creaking in Room 6](https://freesound.org/people/Greg_Surr/sounds/590169/) | Greg_Surr | The house creaking |

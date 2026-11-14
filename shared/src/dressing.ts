@@ -84,7 +84,253 @@ export type DressingBuild =
   | UrnBuild
   | FloorCandelabraBuild
   | ScatteredPagesBuild
-  | FoldingFanBuild;
+  | FoldingFanBuild
+  | RollTopBathBuild
+  | HighTankToiletBuild
+  | PedestalBasinBuild
+  | MattressBuild
+  | BrassBedBuild
+  | FourPosterBuild
+  | DressingTableBuild
+  | PlanterBuild
+  | BunkBedBuild
+  | BoilerBuild
+  | SumpBuild
+  | MangleBuild
+  | AirerBuild
+  | ShutterWindowsBuild
+  | PictureRailBuild
+  | WineRackBuild
+  | StoneAltarBuild
+  | FloorCandlesBuild;
+
+/** A cast-iron roll-top bath on claw feet; long side along x, a long side to the wall (north at turn 0). */
+export interface RollTopBathBuild {
+  kind: "rollTopBath";
+  x: number;
+  z: number;
+  turn?: number;
+  lengthM?: number;
+  widthM?: number;
+  /** The outside's paint as linear RGB (a dark green-black when left out). */
+  paint?: [number, number, number];
+  draws?: string;
+}
+/** A brass bedstead: posts with ball finials, a tall head end (north at turn 0, the long side along
+ *  z) and a lower foot, rails and spindles, iron side rails and a spring deck at springsY. Its
+ *  mattress is a separate "mattress" build laid on the springs. */
+export interface BrassBedBuild {
+  kind: "brassBed";
+  x: number;
+  z: number;
+  turn?: number;
+  widthM: number;
+  lengthM: number;
+  springsY: number;
+  draws?: string;
+}
+/** A four-poster bed: turned posts, a panelled head end (north at turn 0, the long side along z), a
+ *  low foot, a canopy with a valance and curtains gathered at the four posts. Its mattress is a
+ *  separate "mattress" build laid on the boards at springsY. */
+export interface FourPosterBuild {
+  kind: "fourPoster";
+  x: number;
+  z: number;
+  turn?: number;
+  widthM: number;
+  lengthM: number;
+  springsY: number;
+  /** Top of the canopy. */
+  heightM: number;
+  drapes: MaterialName;
+  material?: MaterialName;
+  draws?: string;
+}
+/** A dressing table under a tall swing mirror in a gilt frame, at the "Clean the mirror" task's place
+ *  (its back to the wall; front south at turn 0). The game draws the glass in the frame. */
+export interface DressingTableBuild {
+  kind: "dressingTable";
+  x: number;
+  z: number;
+  turn?: number;
+  material?: MaterialName;
+  draws?: string;
+}
+/** The shutters task's triple sash window, its back to the wall at backM: night-dark glass, glazing
+ *  bars, an architrave and a sill; the game hangs the shutters. station: the task it is drawn for. */
+export interface ShutterWindowsBuild {
+  kind: "shutterWindows";
+  x: number;
+  z: number;
+  turn?: number;
+  backM: number;
+  material?: MaterialName;
+  station: string;
+  draws?: string;
+}
+/** A picture rail along a wall at its face (x, z), facing out of it: a moulding at y, brass hooks
+ *  on it at the hook offsets along the wall, a cord from each down to a nail at hookY (the portraits
+ *  task hangs its frames there). Long side along x. */
+export interface PictureRailBuild {
+  kind: "pictureRail";
+  x: number;
+  z: number;
+  turn?: number;
+  lengthM: number;
+  y: number;
+  hooks: number[];
+  hookY: number;
+  /** How far out from the wall the nails stand. */
+  outM: number;
+  material?: MaterialName;
+  draws?: string;
+}
+/** A cellar's wine rack against a wall at (x, z), facing out of it: square bins of bottles lying
+ *  neck-out, a few empty (seeded). Long side along x. */
+export interface WineRackBuild {
+  kind: "wineRack";
+  x: number;
+  z: number;
+  turn?: number;
+  widthM: number;
+  depthM: number;
+  heightM: number;
+  seed?: number;
+  material?: MaterialName;
+  draws?: string;
+}
+/** The Ritual Room's stone altar on its plinth, centred on (x, z); the middle of its top stays clear
+ *  for the relics the game stands there. Long side along x. */
+export interface StoneAltarBuild {
+  kind: "stoneAltar";
+  x: number;
+  z: number;
+  turn?: number;
+  lengthM: number;
+  depthM: number;
+  heightM: number;
+  material?: MaterialName;
+  draws?: string;
+}
+/** A cluster of church candles on the floor round (x, z), each in a puddle of wax; the first lit
+ *  ones burn (give them a light), the rest are burnt out. */
+export interface FloorCandlesBuild {
+  kind: "floorCandles";
+  x: number;
+  z: number;
+  turn?: number;
+  count: number;
+  lit: number;
+  spreadM?: number;
+  seed?: number;
+}
+/** The boiler task's riveted iron boiler on a brick plinth, its back to the wall at backM; the game
+ *  adds the valve wheel and the gauge's dial. station: the task it is drawn for. */
+export interface BoilerBuild {
+  kind: "boiler";
+  x: number;
+  z: number;
+  turn?: number;
+  backM: number;
+  station: string;
+}
+/** The drain relic spot's granite-curbed sump with a floor grate beside it; the game draws the water.
+ *  station: the search place it is drawn for. */
+export interface SumpBuild {
+  kind: "sump";
+  x: number;
+  z: number;
+  turn?: number;
+  station: string;
+}
+/** A cast-iron box mangle with wooden rollers and a flywheel; faces -y. */
+export interface MangleBuild {
+  kind: "mangle";
+  x: number;
+  z: number;
+  turn?: number;
+  material?: MaterialName;
+  draws?: string;
+}
+/** A ceiling clothes airer at height y, sheets and a towel over its slats. Long side along x. */
+export interface AirerBuild {
+  kind: "airer";
+  x: number;
+  z: number;
+  turn?: number;
+  lengthM: number;
+  y: number;
+  material?: MaterialName;
+  cloth?: MaterialName;
+  towel?: MaterialName;
+}
+/** A servants' wooden bunk bed, its long side along x and its back (+y) to the wall: square posts,
+ *  two decks of boards (tops at 0.32 and 1.12 m, for a mattress each), panelled ends, a guard rail
+ *  round the top bunk and a ladder up the front at the +x end. */
+export interface BunkBedBuild {
+  kind: "bunkBed";
+  x: number;
+  z: number;
+  turn?: number;
+  lengthM: number;
+  depthM: number;
+  heightM: number;
+  material?: MaterialName;
+  draws?: string;
+}
+/** A square painted planter box (corner posts with ball finials, panelled sides) whose well is a dig
+ *  spot: the game draws the loose soil in it, level with a raised bed's, and the dug heap on the
+ *  floor beside it. drawsAll: the search place's id, and the same id with ":pot". */
+export interface PlanterBuild {
+  kind: "planter";
+  x: number;
+  z: number;
+  material?: MaterialName;
+  drawsAll: string[];
+}
+/** A mattress for a bed frame bought without one, laid on its springs at y: a sheet, a pillow at the
+ *  head (north at turn 0, the long side along z) and a blanket, tucked in or folded at the foot. */
+export interface MattressBuild {
+  kind: "mattress";
+  x: number;
+  z: number;
+  /** Height of the springs it lies on. */
+  y: number;
+  turn?: number;
+  lengthM: number;
+  widthM: number;
+  blanket: MaterialName;
+  /** The blanket folded at the foot instead of over the bed. */
+  folded?: boolean;
+  draws?: string;
+}
+
+/**
+ * A pedestal water closet, its cistern high on the wall with a pull chain. Its back is to the wall
+ * (north at turn 0), backM behind x, z; the cistern's foot cisternY up.
+ */
+export interface HighTankToiletBuild {
+  kind: "highTankToilet";
+  x: number;
+  z: number;
+  turn?: number;
+  backM?: number;
+  cisternY?: number;
+  /** The seat's and lid's wood. */
+  material?: MaterialName;
+  draws?: string;
+}
+
+/** A fireclay wash basin on a pedestal with a tiled splashback; back to the wall (north at turn 0), backM behind x, z. */
+export interface PedestalBasinBuild {
+  kind: "pedestalBasin";
+  x: number;
+  z: number;
+  turn?: number;
+  backM?: number;
+  tiles?: MaterialName;
+  draws?: string;
+}
 
 /** A tall brass floor candelabra with five candles, burnt out unless `lit`. */
 export interface FloorCandelabraBuild {
@@ -842,6 +1088,9 @@ export interface DressingLight {
   watts: number;
   /** Radius of the glowing part in metres (softer shadows when bigger). */
   radius: number;
+  /** false: no glowing ball where the light is, for a light among flames the models already have
+   *  (a cluster of floor candles). Default: a small bulb shows. */
+  bulb?: boolean;
 }
 
 /** A material name from assets-src/textures. */
@@ -860,6 +1109,8 @@ export interface RoomDressing {
   /** Wood panelling up to this height in metres, with a rail on top. */
   /** trim: the rail, skirting, cornice, door frames and hiding cupboards (the panelling's own wood otherwise). */
   wainscot?: { material: MaterialName; heightM: number; trim?: MaterialName };
+  /** With no panelling: the wood of the skirting, door frames and hiding cupboards (a plain dark brown otherwise). */
+  woodwork?: MaterialName;
   floor: MaterialName;
   ceiling: MaterialName;
   /** Rugs: flat rectangles on the floor. */

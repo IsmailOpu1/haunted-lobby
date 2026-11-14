@@ -108,6 +108,8 @@ export interface ServerMessages {
   kicked: { reason: string };
   /** Test shortcut (debug servers only): the ghost was sent away or brought back. */
   debugGhost: { paused: boolean };
+  /** Test shortcut (debug servers only): the relic door was opened without the relics. */
+  debugBasement: Record<string, never>;
   /** Your task list (private). Sent on request and whenever it changes. */
   tasks: { list: TaskEntry[] };
   /** Open this task's minigame (you pressed E at its station). */
