@@ -68,12 +68,31 @@ export class RoomSight {
       if (seen.has(rect.name)) continue;
       const near = Math.hypot(Math.max(rect.minX - x, 0, x - rect.maxX), Math.max(rect.minZ - z, 0, z - rect.maxZ));
       if (near > VIEW_M + AROUND_M) continue;
-      if (this.sees(floor, eyes, rect)) seen.add(rect.name);
+      if (this.sees(floor, eyes, rect, floor.walls)) seen.add(rect.name);
     }
     return seen;
   }
 
-  private sees(floor: Floor, eyes: number[], rect: Rect): boolean {
+  /**
+   * Of the rooms `among` (seen from here), those you can see some of looking the way you are:
+   * inView(x, z, half) says whether the square of floor plan that wide around a spot, floor to
+   * ceiling, lies in the camera's view. A spot stands for the square around it, so a room counts
+   * as seen if any of its squares is in view and its spot in line of sight.
+   */
+  inView(x: number, feetY: number, z: number, among: Set<string>, inView: (x: number, z: number, half: number) => boolean): Set<string> {
+    const floor = this.floors.find((f) => Math.abs(f.y - feetY) < SAME_FLOOR_M);
+    if (!floor) return among;
+    const eyes = [x, z, x + AROUND_M, z, x - AROUND_M, z, x, z + AROUND_M, x, z - AROUND_M];
+    const seen = new Set<string>();
+    for (const rect of floor.rects) {
+      if (!among.has(rect.name) || seen.has(rect.name)) continue;
+      if (this.sees(floor, eyes, rect, floor.walls, inView)) seen.add(rect.name);
+    }
+    return seen;
+  }
+
+  private sees(floor: Floor, eyes: number[], rect: Rect, walls: number[], inView?: (x: number, z: number, half: number) => boolean): boolean {
+    const half = SPOT_STEP_M + SPOT_INSET_M; // a whole step each way: a sliver seen past a door edge still counts
     for (let e = 0; e < eyes.length; e += 2) {
       const ex = eyes[e]!;
       const ez = eyes[e + 1]!;
@@ -81,12 +100,12 @@ export class RoomSight {
       // The room's spot nearest this eye first (it sees through a doorway right beside you).
       const nx = Math.min(Math.max(ex, rect.minX + SPOT_INSET_M), rect.maxX - SPOT_INSET_M);
       const nz = Math.min(Math.max(ez, rect.minZ + SPOT_INSET_M), rect.maxZ - SPOT_INSET_M);
-      if (clear(floor.walls, ex, ez, nx, nz)) return true;
+      if ((!inView || inView(nx, nz, half)) && clear(walls, ex, ez, nx, nz)) return true;
       for (let s = 0; s < rect.spots.length; s += 2) {
         const sx = rect.spots[s]!;
         const sz = rect.spots[s + 1]!;
         if (Math.hypot(sx - ex, sz - ez) > VIEW_M) continue;
-        if (clear(floor.walls, ex, ez, sx, sz)) return true;
+        if ((!inView || inView(sx, sz, half)) && clear(walls, ex, ez, sx, sz)) return true;
       }
     }
     return false;
