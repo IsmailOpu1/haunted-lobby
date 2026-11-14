@@ -440,12 +440,16 @@ export class Game {
     ({ doors: this.doors, ritualCircle: this.ritualCircle } = buildWorld(this.scene, map, dressed, doorLook));
     performance.mark("hotel:world-built");
     dressed.prepareReflections(this.renderer, this.scene); // before players and the flashlight are added
+    const still = [...this.scene.children];
     performance.mark("hotel:reflections");
     const place = (x: number, z: number) => toWorld(map, x, z);
     this.remotes = new RemotePlayers(this.scene, place, new CharacterModels(renderer));
     this.ghost = new GhostView(this.scene, place);
     this.items = new ItemsView(this.scene, map);
+    const beforeStations = new Set(this.scene.children);
     this.stations = new StationsView(this.scene, map, { drawn: dressed.drawn, clock: clockParts, cradle: cradleParts, trunk: trunkParts });
+    // The task stations stay put too, so they are drawn with their rooms like the world.
+    dressed.followWorld([...still, ...this.scene.children.filter((c) => !beforeStations.has(c))]);
     this.relicsView = new RelicsView(this.scene, map);
     this.mystery = new MysteryView(this.scene, map);
     this.wisps = new WispsView(this.scene);

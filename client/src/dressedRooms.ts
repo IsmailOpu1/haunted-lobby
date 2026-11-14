@@ -35,6 +35,10 @@ const PLAIN_GLASS_SHADE = 0.3;
 const MOVABLE_PROBE_RANGE_M = 20;
 /** A probe is on the same floor as a thing whose floor is within this of the probe's floor. */
 const SAME_FLOOR_M = 1.5;
+/** How near a room a piece of the world must be to be drawn with it: across, and up and down (metres). */
+const FOLLOW_MARGIN = new THREE.Vector3(0.6, 0.05, 0.6);
+/** A room's space stops this far under the next floor up, so what stands on that floor is not in it. */
+const ROOM_TOP_GAP_M = 0.3;
 /** Which rooms might be seen is worked out again once you have moved this far (roomSight.ts allows for it). */
 const SIGHT_MOVE_M = 0.25;
 /** From this close to the end of a flight of stairs, the floor at its other end is drawn too. */
@@ -235,8 +239,10 @@ export class DressedRooms {
       });
     }
     const wasShown = this.floors.map((f) => f.obj.visible);
+    const followersShown = this.followers.map((f) => f.obj.visible);
     const seen = new Set(this.seenBy(i));
     for (const f of this.floors) f.obj.visible = seen.has(f);
+    this.showFollowers();
     const fog = scene.fog as THREE.Fog | null;
     const fogAt = fog?.isFog ? { near: fog.near, far: fog.far } : null;
     if (fog?.isFog) [fog.near, fog.far] = [FOG_AWAY_M, FOG_AWAY_M * 2];
@@ -245,6 +251,7 @@ export class DressedRooms {
     } finally {
       if (fog && fogAt) Object.assign(fog, fogAt);
       this.floors.forEach((f, n) => (f.obj.visible = wasShown[n]!));
+      this.followers.forEach((f, n) => (f.obj.visible = followersShown[n]!));
       for (const o of hidden) o.visible = true;
       for (const u of unlit) u.light.intensity = u.intensity;
     }
@@ -532,6 +539,16 @@ export class DressedRooms {
       this.floors.push({ obj, y, box: new THREE.Box3().setFromObject(obj), rooms, stairs: false });
     }
     this.sight = new RoomSight(map);
+    for (const r of map.rooms) {
+      // The room's floor from its middle (a corner can sit on the edge of another floor's area),
+      // and up to just under the floor above.
+      const level = levelOf(map, (r.minX + r.maxX) / 2, (r.minZ + r.maxZ) / 2);
+      const box = new THREE.Box3(
+        new THREE.Vector3(r.minX + level.shiftX, level.y, r.minZ + level.shiftZ),
+        new THREE.Vector3(r.maxX + level.shiftX, level.y + map.wallHeightM - ROOM_TOP_GAP_M, r.maxZ + level.shiftZ),
+      );
+      this.roomBoxes.push({ key: roomKey(r.name, level.y), box });
+    }
     const end = (x: number, z: number) => {
       const p = toWorld(map, x, z);
       return new THREE.Vector3(p.x, p.y, p.z);
@@ -575,8 +592,59 @@ export class DressedRooms {
         for (const f of this.floors) if (f.box.distanceToPoint(there) < SAME_FLOOR_M) f.obj.visible = true;
       }
     }
+    this.showFollowers(seen, feetY);
   }
+
+  /**
+   * The rest of the hotel's still world (doors, transoms, signs, grey walls and floors: world.ts)
+   * is drawn only with a room it touches, like the rooms above. Drawing every door in the hotel
+   * from every room was most of Low's draw calls. Anything holding a light is left alone (hiding a
+   * light makes three build every shader again), as is anything touching no room.
+   */
+  followWorld(still: THREE.Object3D[]) {
+    const builds = new Set(this.floors.map((f) => f.obj));
+    const box = new THREE.Box3();
+    for (const obj of still) {
+      if (builds.has(obj)) continue;
+      let light = false;
+      obj.traverse((o) => (light ||= (o as THREE.Light).isLight === true));
+      if (light) continue;
+      box.setFromObject(obj);
+      if (box.isEmpty()) continue;
+      box.expandByVector(FOLLOW_MARGIN);
+      const rooms = new Set(this.roomBoxes.filter((r) => r.box.intersectsBox(box)).map((r) => r.key));
+      if (rooms.size) this.followers.push({ obj, rooms });
+    }
+  }
+
+  /**
+   * The world that follows the rooms is drawn with the rooms drawn: on your own floor only the
+   * rooms you can see into (a build can be several rooms, all four ground-floor corridors), and
+   * every room of a build drawn on another floor. `seen` null: every room of the builds drawn.
+   */
+  private showFollowers(seen: Set<string> | null = null, feetY = 0) {
+    const shown = new Set<string>();
+    for (const f of this.floors) {
+      if (!f.obj.visible) continue;
+      const mine = seen && Math.abs(f.y - feetY) < SAME_FLOOR_M;
+      for (const r of f.rooms) if (!mine || seen.has(r)) shown.add(roomKey(r, f.y));
+    }
+    for (const f of this.followers) {
+      let show = false;
+      for (const r of f.rooms) show ||= shown.has(r);
+      f.obj.visible = show;
+    }
+  }
+
+  private followers: { obj: THREE.Object3D; rooms: Set<string> }[] = [];
+  /** Each room's space, by roomKey: what decides which rooms the still world follows. */
+  private roomBoxes: { key: string; box: THREE.Box3 }[] = [];
   private at = new THREE.Vector3();
+}
+
+/** A room on a floor: rooms are named by the map, floors told apart by height. */
+function roomKey(name: string, y: number): string {
+  return `${name}@${Math.round(y)}`;
 }
 
 /** A piece detailed enough that Low quality draws a lighter copy of it (lighter.ts). */
