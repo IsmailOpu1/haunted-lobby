@@ -895,6 +895,7 @@ export class Game {
     state.players?.forEach((p: PlayerData, id: string) => {
       if (id === room.sessionId) {
         this.me = p;
+        void this.held.wear(p.character, this.heldCamera);
         this.reconcile(p);
         return;
       }

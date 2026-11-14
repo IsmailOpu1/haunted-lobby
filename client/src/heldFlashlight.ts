@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
-import type { ModelLoaders } from "./loaders.ts";
+import { modelLoaders, type ModelLoaders } from "./loaders.ts";
 
 // The torch in your hand (Phase 8 plan, 4.5): an old nickel-plated metal torch held low and to the
 // right in your gloveless right hand and coat sleeve (tools/art/blender/build_hand.py), swaying
@@ -9,6 +9,11 @@ import type { ModelLoaders } from "./loaders.ts";
 // lens. Looks only: none of this is a game number.
 
 const MODEL_URL = `${import.meta.env.BASE_URL}assets/held/held_torch.glb`;
+/**
+ * Once you are dealt a character, the torch is in their own hand and sleeve (owner, 2026-11-14;
+ * tools/art/blender/build_held_hand.py): held_<character>.glb. Until then, the hand above.
+ */
+const characterModelUrl = (character: string) => `${import.meta.env.BASE_URL}assets/held/held_${character}.glb`;
 /** Where the flashlight sits in front of your eye (right, down, forward). */
 const HOLD = new THREE.Vector3(0.19, -0.23, -0.42);
 /** Life size: the torch (tools/art/blender/build_torch.py) is 24.5 cm long, about 5 cm across the head. */
@@ -72,6 +77,10 @@ export class HeldFlashlight {
   private root = new THREE.Group();
   private hold = new THREE.Group();
   private lens: THREE.MeshStandardMaterial[] = [];
+  private model: THREE.Object3D | null = null;
+  /** The character whose hand is held (or being loaded); "" for the starting hand. */
+  private wearing = "";
+  private loaders: ModelLoaders | null = null;
   /** The lens in the model's own space, where the beam starts. */
   private lensLocal = new THREE.Vector3();
   private bounce = new THREE.PointLight(BOUNCE_COLOR, 0, BOUNCE_RANGE_M, 2);
@@ -84,7 +93,7 @@ export class HeldFlashlight {
   private lagPitch = 0;
   private sway = new THREE.Vector3();
 
-  private constructor() {
+  private constructor(private renderer: THREE.WebGLRenderer) {
     this.scene.add(this.root, this.ambient);
     this.root.add(this.hold, this.bounce);
     this.bounce.position.copy(BOUNCE_AT);
@@ -92,7 +101,7 @@ export class HeldFlashlight {
 
   /** Loads the model. Without it (a failed load) you still have the beam, just no flashlight drawn. */
   static async load(loaders: ModelLoaders, renderer: THREE.WebGLRenderer): Promise<HeldFlashlight> {
-    const held = new HeldFlashlight();
+    const held = new HeldFlashlight(renderer);
     const pmrem = new THREE.PMREMGenerator(renderer);
     const room = new RoomEnvironment();
     held.scene.environment = pmrem.fromScene(room, STUDIO_BLUR).texture;
@@ -107,7 +116,37 @@ export class HeldFlashlight {
     return held;
   }
 
+  /**
+   * Puts the torch in the hand of the character you were dealt. The model is loaded and its
+   * shaders and textures readied while the old hand stays, so the swap never stalls a frame; if it
+   * fails to load, the hand you had stays.
+   */
+  async wear(character: string, camera: THREE.Camera) {
+    if (!character || character === this.wearing) return;
+    this.wearing = character;
+    try {
+      this.loaders ??= modelLoaders(this.renderer, false);
+      const gltf = await this.loaders.gltf.loadAsync(characterModelUrl(character));
+      if (this.wearing !== character) return dispose(gltf.scene);
+      await this.renderer.compileAsync(gltf.scene, camera, this.scene);
+      if (this.wearing !== character) return dispose(gltf.scene);
+      gltf.scene.traverse((obj) => {
+        for (const mat of materialsOf(obj)) for (const value of Object.values(mat)) if ((value as THREE.Texture)?.isTexture) this.renderer.initTexture(value as THREE.Texture);
+      });
+      this.setModel(gltf.scene);
+    } catch (err) {
+      console.error(`The ${character}'s hand failed to load, so the hand you had stays`, err);
+    }
+  }
+
   private setModel(model: THREE.Object3D) {
+    if (this.model) {
+      this.hold.remove(this.model);
+      dispose(this.model);
+    }
+    this.model = model;
+    this.lens = [];
+    this.hold.rotation.set(0, 0, 0);
     model.rotation.y = MODEL_TURN_RAD;
     model.scale.setScalar(HELD_SCALE);
     // Measured with the hold at rest, so the box is in the hold's own space.
@@ -128,7 +167,7 @@ export class HeldFlashlight {
         lensBox.union(new THREE.Box3().setFromObject(obj, true));
       }
     });
-    if (!lensBox.isEmpty()) lensBox.getCenter(this.lensLocal);
+    if (!lensBox.isEmpty()) this.hold.worldToLocal(lensBox.getCenter(this.lensLocal));
     this.hold.rotation.set(HOLD_PITCH_RAD, HOLD_YAW_RAD, 0, "YXZ");
   }
 
@@ -172,4 +211,20 @@ export class HeldFlashlight {
     this.hold.updateMatrix();
     return out.copy(this.lensLocal).applyMatrix4(this.hold.matrix);
   }
+}
+
+function materialsOf(obj: THREE.Object3D): THREE.Material[] {
+  const mats = (obj as THREE.Mesh).material;
+  return !mats ? [] : Array.isArray(mats) ? mats : [mats];
+}
+
+/** Frees a model's geometry, materials and textures. */
+function dispose(model: THREE.Object3D) {
+  model.traverse((obj) => {
+    (obj as THREE.Mesh).geometry?.dispose();
+    for (const mat of materialsOf(obj)) {
+      for (const value of Object.values(mat)) if ((value as THREE.Texture)?.isTexture) (value as THREE.Texture).dispose();
+      mat.dispose();
+    }
+  });
 }
