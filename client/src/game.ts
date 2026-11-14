@@ -455,6 +455,7 @@ export class Game {
     this.flashlight.target.position.set(0, 0, -BEAM_AIM_M);
     this.flashlightIntensity = this.flashlight.light.intensity;
     this.beamAdapt = new BeamAdaptation(this.scene.children, dressed.objects);
+    dressed.batch(); // after the flashlight's glare check has read the rooms' pieces
     this.camera.add(this.flashlight.light, this.flashlight.target);
     this.wispLight.visible = false;
     this.camera.add(this.wispLight);
@@ -1020,7 +1021,12 @@ export class Game {
    */
   setQuality(choice: QualityLevel | "auto") {
     this.autoQuality = choice === "auto" ? { seconds: 0, frames: 0 } : null;
-    this.post.setQuality(choice === "auto" ? "high" : choice);
+    this.applyQuality(choice === "auto" ? "high" : choice);
+  }
+
+  private applyQuality(level: QualityLevel) {
+    this.post.setQuality(level);
+    this.dressed.setLowQuality(level === "low");
     this.resize();
   }
 
@@ -1037,8 +1043,7 @@ export class Game {
       if (auto.seconds >= AUTO_SETTLE_SEC + AUTO_MEASURE_SEC) {
         const level: QualityLevel = auto.frames / AUTO_MEASURE_SEC >= AUTO_HIGH_FPS ? "high" : "low";
         this.autoQuality = null;
-        this.post.setQuality(level);
-        this.resize();
+        this.applyQuality(level);
         this.hud.autoQualityChosen(level);
       }
     }

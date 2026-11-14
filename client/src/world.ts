@@ -43,6 +43,13 @@ const SIGN_CANVAS_PX = [512, 80] as const;
 const SIGN_PLATE = "#2a2118";
 const SIGN_TEXT = "#d8b766";
 
+/** Materials of things that never move (walls, floors, steps, signs): merged per floor at the end. */
+const STILL = new WeakSet<THREE.Material>();
+function still<M extends THREE.Material>(material: M): M {
+  STILL.add(material);
+  return material;
+}
+
 // Placeholder furniture colors by kind until the Phase 8 art pass.
 const FURNITURE_COLORS: Record<string, number> = {
   table: 0x5a4632,
@@ -215,7 +222,7 @@ const NOTHING_DRESSED: Dressed = { rooms: new Set(), drawn: new Set() };
  */
 export function buildWorld(scene: THREE.Scene, map: MapData, dressed: Dressed = NOTHING_DRESSED, doorLook?: DoorLook): { doors: Map<string, DoorView>; ritualCircle: RitualCircleView | null } {
   const h = map.wallHeightM;
-  const wallMat = new THREE.MeshLambertMaterial({ color: WALL_COLOR });
+  const wallMat = still(new THREE.MeshLambertMaterial({ color: WALL_COLOR }));
   // Up to the underside of the slab, not through it: a wall's top at the next floor's level shows
   // through that floor as a flickering stripe (the basement's walls under the Ballroom).
   const wallH = h - SLAB_M;
@@ -226,8 +233,8 @@ export function buildWorld(scene: THREE.Scene, map: MapData, dressed: Dressed = 
     scene.add(liftToFloor(map, wall));
   }
 
-  const floorMat = new THREE.MeshLambertMaterial({ color: FLOOR_COLOR });
-  const ceilingMat = new THREE.MeshLambertMaterial({ color: CEILING_COLOR });
+  const floorMat = still(new THREE.MeshLambertMaterial({ color: FLOOR_COLOR }));
+  const ceilingMat = still(new THREE.MeshLambertMaterial({ color: CEILING_COLOR }));
   const roomMats = roomMaterials(map);
   buildWallFaces(scene, map, roomMats, dressed);
   for (const room of map.rooms) {
@@ -284,18 +291,19 @@ export function buildWorld(scene: THREE.Scene, map: MapData, dressed: Dressed = 
   const doors = new Map<string, DoorView>();
   for (const def of map.doors) doors.set(def.id, new DoorView(scene, map, def, h, doorLook));
   buildDoorSigns(scene, map, h, dressed);
+  mergeStill(scene, map.wallHeightM);
   return { doors, ritualCircle: circle };
 }
 
 /** Over every doorway: the wall above the door, and on each side a plaque naming the room you walk into. */
 function buildDoorSigns(scene: THREE.Scene, map: MapData, wallHeight: number, dressed: Dressed) {
-  const lintelMat = new THREE.MeshLambertMaterial({ color: WALL_COLOR });
+  const lintelMat = still(new THREE.MeshLambertMaterial({ color: WALL_COLOR }));
   const doorTop = wallHeight * DOOR_HEIGHT_FRACTION;
   const materials = new Map<string, THREE.MeshLambertMaterial>();
   const material = (name: string) => {
     let mat = materials.get(name);
     if (!mat) {
-      mat = new THREE.MeshLambertMaterial({ map: signTexture(name) });
+      mat = still(new THREE.MeshLambertMaterial({ map: signTexture(name) }));
       materials.set(name, mat);
     }
     return mat;
@@ -360,12 +368,42 @@ function roomMaterials(map: MapData): Map<string, RoomMaterials> {
   for (const [name, hex] of Object.entries(map.roomColors ?? {})) {
     const color = new THREE.Color(hex);
     mats.set(name, {
-      wall: new THREE.MeshLambertMaterial({ color }),
-      floor: new THREE.MeshLambertMaterial({ color: color.clone().multiplyScalar(ROOM_FLOOR_SHADE) }),
-      ceiling: new THREE.MeshLambertMaterial({ color: color.clone().multiplyScalar(ROOM_CEILING_SHADE) }),
+      wall: still(new THREE.MeshLambertMaterial({ color })),
+      floor: still(new THREE.MeshLambertMaterial({ color: color.clone().multiplyScalar(ROOM_FLOOR_SHADE) })),
+      ceiling: still(new THREE.MeshLambertMaterial({ color: color.clone().multiplyScalar(ROOM_CEILING_SHADE) })),
     });
   }
   return mats;
+}
+
+/**
+ * Joins every piece of the plain world that never moves (walls, floors, ceilings, steps, the walls
+ * over doorways, door signs) into one mesh per material and floor. Drawn one by one they were
+ * hundreds of draws a frame, mostly hidden inside the dressed rooms' walls; joined, they look the
+ * same and cost a handful.
+ */
+function mergeStill(scene: THREE.Scene, floorHeight: number) {
+  scene.updateMatrixWorld(true);
+  const groups = new Map<string, { material: THREE.Material; meshes: THREE.Mesh[] }>();
+  const centre = new THREE.Vector3();
+  scene.traverse((obj) => {
+    if (!(obj instanceof THREE.Mesh) || Array.isArray(obj.material) || !STILL.has(obj.material)) return;
+    obj.geometry.computeBoundingBox();
+    obj.geometry.boundingBox!.getCenter(centre).applyMatrix4(obj.matrixWorld);
+    const key = `${obj.material.uuid}|${Math.floor(centre.y / floorHeight)}|${obj.geometry.index ? "i" : "n"}`;
+    let group = groups.get(key);
+    if (!group) groups.set(key, (group = { material: obj.material, meshes: [] }));
+    group.meshes.push(obj);
+  });
+  for (const { material, meshes } of groups.values()) {
+    if (meshes.length < 2) continue;
+    const geometries = meshes.map((m) => m.geometry.clone().applyMatrix4(m.matrixWorld));
+    const merged = mergeGeometries(geometries);
+    for (const g of geometries) g.dispose();
+    if (!merged) continue;
+    for (const m of meshes) m.removeFromParent();
+    scene.add(new THREE.Mesh(merged, material));
+  }
 }
 
 /** Each room's side of its walls in the room's colour, merged into one mesh per room. */
@@ -413,7 +451,7 @@ function buildStairs(scene: THREE.Scene, map: MapData, stair: StairDef, wallMat:
 
   const count = Math.max(1, Math.round(rise / STEP_RISE_M));
   const depth = stair.lengthM / count;
-  const stepMat = new THREE.MeshLambertMaterial({ color: STAIR_COLOR });
+  const stepMat = still(new THREE.MeshLambertMaterial({ color: STAIR_COLOR }));
   // A dressed flight draws its own steps, ceiling and wall finish; the grey steps shrink behind them.
   const inset = dressed ? DRESSED_STEP_INSET_M : 0;
   for (let i = 0; i < count; i++) {
