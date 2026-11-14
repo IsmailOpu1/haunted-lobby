@@ -8,6 +8,7 @@
   </head>
   <body>
     <canvas id="scene"></canvas>
+    <div id="speed-banner" class="hidden" role="status"></div>
 
     <!--
       The menus, one screen at a time (screens.ts). Before you join they cover the page; once you
@@ -133,6 +134,12 @@
             <span>Show FPS counter</span>
             <input id="show-fps" type="checkbox" />
           </label>
+          <button id="speed-test" class="quiet">Speed test: how this computer runs the hotel (about a minute and a half)</button>
+          <p id="speed-test-note" class="muted-line">Shows the busiest rooms at Low and High and times every frame. Nothing is sent anywhere.</p>
+          <div id="speed-result" class="hidden">
+            <pre id="speed-result-text"></pre>
+            <button id="speed-copy" class="quiet small">Copy the result</button>
+          </div>
         </div>
         <div id="options-mic" class="group hidden">
           <h3 class="group-title">Microphone</h3>

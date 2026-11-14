@@ -630,6 +630,11 @@ export class DressedRooms {
     this.showFollowers(seen, feetY, look && !onStairs ? { holes, look } : null);
   }
 
+  /** True while Low quality's lighter copies are still being made. */
+  get makingLighter(): boolean {
+    return this.lowQuality && (this.toLighten.length > 0 || this.lightening.size > 0);
+  }
+
   /** Whether the floor-to-ceiling square of floor plan around (x, z), `half` each way, is in the view. */
   private spotInView(x: number, feetY: number, z: number, half: number, view: THREE.Frustum) {
     this.spot.min.set(x - half, feetY - SPOT_BELOW_M, z - half);
