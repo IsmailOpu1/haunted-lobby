@@ -315,6 +315,9 @@ export class Game {
   private camera = new THREE.PerspectiveCamera(75, 1, 0.05, VIEW_FAR_M);
   /** The rooms' textures still arriving (textureStream.ts). */
   textureStream: TextureStream | null = null;
+  /** What the camera sees this frame (for drawing only what can show). */
+  private view = new THREE.Frustum();
+  private viewMatrix = new THREE.Matrix4();
   private heldCamera = new THREE.PerspectiveCamera(HELD_FOV_DEG, 1, 0.05, VIEW_FAR_M);
   private fovDeg = DEFAULT_FOV;
   private ambient = new THREE.HemisphereLight(0xb8c0d0, 0x202020, DARK_AMBIENT);
@@ -1000,7 +1003,9 @@ export class Game {
     for (const door of this.doors.values()) door.update(dt);
     this.dressed.update(dt);
     const eye = this.camera.position;
-    this.dressed.showFloorsNear(eye.x, eye.y - this.eyeHeight, eye.z);
+    this.camera.updateMatrixWorld();
+    this.view.setFromProjectionMatrix(this.viewMatrix.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
+    this.dressed.showFloorsNear(eye.x, eye.y - this.eyeHeight, eye.z, { view: this.view, eye });
     this.stations.render(now / 1000);
     this.relicsView.render(now / 1000);
     this.ritualCircle?.render(now / 1000);
