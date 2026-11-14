@@ -3,7 +3,7 @@
 # The grip is worked out as in build_hand.py: the torch lies diagonally across the palm (index
 # knuckle to the pad under the little finger), the hand is turned so the forearm runs back to the
 # lower right of the screen, then each finger joint curls until it rests on the torch and the thumb
-# is laid along its side. Only the forearm and hand are kept, with the character's own textures.
+# is laid along its top (owner, 2026-11-14: hold it as a person does, thumb on top). Only the forearm and hand are kept, with the character's own textures.
 #
 # Run (headless):
 #   blender --background --factory-startup --python-exit-code 1 --python tools/art/blender/build_held_hand.py -- <id> [--preview]
@@ -34,11 +34,17 @@ OUT = os.path.join(OUT_DIR, f"held_{WHO}.gltf")
 TORCH_LENGTH = 0.245
 GRIP_FROM_TAIL = (0.025, 0.106)
 GRIP_Y = TORCH_LENGTH / 2 - sum(GRIP_FROM_TAIL) / 2
-# As build_hand.py, so the game holds it the same way (heldFlashlight.ts HOLD): the forearm runs
-# back, right and down, out of the screen's corner; overhand, the palm facing down and to the left.
+# The forearm runs back, right and down, out of the screen's corner (heldFlashlight.ts HOLD; +X is
+# the screen's left), and the hand is turned round the torch so the thumb's root is on top: the
+# fingers curl under the torch and the thumb lies along its top, as people hold a torch (it was
+# overhand, palm down, thumb on the side).
 FOREARM_TOWARD = Vector((-0.5, 0.72, -0.48)).normalized()
-PALM_TOWARD = Vector((0.5, 0, -0.85)).normalized()
-WRIST_BEND = 45  # the most the wrist bends either way about each of its two axes, in degrees
+THUMB_TOWARD = Vector((0, 0, 1))
+# How far the wrist may bend, in degrees. Holding a torch level with the thumb on top, the wrist
+# tilts toward the little finger (in the palm's plane) but hardly bends up or down: a bigger
+# up-down bend looked broken (owner, 2026-11-14).
+WRIST_TILT = 35
+WRIST_FLEX = 10
 WRIST_COST = 0.004  # per degree of bend, so the wrist bends no more than it needs
 BAR_BEHIND_KNUCKLE = 0.008
 FINGER_PAD = 0.0085  # from a finger bone to the skin on its palm side
@@ -63,6 +69,11 @@ def only(ob):
 before = set(bpy.data.objects)
 bpy.ops.import_scene.gltf(filepath=TORCH)
 torch_objs = [o for o in bpy.data.objects if o not in before]
+# Turned over round its length, so its switch is on top, under the thumb.
+for o in torch_objs:
+    if o.parent is None:
+        o.matrix_world = Matrix.Rotation(math.pi, 4, "Y") @ o.matrix_world
+bpy.context.view_layer.update()
 AXIS_DIR = Vector((0, -1, 0))
 AXIS_AT = Vector((0, GRIP_Y, 0))
 
@@ -186,6 +197,7 @@ def set_curl(name, rad):
 
 
 GRIP_RADIUS = torch_radius(GRIP_Y)
+THUMB = ["RightHandThumb1", "RightHandThumb2", "RightHandThumb3"]
 
 
 def fit(under_knuckle, under_pad, across):
@@ -201,7 +213,9 @@ def fit(under_knuckle, under_pad, across):
     for step in range(0, 360, 2):
         ref = Matrix.Rotation(math.radians(step), 3, AXIS_DIR) @ Vector((1, 0, 0))
         turn = frame(AXIS_DIR, ref) @ frame(gdir, pal).inverted()
-        score = (turn @ back).dot(FOREARM_TOWARD) + (turn @ pal).dot(PALM_TOWARD)
+        thumb = turn @ (head(THUMB[1]) - mid)
+        thumb = (thumb - AXIS_DIR * thumb.dot(AXIS_DIR)).normalized()
+        score = (turn @ back).dot(FOREARM_TOWARD) + thumb.dot(THUMB_TOWARD)
         if best is None or score > best[0]:
             best = (score, turn, mid, pal)
     return best
@@ -209,6 +223,33 @@ def fit(under_knuckle, under_pad, across):
 
 wrist = bone("RightHand")
 rig_rest = top.matrix_world.copy()
+
+
+def wrist_axes():
+    """Which of the wrist's two bend axes (0 X, 2 Z) tilts the hand in the palm's plane, and which bends it up or down."""
+    _, _, _, pal = palm_now()
+    tip0 = tail(joint(3, 1))
+    moved = {}
+    for axis in (0, 2):
+        e = [0.0, 0.0, 0.0]
+        e[axis] = 0.3
+        wrist.rotation_euler = e
+        bpy.context.view_layer.update()
+        moved[axis] = abs((tail(joint(3, 1)) - tip0).dot(pal))
+        wrist.rotation_euler = (0, 0, 0)
+        bpy.context.view_layer.update()
+    tilt = min(moved, key=moved.get)
+    return tilt, 2 - tilt
+
+
+TILT_AXIS, FLEX_AXIS = wrist_axes()
+
+
+def bends():
+    """Every wrist bend tried: (degrees about X, degrees about Z)."""
+    for t in range(-WRIST_TILT, WRIST_TILT + 1, 5):
+        for f in range(-WRIST_FLEX, WRIST_FLEX + 1, 5):
+            yield (t, f) if TILT_AXIS == 0 else (f, t)
 FINGER_JOINTS = [joint(f, j) for f in (2, 3, 4, 5) for j in (1, 2, 3)]
 
 
@@ -266,23 +307,24 @@ def settle(f):
 # it, with the hand turned nearest the game's hold. Each try: the wrist bend that aims the hand
 # best, then the fingers closed; the cost is the fingers' gaps (mm) and the aim (degrees).
 FINGER_GAP_COST = 1.0  # per mm a finger joint stays off the torch
-AIM_COST = 1.0  # per degree the forearm or palm is off its aim
+AIM_COST = 1.0  # per degree the forearm or the thumb's root is off its aim
 best = None
 for under_knuckle in (0.008, 0.015):
     for under_pad in (0.005, 0.012, 0.019, 0.026):
-        for across in (0.3, 0.45, 0.6, 0.75):
+        for across in (0.0, 0.1, 0.2, 0.3):  # diagonally to the heel of the hand, as a fist holds it (further out it hangs off the fingers like a hook)
             open_hand()
             line = (under_knuckle, under_pad, across)
             pick = None
-            for wx in range(-WRIST_BEND, WRIST_BEND + 1, 5):
-                for wz in range(-WRIST_BEND, WRIST_BEND + 1, 5):
-                    score, rot, mid, pal = aim(wx, wz, *line)
-                    score -= WRIST_COST * (abs(wx) + abs(wz))
-                    if pick is None or score > pick[0]:
-                        pick = (score, rot, mid, pal, wx, wz)
+            for wx, wz in bends():
+                score, rot, mid, pal = aim(wx, wz, *line)
+                score -= WRIST_COST * (abs(wx) + abs(wz))
+                if pick is None or score > pick[0]:
+                    pick = (score, rot, mid, pal, wx, wz)
             _, rot, mid, pal, wx, wz = pick
             aim(wx, wz, *line)
-            off = [math.degrees((rot @ v).angle(want)) for v, want in (((head("RightForeArm") - head("RightHand")).normalized(), FOREARM_TOWARD), (pal, PALM_TOWARD))]
+            thumb = rot @ (head(THUMB[1]) - mid)
+            thumb -= AXIS_DIR * thumb.dot(AXIS_DIR)
+            off = [math.degrees((rot @ v).angle(want)) for v, want in (((head("RightForeArm") - head("RightHand")).normalized(), FOREARM_TOWARD), (thumb, THUMB_TOWARD))]
             place(rot, mid)
             fingers = {f: settle(f) for f in (2, 3, 4, 5)}
             gaps = sum(max(g, 0.0) * 1000 for joints in fingers.values() for _, g in joints)
@@ -294,15 +336,15 @@ open_hand()
 aim(wx, wz, *line)
 place(rot, grip_mid)
 print(f"torch line {line}, wrist bent {wx}, {wz} degrees, cost {cost:.1f}")
-print(f"forearm aim: {off[0]:.1f} degrees off; palm aim: {off[1]:.1f} degrees off")
+print(f"forearm aim: {off[0]:.1f} degrees off; thumb's root {off[1]:.1f} degrees off the top")
+print("forearm points", tuple(round(c, 2) for c in (head("RightForeArm") - head("RightHand")).normalized()))
 for f in (2, 3, 4, 5):
     print(f"  {FINGERS[f]}: " + ", ".join(f"{d} ({g * 1000:+.1f} mm)" for d, g in settle(f)))
 
-# The thumb along the torch's side, pointing at the lens, its tip level with the index knuckle.
-THUMB = ["RightHandThumb1", "RightHandThumb2", "RightHandThumb3"]
+# The thumb along the torch's top, pointing at the lens, its tip level with the index knuckle.
 base = head(THUMB[1])
 tip_y = head(joint(2, 1)).y - THUMB_PAST_KNUCKLE
-side = Vector((base.x, 0, base.z)).normalized()
+side = Vector((0, 0, 1))
 thumb_target = Vector((0, tip_y, 0)) + side * (torch_radius(tip_y) + FINGER_PAD)
 finger_pts = [head(n).lerp(tail(n), k / 4) for f in (2, 3) for n in (joint(f, 1), joint(f, 2), joint(f, 3)) for k in range(5)]
 
@@ -345,6 +387,13 @@ while step > math.radians(0.5):
         step /= 2
 thumb_cost(params)
 print(f"  thumb tip {best_cost * 1000:.1f} mm from its spot")
+if os.environ.get("HELD_DEBUG"):
+    def where(p):
+        ang = math.degrees(math.atan2(p.x, p.z))  # 0 top, +90 screen left, -90 screen right, 180 bottom
+        return f"y {p.y:+.3f} m, round {ang:+.0f} deg, {axis_distance(p) * 1000:.0f} mm out"
+    for n in ("RightHand", "RightForeArm", "RightHandThumb1", "RightHandThumb2", "RightHandThumb3", "RightHandIndex1", "RightHandPinky1", "RightHandIndex3"):
+        print("  ", n, where(head(n)))
+    print("   thumb tip", where(tail("RightHandThumb3")))
 
 # ---------------------------------------------------------------- keep the forearm and hand
 kept = []
