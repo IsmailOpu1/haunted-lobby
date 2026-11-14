@@ -59,6 +59,7 @@ import { LightBudget } from "./lightBudget.ts";
 import { HeldFlashlight } from "./heldFlashlight.ts";
 import { DoorModels, loadDoorModels } from "./doorModels.ts";
 import { modelLoaders, type LoadProgress } from "./loaders.ts";
+import type { TextureStream } from "./textureStream.ts";
 import { dressings } from "@haunted/maps";
 
 // Near-zero ambient light (GDD Section 23). Press L while testing to light everything up.
@@ -312,6 +313,8 @@ export class Game {
   private scene = new THREE.Scene();
   private post: PostProcessing;
   private camera = new THREE.PerspectiveCamera(75, 1, 0.05, VIEW_FAR_M);
+  /** The rooms' textures still arriving (textureStream.ts). */
+  textureStream: TextureStream | null = null;
   private heldCamera = new THREE.PerspectiveCamera(HELD_FOV_DEG, 1, 0.05, VIEW_FAR_M);
   private fovDeg = DEFAULT_FOV;
   private ambient = new THREE.HemisphereLight(0xb8c0d0, 0x202020, DARK_AMBIENT);
@@ -433,8 +436,11 @@ export class Game {
     dressed.setMap(map);
     const doorStyles = dressings[map.id]?.doors;
     const doorLook = doorModels && doorStyles ? { models: doorModels, styles: doorStyles, light: dressed.lightMovable.bind(dressed) } : undefined;
+    performance.mark("hotel:world-start");
     ({ doors: this.doors, ritualCircle: this.ritualCircle } = buildWorld(this.scene, map, dressed, doorLook));
-    dressed.captureReflections(this.renderer, this.scene); // before the flashlight is added
+    performance.mark("hotel:world-built");
+    dressed.prepareReflections(this.renderer, this.scene); // before players and the flashlight are added
+    performance.mark("hotel:reflections");
     const place = (x: number, z: number) => toWorld(map, x, z);
     this.remotes = new RemotePlayers(this.scene, place, new CharacterModels(renderer));
     this.ghost = new GhostView(this.scene, place);
@@ -455,7 +461,9 @@ export class Game {
     this.flashlight.target.position.set(0, 0, -BEAM_AIM_M);
     this.flashlightIntensity = this.flashlight.light.intensity;
     this.beamAdapt = new BeamAdaptation(this.scene.children, dressed.objects);
+    performance.mark("hotel:glare-check");
     dressed.batch(); // after the flashlight's glare check has read the rooms' pieces
+    performance.mark("hotel:batched");
     this.camera.add(this.flashlight.light, this.flashlight.target);
     this.wispLight.visible = false;
     this.camera.add(this.wispLight);
@@ -534,6 +542,9 @@ export class Game {
     this.lightBudget.update();
     await this.renderer.compileAsync(this.scene, this.camera);
     await this.renderer.compileAsync(this.held.scene, this.heldCamera);
+    performance.mark("hotel:compiled");
+    this.dressed.captureReflections(); // with the shaders just built
+    performance.mark("hotel:reflections-taken");
     const textures = new Set<THREE.Texture>();
     const collect = (obj: THREE.Object3D) => {
       const mats = (obj as THREE.Mesh).material;
@@ -545,6 +556,7 @@ export class Game {
     this.scene.traverse(collect);
     this.held.scene.traverse(collect);
     for (const texture of textures) this.renderer.initTexture(texture);
+    performance.mark("hotel:ready");
 
     const timer = new THREE.Timer();
     this.renderer.setAnimationLoop((time) => {
@@ -570,10 +582,19 @@ export class Game {
       loadTrunkParts(loaders),
       loadDoorModels(loaders),
     ]);
+    performance.mark("hotel:files-in");
     loaders.finishProgress();
-    loaders.dispose();
     const game = new Game(canvas, map, hud, renderer, dressed, held, clockParts, cradleParts, trunkParts, doorModels);
     await game.start();
+    // The rooms' textures now download, the ones nearest you first (textureStream.ts).
+    game.textureStream = loaders.stream;
+    loaders.stream.start(
+      () => game.camera.position,
+      () => {
+        loaders.dispose();
+        dressed.allTexturesArrived();
+      },
+    );
     return game;
   }
 

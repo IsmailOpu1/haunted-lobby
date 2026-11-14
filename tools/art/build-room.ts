@@ -1,5 +1,6 @@
 // Builds dressed rooms: map data + dressing → Blender (build, light, bake) → compressed files the
 // game loads (client/public/assets/rooms). Run: npx tsx tools/art/build-room.ts "Main Hall" [--fast]
+import { shrinkTextures } from "./shrink-textures.ts";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -209,3 +210,5 @@ const args = process.argv.slice(2);
 const fast = args.includes("--fast");
 const skipBlender = args.includes("--skip-blender");
 for (const room of args.filter((a) => !a.startsWith("--"))) await build(room, fast, skipBlender);
+// Each texture only as big as it needs to be, shine maps at half (owner, 2026-11-14).
+await shrinkTextures();

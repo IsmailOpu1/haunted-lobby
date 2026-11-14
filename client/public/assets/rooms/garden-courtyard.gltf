@@ -27079,7 +27079,7 @@
     {
       "name": "castle_brick_02_red_rough_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/20140ac4ec98d10712e7.ktx2"
+      "uri": "../textures/590b1e23b15d4bec6f47.ktx2"
     },
     {
       "name": "dry_decay_leaves_nor_gl_2k",
@@ -27094,7 +27094,7 @@
     {
       "name": "dry_decay_leaves_rough_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/e7510a08db11ea084d7b.ktx2"
+      "uri": "../textures/6cc5493d588744f08499.ktx2"
     },
     {
       "name": "rectangular_paving_nor_gl_2k",
@@ -27109,7 +27109,7 @@
     {
       "name": "rectangular_paving_rough_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/dda7400e485a3455ea1e.ktx2"
+      "uri": "../textures/86dbaad63b423b5a534b.ktx2"
     },
     {
       "name": "dark_wood_nor_gl_2k",
@@ -27124,7 +27124,7 @@
     {
       "name": "dark_wood_rough_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/ad3a9f1a7d0688475c86.ktx2"
+      "uri": "../textures/bbc6042c526a2aa3922b.ktx2"
     },
     {
       "name": "grass_ground_nor_gl_2k",
@@ -27139,7 +27139,7 @@
     {
       "name": "grass_ground_rough_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/5108a8308ea607584538.ktx2"
+      "uri": "../textures/e02ae3b9150743c8a39c.ktx2"
     },
     {
       "name": "street_lamp_02_nor_gl_2k",
@@ -27154,7 +27154,7 @@
     {
       "name": "street_lamp_02_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/d8c2816eba3b4693c268.ktx2"
+      "uri": "../textures/6512fbb89cf3e7c51f47.ktx2"
     },
     {
       "name": "street_lamp_02_diff_2k",
@@ -27164,17 +27164,17 @@
     {
       "name": "shrub_02_nor_gl_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/c7bce9b4429063cc0ebc.ktx2"
+      "uri": "../textures/9b9360cb7a18f13a6482.ktx2"
     },
     {
       "name": "shrub_02_diff_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/67ce9d42b35e0b9c7a7e.ktx2"
+      "uri": "../textures/461dd0e892fe8a13117c.ktx2"
     },
     {
       "name": "shrub_02_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/80b562f5941b26dec5b7.ktx2"
+      "uri": "../textures/f6f53e0c293dc8fd6001.ktx2"
     },
     {
       "name": "rusted_spade_01_nor_gl_2k",
@@ -27189,7 +27189,7 @@
     {
       "name": "rusted_spade_01_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/e45e0efb2a3dc1915d6f.ktx2"
+      "uri": "../textures/738b5aa8434d620bfaaf.ktx2"
     },
     {
       "name": "nettle_plant_nor_gl_2k",
@@ -27204,7 +27204,7 @@
     {
       "name": "nettle_plant_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/cd5d2235c52fd7a0d82d.ktx2"
+      "uri": "../textures/03f66670d4006422c700.ktx2"
     },
     {
       "name": "planter_pot_clay_nor_gl_2k",
@@ -27219,7 +27219,7 @@
     {
       "name": "planter_pot_clay_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/939cf6a654a9ba2c6945.ktx2"
+      "uri": "../textures/0aba2e5b0f47226d6ec5.ktx2"
     },
     {
       "name": "watering_can_metal_01_nor_gl_2k",
@@ -27234,7 +27234,7 @@
     {
       "name": "watering_can_metal_01_arm_2k",
       "mimeType": "image/ktx2",
-      "uri": "../textures/a0a6f551bf2ca7bd8861.ktx2"
+      "uri": "../textures/86f5c3822638e09ab600.ktx2"
     }
   ],
   "buffers": [
