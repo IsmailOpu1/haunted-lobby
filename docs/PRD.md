@@ -436,6 +436,7 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 - Tutorial and solo Training Room: moved to after Phase 9 (owner, 2026-11-14; see Phase 9b)
 - **Done when:** a full match plays on the dressed hotel at Low and High quality. (Was: a stranger learns from the tutorial and finishes a match; that test moves with the tutorial to Phase 9b.)
 - Owner, 2026-11-15: the Low and High performance limits in Section 9 no longer hold Phase 8 back. A downloadable version on a game engine is planned, which will carry the look and speed further; the browser version keeps the speed test (Options) so real laptop numbers can still be gathered. Load times in Section 9 still apply.
+- **Passed** on 2026-11-15: the owner handed the final check to Claude (a full match on the dressed hotel, dawn ending on High, ritual win on Low, rematch, no errors); merged into main and tagged `phase-8-content`. Voice was off that day (LiveKit's free minutes used up), which the owner set aside.
 
 **Phase 9: Playtest and balance (about 4 weeks)**
 - Play 20 Standard matches with 4 to 6 players and review the match log
