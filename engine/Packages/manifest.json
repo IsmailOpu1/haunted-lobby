@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.1",
+    "com.unity.test-framework": "1.4.5",
+    "io.colyseus.sdk": "https://github.com/colyseus/colyseus-unity3d.git#upm"
+  }
+}
