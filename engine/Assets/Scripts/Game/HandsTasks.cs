@@ -108,10 +108,10 @@ namespace Haunted.Game
         }
     }
 
-    class CandelabraTask : HandsTask
+    public class CandelabraTask : HandsTask
     {
-        readonly CandelabraModel model;
-        readonly CandelabraLogic logic;
+        public readonly CandelabraModel model;
+        public readonly CandelabraLogic logic;
         readonly GameObject flame;
         readonly Light light;
         public override string Hint { get { return "Hold the mouse button and flick down to strike a match. Hold the flame on each wick until it catches. Turn slowly, or it goes out."; } }
@@ -147,10 +147,10 @@ namespace Haunted.Game
         }
     }
 
-    class ShuttersTask : HandsTask
+    public class ShuttersTask : HandsTask
     {
-        readonly ShuttersModel model;
-        readonly ShuttersLogic logic;
+        public readonly ShuttersModel model;
+        public readonly ShuttersLogic logic;
         public override string Hint { get { return "Point at a shutter, hold the mouse button and drag right to shut it. Hold it shut until the latch clicks. Gusts whistle before they hit."; } }
         public ShuttersTask(ShuttersModel m, HandsEvents e) { model = m; logic = new ShuttersLogic(e.Play, e.Noise, Random); Parts.AddRange(m.Panels); }
         public override bool Done { get { return logic.Done; } }
@@ -158,10 +158,10 @@ namespace Haunted.Game
         public override void Update(HandsFrame f) { logic.Update(f.Dt, Index(f.Held, "shutter"), f.DragX); model.SetOpen(logic.Open); }
     }
 
-    class StoveTask : HandsTask
+    public class StoveTask : HandsTask
     {
-        readonly StoveModel model;
-        readonly StoveLogic logic;
+        public readonly StoveModel model;
+        public readonly StoveLogic logic;
         public override string Hint { get { return "Point at a knob, hold the mouse button and drag left or right to turn it. Turn slowly near the off mark and it clicks into place."; } }
         public StoveTask(StoveModel m, HandsEvents e) { model = m; logic = new StoveLogic(e.Play, Random); Parts.AddRange(m.Knobs); m.SetKnobs(logic.Angle, logic.Flame); }
         public override bool Done { get { return logic.Done; } }
@@ -169,14 +169,14 @@ namespace Haunted.Game
         public override void Update(HandsFrame f) { logic.Update(f.Dt, Index(f.Held, "knob"), f.DragX); model.SetKnobs(logic.Angle, logic.Flame); }
     }
 
-    class DigTask : HandsTask
+    public class DigTask : HandsTask
     {
         /// <summary>When the relic starts to show near the bottom of the hole.</summary>
         const double RELIC_SHOWS_DEPTH = 0.8;
         /// <summary>How far the trowel dips into the soil as you scoop.</summary>
         const double SCOOP_DIP_M = 0.06;
-        readonly DigModel model;
-        readonly DigLogic logic;
+        public readonly DigModel model;
+        public readonly DigLogic logic;
         double dip;
         public override string Hint { get { return "Point at the soil, hold the mouse button and move the mouse down to scoop. Dig steadily: frantic digging is loud."; } }
         public DigTask(DigModel m, HandsEvents e)
@@ -206,10 +206,10 @@ namespace Haunted.Game
         }
     }
 
-    class LetterTask : HandsTask
+    public class LetterTask : HandsTask
     {
-        readonly LetterModel model;
-        readonly LetterLogic logic;
+        public readonly LetterModel model;
+        public readonly LetterLogic logic;
         readonly GameObject flame;
         readonly Light light;
         public override string Hint { get { return "Hold the mouse button and flick down to strike a match. Keep the flame just under the swaying letter until it catches. Turn slowly, or it goes out."; } }
@@ -237,10 +237,10 @@ namespace Haunted.Game
         }
     }
 
-    class ClockTask : HandsTask
+    public class ClockTask : HandsTask
     {
-        readonly ClockModel model;
-        readonly ClockLogic logic;
+        public readonly ClockModel model;
+        public readonly ClockLogic logic;
         public override string Hint { get { return "The clock has stopped. The guest book in this room says when to wake the house: grab the clock face and drag right or left to turn the hands to that time, then let go."; } }
         public ClockTask(ClockModel m, HandsEvents e) { model = m; logic = new ClockLogic(e.Play, m.Target); Parts.Add(m.Face); m.SetHands(logic.MinuteDeg, logic.HourDeg); }
         public override bool Done { get { return logic.Done; } }
@@ -248,10 +248,10 @@ namespace Haunted.Game
         public override void Update(HandsFrame f) { logic.Update(f.Dt, f.Held == "face", f.DragX); model.SetHands(logic.MinuteDeg, logic.HourDeg); }
     }
 
-    class BoilerTask : HandsTask
+    public class BoilerTask : HandsTask
     {
-        readonly BoilerModel model;
-        readonly BoilerLogic logic;
+        public readonly BoilerModel model;
+        public readonly BoilerLogic logic;
         public override string Hint { get { return "Point at the wheel, hold the mouse button and drag right to open the valve, left to close it. Bring the needle into the dark green band on the dial and keep it there."; } }
         public BoilerTask(BoilerModel m, HandsEvents e) { model = m; logic = new BoilerLogic(e.Play); Parts.AddRange(m.Wheel); }
         public override bool Done { get { return logic.Done; } }
@@ -259,10 +259,10 @@ namespace Haunted.Game
         public override void Update(HandsFrame f) { logic.Update(f.Dt, f.Held == "wheel", f.DragX); model.SetValve(logic.OpenDeg, logic.Pressure); }
     }
 
-    class PortraitsTask : HandsTask
+    public class PortraitsTask : HandsTask
     {
-        readonly PortraitsModel model;
-        readonly PortraitsLogic logic;
+        public readonly PortraitsModel model;
+        public readonly PortraitsLogic logic;
         public override string Hint { get { return "Point at a crooked portrait, hold the mouse button and drag sideways to level it, then let go. They are heavy: turn them slowly."; } }
         public PortraitsTask(PortraitsModel m, HandsEvents e) { model = m; logic = new PortraitsLogic(e.Play, Random); Parts.AddRange(m.Frames); m.SetTilt(logic.Tilt); }
         public override bool Done { get { return logic.Done; } }
@@ -270,14 +270,14 @@ namespace Haunted.Game
         public override void Update(HandsFrame f) { logic.Update(f.Dt, Index(f.Held, "portrait"), f.DragX); model.SetTilt(logic.Tilt); }
     }
 
-    class RosesTask : HandsTask
+    public class RosesTask : HandsTask
     {
         /// <summary>How far above the thing you aim at the jug in your hand hangs.</summary>
         const double JUG_ABOVE_M = 0.32;
         /// <summary>How far the jug in your hand tips while it pours.</summary>
         const double JUG_TIP_RAD = 1.6;
-        readonly RosesModel model;
-        readonly RosesLogic logic;
+        public readonly RosesModel model;
+        public readonly RosesLogic logic;
         readonly Transform jug;
         readonly Action<int, int> setJug;
         string last;
@@ -346,10 +346,10 @@ namespace Haunted.Game
         }
     }
 
-    class SwitchboardTask : HandsTask
+    public class SwitchboardTask : HandsTask
     {
-        readonly SwitchboardModel model;
-        readonly SwitchboardLogic logic;
+        public readonly SwitchboardModel model;
+        public readonly SwitchboardLogic logic;
         public override string Hint { get { return "Point at a plug, hold the mouse button and drag it up to the socket with the same sign and colour. Hold it there until the lamp lights. The wrong socket sparks."; } }
         public SwitchboardTask(SwitchboardModel m, HandsEvents e)
         {
@@ -373,12 +373,12 @@ namespace Haunted.Game
         }
     }
 
-    class MirrorTask : HandsTask
+    public class MirrorTask : HandsTask
     {
         /// <summary>How far in front of the glass the cloth sits as you wipe.</summary>
         const float CLOTH_OFF_M = 0.02f;
-        readonly MirrorModel model;
-        readonly MirrorLogic logic;
+        public readonly MirrorModel model;
+        public readonly MirrorLogic logic;
         public override string Hint { get { return "Hold the mouse button on the glass and move the mouse to wipe the fog away. Wipe slowly: scrubbing fast only smears it."; } }
         public MirrorTask(MirrorModel m, HandsEvents e)
         {
@@ -424,12 +424,12 @@ namespace Haunted.Game
         }
     }
 
-    class TrunkTask : HandsTask
+    public class TrunkTask : HandsTask
     {
         /// <summary>The lid strains harder this long before it bursts open.</summary>
         const double RATTLE_FROM_SEC = 2;
-        readonly TrunkModel model;
-        readonly TrunkLogic logic;
+        public readonly TrunkModel model;
+        public readonly TrunkLogic logic;
         public override string Hint { get { return "Point at the lid, hold the mouse button and drag down to press it shut. Hold it until it clicks, then drag each latch to the right before the lid bursts open."; } }
         public TrunkTask(TrunkModel m, HandsEvents e) { model = m; logic = new TrunkLogic(e.Play); Parts.Add(m.Lid); Parts.AddRange(m.Latches); }
         public override bool Done { get { return logic.Done; } }
@@ -447,10 +447,10 @@ namespace Haunted.Game
         }
     }
 
-    class PianoTask : HandsTask
+    public class PianoTask : HandsTask
     {
-        readonly PianoModel model;
-        readonly PianoLogic logic;
+        public readonly PianoModel model;
+        public readonly PianoLogic logic;
         string last;
         int down = -1;
         public override string Hint { get { return "Listen: the piano plays a tune, its keys going down as it plays. Then click the same keys in the same order. Each round adds a note. A wrong key is a sour note the ghost can hear. Click the card to hear the tune again."; } }
@@ -483,10 +483,10 @@ namespace Haunted.Game
         }
     }
 
-    class SheetsTask : HandsTask
+    public class SheetsTask : HandsTask
     {
-        readonly SheetsModel model;
-        readonly SheetsLogic logic;
+        public readonly SheetsModel model;
+        public readonly SheetsLogic logic;
         public override string Hint { get { return "Point at the loose half of the sheet, hold the mouse button and pull it over: drag down to pull it toward you, left to pull it across. Let go too soon and it slides back."; } }
         public SheetsTask(SheetsModel m, HandsEvents e) { model = m; logic = new SheetsLogic(e.Play); Parts.Add(m.Flap); m.SetSheet(0, 0); }
         public override bool Done { get { return logic.Done; } }
@@ -494,10 +494,10 @@ namespace Haunted.Game
         public override void Update(HandsFrame f) { logic.Update(f.Dt, f.Held == "sheet", f.DragX, f.DragY); model.SetSheet(logic.Folds, logic.Progress); }
     }
 
-    class CradleTask : HandsTask
+    public class CradleTask : HandsTask
     {
-        readonly CradleModel model;
-        readonly CradleLogic logic;
+        public readonly CradleModel model;
+        public readonly CradleLogic logic;
         public override string Hint { get { return "Hold the mouse button on the cradle and push it gently left and right in time with its swing. Push too hard and the baby cries, and the ghost hears it."; } }
         public CradleTask(CradleModel m, HandsEvents e) { model = m; logic = new CradleLogic(e.Play, e.Noise); Parts.Add(m.Basket); }
         public override bool Done { get { return logic.Done; } }
@@ -509,10 +509,10 @@ namespace Haunted.Game
         }
     }
 
-    class LockboxTask : HandsTask
+    public class LockboxTask : HandsTask
     {
-        readonly LockboxModel model;
-        readonly LockboxLogic logic;
+        public readonly LockboxModel model;
+        public readonly LockboxLogic logic;
         public override string Hint { get { return "Hold the dial and drag right until a pin clicks, then drag left until the next one clicks, then right, then left. A stud lights up for each pin."; } }
         public LockboxTask(LockboxModel m, HandsEvents e) { model = m; logic = new LockboxLogic(e.Play, Random); Parts.Add(m.Dial); m.SetDial(0, 0, false); }
         public override bool Done { get { return logic.Done; } }
@@ -520,12 +520,12 @@ namespace Haunted.Game
         public override void Update(HandsFrame f) { logic.Update(f.Dt, f.Held == "dial", f.DragX); model.SetDial(logic.Dial, logic.Set, logic.Done); }
     }
 
-    class DrainTask : HandsTask
+    public class DrainTask : HandsTask
     {
         /// <summary>How often a ripple spreads from your hand: far from the relic, and right on it.</summary>
         const double RIPPLE_SLOW_PER_SEC = 0.6, RIPPLE_FAST_PER_SEC = 2.5;
-        readonly DrainModel model;
-        readonly DrainLogic logic;
+        public readonly DrainModel model;
+        public readonly DrainLogic logic;
         /// <summary>Right and away from you, in the drain's own three.js x and z.</summary>
         Vector2? right, away;
         double ripple;
@@ -572,6 +572,8 @@ namespace Haunted.Game
         const double LOOK_SMOOTH_SEC = 0.08;
 
         HandsTask task;
+        /// <summary>The task in hand (for the unattended test of every task, HandsBot).</summary>
+        public HandsTask Task { get { return task; } }
         bool holding;
         string held, aim, heldSinceFrame;
         bool pressedSinceFrame;

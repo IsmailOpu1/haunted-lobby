@@ -143,7 +143,7 @@ namespace Haunted.Game
         }
 
         /// <summary>Turns a station to face away from the nearest wall (walls are axis-aligned). Models face +z.</summary>
-        static double FacingYaw(MapInfo map, double x, double z)
+        public static double FacingYaw(MapInfo map, double x, double z)
         {
             double best = double.PositiveInfinity, yaw = 0;
             foreach (var w in map.Walls)

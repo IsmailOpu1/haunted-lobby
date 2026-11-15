@@ -72,6 +72,9 @@ namespace Haunted.Game
         int startWith;
         double nightSince = -1, endSince = -1;
         readonly List<KeyValuePair<double, string[]>> nightSends = new List<KeyValuePair<double, string[]>>();
+        List<string> handsTest;
+        string handsShots = ".";
+        HandsBot bot;
         readonly List<KeyValuePair<double, string>> nightShots = new List<KeyValuePair<double, string>>();
 
         void Awake()
@@ -137,6 +140,11 @@ namespace Haunted.Game
             autoReady = Array.IndexOf(args, "-ready") >= 0;
             for (int i = 0; i + 2 < args.Length; i++)
             {
+                if (args[i] == "-handsTest" && i + 1 < args.Length)
+                    handsTest = args[i + 1] == "all"
+                        ? map.Tasks.Select(t => t.Id).Concat(new[] { "relic-library", "relic-courtyard-1", "relic-kitchen" }).ToList()
+                        : args[i + 1].Split(',').ToList();
+                if (args[i] == "-handsShots" && i + 1 < args.Length) handsShots = args[i + 1];
                 if (args[i] != "-debugAtNight" && args[i] != "-shotAtNight" && args[i] != "-sendAtNight") continue;
                 double at = double.Parse(args[i + 1], CultureInfo.InvariantCulture);
                 if (args[i] == "-debugAtNight") nightSends.Add(new KeyValuePair<double, string[]>(at, new[] { "debug", args[i + 2] }));
@@ -290,6 +298,7 @@ namespace Haunted.Game
                     { "run", input.Run }, { "crouch", input.Crouch }, { "yaw", input.Yaw }, { "pitch", input.Pitch },
                 }));
                 if (night.End != null && hands.Active) StopHands();
+                if (bot != null) bot.Frame();
                 UpdateHands(Time.deltaTime);
                 others.Update(now, me.Camera);
                 hud.Prompt = night.PromptAt(me.State.X, me.State.Z);
@@ -484,6 +493,15 @@ namespace Haunted.Game
         void RunTestSchedule(double now)
         {
             double t = now - inRoomSince;
+            if (handsTest != null && bot == null && nightSince >= 0 && now - nightSince > 4)
+            {
+                bot = new HandsBot
+                {
+                    Send = (type, body) => room.Send(type, body), Shot = path => { ScreenCapture.CaptureScreenshot(path); Debug.Log("Screenshot " + path); },
+                    Hands = hands, Me = me, Map = map, Stations = stations, ShotDir = handsShots,
+                };
+                StartCoroutine(bot.Run(handsTest));
+            }
             if (shotPath != null && !shotTaken && shotAt >= 0 && t >= shotAt)
             {
                 shotTaken = true;
