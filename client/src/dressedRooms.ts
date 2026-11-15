@@ -892,7 +892,9 @@ export async function loadDressedRooms(loaders: ModelLoaders, dressing: MapDress
         result.add(entry.rooms ?? [room.room], model.scene, lightmap, entry.lightmapScale, entry.drawn ?? [], room.probes);
         group.centre = new THREE.Box3().setFromObject(model.scene).getCenter(new THREE.Vector3());
       } catch (err) {
-        console.error(`${room.room}: its dressed room failed to load, so it is drawn as grey boxes`, err);
+        // Even after the downloads were tried again: the hotel does not open with a grey room in
+        // it (owner, 2026-11-15); the loading screen asks for a reload instead.
+        throw new Error(`${room.room}: its dressed room failed to load`, { cause: err });
       }
     }),
   );

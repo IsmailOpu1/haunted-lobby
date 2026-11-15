@@ -45,6 +45,8 @@ export class TextureStream {
   get left(): number {
     return this.jobs.size + this.running;
   }
+  /** Textures that failed to load even after their downloads were tried again. */
+  failed = 0;
 
   /** A glTF loader plugin that gives this room stand-ins and queues its real textures. */
   plugin(group: StreamGroup): (parser: GLTFParser) => GLTFLoaderPlugin {
@@ -95,7 +97,10 @@ export class TextureStream {
       job
         .load()
         .then((texture) => swapIn(this.standIns.get(job.key)!, texture))
-        .catch((err) => console.error(`A texture failed to load (${job.key}); its stand-in stays`, err))
+        .catch((err) => {
+          this.failed++;
+          console.error(`A texture failed to load (${job.key})`, err);
+        })
         .finally(() => {
           this.running--;
           for (const group of job.groups) {
