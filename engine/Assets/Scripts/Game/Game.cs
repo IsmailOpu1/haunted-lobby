@@ -55,6 +55,7 @@ namespace Haunted.Game
         double wheelTestRelease = -1;
         bool askPossessed;
         bool flashlightWas;
+        string endShot;
         readonly HandsWork hands = new HandsWork();
         string openStation;
         /// <summary>Where the open task stands on this side ("none", "open", "finished", "left"), so taskClosed can say the right thing.</summary>
@@ -153,10 +154,12 @@ namespace Haunted.Game
             for (int i = 0; i + 2 < args.Length; i++)
             {
                 if (args[i] == "-handsTest" && i + 1 < args.Length)
-                    handsTest = args[i + 1] == "all"
+                    handsTest = args[i + 1] == "mine" ? new List<string> { "mine" }
+                        : args[i + 1] == "all"
                         ? map.Tasks.Select(t => t.Id).Concat(new[] { "relic-library", "relic-courtyard-1", "relic-kitchen" }).ToList()
                         : args[i + 1].Split(',').ToList();
                 if (args[i] == "-handsShots" && i + 1 < args.Length) handsShots = args[i + 1];
+                if (args[i] == "-shotAtEnd" && i + 1 < args.Length) endShot = args[i + 1];
                 if (args[i] != "-debugAtNight" && args[i] != "-shotAtNight" && args[i] != "-sendAtNight") continue;
                 double at = double.Parse(args[i + 1], CultureInfo.InvariantCulture);
                 if (args[i] == "-debugAtNight") nightSends.Add(new KeyValuePair<double, string[]>(at, new[] { "debug", args[i + 2] }));
@@ -654,6 +657,13 @@ namespace Haunted.Game
                     bot.DoorZ = Convert.ToDouble(d["z"], CultureInfo.InvariantCulture);
                     bot.DoorAlongX = (string)d["axis"] == "x";
                 }
+                if (handsTest.Count == 1 && handsTest[0] == "mine")
+                {
+                    // Your own tasks, as dealt; the server checks each one.
+                    bot.Mine = true;
+                    handsTest = night.Tasks.Where(task => !task.Done).Select(task => task.StationId).ToList();
+                    Debug.Log("Doing my tasks: " + string.Join(", ", handsTest.ToArray()));
+                }
                 StartCoroutine(bot.Run(handsTest));
             }
             if (shotPath != null && !shotTaken && shotAt >= 0 && t >= shotAt)
@@ -715,6 +725,13 @@ namespace Haunted.Game
                 CloseWheel(true);
             }
             if (night.End != null && endSince < 0) endSince = now;
+            if (endShot != null && endSince >= 0 && now - endSince >= 2)
+            {
+                // Test: the end screen, two seconds in.
+                ScreenCapture.CaptureScreenshot(endShot);
+                Debug.Log("End screen saved to " + endShot);
+                endShot = null;
+            }
             if (rematchAfter >= 0 && endSince >= 0 && now - endSince >= rematchAfter && room.State.host == room.SessionId)
             {
                 rematchAfter = -1;

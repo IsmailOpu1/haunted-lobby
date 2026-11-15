@@ -138,3 +138,10 @@ The stations are the browser's plain models until step D. A search cannot open w
 - The mystery's "Who was the ghost?" bar shows once the basement opens. Naming the ghost at the altar is played in C5's full nights.
 - Fixed: the camera now clears to black like the browser, so no daytime sky shows over rooms without a ceiling.
 - New test options: `-possessed`, and the test sends `_wheel {"kind":…}`, `_turn`, `_vote {"name":…}` and `_ouija {"name":…}`.
+
+**C5 passed (2026-11-16): step C is done.** The Unity host and three `tools/playtest.ts` bots finished a night together with every ending. Unity's end screens are in `step-c/c5/`.
+- Ritual (`win`, with `POSSESSED_BOT=1`): the Unity player did its own 3 tasks by hand (`-handsTest mine`: its dealt tasks, with the ghost and the clock running), the bots did theirs, found the relics and named the ghost at the altar, and the ritual reached 100% through a hunt. The investigators win.
+- Dawn (`lose-dawn`): the possessed win.
+- Everyone dead (`lose-dead`, the Unity player downed with `-debugAtNight`): the possessed win.
+- Outnumbered (`lose-dead` with `DIE=2`, the Unity player possessed): the possessed win.
+- After each ending the clock stopped and the players froze. New test option: `-shotAtEnd path`.

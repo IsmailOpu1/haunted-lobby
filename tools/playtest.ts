@@ -244,7 +244,7 @@ async function main() {
   const b = new Bot(names[1]!);
   await a.connect(joinCode);
   // c4: the first bot asks to be possessed before the others join (the Unity host starts once all are in).
-  if (mode === "c4") a.room.send("debug", { possessed: true });
+  if (mode === "c4" || process.env.POSSESSED_BOT === "1") a.room.send("debug", { possessed: true });
   await b.connect(joinCode ?? a.room.roomId);
   const more = names.slice(2, count).map((n) => new Bot(n));
   for (const bot of more) await bot.connect(joinCode ?? a.room.roomId);
@@ -284,7 +284,8 @@ async function main() {
   if (mode === "lose-dawn") {
     a.room.send("debug", { nightTime: a.state.nightLength - 2 });
   } else if (mode === "lose-dead") {
-    for (const bot of bots) {
+    // DIE=N: only the first N bots die (leaves the possessed outnumbering the rest).
+    for (const bot of bots.slice(0, Number(process.env.DIE ?? bots.length))) {
       bot.room.send("debug", { down: true });
       bot.room.send("debug", { bleedLeft: 0.5 });
     }

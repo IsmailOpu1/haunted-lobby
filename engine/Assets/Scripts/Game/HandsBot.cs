@@ -43,16 +43,23 @@ namespace Haunted.Game
             if (Hands.Active && Me.HandDown && (vx != 0 || vy != 0)) Hands.Move(vx * Dt, vy * Dt);
         }
 
+        /// <summary>Do only your own tasks, as they were dealt (a full night), not every station.</summary>
+        [NonSerialized] public bool Mine;
+
         public IEnumerator Run(List<string> ids)
         {
-            Send("debug", new Dictionary<string, object> { { "toggleGhost", true } });
-            Send("debug", new Dictionary<string, object> { { "freezeClock", true } });
+            // A full night (-handsTest mine) keeps the ghost and the clock; the task test stops both.
+            if (!Mine)
+            {
+                Send("debug", new Dictionary<string, object> { { "toggleGhost", true } });
+                Send("debug", new Dictionary<string, object> { { "freezeClock", true } });
+            }
             yield return new WaitForSeconds(1);
             foreach (var id in ids)
             {
                 double x, z;
                 bool place = !Where(id, out x, out z);
-                Send("debug", new Dictionary<string, object> { { place ? "hideRelicAt" : "giveTask", id } });
+                if (!Mine) Send("debug", new Dictionary<string, object> { { place ? "hideRelicAt" : "giveTask", id } });
                 double yaw = Stations.FacingYaw(Map, x, z);
                 Send("debug", new Dictionary<string, object> { { "teleport", new Dictionary<string, object> { { "x", x + Math.Sin(yaw) * STAND_M }, { "z", z + Math.Cos(yaw) * STAND_M } } } });
                 yield return new WaitForSeconds(1.2f);
