@@ -9,3 +9,5 @@ Build/
 Builds/
 *.csproj
 *.sln
+.vscode/
+*.slnx

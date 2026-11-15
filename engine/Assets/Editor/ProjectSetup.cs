@@ -108,7 +108,11 @@ namespace Haunted.Editor
             };
             var report = BuildPipeline.BuildPlayer(options);
             Debug.Log("Build " + report.summary.result + ": " + report.summary.totalSize / (1024 * 1024) + " MB, " + report.summary.totalErrors + " errors, " + report.summary.totalTime);
-            if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded) EditorApplication.Exit(1);
+            if (report.summary.result != UnityEditor.Build.Reporting.BuildResult.Succeeded)
+            {
+                if (Application.isBatchMode) EditorApplication.Exit(1);
+                throw new System.Exception("Build " + report.summary.result + " with " + report.summary.totalErrors + " errors");
+            }
         }
     }
 }

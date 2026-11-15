@@ -85,3 +85,14 @@ Sources: Colyseus SDKs (docs.colyseus.io/sdk, docs.colyseus.io/getting-started/u
 ### Before step A can start
 
 The owner installs Unity Hub and Unity 6 (LTS) and signs in to a free Unity account (Claude never types passwords). Everything after that Claude does by script. Groundwork that needs no Unity is done (2026-11-15): `npx tsx tools/engine-export.ts` writes `engine-data/map.json`, `config.json` and `movement-cases.json` (10 cases, 780 steps the C# movement must match), and `npx schema-codegen server/src/state.ts --csharp --output engine-data/schema/` writes the server's state as C# classes. Run both again after changing the map, the config, movement or the state. The movement port (`engine/Assets/Scripts/Sim/Movement.cs`) is written and matches the TypeScript on all 780 steps (largest difference 3.6e-15 m); `engine/Tools/check-movement.ps1` checks it with Windows' own C# compiler.
+
+### Step A: passed (2026-11-15)
+
+One Unity player (the Windows build) and one browser player saw each other walk in the same room on the local server: `step-a/unity-sees-browser.png` and `step-a/browser-sees-unity.jpg`.
+
+- **Install.** Unity 6.3 LTS (6000.3.28f1) lives in `E:\Games\Unity\6000.3.28f1`, added to Unity Hub with Locate. The free Personal license is on.
+- **The license works only in an editor started from Unity Hub.** Batch mode from Claude's shell can't reach the Hub's sign-in. So open `engine/` from the Hub, and drive the open editor through `Assets/Editor/CommandRunner.cs`: write `Setup`, `Refresh`, `Resolve` or `BuildWindows` to `engine/Temp/command.txt`, and the result appears in `engine/Temp/command-result.txt`.
+- **The build** lands in `engine/Build/Windows/Haunted Lobby.exe`. It uses Mono until Visual Studio's C++ tools are installed for IL2CPP (step F). The simulation checks run with `engine/Tools/check-sim.ps1`.
+- **Test run:** `"Haunted Lobby.exe" -server ws://localhost:2567 -create -codeFile code.txt -script walk -shot unity.png -shotAt 75 -quitAt 150`, then join that code from the browser.
+- **Packages:** `com.unity.modules.textrendering` does not exist in 6.3 and was dropped from the manifest. Unity's default template packages (IAP, analytics and the like) were removed.
+- **Left for later steps:** the Unity client ignores the server messages it does not use yet (`system`, `roster`, `relicsNear`); step C handles them. The browser version now loads every room and texture before you can enter (owner); the Unity version ships its art in the download, so it never shows grey stand-ins.

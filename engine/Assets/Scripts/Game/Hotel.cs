@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Haunted.Sim;
 using UnityEngine;
+using Collision = Haunted.Sim.Collision;
 
 namespace Haunted.Game
 {
