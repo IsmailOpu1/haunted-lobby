@@ -3,17 +3,41 @@
 //
 //   npx tsx tools/engine-export.ts
 //
-// Writes engine-data/: map.json (the hotel as data), config.json (every number), and
-// movement-cases.json (inputs and where the TypeScript movement ends up, for the C# port to match
-// exactly). The server's state as C# classes comes from Colyseus's own generator:
-//   npx schema-codegen server/src/state.ts --csharp --output engine-data/schema/
-import { mkdirSync, writeFileSync } from "node:fs";
-import { config, initialMoveState, SIM_DT, stepMovement, type CollideFn, type MoveInput, type MoveMode, type MoveState } from "@haunted/shared";
+// Writes engine-data/: map.json (the hotel as data), config.json (every number), world.json (every
+// solid box), and the cases the C# ports must match (movement-cases.json, level-cases.json,
+// collide-cases.json; checked by engine/Tools/check-sim.ps1). Copies map, world and config into
+// the Unity project's Resources. The server's state as C# classes comes from Colyseus's generator:
+//   npx schema-codegen server/src/state.ts --csharp --output engine/Assets/Scripts/Game/Schema/
+import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
+import {
+  config,
+  crossStairs,
+  doorBox,
+  furnitureBox,
+  HIDING_SPOT_HEIGHT_M,
+  hidingSpotBox,
+  initialMoveState,
+  initPhysics,
+  PhysicsWorld,
+  SIM_DT,
+  stairWalls,
+  stepMovement,
+  toWorld,
+  wallBox,
+  type CollideFn,
+  type FloorBox,
+  type MoveInput,
+  type MoveMode,
+  type MoveState,
+  type Point,
+  type WorldPoint,
+} from "@haunted/shared";
 import { marrowHotelGreybox as map } from "@haunted/maps";
 
 const OUT = "engine-data";
 mkdirSync(OUT, { recursive: true });
-const write = (name: string, data: unknown) => writeFileSync(`${OUT}/${name}`, `${JSON.stringify(data, null, 2)}\n`);
+const write = (name: string, data: unknown) =>
+  writeFileSync(`${OUT}/${name}`, `${JSON.stringify(data, null, 2)}\n`);
 
 write("map.json", map);
 write("config.json", config);
@@ -21,23 +45,104 @@ write("config.json", config);
 // Movement cases: a few seconds of input each, in every mode, with and without a wall.
 const open: CollideFn = (from, d) => ({ x: from.x + d.x, z: from.z + d.z });
 /** A wall along x = 1: nothing passes east of it (the simplest stop the port must also do). */
-const wall: CollideFn = (from, d) => ({ x: Math.min(from.x + d.x, 1), z: from.z + d.z });
+const wall: CollideFn = (from, d) => ({
+  x: Math.min(from.x + d.x, 1),
+  z: from.z + d.z,
+});
 const walls = { open, wall };
 
 type Hold = Omit<MoveInput, "seq"> & { steps: number };
-const hold = (steps: number, p: Partial<Hold>): Hold => ({ steps, forward: 0, right: 0, run: false, crouch: false, yaw: 0, pitch: 0, ...p });
+const hold = (steps: number, p: Partial<Hold>): Hold => ({
+  steps,
+  forward: 0,
+  right: 0,
+  run: false,
+  crouch: false,
+  yaw: 0,
+  pitch: 0,
+  ...p,
+});
 
-const scripts: { name: string; mode: MoveMode; walls: keyof typeof walls; holds: Hold[] }[] = [
-  { name: "walk north", mode: "normal", walls: "open", holds: [hold(40, { forward: 1 })] },
-  { name: "run until out of breath, then walk", mode: "normal", walls: "open", holds: [hold(Math.ceil((config.movement.staminaSec + 2) / SIM_DT), { forward: 1, run: true })] },
-  { name: "stand to get breath back", mode: "normal", walls: "open", holds: [hold(80, { forward: 1, run: true }), hold(120, {}), hold(40, { forward: 1, run: true })] },
-  { name: "crouch diagonally while turning", mode: "normal", walls: "open", holds: Array.from({ length: 8 }, (_, i) => hold(10, { forward: 1, right: 1, crouch: true, yaw: i * 0.4 })) },
-  { name: "strafe and back", mode: "normal", walls: "open", holds: [hold(30, { right: -1, yaw: 1.2 }), hold(30, { forward: -1, yaw: -2.5 })] },
-  { name: "carrying a relic", mode: "carry", walls: "open", holds: [hold(40, { forward: 1, run: true })] },
-  { name: "downed, crawling", mode: "crawl", walls: "open", holds: [hold(40, { forward: 1, run: true })] },
-  { name: "hidden: no movement", mode: "frozen", walls: "open", holds: [hold(40, { forward: 1, run: true })] },
-  { name: "wisp", mode: "wisp", walls: "open", holds: [hold(40, { forward: 1, right: 1, yaw: 0.7 })] },
-  { name: "walk east into a wall", mode: "normal", walls: "wall", holds: [hold(60, { right: 1 })] },
+const scripts: {
+  name: string;
+  mode: MoveMode;
+  walls: keyof typeof walls;
+  holds: Hold[];
+}[] = [
+  {
+    name: "walk north",
+    mode: "normal",
+    walls: "open",
+    holds: [hold(40, { forward: 1 })],
+  },
+  {
+    name: "run until out of breath, then walk",
+    mode: "normal",
+    walls: "open",
+    holds: [
+      hold(Math.ceil((config.movement.staminaSec + 2) / SIM_DT), {
+        forward: 1,
+        run: true,
+      }),
+    ],
+  },
+  {
+    name: "stand to get breath back",
+    mode: "normal",
+    walls: "open",
+    holds: [
+      hold(80, { forward: 1, run: true }),
+      hold(120, {}),
+      hold(40, { forward: 1, run: true }),
+    ],
+  },
+  {
+    name: "crouch diagonally while turning",
+    mode: "normal",
+    walls: "open",
+    holds: Array.from({ length: 8 }, (_, i) =>
+      hold(10, { forward: 1, right: 1, crouch: true, yaw: i * 0.4 }),
+    ),
+  },
+  {
+    name: "strafe and back",
+    mode: "normal",
+    walls: "open",
+    holds: [
+      hold(30, { right: -1, yaw: 1.2 }),
+      hold(30, { forward: -1, yaw: -2.5 }),
+    ],
+  },
+  {
+    name: "carrying a relic",
+    mode: "carry",
+    walls: "open",
+    holds: [hold(40, { forward: 1, run: true })],
+  },
+  {
+    name: "downed, crawling",
+    mode: "crawl",
+    walls: "open",
+    holds: [hold(40, { forward: 1, run: true })],
+  },
+  {
+    name: "hidden: no movement",
+    mode: "frozen",
+    walls: "open",
+    holds: [hold(40, { forward: 1, run: true })],
+  },
+  {
+    name: "wisp",
+    mode: "wisp",
+    walls: "open",
+    holds: [hold(40, { forward: 1, right: 1, yaw: 0.7 })],
+  },
+  {
+    name: "walk east into a wall",
+    mode: "normal",
+    walls: "wall",
+    holds: [hold(60, { right: 1 })],
+  },
 ];
 
 const cases = scripts.map((script) => {
@@ -48,12 +153,185 @@ const cases = scripts.map((script) => {
     const { steps: count, ...rest } = h;
     for (let i = 0; i < count; i++) {
       const input: MoveInput = { seq: ++seq, ...rest };
-      state = stepMovement(state, input, SIM_DT, walls[script.walls], script.mode);
+      state = stepMovement(
+        state,
+        input,
+        SIM_DT,
+        walls[script.walls],
+        script.mode,
+      );
       steps.push({ input, after: { ...state } });
     }
   }
-  return { name: script.name, mode: script.mode, walls: script.walls, dt: SIM_DT, start: initialMoveState(0, 0), steps };
+  return {
+    name: script.name,
+    mode: script.mode,
+    walls: script.walls,
+    dt: SIM_DT,
+    start: initialMoveState(0, 0),
+    steps,
+  };
 });
-write("movement-cases.json", { note: "Generated by tools/engine-export.ts. The C# port must end every step within 1e-9 of 'after'.", cases });
+write("movement-cases.json", {
+  note: "Generated by tools/engine-export.ts. The C# port must end every step within 1e-9 of 'after'.",
+  cases,
+});
 
-console.log(`Wrote ${OUT}/map.json, config.json, movement-cases.json (${cases.length} cases, ${cases.reduce((n, c) => n + c.steps.length, 0)} steps)`);
+// world.json: everything solid as boxes (walls, the walls along each flight of stairs, closed
+// doors, hiding spots, furniture), the same list the server's physics is built from. The Unity
+// client builds its grey box and its own collision from it.
+const solid = (kind: string, box: FloorBox, heightM: number, id?: string) => ({
+  kind,
+  ...(id ? { id } : {}),
+  ...box,
+  heightM,
+});
+const solids = [
+  ...map.walls.map((s) =>
+    solid("wall", wallBox(s, map.wallThicknessM), map.wallHeightM),
+  ),
+  ...stairWalls(map).map((s) =>
+    solid("stairWall", wallBox(s, map.wallThicknessM), map.wallHeightM),
+  ),
+  ...map.doors.map((d) =>
+    solid("door", doorBox(d, map.wallThicknessM), map.wallHeightM, d.id),
+  ),
+  ...map.hidingSpots.map((h) =>
+    solid("hide", hidingSpotBox(h), HIDING_SPOT_HEIGHT_M, h.id),
+  ),
+  ...map.furniture.map((f) =>
+    solid("furniture", furnitureBox(f), f.heightM, f.id),
+  ),
+];
+write("world.json", {
+  note: "Generated by tools/engine-export.ts from the map the server uses.",
+  solids,
+});
+
+// level-cases.json: where simulation points really are (toWorld) and moves across the stairs
+// (crossStairs), for the C# port of levels.ts to match exactly.
+let seed = 7;
+const rand = () =>
+  (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+const near = (x: number, z: number, r: number): Point => ({
+  x: x + (rand() * 2 - 1) * r,
+  z: z + (rand() * 2 - 1) * r,
+});
+const levelCases: {
+  from: Point;
+  to: Point;
+  world: WorldPoint;
+  crossed: Point;
+}[] = [];
+const levelById = (id: string) => map.levels.find((l) => l.id === id)!;
+for (const stair of map.stairs) {
+  const lower = levelById(stair.lower);
+  const upper = levelById(stair.upper);
+  // Around each flight, in the lower floor's area and in the upper floor's, with moves long
+  // enough to cross its middle.
+  const areas = [
+    { x: stair.x, z: stair.z },
+    {
+      x: stair.x + lower.shiftX - upper.shiftX,
+      z: stair.z + lower.shiftZ - upper.shiftZ,
+    },
+  ];
+  for (const area of areas) {
+    for (let i = 0; i < 80; i++) {
+      const from = near(area.x, area.z, stair.lengthM / 2 + 0.5);
+      const to = near(from.x, from.z, 1.2);
+      levelCases.push({
+        from,
+        to,
+        world: toWorld(map, from.x, from.z),
+        crossed: crossStairs(map, from, to),
+      });
+    }
+    // Walking up or down through the middle of the flight, slightly off its middle line.
+    const u = {
+      "+x": { x: 1, z: 0 },
+      "-x": { x: -1, z: 0 },
+      "+z": { x: 0, z: 1 },
+      "-z": { x: 0, z: -1 },
+    }[stair.dir];
+    for (let i = 0; i < 40; i++) {
+      const side = (rand() * 2 - 1) * (stair.widthM / 2 - 0.3);
+      const along = stair.lengthM / 2 + (i % 2 ? 0.2 : -0.2);
+      const from = {
+        x: area.x + u.x * along - u.z * side,
+        z: area.z + u.z * along + u.x * side,
+      };
+      const sign = i % 2 ? -1 : 1;
+      const to = { x: from.x + u.x * 0.4 * sign, z: from.z + u.z * 0.4 * sign };
+      levelCases.push({
+        from,
+        to,
+        world: toWorld(map, from.x, from.z),
+        crossed: crossStairs(map, from, to),
+      });
+    }
+  }
+}
+for (let i = 0; i < 60; i++) {
+  const level = map.levels[i % map.levels.length]!;
+  const from = {
+    x: level.minX + rand() * (level.maxX - level.minX),
+    z: level.minZ + rand() * (level.maxZ - level.minZ),
+  };
+  const to = near(from.x, from.z, 1);
+  levelCases.push({
+    from,
+    to,
+    world: toWorld(map, from.x, from.z),
+    crossed: crossStairs(map, from, to),
+  });
+}
+const crossings = levelCases.filter(
+  (c) => c.crossed.x !== c.to.x || c.crossed.z !== c.to.z,
+).length;
+write("level-cases.json", {
+  note: "Generated by tools/engine-export.ts. levels.ts results the C# port must match.",
+  cases: levelCases,
+});
+
+// collide-cases.json: walks with the server's real collision (Rapier), so the client's own
+// collision can be measured against it. They need not match exactly (the server corrects the
+// client), but the closer they are, the less your view is nudged when you brush a wall.
+await initPhysics();
+const physics = new PhysicsWorld(map);
+const body = physics.addBody();
+const walks: { start: Point; moves: { d: Point; to: Point }[] }[] = [];
+const starts = [
+  ...map.spawns,
+  ...map.tasks.map((t) => ({ x: t.x, z: t.z - 1 })),
+  ...map.hidingSpots.slice(0, 20).map((h) => h.exit),
+];
+for (const start of starts) {
+  let at: Point = { x: start.x, z: start.z };
+  let heading = rand() * Math.PI * 2;
+  const moves: { d: Point; to: Point }[] = [];
+  for (let i = 0; i < 120; i++) {
+    heading += (rand() - 0.5) * 0.6;
+    const step = config.movement.run * SIM_DT;
+    const d = { x: Math.sin(heading) * step, z: Math.cos(heading) * step };
+    const to = body.collide(at, d);
+    moves.push({ d, to });
+    at = to;
+  }
+  walks.push({ start, moves });
+}
+write("collide-cases.json", {
+  note: "Generated by tools/engine-export.ts with the server's Rapier collision.",
+  walks,
+});
+
+// The Unity project reads the hotel and the numbers at run time as Resources.
+const UNITY_DATA = "engine/Assets/Resources/Data";
+mkdirSync(UNITY_DATA, { recursive: true });
+for (const name of ["map.json", "world.json", "config.json"])
+  copyFileSync(`${OUT}/${name}`, `${UNITY_DATA}/${name}`);
+
+console.log(
+  `Wrote ${OUT}/map.json, config.json, movement-cases.json (${cases.length} cases, ${cases.reduce((n, c) => n + c.steps.length, 0)} steps), ` +
+    `world.json (${solids.length} solids), level-cases.json (${levelCases.length} cases, ${crossings} cross stairs), collide-cases.json (${walks.length} walks)`,
+);
