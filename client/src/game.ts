@@ -60,7 +60,6 @@ import { LightBudget } from "./lightBudget.ts";
 import { HeldFlashlight } from "./heldFlashlight.ts";
 import { DoorModels, loadDoorModels } from "./doorModels.ts";
 import { modelLoaders, type LoadProgress } from "./loaders.ts";
-import type { TextureStream } from "./textureStream.ts";
 import { dressings } from "@haunted/maps";
 
 // Near-zero ambient light (GDD Section 23). Press L while testing to light everything up.
@@ -314,8 +313,6 @@ export class Game {
   private scene = new THREE.Scene();
   private post: PostProcessing;
   private camera = new THREE.PerspectiveCamera(75, 1, 0.05, VIEW_FAR_M);
-  /** The rooms' textures still arriving (textureStream.ts). */
-  textureStream: TextureStream | null = null;
   /** What the camera sees this frame (for drawing only what can show). */
   private view = new THREE.Frustum();
   private viewMatrix = new THREE.Matrix4();
@@ -594,19 +591,17 @@ export class Game {
       loadTrunkParts(loaders),
       loadDoorModels(loaders),
     ]);
+    performance.mark("hotel:models-in");
+    // Then every room texture, before the game is ready: nobody enters a hotel of grey stand-ins
+    // (owner, 2026-11-15). The rooms were built with stand-ins so their models could be read
+    // while the textures download; each real one now replaces its stand-in in place.
+    const spawn = map.spawns[0] ?? { x: 0, z: 0 };
+    await new Promise<void>((done) => loaders.stream.start(() => new THREE.Vector3(spawn.x, 0, spawn.z), done));
+    loaders.dispose();
     performance.mark("hotel:files-in");
     loaders.finishProgress();
     const game = new Game(canvas, map, hud, renderer, dressed, held, clockParts, cradleParts, trunkParts, doorModels);
     await game.start();
-    // The rooms' textures now download, the ones nearest you first (textureStream.ts).
-    game.textureStream = loaders.stream;
-    loaders.stream.start(
-      () => game.camera.position,
-      () => {
-        loaders.dispose();
-        dressed.allTexturesArrived();
-      },
-    );
     return game;
   }
 

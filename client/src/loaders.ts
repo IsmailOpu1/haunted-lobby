@@ -39,9 +39,9 @@ export interface ModelLoaders {
   expect(files: Record<string, number>): void;
   /** Ends the loading bar (files that failed to load still end it). */
   finishProgress(): void;
-  /** Stops the texture workers once everything is loaded (the streamed room textures too). */
+  /** Stops the texture workers once everything is loaded (the room textures too). */
   dispose(): void;
-  /** The rooms' textures, which arrive after the match can start (textureStream.ts). */
+  /** The rooms' textures, all in before the game is ready (textureStream.ts). */
   stream: TextureStream;
   /** A loader for one room: its textures are stand-ins until the stream brings them. */
   roomLoader(group: StreamGroup): GLTFLoader;

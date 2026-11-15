@@ -130,7 +130,6 @@ export class DressedRooms {
   }
 
   update(dt: number) {
-    this.retakeStep();
     this.sendLighterJob();
     if (this.power === this.target) return;
     const step = POWER_FADE_PER_SEC * dt;
@@ -174,27 +173,6 @@ export class DressedRooms {
   }
 
   /**
-   * A room's textures have all arrived (textureStream.ts). The reflections were first taken with
-   * stand-ins, so each probe is taken again, once, when every room it sees has its textures: one
-   * probe a frame (update).
-   */
-  texturesArrived(root: THREE.Object3D) {
-    this.texturesIn.add(root);
-    this.probes.forEach((_, i) => {
-      if (this.final.has(i) || this.retake.includes(i)) return;
-      if (this.seenBy(i).every((f) => this.texturesIn.has(f.obj))) this.retake.push(i);
-    });
-  }
-
-  /** Every room's textures are in (the stream has finished): any probe not yet taken again is. */
-  allTexturesArrived() {
-    for (const f of this.floors) this.texturesIn.add(f.obj);
-    this.probes.forEach((_, i) => {
-      if (!this.final.has(i) && !this.retake.includes(i)) this.retake.push(i);
-    });
-  }
-
-  /**
    * Draws the probes given. Each shows only the rooms as lit, never another reflection (every
    * reflection is blank while they are drawn), so each is the same whichever is drawn first.
    */
@@ -205,16 +183,7 @@ export class DressedRooms {
     for (const p of this.probes) for (const m of p.materials) m.envMap = blank.texture;
     const taken = indices.map((i) => this.worldOnly(i, () => pmrem.fromScene(scene, 0, PROBE_NEAR_M, PROBE_FAR_M, { size: PROBE_SIZE_PX, position: this.probes[i]!.at })));
     this.probes.forEach((p, n) => p.materials.forEach((m, k) => (m.envMap = reflections[n]![k]!)));
-    indices.forEach((i, n) => {
-      this.setProbe(i, taken[n]!);
-      if (this.seenBy(i).every((f) => this.texturesIn.has(f.obj))) this.final.add(i);
-    });
-  }
-
-  /** Takes the next probe waiting to be taken again, if any. */
-  private retakeStep() {
-    const probe = this.retake.shift();
-    if (probe !== undefined) this.capture([probe]);
+    indices.forEach((i, n) => this.setProbe(i, taken[n]!));
   }
 
   private setProbe(i: number, target: THREE.WebGLRenderTarget) {
@@ -284,11 +253,6 @@ export class DressedRooms {
   private reflect: { scene: THREE.Scene; pmrem: THREE.PMREMGenerator; world: Set<THREE.Object3D>; blank: THREE.WebGLRenderTarget } | null = null;
   /** Each build's reflection probes (indices into probes). */
   private probesOf = new Map<THREE.Object3D, number[]>();
-  /** Probes to take again, now the rooms they see have their textures; those taken with them all. */
-  private retake: number[] = [];
-  private final = new Set<number>();
-  /** Builds whose textures have all arrived. */
-  private texturesIn = new Set<THREE.Object3D>();
 
   /**
    * Lights something that moves (a door), which the baked lightmaps can't, by the nearest dressed
@@ -903,11 +867,9 @@ export async function loadDressedRooms(loaders: ModelLoaders, dressing: MapDress
   const { ktx2 } = loaders;
   const base = import.meta.env.BASE_URL;
   // The files to download before the match can start, for the loading bar (loaders.ts counts each
-  // once): the models and lightmaps. Textures stream in afterwards (textureStream.ts).
-  for (const room of dressing.rooms) {
-    const files = Object.entries(manifest[room.room]?.files ?? {}).filter(([path]) => path.startsWith("rooms/"));
-    loaders.expect(Object.fromEntries(files));
-  }
+  // once and leaves out the texture set not being loaded): models, lightmaps and textures. Nobody
+  // enters a half-loaded hotel (owner, 2026-11-15: no grey stand-ins in a match).
+  for (const room of dressing.rooms) loaders.expect(manifest[room.room]?.files ?? {});
   // A rebuilt room keeps its file names, so each room's files are asked for under a version (from
   // every file it uses, by name and size): a browser holding an older build fetches the new one,
   // even when only the textures it points to changed (tools/art/shrink-textures.ts) and its own
@@ -929,7 +891,6 @@ export async function loadDressedRooms(loaders: ModelLoaders, dressing: MapDress
         const [model, lightmap] = await Promise.all([loaders.roomLoader(group).loadAsync(base + entry.glb), ktx2.loadAsync(base + entry.lightmap)]);
         result.add(entry.rooms ?? [room.room], model.scene, lightmap, entry.lightmapScale, entry.drawn ?? [], room.probes);
         group.centre = new THREE.Box3().setFromObject(model.scene).getCenter(new THREE.Vector3());
-        group.onDone = () => result.texturesArrived(model.scene);
       } catch (err) {
         console.error(`${room.room}: its dressed room failed to load, so it is drawn as grey boxes`, err);
       }
