@@ -1,0 +1,635 @@
+{
+  "players": {
+    "min": 4,
+    "max": 8
+  },
+  "possessed": {
+    "autoByPlayers": {
+      "4": 1,
+      "5": 1,
+      "6": 1,
+      "7": 2,
+      "8": 2
+    },
+    "maxByPlayers": {
+      "4": 1,
+      "5": 1,
+      "6": 2,
+      "7": 2,
+      "8": 2
+    },
+    "knowEachOther": true
+  },
+  "match": {
+    "lengthMin": 15,
+    "lengthOptionsMin": [
+      10,
+      12,
+      15,
+      20
+    ],
+    "introSec": 10,
+    "countdownSec": 5,
+    "quietSec": 60,
+    "partSplitsPct": [
+      33.3,
+      66.7
+    ],
+    "overtimeSec": 30
+  },
+  "movement": {
+    "walk": 2.6,
+    "run": 4.1,
+    "crouch": 1.4,
+    "crawl": 0.75,
+    "staminaSec": 5,
+    "staminaRegenDelaySec": 3,
+    "staminaRefillSec": 8,
+    "relicSlowPct": 15,
+    "hideEnterExitSec": 1,
+    "breathHoldSec": 6,
+    "breathCooldownSec": 12,
+    "eyeHeightM": 1.7,
+    "crouchEyeHeightM": 1,
+    "downedEyeHeightM": 0.4
+  },
+  "body": {
+    "radiusM": 0.3,
+    "heightM": 1.8
+  },
+  "interact": {
+    "rangeM": 2,
+    "reviveRangeM": 1.5,
+    "hideRangeM": 1.5
+  },
+  "health": {
+    "reviveSec": 5,
+    "bleedOutSec": 30,
+    "postReviveImmunitySec": 3
+  },
+  "flashlight": {
+    "coneM": 12,
+    "coneHalfAngleDeg": 26,
+    "darkVisionM": 2,
+    "nameRevealM": 10,
+    "flickerGhostM": 15,
+    "deadGhostM": 5,
+    "deadSec": 2
+  },
+  "camera": {
+    "shotsPerPlayer": 1,
+    "shotOptions": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "curseGlowSec": 10,
+    "captureRangeM": 10,
+    "flashVisibleM": 15,
+    "flashGhostHearM": 10,
+    "photoFovDeg": 60
+  },
+  "salt": {
+    "perPlayer": 2,
+    "options": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "carryMax": 4,
+    "placeSec": 1,
+    "lineWidthM": 2,
+    "ghostFreezeSec": 3,
+    "jarsPerPlayerSlot": 1,
+    "placeAheadM": 1,
+    "triggerRadiusM": 0.35,
+    "jarRangeM": 1.5
+  },
+  "tasks": {
+    "perPlayer": 3,
+    "options": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "minSec": 10,
+    "maxSec": 20,
+    "noisyFailGhostHearM": 10,
+    "useRangeM": 1.5,
+    "serverMinSec": 7,
+    "noiseCooldownSec": 1,
+    "hands": {
+      "match": {
+        "burnSec": 8,
+        "strikePxPerSec": 1500,
+        "sparkPxPerSec": 600,
+        "newMatchSec": 1,
+        "outRadPerSec": 3.5
+      },
+      "candelabra": {
+        "wicks": 5,
+        "lightSec": 1.5,
+        "coolPerSec": 1,
+        "aimM": 0.045
+      },
+      "letter": {
+        "catchSec": 6,
+        "coolPerSec": 0.6,
+        "burnSec": 1.5,
+        "swayM": 0.12,
+        "swayPeriodSec": 3.4,
+        "aimM": 0.09
+      },
+      "clock": {
+        "degPerPx": 0.6,
+        "maxDegPerSec": 300,
+        "toleranceMin": 2,
+        "settleSec": 0.6,
+        "tickMin": 5
+      },
+      "boiler": {
+        "degPerPx": 0.3,
+        "maxDegPerSec": 60,
+        "maxOpenDeg": 360,
+        "startPressure": 0.95,
+        "dropFullOpen": 0.8,
+        "followPerSec": 1.2,
+        "wobble": 0.04,
+        "safeMin": 0.45,
+        "safeMax": 0.6,
+        "holdSec": 5
+      },
+      "portraits": {
+        "count": 3,
+        "minTiltDeg": 20,
+        "maxTiltDeg": 35,
+        "degPerPx": 0.15,
+        "maxDegPerSec": 18,
+        "levelDeg": 2,
+        "holdSec": 1,
+        "hauntedReturnDeg": 25
+      },
+      "roses": {
+        "puzzles": [
+          {
+            "jugs": [
+              3,
+              5
+            ],
+            "target": 4
+          },
+          {
+            "jugs": [
+              5,
+              7
+            ],
+            "target": 3
+          },
+          {
+            "jugs": [
+              4,
+              9
+            ],
+            "target": 6
+          }
+        ],
+        "vaseCap": 12,
+        "pourSec": 1.2
+      },
+      "switchboard": {
+        "cables": 4,
+        "mPerPx": 0.0012,
+        "maxMPerSec": 0.6,
+        "snapM": 0.05,
+        "seatSec": 1.5
+      },
+      "mirror": {
+        "cols": 12,
+        "rows": 16,
+        "widthM": 0.6,
+        "heightM": 0.9,
+        "brushM": 0.08,
+        "mPerPx": 0.0012,
+        "maxMPerSec": 0.35,
+        "paceSec": 0.15,
+        "clearPct": 90,
+        "faceChance": 0.5,
+        "faceAtPct": 55,
+        "faceSec": 0.9
+      },
+      "trunk": {
+        "pressPx": 160,
+        "springPerSec": 2,
+        "pressSec": 2,
+        "latches": 3,
+        "degPerPx": 0.5,
+        "maxDegPerSec": 45,
+        "popSec": 5
+      },
+      "piano": {
+        "keys": 8,
+        "rounds": 3,
+        "firstNotes": 4,
+        "notePlaySec": 0.55,
+        "noteShowSec": 0.35,
+        "ringSec": 0.3,
+        "listenPauseSec": 0.8,
+        "wrongPauseSec": 1.2
+      },
+      "sheets": {
+        "folds": 3,
+        "pxPerFold": 500,
+        "maxPerSec": 0.35,
+        "snapAt": 0.97,
+        "dropPerSec": 3
+      },
+      "cradle": {
+        "periodSec": 2.2,
+        "pushRadPerPx": 0.002,
+        "dampPerSec": 0.25,
+        "minAmpRad": 0.12,
+        "maxAmpRad": 0.3,
+        "cryAmpRad": 0.42,
+        "cryPxPerSec": 1500,
+        "fillSec": 11,
+        "cryLoseSec": 2,
+        "cryPauseSec": 1.5
+      },
+      "shutters": {
+        "count": 3,
+        "pxToClose": 420,
+        "windPerSec": 0.08,
+        "gustEverySec": [
+          2.5,
+          4.5
+        ],
+        "warnSec": 0.9,
+        "gustSec": 1.1,
+        "gustPerSec": 0.9,
+        "heldGustFactor": 0.6,
+        "latchAt": 0.05,
+        "latchSec": 2.2,
+        "slamBelow": 0.4
+      },
+      "stove": {
+        "knobs": 3,
+        "degPerPx": 0.25,
+        "startMinDeg": 90,
+        "startMaxDeg": 240,
+        "notchDeg": 8,
+        "catchDegPerSec": 120,
+        "detentDeg": 10,
+        "settleSec": 2
+      }
+    }
+  },
+  "relics": {
+    "count": 3,
+    "options": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "minSpacingM": 20,
+    "whisperM": 8,
+    "extractMinSec": 10,
+    "extractMaxSec": 15,
+    "placeSec": 3,
+    "carryHearingBonusPct": 25,
+    "dropGhostHearM": 8,
+    "useRangeM": 1.5,
+    "serverMinSec": 6,
+    "seeDroppedM": 15,
+    "nearUpdateHz": 5,
+    "search": {
+      "serverMinSec": 2,
+      "noiseM": 5,
+      "closeM": 3,
+      "veryCloseM": 1
+    },
+    "hands": {
+      "dig": {
+        "searchPx": 1800,
+        "takePx": 4200,
+        "maxPxPerSec": 700,
+        "fastFactor": 0.3
+      },
+      "lockbox": {
+        "pins": 4,
+        "degPerPx": 0.4,
+        "maxDegPerSec": 80,
+        "minGapDeg": 140,
+        "maxGapDeg": 220,
+        "tickDeg": 15
+      },
+      "drain": {
+        "sizeM": 0.5,
+        "relicMinM": 0.18,
+        "mPerPx": 0.0008,
+        "maxMPerSec": 0.12,
+        "feelM": 0.07,
+        "stillMPerSec": 0.03,
+        "grabSec": 2.5,
+        "pullPx": 500,
+        "pullPxPerSec": 200
+      }
+    }
+  },
+  "mystery": {
+    "offerHoldSec": 3,
+    "wrongWaitSec": 30,
+    "standSpacingM": 0.6
+  },
+  "ritual": {
+    "baseSec": 45,
+    "options": [
+      30,
+      45,
+      60
+    ],
+    "circleRadiusM": 4,
+    "circleMinByPlayers": {
+      "4": 2,
+      "5": 2,
+      "6": 2,
+      "7": 3,
+      "8": 3
+    },
+    "extraPlayerSpeedPct": 25,
+    "maxSpeedBonusPct": 50,
+    "drainPctPerSec": 1
+  },
+  "taint": {
+    "minProgressPct": 20,
+    "windowSec": 5,
+    "cleanseSec": 2,
+    "cleanseSaltCost": 1,
+    "progressMultiplier": 0.5,
+    "maxPerMatch": 2,
+    "cooldownSec": 45
+  },
+  "ghost": {
+    "hearingM": {
+      "run": 16,
+      "walk": 8,
+      "crouch": 3,
+      "door": 12,
+      "hiddenBreath": 2
+    },
+    "sightM": {
+      "flashlightOn": 20,
+      "flashlightOff": 8
+    },
+    "preHuntSilenceSec": 2,
+    "hidingChecks": 2,
+    "hidingCheckSec": 3,
+    "parts": {
+      "calm": {
+        "wander": 1.4,
+        "hunt": 2.4,
+        "betweenHuntsSec": 75,
+        "huntSec": 20
+      },
+      "restless": {
+        "wander": 1.75,
+        "hunt": 2.75,
+        "betweenHuntsSec": 50,
+        "huntSec": 25
+      },
+      "furious": {
+        "wander": 2.25,
+        "hunt": 3.1,
+        "betweenHuntsSec": 30,
+        "huntSec": 30
+      }
+    },
+    "difficulty": {
+      "easy": {
+        "intervalMult": 1.25,
+        "speedMult": 0.9
+      },
+      "normal": {
+        "intervalMult": 1,
+        "speedMult": 1
+      },
+      "hard": {
+        "intervalMult": 0.8,
+        "speedMult": 1.05
+      }
+    },
+    "playerCountIntervalMult": {
+      "4": 1.1,
+      "5": 1,
+      "6": 1,
+      "7": 0.9,
+      "8": 0.9
+    },
+    "ritualBetweenHuntsSec": 15,
+    "postMeetingGraceSec": 15,
+    "blackoutSpeedMult": 1.1,
+    "radiusM": 0.3,
+    "heightM": 2.1,
+    "catchRangeM": 0.8,
+    "closeInM": 2,
+    "sightFovDeg": 140,
+    "investigateLookSec": 3,
+    "investigateCooldownSec": 8,
+    "investigateIgnoreRadiusM": 4,
+    "retreatSec": 8,
+    "reappearMinDistM": 12,
+    "repathSec": 0.25,
+    "stuckSec": 4,
+    "hidingCheckRadiusM": 6,
+    "doorOpenRangeM": 1,
+    "interestRangeM": 25
+  },
+  "voice": {
+    "whisperBelowNormalDb": 10,
+    "shoutAboveNormalDb": 8,
+    "playerHearM": {
+      "whisper": 3,
+      "normal": 15,
+      "shout": 25
+    },
+    "ghostHearM": {
+      "whisper": 0,
+      "normal": 6,
+      "shout": 20
+    },
+    "fullVolumeWithinM": 3,
+    "wallVolumeMult": 0.5,
+    "subscriptionRefreshMs": 250,
+    "micRequired": true,
+    "openMicOnly": true,
+    "micLostAfterSec": 10,
+    "micLostCountsAs": "normal",
+    "silenceDbfs": -50,
+    "micCheckSec": 4,
+    "micCheckMinVoicedSec": 1,
+    "defaultNormalDbfs": -30,
+    "routeRangeM": 25,
+    "levelHoldSec": 1.5,
+    "playbackTargetDbfs": -20,
+    "maxPlaybackBoost": 4
+  },
+  "powers": {
+    "slamDoor": {
+      "unlockSec": 60,
+      "cooldownSec": 30,
+      "rangeM": 6,
+      "lockSec": 15,
+      "breakPushers": 2,
+      "breakSec": 2,
+      "ghostHearM": 12,
+      "sameVictimSec": 60
+    },
+    "summon": {
+      "unlockSec": 120,
+      "cooldownSec": 60,
+      "targetRangeM": 15,
+      "spawnMinM": 6,
+      "spawnMaxM": 10,
+      "whisperM": 5,
+      "eyeGlowSec": 1,
+      "protectAfterHitSec": 30
+    },
+    "blackout": {
+      "unlockAtPart": "restless",
+      "usesPerMatch": 1,
+      "fuseFixSec": 5,
+      "autoRestoreSec": 60
+    },
+    "alterClue": {
+      "unlockSec": 60,
+      "usesPerMatch": 1,
+      "rangeM": 3
+    },
+    "cooldownSpeed": {
+      "slow": 1.25,
+      "normal": 1,
+      "fast": 0.75
+    },
+    "statusEverySec": 0.5
+  },
+  "meetings": {
+    "bellUsesPerPlayer": 1,
+    "bellOptions": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "bellHoldSec": 2,
+    "reportRangeM": 3,
+    "reportHoldSec": 1,
+    "resultSec": 6,
+    "minGapSec": 30,
+    "evidenceSec": 30,
+    "evidenceOptions": [
+      15,
+      30,
+      45,
+      60
+    ],
+    "discussionSec": 60,
+    "discussionOptions": [
+      30,
+      60,
+      90,
+      120
+    ],
+    "voteSec": 20,
+    "voteOptions": [
+      15,
+      20,
+      30
+    ],
+    "revealRole": true,
+    "anonymousVoting": false
+  },
+  "wisps": {
+    "speed": 4,
+    "canDoTasks": true,
+    "ouija": true
+  },
+  "identity": {
+    "nameLitRangeM": 10,
+    "nameAlwaysWithinM": 2
+  },
+  "disconnect": {
+    "holdSec": 60
+  },
+  "matchLog": {
+    "nearInvestigatorM": 15
+  },
+  "rotation": {
+    "baseWeight": 1
+  },
+  "net": {
+    "tickRate": 20,
+    "slowStateRate": 5,
+    "interpolationMs": 100,
+    "maxInputAheadSec": 0.25,
+    "maxQueuedInputs": 30
+  },
+  "room": {
+    "codeLength": 5,
+    "codeAlphabet": "ABCDEFGHJKLMNPQRSTUVWXYZ",
+    "nameMaxLength": 16
+  },
+  "settings": {
+    "possessedOptions": [
+      "auto",
+      1,
+      2
+    ],
+    "difficultyOptions": [
+      "easy",
+      "normal",
+      "hard"
+    ],
+    "circleOptions": [
+      "auto",
+      2,
+      3
+    ],
+    "cooldownSpeedOptions": [
+      "slow",
+      "normal",
+      "fast"
+    ],
+    "presets": {
+      "standard": {
+        "code": "STD",
+        "changes": {}
+      },
+      "beginner": {
+        "code": "BEG",
+        "changes": {
+          "lengthMin": 20,
+          "difficulty": "easy",
+          "tasksPerPlayer": 2,
+          "cameraShots": 2,
+          "saltPerPlayer": 3,
+          "discussionSec": 90
+        }
+      },
+      "hardcore": {
+        "code": "HRD",
+        "changes": {
+          "lengthMin": 10,
+          "difficulty": "hard",
+          "tasksPerPlayer": 4,
+          "saltPerPlayer": 1,
+          "revealRole": false,
+          "anonymousVoting": true
+        }
+      }
+    },
+    "customCode": "CUS"
+  }
+}
