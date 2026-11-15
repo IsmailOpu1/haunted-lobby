@@ -443,6 +443,7 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 - Compare against GDD 24 and apply the tuning order
 - Repeat in batches of 10 until the investigator win rate is 45 to 55%
 - Test 8 players on the server, a low-end laptop, and 200 ms artificial latency
+  - 2026-11-15: 8 players over 200 ms round trip (tools/lagProxy.ts + tools/playtest.ts, PLAYERS=8): a full night won (tasks, relics, ritual with 8 in the circle), and 10 minutes of hunts and revives played without trouble. Each player received at most 2.1 KB/s (limit 25). The low-end laptop waits for a friend's speed test.
 - Fix the top 10 bugs from playtests
 - **Done when:** every balance target is inside its range.
 

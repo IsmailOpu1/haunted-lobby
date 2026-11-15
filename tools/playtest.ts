@@ -9,6 +9,8 @@
 //   npx tsx tools/playtest.ts lose-dawn    the night runs out
 //   npx tsx tools/playtest.ts lose-dead    every player dies
 //   add a room code to join a room a browser player made, e.g. ... win-asleep ABCDE
+//   PLAYERS=8 plays with more bots (2 to 8; default 2). For lag, run tools/lagProxy.ts and point
+//   ENDPOINT at it (ws://localhost:2568).
 import { Client, type Room } from "@colyseus/sdk";
 import { config, furnitureBox, hidingSpotBox, ROOM_NAME, roomAt, type ServerMessages } from "@haunted/shared";
 import { marrowHotelGreybox as map } from "@haunted/maps";
@@ -50,6 +52,7 @@ class Bot {
   tasks: ServerMessages["tasks"]["list"] = [];
   opened: ServerMessages["taskOpen"][] = [];
   closed: ServerMessages["taskClosed"][] = [];
+  found = 0;
   near: ServerMessages["relicsNear"]["list"] = [];
   end: ServerMessages["matchEnd"] | null = null;
   busy = false;
@@ -64,6 +67,7 @@ class Bot {
     this.room.onMessage("tasks", (m: ServerMessages["tasks"]) => (this.tasks = m.list));
     this.room.onMessage("taskOpen", (m: ServerMessages["taskOpen"]) => this.opened.push(m));
     this.room.onMessage("taskClosed", (m: ServerMessages["taskClosed"]) => this.closed.push(m));
+    this.room.onMessage("searchFound", () => this.found++);
     this.room.onMessage("relicsNear", (m: ServerMessages["relicsNear"]) => (this.near = m.list));
     this.room.onMessage("matchEnd", (m: ServerMessages["matchEnd"]) => (this.end = m));
     await until(() => !!this.me, 5, `${this.name} joined`);
@@ -115,9 +119,17 @@ class Bot {
     await this.tap();
     await until(() => this.opened.length > opened || !this.alive, 3, `${this.name} opens ${stationId}`).catch(() => {});
     if (this.opened.length === opened) return false;
+    // A spot with several places (plant pots) opens the one searched: finish that one.
+    const id = this.opened.at(-1)!.stationId;
+    const found = this.found;
     await this.still(minSec + 0.5);
-    this.room.send("taskDone", { stationId });
-    await until(() => this.closed.length > closed, 3, `${this.name} finishes ${stationId}`);
+    this.room.send("taskDone", { stationId: id });
+    await until(() => this.closed.length > closed || this.found > found, 3, `${this.name} finishes ${id}`);
+    // The relic is in this place: keep going to take it (the time counts from the search's start).
+    if (this.closed.length === closed) {
+      this.room.send("taskDone", { stationId: id });
+      await until(() => this.closed.length > closed, 3, `${this.name} takes the relic at ${id}`);
+    }
     return this.closed.at(-1)!.reason === "done";
   }
 
@@ -145,7 +157,8 @@ class Bot {
       const relic = this.near.find((r) => r.hidden && r.spotId === spotId);
       if (!relic) continue;
       this.busy = true;
-      const ok = await this.minigame(spotId, spot, config.relics.serverMinSec);
+      // The relic's own place (one of a spot's plant pots), not just the spot.
+      const ok = await this.minigame(spotId, { x: relic.x, z: relic.z }, config.relics.serverMinSec);
       this.busy = false;
       if (ok) await until(() => this.me.relic === relic.id, 2, "carrying").catch(() => {});
       if (!ok || this.me.relic !== relic.id) {
@@ -194,13 +207,19 @@ class Bot {
 }
 
 async function main() {
-  const a = new Bot("Rafi");
-  const b = new Bot("Mim");
+  const names = ["Rafi", "Mim", "Tanvir", "Nadia", "Arif", "Sumi", "Rakib", "Lina"];
+  const count = Math.max(2, Math.min(names.length, Number(process.env.PLAYERS ?? 2)));
+  const a = new Bot(names[0]!);
+  const b = new Bot(names[1]!);
   await a.connect(joinCode);
   await b.connect(joinCode ?? a.room.roomId);
+  const more = names.slice(2, count).map((n) => new Bot(n));
+  for (const bot of more) await bot.connect(joinCode ?? a.room.roomId);
   log("room", `code ${a.room.roomId}; mode ${mode}; ${a.state.players.size} players, ${a.state.tasksTotal} tasks`);
-  const bots = [a, b];
+  const bots = [a, b, ...more];
   // In their own room the bots skip the host's countdown and the intro (in a joined room, the host starts).
+  // The bots don't solve the mystery (offering the ghost's own relic, GDD 26.13): their night has none.
+  if (!joinCode) a.room.send("debug", { mystery: false });
   if (!joinCode) a.room.send("debug", { startNow: true });
   await until(() => a.state.stage === "night", 30, "night start");
 
@@ -235,13 +254,10 @@ async function main() {
       bot.room.send("debug", { bleedLeft: 0.5 });
     }
   } else {
-    if (mode === "win" || mode === "win-late") for (const [me, friend] of [[a, b], [b, a]] as const) void me.guard(friend);
-    // Split the work like a team would: each does their own tasks and searches half the spots.
+    if (mode === "win" || mode === "win-late") bots.forEach((me, i) => void me.guard(bots[(i + 1) % bots.length]!));
+    // Split the work like a team would: each does their own tasks and searches a share of the spots.
     const spots = map.relicSpots.map((s) => s.id);
-    await Promise.all([
-      a.doTasks().then(() => a.findRelics(spots.filter((_, i) => i % 2 === 0))),
-      b.doTasks().then(() => b.findRelics(spots.filter((_, i) => i % 2 === 1))),
-    ]);
+    await Promise.all(bots.map((bot, k) => bot.doTasks().then(() => bot.findRelics(spots.filter((_, i) => i % bots.length === k)))));
     const others = a.state.tasksTotal - a.state.tasksDone;
     if (others > 0) log("room", `waiting for the other players' ${others} tasks`);
     await until(() => a.state.ritualReady || !!a.end, 600, "ritual ready");
@@ -252,7 +268,9 @@ async function main() {
       await sleep(20);
     }
     const altar = map.altar!;
-    await Promise.all(bots.map((bot, i) => bot.teleport({ x: altar.x + (i === 0 ? 2.5 : -2.5), z: altar.z + 1 })));
+    // Around the altar, inside the circle.
+    const seat = (i: number) => ({ x: altar.x + Math.cos((i / bots.length) * Math.PI * 2) * 2.5, z: altar.z + Math.sin((i / bots.length) * Math.PI * 2) * 2.5 });
+    await Promise.all(bots.map((bot, i) => (bot.alive ? bot.teleport(seat(i)) : Promise.resolve())));
     await until(() => a.state.ritualStarted || !!a.end, 10, "ritual started");
     log("room", `ritual started with ${a.state.circleCount}/${a.state.circleNeeded} in the circle`);
     let shown = -10;
@@ -263,7 +281,7 @@ async function main() {
         log("room", `ritual ${p.toFixed(0)}%  circle ${a.state.circleCount}/${a.state.circleNeeded}  ${a.state.overtime ? "OVERTIME" : ""}`);
         shown = p;
       }
-      for (const bot of bots) if (bot.alive && bot !== a && Math.hypot(bot.me.x - altar.x, bot.me.z - altar.z) > config.ritual.circleRadiusM) await bot.teleport({ x: altar.x - 2.5, z: altar.z + 1 });
+      for (const [i, bot] of bots.entries()) if (bot.alive && bot !== a && Math.hypot(bot.me.x - altar.x, bot.me.z - altar.z) > config.ritual.circleRadiusM) await bot.teleport(seat(i));
     }
   }
 
