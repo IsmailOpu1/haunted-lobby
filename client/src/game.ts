@@ -598,6 +598,7 @@ export class Game {
     const spawn = map.spawns[0] ?? { x: 0, z: 0 };
     await new Promise<void>((done) => loaders.stream.start(() => new THREE.Vector3(spawn.x, 0, spawn.z), done));
     loaders.dispose();
+    if (loaders.stream.failed > 0) throw new Error(`${loaders.stream.failed} room textures failed to load`);
     performance.mark("hotel:files-in");
     loaders.finishProgress();
     const game = new Game(canvas, map, hud, renderer, dressed, held, clockParts, cradleParts, trunkParts, doorModels);

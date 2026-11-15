@@ -17,6 +17,40 @@ const ROOM_FILE = /(?:^|\/)((?:rooms|doors)\/[^/?#]+)(?:[?#].*)?$/;
 /** A downloaded file's path under assets/ ("textures/ab12.ktx2"), however its URL was written. */
 const ASSET_KEY = /(?:^|\/)((?:rooms|doors|textures|textures-1k)\/[^/?#]+)(?:[?#].*)?$/;
 
+/**
+ * A download of the hotel's art that fails on the way (a dropped connection, a busy server, the
+ * browser's cache failing to write) is tried again, waiting a little longer each time, instead of
+ * leaving a room grey (owner, 2026-11-15). Every loader below fetches through here.
+ */
+const DOWNLOAD_TRIES = 6;
+const FIRST_RETRY_WAIT_MS = 500;
+const ASSET_URL = /\/(?:assets|basis)\//;
+let retryInstalled = false;
+export function installDownloadRetry() {
+  if (retryInstalled || typeof window === "undefined") return;
+  retryInstalled = true;
+  const plain = window.fetch.bind(window);
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (!ASSET_URL.test(url)) return plain(input, init);
+    for (let attempt = 1; ; attempt++) {
+      const request = input instanceof Request ? input.clone() : input;
+      // After a failure, skip the browser's cache: a cache that failed to write can fail again.
+      const options: RequestInit | undefined = attempt === 1 ? init : { ...init, cache: "no-store" };
+      try {
+        const response = await plain(request, options);
+        // A missing file (404) will not appear by asking again; a server error might pass.
+        if (response.ok || response.status < 500 || attempt >= DOWNLOAD_TRIES) return response;
+        console.warn(`Download of ${url} failed (${response.status}); trying again`);
+      } catch (err) {
+        if (attempt >= DOWNLOAD_TRIES || init?.signal?.aborted) throw err;
+        console.warn(`Download of ${url} failed; trying again`, err);
+      }
+      await new Promise((r) => setTimeout(r, FIRST_RETRY_WAIT_MS * 2 ** (attempt - 1)));
+    }
+  };
+}
+
 /** How much of the hotel has downloaded, in bytes. */
 export type LoadProgress = (loaded: number, total: number) => void;
 
@@ -48,6 +82,7 @@ export interface ModelLoaders {
 }
 
 export function modelLoaders(renderer: THREE.WebGLRenderer, lowTextures: boolean, onProgress?: LoadProgress): ModelLoaders {
+  installDownloadRetry();
   const manager = new THREE.LoadingManager();
   // The loading bar: every expected file, counted once when it finishes.
   const skip = lowTextures ? "textures/" : "textures-1k/";
