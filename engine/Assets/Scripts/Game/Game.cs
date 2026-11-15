@@ -11,8 +11,9 @@ using UnityEngine.InputSystem;
 namespace Haunted.Game
 {
     /// <summary>
-    /// Step A of docs/plans/engine-port.md: join the same game server as the browser version, walk the
-    /// grey-box hotel, and see everyone else walk. A plain menu for now (step E brings the real menus).
+    /// The Unity version of the game (docs/plans/engine-port.md): join the same game server as the
+    /// browser version, walk the hotel, and play the night (step C: Night holds what the server says,
+    /// Hud shows it). A plain menu for now (step E brings the real menus).
     ///
     /// Command line, for unattended tests:
     ///   -server ws://localhost:2567  -name Rafi  -create | -join KQXRT
@@ -21,6 +22,10 @@ namespace Haunted.Game
     ///   -shot path -shotAt 12   save a screenshot after 12 s in the room
     ///   -quitAt 20         quit after 20 s in the room
     ///   -teleportAt 40 -20 -17   at 40 s in the room, ask a debug server to move us to x -20, z -17
+    ///   -startWith 3       as host on a debug server, start the night (no countdown) once 3 players are in
+    ///   -ready             press Ready on joining
+    ///   -debugAtNight 30 '{"down":true}'   30 s into the night, send this debug message (may repeat)
+    ///   -rematchAfter 10   as host, press Rematch 10 s after the end screen
     /// </summary>
     public class Game : MonoBehaviour
     {
@@ -32,6 +37,9 @@ namespace Haunted.Game
         LocalPlayer me;
         RemotePlayers others;
         Voice voice;
+        MapInfo map;
+        Night night;
+        Hud hud;
         float voiceToneHz;
         double nextVoiceLog;
         Client client;
@@ -47,9 +55,12 @@ namespace Haunted.Game
 
         // Unattended test options.
         string codeFile, shotPath;
-        double shotAt = -1, quitAt = -1, teleportAt = -1;
+        double shotAt = -1, quitAt = -1, teleportAt = -1, rematchAfter = -1;
         float teleportX, teleportZ;
-        bool shotTaken;
+        bool shotTaken, autoReady;
+        int startWith;
+        double nightSince = -1, endSince = -1;
+        readonly List<KeyValuePair<double, string>> nightDebug = new List<KeyValuePair<double, string>>();
 
         void Awake()
         {
@@ -62,6 +73,7 @@ namespace Haunted.Game
 
             SetUpLight();
             hotel = new Hotel(world, Json.Num(Json.Obj(config, "body"), "radiusM"), baseMaterial);
+            map = new MapInfo(Resources.Load<TextAsset>("Data/map").text);
             others = new RemotePlayers(world, config, baseMaterial);
             ReadCommandLine();
         }
@@ -104,6 +116,11 @@ namespace Haunted.Game
                 teleportX = float.Parse(args[teleportArg + 2], CultureInfo.InvariantCulture);
                 teleportZ = float.Parse(args[teleportArg + 3], CultureInfo.InvariantCulture);
             }
+            if (arg("-startWith") != null) startWith = int.Parse(arg("-startWith"), CultureInfo.InvariantCulture);
+            if (arg("-rematchAfter") != null) rematchAfter = double.Parse(arg("-rematchAfter"), CultureInfo.InvariantCulture);
+            autoReady = Array.IndexOf(args, "-ready") >= 0;
+            for (int i = 0; i + 2 < args.Length; i++)
+                if (args[i] == "-debugAtNight") nightDebug.Add(new KeyValuePair<double, string>(double.Parse(args[i + 1], CultureInfo.InvariantCulture), args[i + 2]));
             if (arg("-voiceTone") != null) voiceToneHz = float.Parse(arg("-voiceTone"), CultureInfo.InvariantCulture);
             string script = arg("-script");
             if (Array.IndexOf(args, "-create") >= 0) Connect(null, script);
@@ -141,7 +158,11 @@ namespace Haunted.Game
             room.OnStateChange += (state, first) => OnState(state);
             room.OnLeave += code => { status = "Left the room (" + code + ")"; Debug.Log(status); };
             room.OnError += (code, message) => Debug.LogError("Room error " + code + ": " + message);
+            night = new Night(room, map, config);
+            hud = new Hud(night, () => room.State, () => room.SessionId, (type, msg) => { if (msg == null) room.Send(type); else room.Send(type, msg); }, config);
             StartVoice();
+            room.Send("tasksRequest");
+            if (autoReady) room.Send("ready", new Dictionary<string, object> { { "ready", true } });
             if (room.State != null) OnState(room.State);
             inRoomSince = Time.realtimeSinceStartupAsDouble;
             Debug.Log("In room " + room.RoomId + " as " + room.SessionId);
@@ -214,6 +235,15 @@ namespace Haunted.Game
                 others.Push(kv.Key, p.name, now, p.x, p.z, p.yaw, p.pitch, p.crouching, p.flashlightOn, visible);
             }
             others.Keep(ids);
+            night.OnState();
+            if (state.stage == "night" && nightSince < 0) nightSince = now;
+            if (state.stage == "waiting") { nightSince = -1; endSince = -1; }
+            if (startWith > 0 && state.stage == "waiting" && state.host == room.SessionId && state.players.Count >= startWith)
+            {
+                startWith = -startWith;
+                room.Send("debug", new Dictionary<string, object> { { "startNow", true } });
+                Debug.Log("Starting the night with " + state.players.Count + " players");
+            }
         }
 
         void Update()
@@ -228,6 +258,7 @@ namespace Haunted.Game
                     { "run", input.Run }, { "crouch", input.Crouch }, { "yaw", input.Yaw }, { "pitch", input.Pitch },
                 }));
                 others.Update(now, me.Camera);
+                hud.Prompt = night.PromptAt(me.State.X, me.State.Z);
                 if (voice != null)
                 {
                     voice.Update(others.PositionOf);
@@ -256,7 +287,9 @@ namespace Haunted.Game
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
             }
+            hud.ShowTasks = k.tabKey.isPressed;
             if (k.fKey.wasPressedThisFrame) room.Send("flashlight");
+            if (k.gKey.wasPressedThisFrame) room.Send("dropRelic");
             if (k.eKey.wasPressedThisFrame) room.Send("use", new Dictionary<string, object> { { "down", true } });
             if (k.eKey.wasReleasedThisFrame) room.Send("use", new Dictionary<string, object> { { "down", false } });
         }
@@ -275,6 +308,23 @@ namespace Haunted.Game
                 teleportAt = -1;
                 room.Send("debug", new Dictionary<string, object> { { "teleport", new Dictionary<string, object> { { "x", teleportX }, { "z", teleportZ } } } });
                 Debug.Log("Asked to move to " + teleportX + ", " + teleportZ);
+            }
+            if (nightSince >= 0)
+            {
+                for (int i = nightDebug.Count - 1; i >= 0; i--)
+                {
+                    if (now - nightSince < nightDebug[i].Key) continue;
+                    room.Send("debug", Json.Parse(nightDebug[i].Value));
+                    Debug.Log("Sent debug " + nightDebug[i].Value);
+                    nightDebug.RemoveAt(i);
+                }
+            }
+            if (night.End != null && endSince < 0) endSince = now;
+            if (rematchAfter >= 0 && endSince >= 0 && now - endSince >= rematchAfter && room.State.host == room.SessionId)
+            {
+                rematchAfter = -1;
+                room.Send("rematch");
+                Debug.Log("Rematch");
             }
             if (quitAt >= 0 && t >= quitAt) Quit();
         }
@@ -307,8 +357,8 @@ namespace Haunted.Game
                 GUILayout.EndArea();
                 return;
             }
-            GUI.Label(new Rect(16, 12, 900, 30), "Room " + room.RoomId + "   players: " + (others.Count + 1) + (Cursor.lockState == CursorLockMode.Locked ? "" : "   (click to look around, Esc to free the mouse)"), style);
-            if (status != "") GUI.Label(new Rect(16, 40, 900, 30), status, style);
+            hud.Draw(room.RoomId);
+            if (status != "") GUI.Label(new Rect(16, Screen.height - 70, 900, 30), status, style);
         }
 
         void OnApplicationQuit()

@@ -104,3 +104,17 @@ One Unity player (the Windows build) and one browser player saw each other walk 
 - **How voice works in Unity** (`Assets/Scripts/Game/Voice.cs`, LiveKit Unity SDK 2.1.1, pinned in the manifest; it needs git-lfs to install): as in the browser, the game server chooses who you receive and sends the volume, the wall muffle and the quiet-mic boost ("voiceMix"). Each voice plays from where that player's head is, with Unity's 3D direction only (the server's numbers set the loudness).
 - **Testing without the paid minutes:** the official LiveKit server runs on this PC only: `E:\Games\livekit\v1.13.11\livekit-server.exe --dev --bind 127.0.0.1` (launch entry `livekit-local`), with the game server started as `server-voice-local`. Cloud minutes are not touched.
 - **Note:** when the voice server cuts a feed, one of the two Unity players kept its (now silent) voice player around until the other player left. It is silent because the server's volume for a far player is 0, and it is replaced when that player comes near again. Step C can tidy it up when it builds the voice HUD.
+
+### Step C: the plan (2026-11-15)
+
+Step C is the biggest step, so it is done in five parts, each tested before the next. The Unity version talks to the same server with the same messages (`shared/src/protocol.ts`), so every rule stays on the server; Unity only shows the night and sends what the player does. The on-screen text matches the browser's wording. The HUD is drawn simply for now; step E gives it the real menus' look and fonts.
+
+| Part | What | Tested by |
+|---|---|---|
+| C1 | The night's flow: lobby (Ready, host Start), countdown, role card, night clock and parts, task bar and your task list, down / Wisp / hidden states, held actions (E) with progress, prompts, the end screen and Rematch | A Unity host and bots in one room reach the end screen |
+| C2 | Items and relics: salt, Spirit Camera and flashes, relic whispers, searching, carrying, dropping (G), the altar and offerings | A Unity player finds a relic, carries it and offers it |
+| C3 | Tasks hands-on in 3D, ported from `client/src/stations.ts` (no 2D windows) | A Unity player does every kind of task |
+| C4 | The ghost and hunts, the bell, meetings (bell, body report, photos, vote, result), the possessed's powers, Wisps and the Ouija board, the mystery | Each one tried with bots on a debug server |
+| C5 | The done-when test | `tools/playtest.ts` bots and a Unity player finish a night together, every ending |
+
+**C1 passed (2026-11-15).** A Unity host and two bots (`tools/playtest.ts lose-dawn CODE` and `lose-dead CODE`) played to the end screen: lobby, start, role, the night clock and its parts, the task bar, being down (`step-c/c1-night-hud-down.png`), dawn and everyone-dead endings (`step-c/c1-end-screen.png`), and Rematch back to the lobby (`step-c/c1-rematch-lobby.png`). New test options: `-startWith 3` (host starts a debug night once 3 are in), `-ready`, `-debugAtNight 30 '{"down":true}'`, `-rematchAfter 3`. The ritual ending waits for C3: the task bar counts the Unity player's tasks too. `tools/engine-export.ts` now also writes `characters.json` for the intro's character names.

@@ -3,13 +3,14 @@
 //
 //   npx tsx tools/engine-export.ts
 //
-// Writes engine-data/: map.json (the hotel as data), config.json (every number), world.json (every
-// solid box), and the cases the C# ports must match (movement-cases.json, level-cases.json,
+// Writes engine-data/: map.json (the hotel as data), config.json (every number), characters.json,
+// world.json (every solid box), and the cases the C# ports must match (movement-cases.json, level-cases.json,
 // collide-cases.json; checked by engine/Tools/check-sim.ps1). Copies map, world and config into
 // the Unity project's Resources. The server's state as C# classes comes from Colyseus's generator:
 //   npx schema-codegen server/src/state.ts --csharp --output engine/Assets/Scripts/Game/Schema/
 import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
 import {
+  CHARACTERS,
   config,
   crossStairs,
   doorBox,
@@ -41,6 +42,8 @@ const write = (name: string, data: unknown) =>
 
 write("map.json", map);
 write("config.json", config);
+// The characters dealt each night (GDD 26.14): names for the intro and the HUD.
+write("characters.json", CHARACTERS);
 
 // Movement cases: a few seconds of input each, in every mode, with and without a wall.
 const open: CollideFn = (from, d) => ({ x: from.x + d.x, z: from.z + d.z });
@@ -328,7 +331,7 @@ write("collide-cases.json", {
 // The Unity project reads the hotel and the numbers at run time as Resources.
 const UNITY_DATA = "engine/Assets/Resources/Data";
 mkdirSync(UNITY_DATA, { recursive: true });
-for (const name of ["map.json", "world.json", "config.json"])
+for (const name of ["map.json", "world.json", "config.json", "characters.json"])
   copyFileSync(`${OUT}/${name}`, `${UNITY_DATA}/${name}`);
 
 console.log(
