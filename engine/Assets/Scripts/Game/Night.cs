@@ -80,6 +80,11 @@ namespace Haunted.Game
         public int Hunts;
         /// <summary>A camera flash: who took it and where they stood.</summary>
         public event Action<string, double, double> Flashed;
+        /// <summary>Hands-on work (GDD 26.5): the server opened a task or place for you (id, minigame), closed it (id, reason), found the relic in it (id), or someone's task made a noise (x, z, minigame).</summary>
+        public event Action<string, string> TaskOpened;
+        public event Action<string, string> TaskClosed;
+        public event Action<string> SearchFound;
+        public event Action<double, double, string> TaskNoise;
         string partShown = "";
         bool blackoutShown;
         double taintShown;
@@ -188,9 +193,13 @@ namespace Haunted.Game
                 ShowBanner("Photo taken. It develops by the next meeting. Shots left: " + Num(m["shotsLeft"]), 4));
             room.OnMessage<Dictionary<string, object>>("debugGhost", m => ShowBanner((bool)m["paused"] ? "Ghost paused for testing (K to bring it back)" : "Ghost is back", 3));
             room.OnMessage<Dictionary<string, object>>("debugBasement", m => ShowBanner("Basement door opened for testing", 3));
+            room.OnMessage<Dictionary<string, object>>("taskOpen", m => { if (TaskOpened != null) TaskOpened(Str(m, "stationId"), Str(m, "minigame")); });
+            room.OnMessage<Dictionary<string, object>>("taskClosed", m => { if (TaskClosed != null) TaskClosed(Str(m, "stationId"), Str(m, "reason")); });
+            room.OnMessage<Dictionary<string, object>>("searchFound", m => { if (SearchFound != null) SearchFound(Str(m, "stationId")); });
+            room.OnMessage<Dictionary<string, object>>("taskNoise", m => { if (TaskNoise != null) TaskNoise(Num(m["x"]), Num(m["z"]), Str(m, "minigame")); });
             // Handled in later parts of step C (items, tasks, the ghost, meetings, powers); heard now so
             // the SDK does not warn about them.
-            foreach (var type in new[] { "ghost", "bellRing", "micCheck", "micLost", "photosDeveloped", "powers", "powerRefused", "powerWhisper", "eyeGlow", "doorSlam", "ouijaMove", "meetingResult", "taskOpen", "taskClosed", "searchFound", "taskNoise", "relicDrop" })
+            foreach (var type in new[] { "ghost", "bellRing", "micCheck", "micLost", "photosDeveloped", "powers", "powerRefused", "powerWhisper", "eyeGlow", "doorSlam", "ouijaMove", "meetingResult", "relicDrop" })
                 room.OnMessage<object>(type, m => { });
         }
 

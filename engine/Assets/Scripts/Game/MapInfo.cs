@@ -1,3 +1,5 @@
+using System;
+using System.Globalization;
 using System.Collections.Generic;
 using Haunted.Sim;
 
@@ -12,7 +14,9 @@ namespace Haunted.Game
     {
         public struct Point { public double X, Z; public Point(double x, double z) { X = x; Z = z; } }
 
-        public class Task { public string Id, Name, Room, Minigame; public Point At; }
+        public class Task { public string Id, Name, Room, Minigame; public Point At; public bool Visible; public Clue Clue; }
+        /// <summary>Where a task's clue lies (the clock's guest book): on a stand, or on furniture heightM up.</summary>
+        public class Clue { public Point At; public double HeightM; public bool Stand; }
         public class RelicSpot { public string Id, Label, Room, Minigame; public Point At; public List<Place> Places; }
         public class Place { public string Id; public Point At; }
         public class HidingSpot { public string Id, Kind; public Point At, Exit; }
@@ -27,6 +31,8 @@ namespace Haunted.Game
         public readonly Dictionary<string, Point> SaltJars = new Dictionary<string, Point>();
         public readonly List<Suspect> Suspects = new List<Suspect>();
         public readonly List<Room> Rooms = new List<Room>();
+        /// <summary>Every wall as x1, z1, x2, z2 (axis-aligned).</summary>
+        public readonly List<double[]> Walls = new List<double[]>();
         public readonly string RelicDoor;
         public readonly Point? Bell, Altar, FuseBox;
 
@@ -34,7 +40,16 @@ namespace Haunted.Game
         {
             var map = Json.Parse(mapJson);
             foreach (var t in List(map, "tasks"))
-                Tasks.Add(new Task { Id = Str(t, "id"), Name = Str(t, "name"), Room = Str(t, "room"), Minigame = Str(t, "minigame"), At = Pt(t) });
+                {
+                var task = new Task { Id = Str(t, "id"), Name = Str(t, "name"), Room = Str(t, "room"), Minigame = Str(t, "minigame"), At = Pt(t) };
+                task.Visible = Has(t, "visible") && (bool)((Dictionary<string, object>)t)["visible"];
+                if (Has(t, "clue"))
+                {
+                    var c = Json.Obj(t, "clue");
+                    task.Clue = new Clue { At = Pt(c), HeightM = Json.Num(c, "heightM"), Stand = Has(c, "stand") && (bool)c["stand"] };
+                }
+                Tasks.Add(task);
+            }
             foreach (var s in List(map, "relicSpots"))
             {
                 var spot = new RelicSpot { Id = Str(s, "id"), Label = Str(s, "label"), Room = Str(s, "room"), Minigame = Str(s, "minigame"), At = Pt(s) };
@@ -60,6 +75,11 @@ namespace Haunted.Game
             }
             foreach (var r in List(map, "rooms"))
                 Rooms.Add(new Room { Name = Str(r, "name"), MinX = Json.Num(r, "minX"), MaxX = Json.Num(r, "maxX"), MinZ = Json.Num(r, "minZ"), MaxZ = Json.Num(r, "maxZ") });
+            foreach (var w in List(map, "walls"))
+            {
+                var a = (List<object>)w;
+                Walls.Add(new[] { Convert.ToDouble(a[0], CultureInfo.InvariantCulture), Convert.ToDouble(a[1], CultureInfo.InvariantCulture), Convert.ToDouble(a[2], CultureInfo.InvariantCulture), Convert.ToDouble(a[3], CultureInfo.InvariantCulture) });
+            }
             RelicDoor = Has(map, "relicDoor") ? Str(map, "relicDoor") : null;
             if (Has(map, "bell")) Bell = Pt(Json.Obj(map, "bell"));
             if (Has(map, "altar")) Altar = Pt(Json.Obj(map, "altar"));

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Colyseus;
 using Haunted.Sim;
@@ -43,6 +44,13 @@ namespace Haunted.Game
         Night night;
         Hud hud;
         Items items;
+        Stations stations;
+        readonly HandsWork hands = new HandsWork();
+        string openStation;
+        /// <summary>Where the open task stands on this side ("none", "open", "finished", "left"), so taskClosed can say the right thing.</summary>
+        string taskState = "none";
+        double handsNoiseAt = double.NegativeInfinity;
+        bool wasMeeting;
         float voiceToneHz;
         double nextVoiceLog;
         Client client;
@@ -80,6 +88,9 @@ namespace Haunted.Game
             map = new MapInfo(Resources.Load<TextAsset>("Data/map").text);
             items = new Items(world, map, config, baseMaterial);
             others = new RemotePlayers(world, config, baseMaterial);
+            HandsConfig.Load(config);
+            Shapes.Load(baseMaterial);
+            stations = new Stations(world, map, config);
             ReadCommandLine();
         }
 
@@ -171,6 +182,7 @@ namespace Haunted.Game
             room.OnError += (code, message) => Debug.LogError("Room error " + code + ": " + message);
             night = new Night(room, map, config);
             night.Flashed += (by, x, z) => items.Flash(by == room.SessionId, x, z);
+            ListenForTasks();
             hud = new Hud(night, () => room.State, () => room.SessionId, (type, msg) => { if (msg == null) room.Send(type); else room.Send(type, msg); }, config);
             StartVoice();
             room.Send("tasksRequest");
@@ -249,6 +261,12 @@ namespace Haunted.Game
             others.Keep(ids);
             night.OnState();
             items.OnState(state);
+            stations.OnState(state);
+            // A meeting stops anything in your hands; a new night forgets the old one's work.
+            bool meeting = !string.IsNullOrEmpty(state.meeting);
+            if (meeting && !wasMeeting && taskState == "open") LeaveTask();
+            wasMeeting = meeting;
+            if (state.stage == "waiting" && taskState != "none") { taskState = "none"; if (hands.Active) StopHands(); }
             if (state.stage == "night" && nightSince < 0) nightSince = now;
             if (state.stage == "waiting") { nightSince = -1; endSince = -1; }
             if (startWith > 0 && state.stage == "waiting" && state.host == room.SessionId && state.players.Count >= startWith)
@@ -262,6 +280,7 @@ namespace Haunted.Game
         void Update()
         {
             double now = Time.realtimeSinceStartupAsDouble;
+            stations.Update(Time.timeAsDouble);
             if (room != null && me != null)
             {
                 HandleKeys();
@@ -270,6 +289,8 @@ namespace Haunted.Game
                     { "seq", input.Seq }, { "forward", input.Forward }, { "right", input.Right },
                     { "run", input.Run }, { "crouch", input.Crouch }, { "yaw", input.Yaw }, { "pitch", input.Pitch },
                 }));
+                if (night.End != null && hands.Active) StopHands();
+                UpdateHands(Time.deltaTime);
                 others.Update(now, me.Camera);
                 hud.Prompt = night.PromptAt(me.State.X, me.State.Z);
                 UpdateItems(now);
@@ -305,6 +326,7 @@ namespace Haunted.Game
             {
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
+                if (taskState == "open") LeaveTask();
             }
             hud.ShowTasks = k.tabKey.isPressed;
             var mine = night.Me;
@@ -312,6 +334,17 @@ namespace Haunted.Game
             // The browser's default keys (client/src/keys.ts): 1 flashlight (or a click), 2 raises the
             // Spirit Camera (then a click takes the photo), 3 pours salt, G drops the relic.
             bool click = mouse != null && mouse.leftButton.wasPressedThisFrame && !lockedThisFrame;
+            if (hands.Active)
+            {
+                // Working (client/src/input.ts): the button grabs, E or a step stops, 1 still works the flashlight.
+                if (click) { hands.Press(true); me.HandDown = true; }
+                if (mouse != null && mouse.leftButton.wasReleasedThisFrame && me.HandDown) { hands.Press(false); me.HandDown = false; }
+                if (k.digit1Key.wasPressedThisFrame) room.Send("flashlight");
+                bool stop = k.eKey.wasPressedThisFrame || k.wKey.wasPressedThisFrame || k.aKey.wasPressedThisFrame || k.sKey.wasPressedThisFrame || k.dKey.wasPressedThisFrame;
+                if (stop && taskState == "open") LeaveTask();
+                if (k.eKey.wasReleasedThisFrame) room.Send("use", new Dictionary<string, object> { { "down", false } });
+                return;
+            }
             if (k.digit2Key.wasPressedThisFrame) hud.CameraRaised = !hud.CameraRaised && mine != null && mine.cameraShots > 0;
             if (click && hud.CameraRaised)
             {
@@ -326,6 +359,98 @@ namespace Haunted.Game
         }
 
         bool lockedThisFrame;
+
+        /// <summary>Hands-on work's messages (client/src/game.ts): open, found, closed, and noisy tasks of others.</summary>
+        void ListenForTasks()
+        {
+            stations.SetSeed(room.RoomId);
+            me.HandMove = (dx, dy) => hands.Move(dx, dy);
+            night.TaskOpened += (id, kind) =>
+            {
+                openStation = id;
+                taskState = "open";
+                StartHands(id, kind);
+            };
+            night.SearchFound += id =>
+            {
+                if (id != openStation || !hands.Active) return;
+                hands.Found();
+                taskState = "open";
+                night.ShowBanner("Something is down there. Keep digging.", 3);
+            };
+            night.TaskClosed += (id, reason) =>
+            {
+                // Places to search use the same flow as tasks.
+                bool relic = map.RelicSpots.Any(s => s.Id == id || (s.Places != null && s.Places.Any(p => p.Id == id)));
+                var def = map.TaskById(id);
+                string what = relic ? "Search" : "Task";
+                if (hands.Active) StopHands();
+                if (reason == "empty") night.ShowBanner("Nothing here.", 2);
+                else if (reason == "done") night.ShowBanner(relic ? "You found a relic. Take it to the basement door." : "Done: " + (def != null ? def.Name : "Task"), 3);
+                else if (taskState == "open") night.ShowBanner(what + " cancelled. Start it again with E.", 3);
+                else if (taskState == "finished") night.ShowBanner(what + " not accepted. Try it again.", 3);
+                taskState = "none";
+            };
+            night.TaskNoise += (x, z, kind) => TaskSounds.PlayAt(TaskSounds.NoiseOf(kind), Coords.Place(world, x, z));
+        }
+
+        /// <summary>Starts hands-on work on a station or a place to search (GDD 26.5).</summary>
+        void StartHands(string id, string kind)
+        {
+            var model = stations.Hands(id);
+            if (model == null || model.Kind != kind)
+            {
+                // No parts to work on: give it up rather than leave you stuck.
+                Debug.LogWarning("No hands-on parts for " + id + " (" + kind + ")");
+                LeaveTask();
+                return;
+            }
+            double cooldown = Json.Num(Json.Obj(config, "tasks"), "noiseCooldownSec");
+            var task = HandsTask.Create(model, new HandsEvents
+            {
+                Play = (sound, pitch) => TaskSounds.Play(sound, pitch),
+                Noise = () =>
+                {
+                    double t = Time.realtimeSinceStartupAsDouble;
+                    if (t - handsNoiseAt < cooldown) return;
+                    handsNoiseAt = t;
+                    room.Send("taskNoise");
+                },
+            });
+            stations.SetBusy(id);
+            hands.Start(task, me.Yaw, me.Pitch);
+            me.Working = true;
+            // The how-to stays up the whole time you work: playtests showed a once-only hint is easily missed.
+            hud.WorkHint = task.Hint + "  (E or a step to stop)";
+            Debug.Log("Working on " + id + " (" + kind + ")");
+        }
+
+        void StopHands()
+        {
+            hands.Stop();
+            stations.SetBusy(null);
+            me.Working = false;
+            me.HandDown = false;
+            hud.WorkHint = null;
+        }
+
+        /// <summary>You stopped working: tell the server.</summary>
+        void LeaveTask()
+        {
+            taskState = "left";
+            room.Send("taskCancel");
+            StopHands();
+        }
+
+        void UpdateHands(float dt)
+        {
+            if (hands.Active && hands.Frame(dt, me.Yaw, me.Pitch, me.Camera) && taskState == "open")
+            {
+                taskState = "finished";
+                room.Send("taskDone", new Dictionary<string, object> { { "stationId", openStation } });
+                Debug.Log("Task done on this side: " + openStation);
+            }
+        }
 
         /// <summary>
         /// Items each frame: dropped relics, flashes, and the music box of the nearest hidden relic

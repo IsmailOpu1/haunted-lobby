@@ -58,6 +58,14 @@ namespace Haunted.Editor
                 mat.SetFloat("_Smoothness", 0.15f);
                 AssetDatabase.CreateAsset(mat, MaterialPath);
             }
+            // The task stations' looks (Shapes.cs copies these): a lit one that can glow under the
+            // crosshair, see-through glass, and unlit ones for flames, paper and fog. Each is an asset
+            // so the build keeps its shader variant (emission, transparency).
+            MakeMaterial("Glow", "Universal Render Pipeline/Lit", false, m => { m.SetFloat("_Smoothness", 0.15f); m.EnableKeyword("_EMISSION"); m.SetColor("_EmissionColor", KeepEmission); m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None; });
+            // Glass can glow under the crosshair too (the vase, the jugs).
+            MakeMaterial("Clear", "Universal Render Pipeline/Lit", true, m => { m.SetFloat("_Smoothness", 0.8f); m.EnableKeyword("_EMISSION"); m.SetColor("_EmissionColor", KeepEmission); m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None; });
+            MakeMaterial("Unlit", "Universal Render Pipeline/Unlit", false, m => { });
+            MakeMaterial("UnlitClear", "Universal Render Pipeline/Unlit", true, m => { });
 
             // The one scene: an object that runs the game. Everything else is built from data at run time.
             if (!File.Exists(ScenePath))
@@ -93,6 +101,38 @@ namespace Haunted.Editor
 
             AssetDatabase.SaveAssets();
             Debug.Log("Haunted setup done: URP, material, scene, player settings");
+        }
+
+        /// <summary>
+        /// The editor turns emission off on a material whose emission is pure black, and the build then
+        /// leaves the glowing shader out; this is far too dark to see but keeps it on.
+        /// </summary>
+        static readonly Color KeepEmission = new Color(0.001f, 0.001f, 0.001f);
+
+        /// <summary>Makes (or brings up to date) Assets/Resources/Materials/name.mat; clear ones blend by alpha.</summary>
+        static void MakeMaterial(string name, string shader, bool clear, System.Action<Material> setUp)
+        {
+            string path = "Assets/Resources/Materials/" + name + ".mat";
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            bool made = mat == null;
+            if (made) mat = new Material(Shader.Find(shader));
+            if (clear)
+            {
+                mat.SetFloat("_Surface", 1);
+                mat.SetFloat("_Blend", 0);
+                mat.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+                mat.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+                mat.SetFloat("_SrcBlendAlpha", (float)BlendMode.One);
+                mat.SetFloat("_DstBlendAlpha", (float)BlendMode.OneMinusSrcAlpha);
+                mat.SetFloat("_ZWrite", 0);
+                mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                mat.SetOverrideTag("RenderType", "Transparent");
+                mat.SetShaderPassEnabled("ShadowCaster", false);
+                mat.renderQueue = (int)RenderQueue.Transparent;
+            }
+            setUp(mat);
+            if (made) AssetDatabase.CreateAsset(mat, path);
+            else EditorUtility.SetDirty(mat);
         }
 
         [MenuItem("Haunted/Build for Windows")]

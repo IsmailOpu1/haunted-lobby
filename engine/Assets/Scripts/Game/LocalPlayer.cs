@@ -42,6 +42,15 @@ namespace Haunted.Game
         public MoveMode Mode = MoveMode.Normal;
         /// <summary>Scripted input for unattended tests (-script); null when a person plays.</summary>
         public System.Func<double, MoveInput> Script;
+        /// <summary>Working with your hands (GDD 26.5): you stand still and the view narrows toward the work.</summary>
+        public bool Working;
+        /// <summary>While working with the button held, the mouse moves your hands (pixels, right and down positive) instead of the view.</summary>
+        public bool HandDown;
+        public System.Action<double, double> HandMove;
+        // game.ts: how much the view narrows while you work, and how fast it gets there.
+        const float WorkZoom = 0.77f;
+        const float FovLerpPerSec = 6;
+        bool fovSet;
 
         public LocalPlayer(Hotel hotel, MovementConfig move, object config)
         {
@@ -106,6 +115,11 @@ namespace Haunted.Game
             var mouse = Mouse.current;
             if (mouse == null || Cursor.lockState != CursorLockMode.Locked) return;
             Vector2 d = mouse.delta.ReadValue();
+            if (Working && HandDown)
+            {
+                if (HandMove != null) HandMove(d.x, -d.y);
+                return;
+            }
             double turn = Sensitivity * DegPerCountPerSensitivity * Mathf.Deg2Rad;
             Yaw -= d.x * turn;
             // Input System's y grows upward; the browser's movementY grows downward.
@@ -118,7 +132,7 @@ namespace Haunted.Game
             if (Script != null) return Script(time);
             var k = Keyboard.current;
             var input = new MoveInput { Yaw = Yaw, Pitch = Pitch };
-            if (k == null) return input;
+            if (k == null || Working) return input;
             input.Forward = (k.wKey.isPressed ? 1 : 0) - (k.sKey.isPressed ? 1 : 0);
             input.Right = (k.dKey.isPressed ? 1 : 0) - (k.aKey.isPressed ? 1 : 0);
             input.Run = k.leftShiftKey.isPressed;
@@ -163,7 +177,9 @@ namespace Haunted.Game
             Camera.transform.rotation = Coords.Look(Yaw, Pitch);
             float aspect = Camera.aspect;
             float upDown = 2 * Mathf.Atan(Mathf.Tan(HorizontalFovDeg * Mathf.Deg2Rad / 2) / aspect) * Mathf.Rad2Deg;
-            Camera.fieldOfView = Mathf.Min(MaxVerticalFovDeg, upDown);
+            float fov = Mathf.Min(MaxVerticalFovDeg, upDown) * (Working ? WorkZoom : 1);
+            if (!fovSet) { Camera.fieldOfView = fov; fovSet = true; }
+            else if (Mathf.Abs(Camera.fieldOfView - fov) > 0.05f) Camera.fieldOfView += (fov - Camera.fieldOfView) * Mathf.Min(1, FovLerpPerSec * dt);
         }
     }
 }

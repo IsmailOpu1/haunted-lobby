@@ -32,6 +32,8 @@ namespace Haunted.Game
         /// <summary>What you hear that matters, in words (GDD 23 subtitles): the relic's music box.</summary>
         public string SoundCue;
         public double ScreenFlashUntil;
+        /// <summary>While you work with your hands (GDD 26.5): how to, and how to stop; null otherwise.</summary>
+        public string WorkHint;
 
         public Hud(Night night, Func<GameState> state, Func<string> sessionId, Action<string, object> send, object config)
         {
@@ -202,12 +204,24 @@ namespace Haunted.Game
             if (!string.IsNullOrEmpty(SoundCue))
                 GUI.Label(new Rect(Screen.width - 420, Screen.height - 40, 400, 30), "[" + SoundCue + "]", new GUIStyle(small) { alignment = TextAnchor.UpperRight });
 
-            // The held action's progress, then the prompt for E.
+            // The crosshair is your hand while you work, and your aim otherwise.
+            if (Cursor.lockState == CursorLockMode.Locked) Fill(new Rect(Screen.width / 2f - 3, Screen.height / 2f - 3, 6, 6), new Color(1, 1, 1, 0.8f));
+
+            // The held action's progress, then how to work with your hands, or the prompt for E.
             string action;
             if (me != null && !string.IsNullOrEmpty(me.action) && Night.ActionLabels.TryGetValue(me.action, out action))
             {
                 GUI.Label(new Rect(Screen.width / 2f - 200, Screen.height - 150, 400, 26), action, new GUIStyle(label) { alignment = TextAnchor.UpperCenter });
                 Bar(new Rect(Screen.width / 2f - 150, Screen.height - 120, 300, 10), me.actionProgress, Color.white);
+            }
+            else if (!string.IsNullOrEmpty(WorkHint))
+            {
+                var hintStyle = new GUIStyle(small) { fontSize = 14, alignment = TextAnchor.MiddleCenter };
+                float w = Mathf.Min(560, Screen.width - 32);
+                float h = hintStyle.CalcHeight(new GUIContent(WorkHint), w - 24) + 12;
+                var r = new Rect(Screen.width / 2f - w / 2, Screen.height * 0.88f - h, w, h);
+                Fill(r, Dim);
+                GUI.Label(new Rect(r.x + 12, r.y + 6, w - 24, h - 12), WorkHint, hintStyle);
             }
             else if (!string.IsNullOrEmpty(Prompt))
             {
