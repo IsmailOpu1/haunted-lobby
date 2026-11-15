@@ -118,6 +118,10 @@ namespace Haunted.Game
             label.transform.SetParent(v.Body.transform, false);
             label.transform.localPosition = new Vector3(0, height + 0.3f, 0);
             v.Label = label.AddComponent<TextMesh>();
+            // A TextMesh draws nothing until it has a font and that font's material.
+            var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            v.Label.font = font;
+            label.GetComponent<MeshRenderer>().sharedMaterial = font.material;
             v.Label.anchor = TextAnchor.MiddleCenter;
             v.Label.alignment = TextAlignment.Center;
             v.Label.characterSize = 0.05f;

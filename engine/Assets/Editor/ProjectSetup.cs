@@ -76,7 +76,20 @@ namespace Haunted.Editor
             PlayerSettings.defaultScreenWidth = 1280;
             PlayerSettings.defaultScreenHeight = 720;
             PlayerSettings.resizableWindow = true;
-            PlayerSettings.SetScriptingBackend(UnityEditor.Build.NamedBuildTarget.Standalone, ScriptingImplementation.IL2CPP);
+            // Mono builds with what the editor ships. IL2CPP (faster, harder to tamper with) needs
+            // Visual Studio's C++ tools, which this PC lacks; switch at the release step (F).
+            PlayerSettings.SetScriptingBackend(UnityEditor.Build.NamedBuildTarget.Standalone, ScriptingImplementation.Mono2x);
+
+            // Keys and mouse come from the Input System package (raw mouse counts, like the browser's
+            // pointer lock). 1 = Input System only; the setting has no scripting API of its own.
+            var playerSettings = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset")[0]);
+            var inputHandler = playerSettings.FindProperty("activeInputHandler");
+            if (inputHandler != null && inputHandler.intValue != 1)
+            {
+                inputHandler.intValue = 1;
+                playerSettings.ApplyModifiedProperties();
+                Debug.Log("Input System set as the input handler (takes effect when the editor next starts)");
+            }
 
             AssetDatabase.SaveAssets();
             Debug.Log("Haunted setup done: URP, material, scene, player settings");

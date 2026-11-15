@@ -1,7 +1,18 @@
 {
   "dependencies": {
-    "com.unity.nuget.newtonsoft-json": "3.2.1",
+    "com.unity.inputsystem": "1.20.1",
+    "com.unity.render-pipelines.universal": "17.3.0",
     "com.unity.test-framework": "1.4.5",
-    "io.colyseus.sdk": "https://github.com/colyseus/colyseus-unity3d.git#upm"
+    "com.unity.modules.animation": "1.0.0",
+    "com.unity.modules.audio": "1.0.0",
+    "com.unity.modules.imgui": "1.0.0",
+    "com.unity.modules.jsonserialize": "1.0.0",
+    "com.unity.modules.physics": "1.0.0",
+    "com.unity.modules.screencapture": "1.0.0",
+    "com.unity.modules.textrendering": "1.0.0",
+    "com.unity.modules.ui": "1.0.0",
+    "com.unity.modules.uielements": "1.0.0",
+    "com.unity.modules.unitywebrequest": "1.0.0",
+    "io.colyseus.sdk": "https://github.com/colyseus/colyseus-unity3d.git#b7e379db6b57d91295047306f49c5d51fbb8a272"
   }
 }
