@@ -25,6 +25,8 @@ namespace Haunted.Game
     ///   -startWith 3       as host on a debug server, start the night (no countdown) once 3 players are in
     ///   -ready             press Ready on joining
     ///   -debugAtNight 30 '{"down":true}'   30 s into the night, send this debug message (may repeat)
+    ///   -sendAtNight 12 pourSalt '{}'   12 s into the night, send this message as if a key were pressed (may repeat)
+    ///   -shotAtNight 14 path   save a screenshot 14 s into the night (may repeat)
     ///   -rematchAfter 10   as host, press Rematch 10 s after the end screen
     /// </summary>
     public class Game : MonoBehaviour
@@ -40,6 +42,7 @@ namespace Haunted.Game
         MapInfo map;
         Night night;
         Hud hud;
+        Items items;
         float voiceToneHz;
         double nextVoiceLog;
         Client client;
@@ -60,7 +63,8 @@ namespace Haunted.Game
         bool shotTaken, autoReady;
         int startWith;
         double nightSince = -1, endSince = -1;
-        readonly List<KeyValuePair<double, string>> nightDebug = new List<KeyValuePair<double, string>>();
+        readonly List<KeyValuePair<double, string[]>> nightSends = new List<KeyValuePair<double, string[]>>();
+        readonly List<KeyValuePair<double, string>> nightShots = new List<KeyValuePair<double, string>>();
 
         void Awake()
         {
@@ -74,6 +78,7 @@ namespace Haunted.Game
             SetUpLight();
             hotel = new Hotel(world, Json.Num(Json.Obj(config, "body"), "radiusM"), baseMaterial);
             map = new MapInfo(Resources.Load<TextAsset>("Data/map").text);
+            items = new Items(world, map, config, baseMaterial);
             others = new RemotePlayers(world, config, baseMaterial);
             ReadCommandLine();
         }
@@ -120,7 +125,13 @@ namespace Haunted.Game
             if (arg("-rematchAfter") != null) rematchAfter = double.Parse(arg("-rematchAfter"), CultureInfo.InvariantCulture);
             autoReady = Array.IndexOf(args, "-ready") >= 0;
             for (int i = 0; i + 2 < args.Length; i++)
-                if (args[i] == "-debugAtNight") nightDebug.Add(new KeyValuePair<double, string>(double.Parse(args[i + 1], CultureInfo.InvariantCulture), args[i + 2]));
+            {
+                if (args[i] != "-debugAtNight" && args[i] != "-shotAtNight" && args[i] != "-sendAtNight") continue;
+                double at = double.Parse(args[i + 1], CultureInfo.InvariantCulture);
+                if (args[i] == "-debugAtNight") nightSends.Add(new KeyValuePair<double, string[]>(at, new[] { "debug", args[i + 2] }));
+                if (args[i] == "-shotAtNight") nightShots.Add(new KeyValuePair<double, string>(at, args[i + 2]));
+                if (args[i] == "-sendAtNight" && i + 3 < args.Length) nightSends.Add(new KeyValuePair<double, string[]>(at, new[] { args[i + 2], args[i + 3] }));
+            }
             if (arg("-voiceTone") != null) voiceToneHz = float.Parse(arg("-voiceTone"), CultureInfo.InvariantCulture);
             string script = arg("-script");
             if (Array.IndexOf(args, "-create") >= 0) Connect(null, script);
@@ -159,6 +170,7 @@ namespace Haunted.Game
             room.OnLeave += code => { status = "Left the room (" + code + ")"; Debug.Log(status); };
             room.OnError += (code, message) => Debug.LogError("Room error " + code + ": " + message);
             night = new Night(room, map, config);
+            night.Flashed += (by, x, z) => items.Flash(by == room.SessionId, x, z);
             hud = new Hud(night, () => room.State, () => room.SessionId, (type, msg) => { if (msg == null) room.Send(type); else room.Send(type, msg); }, config);
             StartVoice();
             room.Send("tasksRequest");
@@ -236,6 +248,7 @@ namespace Haunted.Game
             }
             others.Keep(ids);
             night.OnState();
+            items.OnState(state);
             if (state.stage == "night" && nightSince < 0) nightSince = now;
             if (state.stage == "waiting") { nightSince = -1; endSince = -1; }
             if (startWith > 0 && state.stage == "waiting" && state.host == room.SessionId && state.players.Count >= startWith)
@@ -259,6 +272,7 @@ namespace Haunted.Game
                 }));
                 others.Update(now, me.Camera);
                 hud.Prompt = night.PromptAt(me.State.X, me.State.Z);
+                UpdateItems(now);
                 if (voice != null)
                 {
                     voice.Update(others.PositionOf);
@@ -276,10 +290,15 @@ namespace Haunted.Game
         {
             var k = Keyboard.current;
             var mouse = Mouse.current;
-            if (mouse != null && mouse.leftButton.wasPressedThisFrame && Cursor.lockState != CursorLockMode.Locked)
+            lockedThisFrame = false;
+            // The lobby and the end screen keep the mouse for their buttons.
+            bool menu = room.State == null || room.State.stage == "waiting" || night.End != null;
+            if (menu && Cursor.lockState == CursorLockMode.Locked) { Cursor.lockState = CursorLockMode.None; Cursor.visible = true; }
+            if (!menu && mouse != null && mouse.leftButton.wasPressedThisFrame && Cursor.lockState != CursorLockMode.Locked)
             {
                 Cursor.lockState = CursorLockMode.Locked;
                 Cursor.visible = false;
+                lockedThisFrame = true;
             }
             if (k == null) return;
             if (k.escapeKey.wasPressedThisFrame)
@@ -288,10 +307,53 @@ namespace Haunted.Game
                 Cursor.visible = true;
             }
             hud.ShowTasks = k.tabKey.isPressed;
-            if (k.fKey.wasPressedThisFrame) room.Send("flashlight");
-            if (k.gKey.wasPressedThisFrame) room.Send("dropRelic");
+            var mine = night.Me;
+            if (Cursor.lockState != CursorLockMode.Locked) return;
+            // The browser's default keys (client/src/keys.ts): 1 flashlight (or a click), 2 raises the
+            // Spirit Camera (then a click takes the photo), 3 pours salt, G drops the relic.
+            bool click = mouse != null && mouse.leftButton.wasPressedThisFrame && !lockedThisFrame;
+            if (k.digit2Key.wasPressedThisFrame) hud.CameraRaised = !hud.CameraRaised && mine != null && mine.cameraShots > 0;
+            if (click && hud.CameraRaised)
+            {
+                if (mine != null && mine.cameraShots > 0) room.Send("photo");
+                hud.CameraRaised = false;
+            }
+            else if (click || k.digit1Key.wasPressedThisFrame) room.Send("flashlight");
+            if (k.digit3Key.wasPressedThisFrame) room.Send("pourSalt");
+            if (k.gKey.wasPressedThisFrame && mine != null && !string.IsNullOrEmpty(mine.relic)) room.Send("dropRelic");
             if (k.eKey.wasPressedThisFrame) room.Send("use", new Dictionary<string, object> { { "down", true } });
             if (k.eKey.wasReleasedThisFrame) room.Send("use", new Dictionary<string, object> { { "down", false } });
+        }
+
+        bool lockedThisFrame;
+
+        /// <summary>
+        /// Items each frame: dropped relics, flashes, and the music box of the nearest hidden relic
+        /// within whisper range (client/src/game.ts nearestHiddenRelic and whisperCue).
+        /// </summary>
+        void UpdateItems(double now)
+        {
+            items.SetDropped(night.RelicsNear);
+            var relics = Json.Obj(config, "relics");
+            var search = Json.Obj(relics, "search");
+            var feet = me.Camera.transform.position - Vector3.up * (float)Json.Num(Json.Obj(config, "movement"), "eyeHeightM");
+            Vector3? whisper = null;
+            float best = (float)Json.Num(relics, "whisperM");
+            foreach (var r in night.RelicsNear)
+            {
+                if (!r.Hidden) continue;
+                var at = Coords.Place(world, r.X, r.Z);
+                float d = Vector3.Distance(at, feet);
+                if (d <= best) { best = d; whisper = at; }
+            }
+            items.Update(now, whisper, whisper.HasValue ? 1 - best / Json.Num(relics, "whisperM") : 0);
+            hud.SoundCue = !whisper.HasValue ? null
+                : best <= Json.Num(search, "veryCloseM") ? "A music box plays, very close"
+                : best <= Json.Num(search, "closeM") ? "A music box plays close by"
+                : "A faint music box";
+            hud.ScreenFlashUntil = items.ScreenFlashUntil;
+            var mine = night.Me;
+            if (mine == null || mine.cameraShots <= 0 || mine.health != "alive") hud.CameraRaised = false;
         }
 
         void RunTestSchedule(double now)
@@ -311,12 +373,21 @@ namespace Haunted.Game
             }
             if (nightSince >= 0)
             {
-                for (int i = nightDebug.Count - 1; i >= 0; i--)
+                for (int i = nightSends.Count - 1; i >= 0; i--)
                 {
-                    if (now - nightSince < nightDebug[i].Key) continue;
-                    room.Send("debug", Json.Parse(nightDebug[i].Value));
-                    Debug.Log("Sent debug " + nightDebug[i].Value);
-                    nightDebug.RemoveAt(i);
+                    if (now - nightSince < nightSends[i].Key) continue;
+                    var body = Json.Parse(nightSends[i].Value[1]) as Dictionary<string, object>;
+                    if (body != null && body.Count > 0) room.Send(nightSends[i].Value[0], body);
+                    else room.Send(nightSends[i].Value[0]);
+                    Debug.Log("Sent " + nightSends[i].Value[0] + " " + nightSends[i].Value[1]);
+                    nightSends.RemoveAt(i);
+                }
+                for (int i = nightShots.Count - 1; i >= 0; i--)
+                {
+                    if (now - nightSince < nightShots[i].Key) continue;
+                    ScreenCapture.CaptureScreenshot(nightShots[i].Value);
+                    Debug.Log("Screenshot " + nightShots[i].Value + " (prompt: " + hud.Prompt + ", cue: " + hud.SoundCue + ")");
+                    nightShots.RemoveAt(i);
                 }
             }
             if (night.End != null && endSince < 0) endSince = now;

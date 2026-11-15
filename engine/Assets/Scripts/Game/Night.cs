@@ -78,6 +78,8 @@ namespace Haunted.Game
         public double BannerUntil;
         public string HuntPhase = "";
         public int Hunts;
+        /// <summary>A camera flash: who took it and where they stood.</summary>
+        public event Action<string, double, double> Flashed;
         string partShown = "";
         bool blackoutShown;
         double taintShown;
@@ -178,11 +180,17 @@ namespace Haunted.Game
                     ? Str(m, "by") + " offered " + Str(m, "relic") + ". It glows: the ghost was " + Str(m, "ghost") + "! " + (left > 0 ? "Finish the tasks (" + left + " left), then gather in the circle." : "Gather in the circle.")
                     : Str(m, "by") + " offered " + Str(m, "relic") + ". It crumbles to dust, and the ghost is coming!", 6);
             });
+            room.OnMessage<Dictionary<string, object>>("flash", m =>
+            {
+                if (Flashed != null) Flashed(Str(m, "by"), Num(m["x"]), Num(m["z"]));
+            });
+            room.OnMessage<Dictionary<string, object>>("photoTaken", m =>
+                ShowBanner("Photo taken. It develops by the next meeting. Shots left: " + Num(m["shotsLeft"]), 4));
             room.OnMessage<Dictionary<string, object>>("debugGhost", m => ShowBanner((bool)m["paused"] ? "Ghost paused for testing (K to bring it back)" : "Ghost is back", 3));
             room.OnMessage<Dictionary<string, object>>("debugBasement", m => ShowBanner("Basement door opened for testing", 3));
             // Handled in later parts of step C (items, tasks, the ghost, meetings, powers); heard now so
             // the SDK does not warn about them.
-            foreach (var type in new[] { "ghost", "bellRing", "micCheck", "micLost", "flash", "photoTaken", "photosDeveloped", "powers", "powerRefused", "powerWhisper", "eyeGlow", "doorSlam", "ouijaMove", "meetingResult", "taskOpen", "taskClosed", "searchFound", "taskNoise", "relicDrop" })
+            foreach (var type in new[] { "ghost", "bellRing", "micCheck", "micLost", "photosDeveloped", "powers", "powerRefused", "powerWhisper", "eyeGlow", "doorSlam", "ouijaMove", "meetingResult", "taskOpen", "taskClosed", "searchFound", "taskNoise", "relicDrop" })
                 room.OnMessage<object>(type, m => { });
         }
 

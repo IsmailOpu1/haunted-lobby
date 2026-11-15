@@ -27,6 +27,11 @@ namespace Haunted.Game
 
         public string Prompt;
         public bool ShowTasks;
+        /// <summary>The Spirit Camera's viewfinder is up (key 2).</summary>
+        public bool CameraRaised;
+        /// <summary>What you hear that matters, in words (GDD 23 subtitles): the relic's music box.</summary>
+        public string SoundCue;
+        public double ScreenFlashUntil;
 
         public Hud(Night night, Func<GameState> state, Func<string> sessionId, Action<string, object> send, object config)
         {
@@ -75,6 +80,7 @@ namespace Haunted.Game
                 case "intro": DrawIntro(s); break;
                 case "night": DrawNight(s, now); break;
             }
+            if (now < ScreenFlashUntil) Fill(new Rect(0, 0, Screen.width, Screen.height), new Color(1, 1, 1, (float)((ScreenFlashUntil - now) / 0.3)));
             if (night.Banner != null && now < night.BannerUntil)
                 GUI.Label(new Rect(Screen.width / 2f - 400, 90, 800, 70), night.Banner, big);
         }
@@ -185,6 +191,16 @@ namespace Haunted.Game
             if (ShowTasks) DrawStatus(s);
 
             if (me != null) DrawPlayerState(me);
+
+            if (CameraRaised)
+            {
+                var frame = new Rect(Screen.width * 0.2f, Screen.height * 0.18f, Screen.width * 0.6f, Screen.height * 0.6f);
+                foreach (var edge in new[] { new Rect(frame.x, frame.y, frame.width, 2), new Rect(frame.x, frame.yMax, frame.width, 2), new Rect(frame.x, frame.y, 2, frame.height), new Rect(frame.xMax, frame.y, 2, frame.height + 2) })
+                    Fill(edge, new Color(1, 1, 1, 0.7f));
+                GUI.Label(new Rect(frame.x, frame.yMax + 8, frame.width, 30), "Click to take the photo · 2 to lower", new GUIStyle(label) { alignment = TextAnchor.UpperCenter });
+            }
+            if (!string.IsNullOrEmpty(SoundCue))
+                GUI.Label(new Rect(Screen.width - 420, Screen.height - 40, 400, 30), "[" + SoundCue + "]", new GUIStyle(small) { alignment = TextAnchor.UpperRight });
 
             // The held action's progress, then the prompt for E.
             string action;
