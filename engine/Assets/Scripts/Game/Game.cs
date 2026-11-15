@@ -87,8 +87,8 @@ namespace Haunted.Game
             if (baseMaterial == null) baseMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
 
             SetUpLight();
-            hotel = new Hotel(world, Json.Num(Json.Obj(config, "body"), "radiusM"), baseMaterial);
             map = new MapInfo(Resources.Load<TextAsset>("Data/map").text);
+            hotel = new Hotel(world, Json.Num(Json.Obj(config, "body"), "radiusM"), baseMaterial, Stations.Replaces(map));
             items = new Items(world, map, config, baseMaterial);
             others = new RemotePlayers(world, config, baseMaterial);
             HandsConfig.Load(config);
@@ -499,7 +499,19 @@ namespace Haunted.Game
                 {
                     Send = (type, body) => room.Send(type, body), Shot = path => { ScreenCapture.CaptureScreenshot(path); Debug.Log("Screenshot " + path); },
                     Hands = hands, Me = me, Map = map, Stations = stations, ShotDir = handsShots,
+                    Carrying = () => night.Me != null ? night.Me.relic : "",
+                    RelicStatus = id => { Relic r; return room.State.relics.TryGetValue(id, out r) ? r.status : "?"; },
                 };
+                // The relic door, from the map data.
+                var mapJson = (Dictionary<string, object>)Json.Parse(Resources.Load<TextAsset>("Data/map").text);
+                foreach (var o in (List<object>)mapJson["doors"])
+                {
+                    var d = (Dictionary<string, object>)o;
+                    if ((string)d["id"] != (string)mapJson["relicDoor"]) continue;
+                    bot.DoorX = Convert.ToDouble(d["x"], CultureInfo.InvariantCulture);
+                    bot.DoorZ = Convert.ToDouble(d["z"], CultureInfo.InvariantCulture);
+                    bot.DoorAlongX = (string)d["axis"] == "x";
+                }
                 StartCoroutine(bot.Run(handsTest));
             }
             if (shotPath != null && !shotTaken && shotAt >= 0 && t >= shotAt)

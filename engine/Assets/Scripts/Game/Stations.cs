@@ -135,6 +135,18 @@ namespace Haunted.Game
             }
         }
 
+        /// <summary>Whether a station or a place to search stands inside this piece of furniture: its model takes the grey box's place.</summary>
+        public static Func<SolidBox, bool> Replaces(MapInfo map)
+        {
+            var points = map.Tasks.Select(t => t.At).ToList();
+            foreach (var spot in map.RelicSpots)
+            {
+                if (spot.Places != null) points.AddRange(spot.Places.Select(p => p.At));
+                else points.Add(spot.At);
+            }
+            return s => points.Any(p => Math.Abs(p.X - s.X) <= s.SizeX / 2 + 0.05 && Math.Abs(p.Z - s.Z) <= s.SizeZ / 2 + 0.05);
+        }
+
         void Place(Transform t, WorldData world, MapInfo map, double x, double z, double yaw)
         {
             t.SetParent(root, false);

@@ -25,6 +25,12 @@ namespace Haunted.Game
         public MapInfo Map;
         public Stations Stations;
         public string ShotDir;
+        /// <summary>The relic in your hands ("" for none), and a relic's status by id.</summary>
+        public Func<string> Carrying;
+        public Func<string, string> RelicStatus;
+        /// <summary>The relic door (sim x, z) and the axis its wall runs along.</summary>
+        [NonSerialized] public double DoorX, DoorZ;
+        [NonSerialized] public bool DoorAlongX;
         public readonly List<string> Results = new List<string>();
 
         double vx, vy;
@@ -61,6 +67,12 @@ namespace Haunted.Game
                 while (!Hands.Active && waited < 3) { waited += Dt; yield return null; }
                 if (!Hands.Active) { Result(id, "did not open"); continue; }
                 var task = Hands.Task;
+                foreach (var part in task.Parts.Take(3))
+                {
+                    var r = part.GetComponent<Renderer>();
+                    var mf = part.GetComponent<MeshFilter>();
+                    Debug.Log("Part " + part.name + ": active " + part.activeInHierarchy + ", drawn " + (r != null && r.enabled) + ", at " + part.transform.position + ", bounds " + (r != null ? r.bounds.size.ToString() : "-") + ", verts " + (mf != null && mf.sharedMesh != null ? mf.sharedMesh.vertexCount : -1) + ", shader " + (r != null ? r.sharedMaterial.shader.name : "-") + ", colour " + (r != null ? r.sharedMaterial.color.ToString() : "-") + ", queue " + (r != null ? r.sharedMaterial.renderQueue : 0) + ", keywords " + (r != null ? string.Join(" ", r.sharedMaterial.shaderKeywords) : "") + ", layer " + part.layer + ", scale " + part.transform.lossyScale);
+                }
                 yield return new WaitForSeconds(0.6f);
                 Shot(ShotDir + "/" + id + "-open.png");
                 double started = Time.realtimeSinceStartupAsDouble;
@@ -78,8 +90,30 @@ namespace Haunted.Game
                 yield return new WaitForSeconds(0.8f);
                 Shot(ShotDir + "/" + id + "-after.png");
                 yield return new WaitForSeconds(0.5f);
+                if (!string.IsNullOrEmpty(Carrying())) yield return PlaceRelic(id);
             }
             Debug.Log("Hands test finished: " + string.Join("; ", Results.ToArray()));
+        }
+
+        /// <summary>Carries the relic you found to the relic door and holds E to place it there (GDD 10).</summary>
+        IEnumerator PlaceRelic(string from)
+        {
+            string relic = Carrying();
+            Shot(ShotDir + "/" + from + "-carrying.png");
+            foreach (var side in new[] { 1, -1 })
+            {
+                double x = DoorX + (DoorAlongX ? 0 : side * 0.9), z = DoorZ + (DoorAlongX ? side * 0.9 : 0);
+                Send("debug", new Dictionary<string, object> { { "teleport", new Dictionary<string, object> { { "x", x }, { "z", z } } } });
+                yield return new WaitForSeconds(1.2f);
+                Send("use", new Dictionary<string, object> { { "down", true } });
+                double waited = 0;
+                while (RelicStatus(relic) != "placed" && waited < 6) { waited += Dt; yield return null; }
+                Send("use", new Dictionary<string, object> { { "down", false } });
+                if (RelicStatus(relic) == "placed") break;
+            }
+            Result(from + " relic " + relic, RelicStatus(relic) == "placed" ? "carried and placed at the relic door" : "NOT placed (status " + RelicStatus(relic) + ")");
+            Shot(ShotDir + "/" + from + "-placed.png");
+            yield return new WaitForSeconds(0.5f);
         }
 
         void Result(string id, string what)

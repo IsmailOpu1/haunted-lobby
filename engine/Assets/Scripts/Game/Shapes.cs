@@ -15,6 +15,7 @@ namespace Haunted.Game
     {
         static Material lit, glow, clear, unlit, unlitClear;
         static Mesh cube, cylinder, sphere;
+        static Material textMaterial;
         static readonly Dictionary<string, Mesh> meshes = new Dictionary<string, Mesh>();
 
         public static void Load(Material greyBox)
@@ -238,7 +239,13 @@ namespace Haunted.Game
             go.transform.localPosition = P(x, y, z);
             var t = go.AddComponent<TextMesh>();
             t.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            go.GetComponent<MeshRenderer>().sharedMaterial = t.font.material;
+            if (textMaterial == null)
+            {
+                // The font's own material draws over everything (GUI text); in the world it must hide behind things.
+                textMaterial = new Material(t.font.material);
+                textMaterial.SetFloat("unity_GUIZTestMode", (float)UnityEngine.Rendering.CompareFunction.LessEqual);
+            }
+            go.GetComponent<MeshRenderer>().sharedMaterial = textMaterial;
             t.fontSize = 64;
             t.fontStyle = style;
             // At fontSize 64 a characterSize of 1 makes letters about 6.4 m tall... scaled to size.

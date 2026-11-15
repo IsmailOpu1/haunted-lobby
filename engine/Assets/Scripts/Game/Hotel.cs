@@ -27,7 +27,8 @@ namespace Haunted.Game
         static readonly Color StairColor = new Color(0.45f, 0.4f, 0.36f);
         const float FloorThicknessM = 0.1f;
 
-        public Hotel(WorldData world, double bodyRadiusM, Material baseMaterial)
+        /// <summary>replaced: whether a model stands in this furniture's place (a task station), so its grey box is left out, as the browser leaves out boxes its models replace. Collision still has it.</summary>
+        public Hotel(WorldData world, double bodyRadiusM, Material baseMaterial, System.Func<SolidBox, bool> replaced = null)
         {
             World = world;
             Collision = new Collision(world, bodyRadiusM);
@@ -44,6 +45,7 @@ namespace Haunted.Game
 
             foreach (var s in world.Solids)
             {
+                if (s.Kind == "furniture" && replaced != null && replaced(s)) continue;
                 Color color = s.Kind == "door" ? DoorColor : s.Kind == "hide" ? HideColor : s.Kind == "furniture" ? FurnitureColor : WallColor;
                 var go = Box((s.Id ?? s.Kind), s.X, s.Z, s.SizeX, s.SizeZ, 0, s.HeightM, color);
                 go.transform.SetParent(root.transform, true);
