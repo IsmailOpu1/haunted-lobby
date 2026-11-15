@@ -308,7 +308,6 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     try {
       await voice.start();
       this.voice = voice;
-      if (voice.enabled) recordVoiceStart();
     } catch (err) {
       console.error("Voice could not start; this room runs without voice.", err);
       recordVoiceStart(err);
@@ -508,8 +507,10 @@ export class HauntedRoom extends Room<{ state: GameState }> {
     let msg: ServerMessages["voice"] = { disabled: true };
     try {
       msg = (await this.voice.join(client.sessionId, name)) ?? { disabled: true };
+      if (this.voice.enabled) recordVoiceStart();
     } catch (err) {
-      console.error("Voice token failed", err);
+      console.error("Voice could not start for this player; they play without voice.", err);
+      recordVoiceStart(err);
     }
     // Debug servers only: no microphone needed, so one person can test with several tabs.
     if (DEBUG && "url" in msg) msg = { ...msg, micOptional: true };
