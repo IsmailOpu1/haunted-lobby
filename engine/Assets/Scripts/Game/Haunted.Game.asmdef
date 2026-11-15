@@ -4,7 +4,8 @@
     "references": [
         "Haunted.Sim",
         "ColyseusSDK",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "LiveKit"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

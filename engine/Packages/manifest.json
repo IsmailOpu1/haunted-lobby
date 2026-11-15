@@ -12,6 +12,7 @@
     "com.unity.modules.ui": "1.0.0",
     "com.unity.modules.uielements": "1.0.0",
     "com.unity.modules.unitywebrequest": "1.0.0",
-    "io.colyseus.sdk": "https://github.com/colyseus/colyseus-unity3d.git#b7e379db6b57d91295047306f49c5d51fbb8a272"
+    "io.colyseus.sdk": "https://github.com/colyseus/colyseus-unity3d.git#b7e379db6b57d91295047306f49c5d51fbb8a272",
+    "io.livekit.livekit-sdk": "https://github.com/livekit/client-sdk-unity.git#51a4ddb296b927c94afe531e2ca3a1d3ce339ba2"
   }
 }

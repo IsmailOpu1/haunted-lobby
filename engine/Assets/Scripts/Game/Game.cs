@@ -30,6 +30,9 @@ namespace Haunted.Game
         Hotel hotel;
         LocalPlayer me;
         RemotePlayers others;
+        Voice voice;
+        float voiceToneHz;
+        double nextVoiceLog;
         Client client;
         Room<GameState> room;
         Material baseMaterial;
@@ -92,6 +95,7 @@ namespace Haunted.Game
             shotPath = arg("-shot");
             if (arg("-shotAt") != null) shotAt = double.Parse(arg("-shotAt"), CultureInfo.InvariantCulture);
             if (arg("-quitAt") != null) quitAt = double.Parse(arg("-quitAt"), CultureInfo.InvariantCulture);
+            if (arg("-voiceTone") != null) voiceToneHz = float.Parse(arg("-voiceTone"), CultureInfo.InvariantCulture);
             string script = arg("-script");
             if (Array.IndexOf(args, "-create") >= 0) Connect(null, script);
             else if (arg("-join") != null) Connect(arg("-join"), script);
@@ -128,10 +132,41 @@ namespace Haunted.Game
             room.OnStateChange += (state, first) => OnState(state);
             room.OnLeave += code => { status = "Left the room (" + code + ")"; Debug.Log(status); };
             room.OnError += (code, message) => Debug.LogError("Room error " + code + ": " + message);
+            StartVoice();
             if (room.State != null) OnState(room.State);
             inRoomSince = Time.realtimeSinceStartupAsDouble;
             Debug.Log("In room " + room.RoomId + " as " + room.SessionId);
             if (codeFile != null) File.WriteAllText(codeFile, room.RoomId);
+        }
+
+        /// <summary>
+        /// Asks for the voice pass once the handlers are in place, as the browser does: the server
+        /// answers with where and how to join LiveKit, or that voice is off on this server.
+        /// </summary>
+        void StartVoice()
+        {
+            voice = new Voice(this) { TestToneHz = voiceToneHz };
+            bool answered = false;
+            room.OnMessage<Dictionary<string, object>>("voice", msg =>
+            {
+                if (answered) return;
+                answered = true;
+                object url, token;
+                if (msg != null && msg.TryGetValue("url", out url) && msg.TryGetValue("token", out token)) voice.Connect((string)url, (string)token);
+                else Debug.Log("Voice is off on this server");
+            });
+            room.OnMessage<Dictionary<string, object>>("voiceMix", msg =>
+            {
+                var mix = new Dictionary<string, float[]>();
+                foreach (var kv in msg)
+                {
+                    var list = kv.Value as System.Collections.IList;
+                    if (list == null || list.Count < 3) continue;
+                    mix[kv.Key] = new[] { Convert.ToSingle(list[0], CultureInfo.InvariantCulture), Convert.ToSingle(list[1], CultureInfo.InvariantCulture), Convert.ToSingle(list[2], CultureInfo.InvariantCulture) };
+                }
+                voice.SetMix(mix);
+            });
+            room.Send("voiceRequest");
         }
 
         /// <summary>For tests: walk forward, turn, walk on, and look around, so others can see us move.</summary>
@@ -184,6 +219,15 @@ namespace Haunted.Game
                     { "run", input.Run }, { "crouch", input.Crouch }, { "yaw", input.Yaw }, { "pitch", input.Pitch },
                 }));
                 others.Update(now, me.Camera);
+                if (voice != null)
+                {
+                    voice.Update(others.PositionOf);
+                    if (now >= nextVoiceLog)
+                    {
+                        nextVoiceLog = now + 2;
+                        foreach (var id in others.Ids) Debug.Log("Voice level from " + id + ": " + voice.HeardLevel(id).ToString("0.000", CultureInfo.InvariantCulture) + " (" + voice.SpeakerCount + " heard)");
+                    }
+                }
                 RunTestSchedule(now);
             }
         }
@@ -254,6 +298,7 @@ namespace Haunted.Game
 
         void OnApplicationQuit()
         {
+            if (voice != null) voice.Disconnect();
             if (room != null) room.Leave();
         }
     }

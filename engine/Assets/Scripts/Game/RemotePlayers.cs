@@ -44,6 +44,17 @@ namespace Haunted.Game
 
         public int Count { get { return views.Count; } }
 
+        /// <summary>The players drawn now, by session id.</summary>
+        public IEnumerable<string> Ids { get { return views.Keys; } }
+
+        /// <summary>Where a player's head is drawn now (their voice comes from there); null if unknown.</summary>
+        public Vector3? PositionOf(string id)
+        {
+            View v;
+            if (!views.TryGetValue(id, out v)) return null;
+            return v.Head.position;
+        }
+
         /// <summary>A new server state for one player.</summary>
         public void Push(string id, string name, double time, double x, double z, double yaw, double pitch, bool crouching, bool flashlightOn, bool visible)
         {
