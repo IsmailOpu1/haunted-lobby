@@ -67,6 +67,9 @@ namespace Haunted.Game
             Camera = cam.AddComponent<Camera>();
             Camera.nearClipPlane = 0.05f;
             Camera.farClipPlane = 60;
+            // Night: black past the fog, as the browser (game.ts scene.background); no daytime sky over open rooms.
+            Camera.clearFlags = CameraClearFlags.SolidColor;
+            Camera.backgroundColor = Color.black;
             cam.AddComponent<AudioListener>();
             // The held torch: a soft spot from just below the eyes (the browser's flashlight.ts look comes in step D).
             var torch = new GameObject("Torch");
@@ -83,6 +86,14 @@ namespace Haunted.Game
         }
 
         public bool FlashlightOn { set { flashlight.enabled = value; } }
+
+        /// <summary>The flashlight's brightness, 0 to 1: it flickers and dies near the ghost (GDD 8.1).</summary>
+        public float Brightness { set { flashlight.intensity = 6 * value; } }
+
+        /// <summary>The possessed's power wheel is open: the mouse picks a power instead of turning your head.</summary>
+        public bool WheelOpen;
+        /// <summary>The mouse while the wheel is open, in pixels, screen y growing downward.</summary>
+        public System.Action<double, double> WheelMove;
 
         /// <summary>The server's word on where you are, after your last input it applied.</summary>
         public void Reconcile(double x, double z, double stamina, double regenWait, bool crouching, uint lastSeq)
@@ -115,6 +126,11 @@ namespace Haunted.Game
             var mouse = Mouse.current;
             if (mouse == null || Cursor.lockState != CursorLockMode.Locked) return;
             Vector2 d = mouse.delta.ReadValue();
+            if (WheelOpen)
+            {
+                if (WheelMove != null) WheelMove(d.x, -d.y);
+                return;
+            }
             if (Working && HandDown)
             {
                 if (HandMove != null) HandMove(d.x, -d.y);

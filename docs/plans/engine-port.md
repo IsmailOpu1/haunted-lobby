@@ -127,3 +127,14 @@ Step C is the biggest step, so it is done in five parts, each tested before the 
 - The glow materials keep their emission variant in the build.
 
 The stations are the browser's plain models until step D. A search cannot open while you carry a relic, which is the server's rule.
+
+**C4 passed (2026-11-16).** Tried with bots on a debug server (`tools/playtest.ts c4 CODE`: a bot is the possessed; `c4u CODE`: the Unity player is, with `-possessed`). Screenshots in `step-c/c4/`.
+- The ghost: a bot's Summon brought it behind the Unity player, it hunted (the sting, the pulse, heavy steps, the heartbeat cue) and knocked the player down (`summoned-ghost.png`, `downed.png`).
+- Sounds from the house: the summon whisper and a slammed door, heard where they happened.
+- The possessed's eyes glow red in your flashlight for a second after Summon (`red-eyes.png`).
+- Meetings: the bell, new photos developed as evidence, the dead push the Ouija planchette, the vote and its result, then the end screen with every photo (`evidence.png`, `ouija.png`, `vote-result.png`, `end-screen.png`).
+- The Unity player as the possessed: the powers bar, the R wheel (`power-wheel.png`), Summon on the player in the crosshair, Slam Door on the door looked at, the curse glow time (`curse-glow.png`), and Taint in the ritual: the circle turns purple and the black-flames banner shows (`taint.png`).
+- Dead: You are a Wisp, and other Wisps are seen (`wisp.png`).
+- The mystery's "Who was the ghost?" bar shows once the basement opens. Naming the ghost at the altar is played in C5's full nights.
+- Fixed: the camera now clears to black like the browser, so no daytime sky shows over rooms without a ceiling.
+- New test options: `-possessed`, and the test sends `_wheel {"kind":…}`, `_turn`, `_vote {"name":…}` and `_ouija {"name":…}`.

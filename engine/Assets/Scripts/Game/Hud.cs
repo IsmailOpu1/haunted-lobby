@@ -34,6 +34,11 @@ namespace Haunted.Game
         public double ScreenFlashUntil;
         /// <summary>While you work with your hands (GDD 26.5): how to, and how to stop; null otherwise.</summary>
         public string WorkHint;
+        /// <summary>The meeting screen (GDD 16), drawn over everything while one runs.</summary>
+        public MeetingScreen Meeting;
+        /// <summary>The possessed's power wheel is open (hold R), and the power the mouse points at.</summary>
+        public bool WheelOpen;
+        public string WheelSelected;
 
         public Hud(Night night, Func<GameState> state, Func<string> sessionId, Action<string, object> send, object config)
         {
@@ -54,7 +59,7 @@ namespace Haunted.Game
             box = new GUIStyle(GUI.skin.box);
         }
 
-        static void Fill(Rect r, Color c)
+        public static void Fill(Rect r, Color c)
         {
             var old = GUI.color;
             GUI.color = c;
@@ -153,6 +158,7 @@ namespace Haunted.Game
 
         void DrawNight(GameState s, double now)
         {
+            if (!string.IsNullOrEmpty(s.meeting) && Meeting != null) { Meeting.Draw(s, sessionId()); return; }
             Player me;
             s.players.TryGetValue(sessionId(), out me);
             // The night bar, its parts, and the time to dawn (top left).
@@ -193,6 +199,13 @@ namespace Haunted.Game
             if (ShowTasks) DrawStatus(s);
 
             if (me != null) DrawPlayerState(me);
+
+            // The possessed's powers: the bar, and the wheel while R is held (GDD 14.2).
+            if (night.Role == "possessed" && night.Powers != null && me != null && me.health == "alive")
+            {
+                PowerHud.DrawBar(night.Powers, night.CurseLeft, small);
+                if (WheelOpen) PowerHud.DrawWheel(night.Powers, WheelSelected, label);
+            }
 
             if (CameraRaised)
             {
@@ -269,13 +282,16 @@ namespace Haunted.Game
             GUI.Label(new Rect(r.x + 16, r.y + (head != null ? 48 : 30), r.width - 32, 60), text, new GUIStyle(label) { alignment = TextAnchor.UpperCenter });
         }
 
+        Vector2 endScroll;
+
         void DrawEnd(GameState s)
         {
             var end = night.End;
             string[] text;
             if (!Night.EndText.TryGetValue(end.Reason ?? "", out text)) text = new[] { end.Winner, "" };
             Fill(new Rect(0, 0, Screen.width, Screen.height), new Color(0, 0, 0, 0.85f));
-            GUILayout.BeginArea(new Rect(Screen.width / 2f - 380, 50, 760, Screen.height - 100));
+            GUILayout.BeginArea(new Rect(Screen.width / 2f - 450, 50, 900, Screen.height - 100));
+            endScroll = GUILayout.BeginScrollView(endScroll);
             var old = GUI.color;
             GUI.color = end.Winner == "possessed" ? Possessed : Color.white;
             GUILayout.Label(text[0], new GUIStyle(title) { fontSize = 34 });
@@ -288,6 +304,17 @@ namespace Haunted.Game
                 GUILayout.Space(10);
                 GUILayout.Label("Awards", big);
                 foreach (var a in end.Awards) GUILayout.Label(a.Title + "   " + string.Join(", ", a.Names) + "   " + a.Why, small);
+            }
+            if (night.EndPhotos.Count > 0)
+            {
+                GUILayout.Space(10);
+                GUILayout.Label("The photos", big);
+                for (int i = 0; i < night.EndPhotos.Count; i += 3)
+                {
+                    GUILayout.BeginHorizontal();
+                    for (int j = i; j < Math.Min(i + 3, night.EndPhotos.Count); j++) PhotoPrint.DrawCard(night.EndPhotos[j], new GUIStyle(small) { alignment = TextAnchor.UpperCenter });
+                    GUILayout.EndHorizontal();
+                }
             }
             if (end.Timeline.Count > 0)
             {
@@ -303,6 +330,7 @@ namespace Haunted.Game
                 if (GUILayout.Button("Rematch", GUILayout.Height(40))) send("rematch", null);
             }
             else GUILayout.Label("Waiting for the host to start a rematch.", small);
+            GUILayout.EndScrollView();
             GUILayout.EndArea();
         }
     }

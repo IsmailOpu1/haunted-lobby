@@ -21,7 +21,7 @@ namespace Haunted.Game
         public class Place { public string Id; public Point At; }
         public class HidingSpot { public string Id, Kind; public Point At, Exit; }
         public class Door { public string Id; public Point At; }
-        public class Suspect { public string Id, Name, Belonging; public Dictionary<string, string> Clues = new Dictionary<string, string>(); }
+        public class Suspect { public string Id, Name, Belonging, Icon; public Dictionary<string, string> Clues = new Dictionary<string, string>(); }
         public class Room { public string Name; public double MinX, MaxX, MinZ, MaxZ; }
 
         public readonly List<Task> Tasks = new List<Task>();
@@ -68,7 +68,7 @@ namespace Haunted.Game
             {
                 foreach (var s in List(map, "suspects"))
                 {
-                    var suspect = new Suspect { Id = Str(s, "id"), Name = Str(s, "name"), Belonging = Str(s, "belonging") };
+                    var suspect = new Suspect { Id = Str(s, "id"), Name = Str(s, "name"), Belonging = Str(s, "belonging"), Icon = Str(s, "icon") };
                     foreach (var kv in Json.Obj(s, "clues")) suspect.Clues[kv.Key] = (string)kv.Value;
                     Suspects.Add(suspect);
                 }

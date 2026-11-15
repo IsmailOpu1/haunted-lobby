@@ -45,6 +45,16 @@ namespace Haunted.Game
         Hud hud;
         Items items;
         Stations stations;
+        Haunting haunting;
+        MeetingScreen meetingScreen;
+        /// <summary>The possessed's power wheel (hold R): open, and where the mouse has moved since it opened.</summary>
+        bool wheelOpen;
+        Vector2 wheelMouse;
+        /// <summary>Tests: a power the wheel picks by itself, and when it lets go.</summary>
+        string wheelTestKind;
+        double wheelTestRelease = -1;
+        bool askPossessed;
+        bool flashlightWas;
         readonly HandsWork hands = new HandsWork();
         string openStation;
         /// <summary>Where the open task stands on this side ("none", "open", "finished", "left"), so taskClosed can say the right thing.</summary>
@@ -94,6 +104,7 @@ namespace Haunted.Game
             HandsConfig.Load(config);
             Shapes.Load(baseMaterial);
             stations = new Stations(world, map, config);
+            haunting = new Haunting(world, map, config);
             ReadCommandLine();
         }
 
@@ -138,6 +149,7 @@ namespace Haunted.Game
             if (arg("-startWith") != null) startWith = int.Parse(arg("-startWith"), CultureInfo.InvariantCulture);
             if (arg("-rematchAfter") != null) rematchAfter = double.Parse(arg("-rematchAfter"), CultureInfo.InvariantCulture);
             autoReady = Array.IndexOf(args, "-ready") >= 0;
+            askPossessed = Array.IndexOf(args, "-possessed") >= 0;
             for (int i = 0; i + 2 < args.Length; i++)
             {
                 if (args[i] == "-handsTest" && i + 1 < args.Length)
@@ -192,6 +204,9 @@ namespace Haunted.Game
             night.Flashed += (by, x, z) => items.Flash(by == room.SessionId, x, z);
             ListenForTasks();
             hud = new Hud(night, () => room.State, () => room.SessionId, (type, msg) => { if (msg == null) room.Send(type); else room.Send(type, msg); }, config);
+            meetingScreen = new MeetingScreen(night, config, (type, msg) => room.Send(type, msg));
+            hud.Meeting = meetingScreen;
+            ListenForGhost();
             StartVoice();
             room.Send("tasksRequest");
             if (autoReady) room.Send("ready", new Dictionary<string, object> { { "ready", true } });
@@ -259,6 +274,8 @@ namespace Haunted.Game
                         : MoveMode.Normal;
                     if (!me.Ready) { me.Yaw = p.yaw; me.Pitch = p.pitch; }
                     me.Reconcile(p.x, p.z, p.stamina, p.regenWait, p.crouching, p.lastSeq);
+                    if (p.flashlightOn != flashlightWas) Debug.Log("Flashlight " + (p.flashlightOn ? "on" : "off"));
+                    flashlightWas = p.flashlightOn;
                     me.FlashlightOn = p.flashlightOn;
                     continue;
                 }
@@ -272,11 +289,28 @@ namespace Haunted.Game
             stations.OnState(state);
             // A meeting stops anything in your hands; a new night forgets the old one's work.
             bool meeting = !string.IsNullOrEmpty(state.meeting);
-            if (meeting && !wasMeeting && taskState == "open") LeaveTask();
+            if (meeting && !wasMeeting)
+            {
+                // Everyone stops; let go of the mouse so you can vote; anything in your hands stops (game.ts updateMeeting).
+                if (taskState == "open") LeaveTask();
+                CloseWheel(false);
+                meetingScreen.Begin();
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+                Debug.Log("Meeting: " + state.meetingCaller + (string.IsNullOrEmpty(state.meetingBody) ? " rang the bell" : " reported " + state.meetingBody));
+            }
             wasMeeting = meeting;
+            haunting.OnState(state, room.SessionId, BasementOpen(state));
+            if (state.stage == "waiting" && nightSince >= 0) haunting.Reset();
             if (state.stage == "waiting" && taskState != "none") { taskState = "none"; if (hands.Active) StopHands(); }
             if (state.stage == "night" && nightSince < 0) nightSince = now;
             if (state.stage == "waiting") { nightSince = -1; endSince = -1; }
+            if (askPossessed && state.stage == "waiting")
+            {
+                // Test: ask to be the possessed this night (debug servers only).
+                askPossessed = false;
+                room.Send("debug", new Dictionary<string, object> { { "possessed", true } });
+            }
             if (startWith > 0 && state.stage == "waiting" && state.host == room.SessionId && state.players.Count >= startWith)
             {
                 startWith = -startWith;
@@ -298,11 +332,18 @@ namespace Haunted.Game
                     { "run", input.Run }, { "crouch", input.Crouch }, { "yaw", input.Yaw }, { "pitch", input.Pitch },
                 }));
                 if (night.End != null && hands.Active) StopHands();
+                var feet = me.Camera.transform.position - Vector3.up * (float)Json.Num(Json.Obj(config, "movement"), "eyeHeightM");
+                me.Brightness = haunting.Update(now, Time.deltaTime, feet, me.Camera);
+                if (night.End != null || (night.Me != null && night.Me.health != "alive")) CloseWheel(false);
                 if (bot != null) bot.Frame();
                 UpdateHands(Time.deltaTime);
                 others.Update(now, me.Camera);
                 hud.Prompt = night.PromptAt(me.State.X, me.State.Z);
                 UpdateItems(now);
+                // The ghost's cue matters more than the music box's.
+                if (haunting.Cue != null) hud.SoundCue = haunting.Cue;
+                hud.WheelOpen = wheelOpen;
+                hud.WheelSelected = wheelOpen ? PowerHud.Pick(wheelMouse) : null;
                 if (voice != null)
                 {
                     voice.Update(others.PositionOf);
@@ -322,7 +363,7 @@ namespace Haunted.Game
             var mouse = Mouse.current;
             lockedThisFrame = false;
             // The lobby and the end screen keep the mouse for their buttons.
-            bool menu = room.State == null || room.State.stage == "waiting" || night.End != null;
+            bool menu = room.State == null || room.State.stage == "waiting" || night.End != null || !string.IsNullOrEmpty(room.State.meeting);
             if (menu && Cursor.lockState == CursorLockMode.Locked) { Cursor.lockState = CursorLockMode.None; Cursor.visible = true; }
             if (!menu && mouse != null && mouse.leftButton.wasPressedThisFrame && Cursor.lockState != CursorLockMode.Locked)
             {
@@ -336,8 +377,12 @@ namespace Haunted.Game
                 Cursor.lockState = CursorLockMode.None;
                 Cursor.visible = true;
                 if (taskState == "open") LeaveTask();
+                CloseWheel(false);
             }
             hud.ShowTasks = k.tabKey.isPressed;
+            // The power wheel (GDD 14.2, input.ts): R opens it, letting go uses the power the mouse points at.
+            if (k.rKey.wasPressedThisFrame && Cursor.lockState == CursorLockMode.Locked) OpenWheel();
+            if (k.rKey.wasReleasedThisFrame && wheelOpen && wheelTestKind == null) CloseWheel(true);
             var mine = night.Me;
             if (Cursor.lockState != CursorLockMode.Locked) return;
             // The browser's default keys (client/src/keys.ts): 1 flashlight (or a click), 2 raises the
@@ -368,6 +413,103 @@ namespace Haunted.Game
         }
 
         bool lockedThisFrame;
+
+        /// <summary>The ghost, hunts, sounds from the house and the powers' effects (step C4).</summary>
+        void ListenForGhost()
+        {
+            me.WheelMove = (dx, dy) => wheelMouse += new Vector2((float)dx, (float)dy);
+            night.GhostMoved += m => haunting.Push(m, Time.realtimeSinceStartupAsDouble);
+            night.Hunted += phase => haunting.Hunt(phase, Time.realtimeSinceStartupAsDouble);
+            night.EyesGlow += id => others.GlowEyes(id, Time.realtimeSinceStartupAsDouble + Json.Num(Json.Obj(Json.Obj(config, "powers"), "summon"), "eyeGlowSec"));
+            night.SoundAt += (kind, x, z) =>
+            {
+                var at = Coords.Place(world, x, z);
+                // audio.ts: where each is heard from, and how far it carries.
+                if (kind == "bellRing") TaskSounds.PlayAt("bell", at, 4, 1);
+                else if (kind == "doorSlam") TaskSounds.PlayAt("slam", at, 6, 1);
+                else if (kind == "powerWhisper") TaskSounds.PlayAt("whisper", at, 1, 1.5f);
+                else TaskSounds.PlayAt("thud", at);
+                Debug.Log("Heard " + kind + " at " + x.ToString("0.0", CultureInfo.InvariantCulture) + ", " + z.ToString("0.0", CultureInfo.InvariantCulture));
+            };
+        }
+
+        /// <summary>Every relic slot on the basement door is filled (a crumbled relic was placed first).</summary>
+        static bool BasementOpen(GameState s)
+        {
+            if (s.relics.Count == 0) return false;
+            foreach (var kv in s.relics) if (kv.Value.status != "placed" && kv.Value.status != "crumbled") return false;
+            return true;
+        }
+
+        void OpenWheel()
+        {
+            var mine = night.Me;
+            if (night.Role != "possessed" || mine == null || mine.health != "alive" || night.End != null || !string.IsNullOrEmpty(room.State.meeting)) return;
+            wheelOpen = true;
+            wheelMouse = Vector2.zero;
+            me.WheelOpen = true;
+        }
+
+        void CloseWheel(bool use)
+        {
+            if (!wheelOpen) return;
+            string picked = use ? PowerHud.Pick(wheelMouse) : null;
+            wheelOpen = false;
+            me.WheelOpen = false;
+            wheelTestKind = null;
+            if (picked != null) UsePower(picked);
+        }
+
+        /// <summary>Slam Door takes the door you look at, Summon the player you look at. The server checks the rest.</summary>
+        void UsePower(string kind)
+        {
+            var powers = Json.Obj(config, "powers");
+            string target = kind == "slamDoor" ? AimedDoor(Json.Num(Json.Obj(powers, "slamDoor"), "rangeM"))
+                : kind == "summon" ? AimedPlayer(Json.Num(Json.Obj(powers, "summon"), "targetRangeM")) : null;
+            var body = new Dictionary<string, object> { { "kind", kind } };
+            if (target != null) body["target"] = target;
+            room.Send("power", body);
+            Debug.Log("Power " + kind + (target != null ? " at " + target : ""));
+        }
+
+        // game.ts: how far off the crosshair a door or a player may be.
+        const double AimDoorRad = 35 * Math.PI / 180, AimPlayerRad = 20 * Math.PI / 180;
+
+        /// <summary>How far off the crosshair a point is, in radians (facing yaw looks along -sin, -cos), and how far away.</summary>
+        double Aim(double x, double z, out double dist)
+        {
+            double dx = x - me.State.X, dz = z - me.State.Z;
+            dist = Math.Sqrt(dx * dx + dz * dz);
+            double a = Math.Atan2(-dx, -dz) - me.Yaw;
+            return Math.Abs(Math.Atan2(Math.Sin(a), Math.Cos(a)));
+        }
+
+        string AimedDoor(double range)
+        {
+            string best = null;
+            double bestOff = double.MaxValue;
+            foreach (var door in map.Doors)
+            {
+                if (door.Id == map.RelicDoor) continue;
+                double dist, off = Aim(door.At.X, door.At.Z, out dist);
+                if (dist <= range && off <= AimDoorRad && off < bestOff) { best = door.Id; bestOff = off; }
+            }
+            return best;
+        }
+
+        string AimedPlayer(double range)
+        {
+            string best = null;
+            double bestOff = double.MaxValue;
+            foreach (var kv in room.State.players)
+            {
+                var p = kv.Value;
+                if (kv.Key == room.SessionId || p.health != "alive" || !string.IsNullOrEmpty(p.hidingSpot)) continue;
+                double dist, off = Aim(p.x, p.z, out dist);
+                if (dist <= range && off <= AimPlayerRad && off < bestOff) { best = kv.Key; bestOff = off; }
+            }
+            return best;
+        }
 
         /// <summary>Hands-on work's messages (client/src/game.ts): open, found, closed, and noisy tasks of others.</summary>
         void ListenForTasks()
@@ -532,7 +674,29 @@ namespace Haunted.Game
                 {
                     if (now - nightSince < nightSends[i].Key) continue;
                     var body = Json.Parse(nightSends[i].Value[1]) as Dictionary<string, object>;
-                    if (body != null && body.Count > 0) room.Send(nightSends[i].Value[0], body);
+                    if (nightSends[i].Value[0] == "_wheel")
+                    {
+                        // Opens the wheel and moves the mouse toward the power, as a player would, then lets go.
+                        OpenWheel();
+                        wheelTestKind = (string)body["kind"];
+                        int slot = Array.IndexOf(PowerHud.WheelOrder, wheelTestKind);
+                        double a = slot * Math.PI * 2 / PowerHud.WheelOrder.Length;
+                        wheelMouse = new Vector2((float)Math.Sin(a), -(float)Math.Cos(a)) * 80;
+                        wheelTestRelease = now + 1.5;
+                    }
+                    else if (nightSends[i].Value[0] == "_turn")
+                    {
+                        // Look the other way (a Summoned ghost comes from behind).
+                        me.Yaw += Math.PI;
+                    }
+                    else if (nightSends[i].Value[0] == "_vote" || nightSends[i].Value[0] == "_ouija")
+                    {
+                        // Votes for (or, dead, pushes the planchette to) a player by name.
+                        string target = (string)body["name"];
+                        if (target != "skip" && target != "unknown") foreach (var kv in room.State.players) if (kv.Value.name == target) target = kv.Key;
+                        room.Send(nightSends[i].Value[0].Substring(1), new Dictionary<string, object> { { "target", target } });
+                    }
+                    else if (body != null && body.Count > 0) room.Send(nightSends[i].Value[0], body);
                     else room.Send(nightSends[i].Value[0]);
                     Debug.Log("Sent " + nightSends[i].Value[0] + " " + nightSends[i].Value[1]);
                     nightSends.RemoveAt(i);
@@ -544,6 +708,11 @@ namespace Haunted.Game
                     Debug.Log("Screenshot " + nightShots[i].Value + " (prompt: " + hud.Prompt + ", cue: " + hud.SoundCue + ")");
                     nightShots.RemoveAt(i);
                 }
+            }
+            if (wheelTestRelease >= 0 && now >= wheelTestRelease)
+            {
+                wheelTestRelease = -1;
+                CloseWheel(true);
             }
             if (night.End != null && endSince < 0) endSince = now;
             if (rematchAfter >= 0 && endSince >= 0 && now - endSince >= rematchAfter && room.State.host == room.SessionId)

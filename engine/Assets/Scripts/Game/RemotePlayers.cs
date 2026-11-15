@@ -23,6 +23,9 @@ namespace Haunted.Game
             public Transform Head;
             public TextMesh Label;
             public Light Torch;
+            /// <summary>Red eyes that glow for a moment after they Summon (GDD 14.2).</summary>
+            public GameObject Eyes;
+            public double EyesUntil;
             public readonly List<Snapshot> Snapshots = new List<Snapshot>();
         }
 
@@ -116,6 +119,20 @@ namespace Haunted.Game
             nose.transform.localScale = new Vector3(0.08f, 0.08f, 0.12f);
             nose.GetComponent<MeshRenderer>().sharedMaterial = material;
 
+            v.Eyes = new GameObject("Eyes");
+            v.Eyes.transform.SetParent(head, false);
+            var red = Shapes.Mat(Shapes.Hex(0xff2a1a), Shapes.Look.Unlit);
+            foreach (int side in new[] { -1, 1 })
+            {
+                var eye = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                Object.Destroy(eye.GetComponent<Collider>());
+                eye.transform.SetParent(v.Eyes.transform, false);
+                eye.transform.localPosition = new Vector3(side * 0.06f, 0.03f, radius * 0.95f);
+                eye.transform.localScale = Vector3.one * 0.05f;
+                eye.GetComponent<MeshRenderer>().sharedMaterial = red;
+            }
+            v.Eyes.SetActive(false);
+
             var torch = new GameObject("Torch");
             torch.transform.SetParent(head, false);
             torch.transform.localPosition = new Vector3(0.15f, -0.25f, 0);
@@ -142,6 +159,13 @@ namespace Haunted.Game
         }
 
         /// <summary>Places everyone where they were delaySec ago, facing the camera's way for their names.</summary>
+        /// <summary>This player's eyes glow red for seconds (they just Summoned the ghost).</summary>
+        public void GlowEyes(string id, double until)
+        {
+            View v;
+            if (views.TryGetValue(id, out v)) v.EyesUntil = until;
+        }
+
         public void Update(double now, Camera camera)
         {
             double at = now - delaySec;
@@ -169,6 +193,7 @@ namespace Haunted.Game
                 v.Head.localRotation = Quaternion.Euler((float)(-pitch * Mathf.Rad2Deg), 0, 0);
                 v.Body.transform.localScale = new Vector3(1, b.Crouching ? 0.6f : 1, 1);
                 if (camera != null) v.Label.transform.rotation = camera.transform.rotation;
+                v.Eyes.SetActive(now < v.EyesUntil);
             }
         }
     }

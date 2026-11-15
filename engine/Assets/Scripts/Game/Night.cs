@@ -21,6 +21,26 @@ namespace Haunted.Game
         public class Award { public string Title, Why; public List<string> Names = new List<string>(); }
         public class TimelineLine { public string Time, Text; }
         public class RoleLine { public string Name, Role; }
+        /// <summary>A Spirit Camera photo once it develops (GDD 15.2): who is in it, and the ghost if it was.</summary>
+        public class Photo
+        {
+            public class Subject { public string Name; public double FrameX, Dist; public bool Demon; }
+            public string By;
+            public double NightTime;
+            public List<Subject> Subjects = new List<Subject>();
+            public bool Ghost;
+            public double GhostX, GhostDist;
+        }
+        /// <summary>A power of the possessed and where it stands (GDD 14.2).</summary>
+        public class Power { public string Kind, State; public double CooldownLeft; }
+        /// <summary>A meeting's vote, to everyone (GDD 16.3).</summary>
+        public class VoteResult
+        {
+            public string Removed, Role;
+            public List<KeyValuePair<string, int>> Tally = new List<KeyValuePair<string, int>>();
+            public int Skip;
+            public List<string> Votes = new List<string>();
+        }
         public class MatchEnd
         {
             public string Winner, Reason, Ghost;
@@ -78,6 +98,22 @@ namespace Haunted.Game
         public double BannerUntil;
         public string HuntPhase = "";
         public int Hunts;
+        /// <summary>The photos that developed as the last meeting began: its evidence.</summary>
+        public List<Photo> NewPhotos = new List<Photo>();
+        /// <summary>Every photo of the night, for the end screen (GDD 19).</summary>
+        public List<Photo> EndPhotos = new List<Photo>();
+        /// <summary>Your powers (possessed only), or null; and how long your curse glow lasts.</summary>
+        public List<Power> Powers;
+        public double CurseLeft;
+        /// <summary>Where the Ouija planchette rests this meeting: a name, "" for "I don't know", null if it has not moved.</summary>
+        public string OuijaTarget;
+        public string OuijaLog = "";
+        public VoteResult Result;
+        public event Action<Dictionary<string, object>> GhostMoved;
+        public event Action<string> Hunted;
+        /// <summary>A sound from somewhere (bellRing, doorSlam, powerWhisper, relicDrop) and where (simulation x, z).</summary>
+        public event Action<string, double, double> SoundAt;
+        public event Action<string> EyesGlow;
         /// <summary>A camera flash: who took it and where they stood.</summary>
         public event Action<string, double, double> Flashed;
         /// <summary>Hands-on work (GDD 26.5): the server opened a task or place for you (id, minigame), closed it (id, reason), found the relic in it (id), or someone's task made a noise (x, z, minigame).</summary>
@@ -165,6 +201,7 @@ namespace Haunted.Game
                     end.Awards.Add(award);
                 }
                 end.Photos = Items(m, "photos").Count;
+                EndPhotos = Photos(m);
                 End = end;
                 Debug.Log("Match end: " + end.Winner + " (" + end.Reason + ")");
             });
@@ -173,6 +210,7 @@ namespace Haunted.Game
                 HuntPhase = Str(m, "phase");
                 if (HuntPhase == "start") Hunts++;
                 Debug.Log("Hunt " + HuntPhase);
+                if (Hunted != null) Hunted(HuntPhase);
             });
             room.OnMessage<Dictionary<string, object>>("startRefused", m => Refuse(Str(m, "reason")));
             room.OnMessage<Dictionary<string, object>>("lobbyRefused", m => Refuse(Str(m, "reason")));
@@ -197,10 +235,87 @@ namespace Haunted.Game
             room.OnMessage<Dictionary<string, object>>("taskClosed", m => { if (TaskClosed != null) TaskClosed(Str(m, "stationId"), Str(m, "reason")); });
             room.OnMessage<Dictionary<string, object>>("searchFound", m => { if (SearchFound != null) SearchFound(Str(m, "stationId")); });
             room.OnMessage<Dictionary<string, object>>("taskNoise", m => { if (TaskNoise != null) TaskNoise(Num(m["x"]), Num(m["z"]), Str(m, "minigame")); });
-            // Handled in later parts of step C (items, tasks, the ghost, meetings, powers); heard now so
-            // the SDK does not warn about them.
-            foreach (var type in new[] { "ghost", "bellRing", "micCheck", "micLost", "photosDeveloped", "powers", "powerRefused", "powerWhisper", "eyeGlow", "doorSlam", "ouijaMove", "meetingResult", "relicDrop" })
+            // The ghost, meetings and powers (step C4).
+            room.OnMessage<Dictionary<string, object>>("ghost", m => { if (GhostMoved != null) GhostMoved(m); });
+            foreach (var type in new[] { "bellRing", "doorSlam", "powerWhisper", "relicDrop" })
+            {
+                string kind = type;
+                room.OnMessage<Dictionary<string, object>>(kind, m => { if (SoundAt != null) SoundAt(kind, Num(m["x"]), Num(m["z"])); });
+            }
+            room.OnMessage<Dictionary<string, object>>("eyeGlow", m => { Debug.Log("Eyes glow: " + Str(m, "id")); if (EyesGlow != null) EyesGlow(Str(m, "id")); });
+            room.OnMessage<Dictionary<string, object>>("photosDeveloped", m =>
+            {
+                NewPhotos = Photos(m);
+                Debug.Log("Photos developed: " + NewPhotos.Count);
+            });
+            room.OnMessage<Dictionary<string, object>>("powers", m =>
+            {
+                var list = new List<Power>();
+                foreach (var o in Items(m, "list"))
+                {
+                    var p = (IDictionary)o;
+                    list.Add(new Power { Kind = (string)p["kind"], State = (string)p["state"], CooldownLeft = Num(p["cooldownLeft"]) });
+                }
+                Powers = list;
+                CurseLeft = Num(m["curseLeft"]);
+            });
+            room.OnMessage<Dictionary<string, object>>("powerRefused", m =>
+            {
+                string name;
+                ShowBanner((PowerNames.TryGetValue(Str(m, "kind"), out name) ? name : Str(m, "kind")) + ": " + Str(m, "reason"), 3);
+            });
+            room.OnMessage<Dictionary<string, object>>("ouijaMove", m =>
+            {
+                // The planchette slides onto the name (or "I don't know").
+                string target = m.ContainsKey("target") ? m["target"] as string : null;
+                OuijaTarget = target ?? "";
+                OuijaLog = (OuijaLog != "" ? OuijaLog + "  " : "The planchette moves: ") + (target ?? "I don't know") + ".";
+                Debug.Log("Ouija: " + OuijaLog);
+            });
+            room.OnMessage<Dictionary<string, object>>("meetingResult", m =>
+            {
+                var r = new VoteResult { Removed = m.ContainsKey("removed") ? m["removed"] as string : null, Role = m.ContainsKey("role") ? m["role"] as string : null, Skip = (int)Num(m["skip"]) };
+                foreach (var o in Items(m, "tally")) { var t = (IDictionary)o; r.Tally.Add(new KeyValuePair<string, int>((string)t["name"], (int)Num(t["votes"]))); }
+                if (m.ContainsKey("votes") && m["votes"] != null)
+                    foreach (var o in Items(m, "votes")) { var v = (IDictionary)o; r.Votes.Add(v["voter"] + " voted " + v["target"]); }
+                Result = r;
+                Debug.Log("Meeting result: " + (r.Removed ?? "nobody") + " (" + (r.Role ?? "role hidden") + ")");
+            });
+            // Voice is not tested here (step B covers it); heard so the SDK does not warn.
+            foreach (var type in new[] { "micCheck", "micLost" })
                 room.OnMessage<object>(type, m => { });
+        }
+
+        public static readonly Dictionary<string, string> PowerNames = new Dictionary<string, string>
+        {
+            { "slamDoor", "Slam Door" }, { "summon", "Summon" }, { "blackout", "Blackout" }, { "taint", "Taint" }, { "alterClue", "Alter a clue" },
+        };
+
+        /// <summary>A new meeting: its Ouija board and result start empty.</summary>
+        public void NewMeeting()
+        {
+            OuijaTarget = null;
+            OuijaLog = "";
+            Result = null;
+        }
+
+        static List<Photo> Photos(Dictionary<string, object> m)
+        {
+            var list = new List<Photo>();
+            foreach (var o in Items(m, "photos"))
+            {
+                var p = (IDictionary)o;
+                var photo = new Photo { By = (string)p["by"], NightTime = Num(p["nightTime"]) };
+                foreach (var so in (IList)p["subjects"])
+                {
+                    var sd = (IDictionary)so;
+                    photo.Subjects.Add(new Photo.Subject { Name = (string)sd["name"], FrameX = Num(sd["frameX"]), Dist = Num(sd["dist"]), Demon = (bool)sd["demon"] });
+                }
+                var g = p.Contains("ghost") ? p["ghost"] as IDictionary : null;
+                if (g != null) { photo.Ghost = true; photo.GhostX = Num(g["frameX"]); photo.GhostDist = Num(g["dist"]); }
+                list.Add(photo);
+            }
+            return list;
         }
 
         void Refuse(string reason)
