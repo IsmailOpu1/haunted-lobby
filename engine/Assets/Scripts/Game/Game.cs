@@ -20,6 +20,7 @@ namespace Haunted.Game
     ///   -script walk       walk a fixed loop instead of reading the keys
     ///   -shot path -shotAt 12   save a screenshot after 12 s in the room
     ///   -quitAt 20         quit after 20 s in the room
+    ///   -teleportAt 40 -20 -17   at 40 s in the room, ask a debug server to move us to x -20, z -17
     /// </summary>
     public class Game : MonoBehaviour
     {
@@ -46,7 +47,8 @@ namespace Haunted.Game
 
         // Unattended test options.
         string codeFile, shotPath;
-        double shotAt = -1, quitAt = -1;
+        double shotAt = -1, quitAt = -1, teleportAt = -1;
+        float teleportX, teleportZ;
         bool shotTaken;
 
         void Awake()
@@ -95,6 +97,13 @@ namespace Haunted.Game
             shotPath = arg("-shot");
             if (arg("-shotAt") != null) shotAt = double.Parse(arg("-shotAt"), CultureInfo.InvariantCulture);
             if (arg("-quitAt") != null) quitAt = double.Parse(arg("-quitAt"), CultureInfo.InvariantCulture);
+            int teleportArg = Array.IndexOf(args, "-teleportAt");
+            if (teleportArg >= 0 && teleportArg + 3 < args.Length)
+            {
+                teleportAt = double.Parse(args[teleportArg + 1], CultureInfo.InvariantCulture);
+                teleportX = float.Parse(args[teleportArg + 2], CultureInfo.InvariantCulture);
+                teleportZ = float.Parse(args[teleportArg + 3], CultureInfo.InvariantCulture);
+            }
             if (arg("-voiceTone") != null) voiceToneHz = float.Parse(arg("-voiceTone"), CultureInfo.InvariantCulture);
             string script = arg("-script");
             if (Array.IndexOf(args, "-create") >= 0) Connect(null, script);
@@ -260,6 +269,12 @@ namespace Haunted.Game
                 shotTaken = true;
                 ScreenCapture.CaptureScreenshot(shotPath);
                 Debug.Log("Screenshot saved to " + shotPath + " with " + others.Count + " other players in view list");
+            }
+            if (teleportAt >= 0 && t >= teleportAt)
+            {
+                teleportAt = -1;
+                room.Send("debug", new Dictionary<string, object> { { "teleport", new Dictionary<string, object> { { "x", teleportX }, { "z", teleportZ } } } });
+                Debug.Log("Asked to move to " + teleportX + ", " + teleportZ);
             }
             if (quitAt >= 0 && t >= quitAt) Quit();
         }
