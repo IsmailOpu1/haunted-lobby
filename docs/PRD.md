@@ -447,6 +447,8 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 - Fix the top 10 bugs from playtests
 - **Done when:** every balance target is inside its range.
 
+- Owner, 2026-11-15: the friend matches, balance and bug list wait until the Unity version is built ("Once I finish the work, I'll test it with them"). Phase 9c goes ahead now; the 8-player and 200 ms tests above are done.
+
 **Phase 9b: Tutorial and Training Room (owner moved them here, 2026-11-14)**
 - Tutorial (about 3 minutes) and solo Training Room (GDD 26.15), built once balance has settled so they teach the final rules
 - **Done when:** a stranger can join, learn from the tutorial, and finish a match without asking anything.

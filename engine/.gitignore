@@ -1,0 +1,11 @@
+# Unity makes these; they are never committed.
+Library/
+Temp/
+Obj/
+obj/
+Logs/
+UserSettings/
+Build/
+Builds/
+*.csproj
+*.sln
