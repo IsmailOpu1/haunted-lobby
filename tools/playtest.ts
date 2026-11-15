@@ -12,7 +12,7 @@
 //   PLAYERS=8 plays with more bots (2 to 8; default 2). For lag, run tools/lagProxy.ts and point
 //   ENDPOINT at it (ws://localhost:2568).
 import { Client, type Room } from "@colyseus/sdk";
-import { config, furnitureBox, hidingSpotBox, ROOM_NAME, roomAt, type ServerMessages } from "@haunted/shared";
+import { altarStands, config, furnitureBox, hidingSpotBox, ROOM_NAME, roomAt, type ServerMessages } from "@haunted/shared";
 import { marrowHotelGreybox as map } from "@haunted/maps";
 
 type Point = { x: number; z: number };
@@ -171,6 +171,33 @@ class Bot {
     }
   }
 
+  /**
+   * Who was the ghost? (GDD 26.13): reads the clue pictures the team's clue tasks left, takes the
+   * suspect most of them point at, and offers that suspect's belonging on the altar.
+   */
+  async solveMystery() {
+    await until(() => [...this.state.relics.values()].every((r: any) => r.status === "placed" || r.status === "crumbled") || !!this.end, 120, "relics placed");
+    const altar = map.altar!;
+    const keys = [...this.state.relics.keys()] as string[];
+    const stands = altarStands(altar, keys.length);
+    while (!this.state.ghostNamed && !this.end) {
+      await until(() => this.state.altarWait <= 0, 40, "altar ready");
+      const votes = new Map<string, number>();
+      this.state.stations.forEach((st: any) => st.clue && votes.set(st.clue, (votes.get(st.clue) ?? 0) + 1));
+      const tried = new Set(keys.filter((k) => this.state.relics.get(k).status === "crumbled").map((k) => this.state.relics.get(k).name));
+      const ranked = (map.suspects ?? []).filter((s) => !tried.has(s.belonging)).sort((x, y) => (votes.get(y.id) ?? 0) - (votes.get(x.id) ?? 0));
+      const pick = ranked[0];
+      const i = keys.findIndex((k) => this.state.relics.get(k).name === pick?.belonging && this.state.relics.get(k).status === "placed");
+      if (!pick || i < 0) throw new Error("no relic left to offer");
+      log(this.name, `clues: ${[...votes].map(([id, n]) => `${id} ${n}`).join(", ") || "none"}; offering ${pick.belonging} (${pick.name})`);
+      await this.waitUntilAlive();
+      await this.teleport({ x: stands[i]!.x, z: stands[i]!.z + 0.6 });
+      await this.hold(config.mystery.offerHoldSec + 0.5);
+      await until(() => !!this.state.ghostNamed || this.state.relics.get(keys[i]!).status === "crumbled" || !!this.end, 5, "offering answered").catch(() => {});
+      log(this.name, this.state.ghostNamed ? `right: the ghost was ${this.state.ghostNamed}` : `wrong: ${pick.belonging} crumbled`);
+    }
+  }
+
   async placeRelic(id: string, name: string) {
     const door = map.doors.find((d) => d.id === map.relicDoor)!;
     await this.teleport({ x: door.x, z: door.z + 1.5 });
@@ -218,8 +245,8 @@ async function main() {
   log("room", `code ${a.room.roomId}; mode ${mode}; ${a.state.players.size} players, ${a.state.tasksTotal} tasks`);
   const bots = [a, b, ...more];
   // In their own room the bots skip the host's countdown and the intro (in a joined room, the host starts).
-  // The bots don't solve the mystery (offering the ghost's own relic, GDD 26.13): their night has none.
-  if (!joinCode) a.room.send("debug", { mystery: false });
+  // MYSTERY=0 plays without "Who was the ghost?" (GDD 26.13); otherwise the bots solve it.
+  if (!joinCode && process.env.MYSTERY === "0") a.room.send("debug", { mystery: false });
   if (!joinCode) a.room.send("debug", { startNow: true });
   await until(() => a.state.stage === "night", 30, "night start");
 
@@ -258,6 +285,7 @@ async function main() {
     // Split the work like a team would: each does their own tasks and searches a share of the spots.
     const spots = map.relicSpots.map((s) => s.id);
     await Promise.all(bots.map((bot, k) => bot.doTasks().then(() => bot.findRelics(spots.filter((_, i) => i % bots.length === k)))));
+    if (map.suspects?.length && JSON.parse(a.state.settings || "{}").mystery !== false) await a.solveMystery();
     const others = a.state.tasksTotal - a.state.tasksDone;
     if (others > 0) log("room", `waiting for the other players' ${others} tasks`);
     await until(() => a.state.ritualReady || !!a.end, 600, "ritual ready");

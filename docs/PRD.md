@@ -451,6 +451,10 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 - Tutorial (about 3 minutes) and solo Training Room (GDD 26.15), built once balance has settled so they teach the final rules
 - **Done when:** a stranger can join, learn from the tutorial, and finish a match without asking anything.
 
+**Phase 9c: Downloadable version (owner asked for the plan, 2026-11-15)**
+- A Windows game in Unity 6 that plays on the same server, rules and voice, with a better look and steadier speed. Steps, engine comparison and open questions in `docs/plans/engine-port.md` (awaiting the owner's answers)
+- **Done when:** a friend downloads it, installs it and plays a match with no help.
+
 **Phase 10: Release (1 to 2 weeks)**
 - Production server and a domain
 - Share the link with 10 friends, collect feedback with a simple form
