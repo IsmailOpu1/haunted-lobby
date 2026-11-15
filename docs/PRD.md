@@ -452,7 +452,7 @@ Work one phase at a time. **A phase is finished only when its "Done when" test p
 - **Done when:** a stranger can join, learn from the tutorial, and finish a match without asking anything.
 
 **Phase 9c: Downloadable version (owner asked for the plan, 2026-11-15)**
-- A Windows game in Unity 6 that plays on the same server, rules and voice, with a better look and steadier speed. Steps, engine comparison and open questions in `docs/plans/engine-port.md` (awaiting the owner's answers)
+- A Windows game in Unity 6 that plays on the same server, rules and voice, with a better look and steadier speed. Steps, engine comparison and open questions in `docs/plans/engine-port.md` (approved 2026-11-15; Unity 6, Windows first, free on itch.io)
 - **Done when:** a friend downloads it, installs it and plays a match with no help.
 
 **Phase 10: Release (1 to 2 weeks)**

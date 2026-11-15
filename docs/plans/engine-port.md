@@ -1,6 +1,6 @@
 # Plan: the downloadable version (after Phase 9)
 
-Written 2026-11-15 at the owner's request ("create a plan to download the engine after phase 9"). Status: **plan, not approved yet**. The open questions at the end need the owner's answers before work starts.
+Written 2026-11-15 at the owner's request ("create a plan to download the engine after phase 9"). Status: **approved 2026-11-15** (owner: "Do whatever you prefer. If that's the best you can get, do it."), so the recommended answer to each question in section 7 stands.
 
 ## 1. Goal
 
@@ -40,7 +40,7 @@ Each step ends with a test, like the PRD's phases. The browser version keeps wor
 | A. Spike (1 week) | Unity project in `engine/`, Colyseus SDK, schema code made from `server/src/state.ts`, grey-box hotel from map data, walk and look | One Unity player and one browser player see each other walk in the same room |
 | B. Movement and voice (1 week) | Movement ported to C# with the matching test; LiveKit voice with proximity routing from the server | The movement test passes; two players hear each other only when near |
 | C. The night (2 to 3 weeks) | Tasks and relic spots hands-on in 3D (as the owner wants: no 2D windows), items, hunts, meetings, ritual, mystery, end screen | The scripted bots (`tools/playtest.ts`) and a Unity player finish a night together, every ending |
-| D. The hotel (2 to 3 weeks) | Dressed rooms from the Blender scripts as glTF, lighting baked in Unity, characters and animations, the held torch, post-processing, sound | Every room matches or beats the browser version's look, checked room by room with screenshots |
+| D. The hotel (2 to 3 weeks) | Dressed rooms from the Blender scripts as glTF (doorway arch posts start 1 cm under the floor, ending the browser version's flicker where an arch meets the Nursery floor), lighting baked in Unity, characters and animations, the held torch, post-processing, sound | Every room matches or beats the browser version's look, checked room by room with screenshots |
 | E. Menus and settings (1 week) | Start, Create, Join, Options, Mic check, Room, Room settings, the same font pair, accessibility options | Every menu screen from Phase 7 works; the speed test runs |
 | F. Release build (1 week) | Windows installer, auto-update check against the server's version, upload to itch.io (free) | A friend downloads it, installs it and plays a match with no help |
 
@@ -64,7 +64,7 @@ About 8 to 10 weeks in all. The tutorial and Training Room (Phase 9b) are best b
 | Download size | Baked lighting and compressed textures; target under 2 GB |
 | Windows warns about an unsigned download | Expected for a free indie game; signing costs money (question 5) |
 
-## 7. Questions for the owner
+## 7. Questions for the owner (answered 2026-11-15: the recommended answer to each)
 
 1. Is Unity 6 the engine? (Recommended above.)
 2. Windows only to start? (Mac and Linux builds later are possible.)
@@ -73,3 +73,15 @@ About 8 to 10 weeks in all. The tutorial and Training Room (Phase 9b) are best b
 5. Free download on itch.io first? (Steam costs a $100 fee per game, and code signing costs money each year.)
 
 Sources: Colyseus SDKs (docs.colyseus.io/sdk, docs.colyseus.io/getting-started/unity, docs.colyseus.io/getting-started/godot), LiveKit Unity SDK (docs.livekit.io/transport/sdk-platforms/unity, livekit.com/blog/unity-sdk-production-launch), community Unreal client (github.com/charisma-ai/colyseus-unreal).
+
+### Answers (owner left them to Claude, 2026-11-15)
+
+1. Unity 6, URP.
+2. Windows first.
+3. The tutorial and Training Room are built once, in the Unity version.
+4. The browser version stays playable until the Unity version passes step F, then the owner decides.
+5. Free on itch.io first; no paid signing yet.
+
+### Before step A can start
+
+The owner installs Unity Hub and Unity 6 (LTS) and signs in to a free Unity account (Claude never types passwords). Everything after that Claude does by script. Groundwork that needs no Unity is done (2026-11-15): `npx tsx tools/engine-export.ts` writes `engine-data/map.json`, `config.json` and `movement-cases.json` (10 cases, 780 steps the C# movement must match), and `npx schema-codegen server/src/state.ts --csharp --output engine-data/schema/` writes the server's state as C# classes. Run both again after changing the map, the config, movement or the state.

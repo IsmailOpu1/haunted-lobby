@@ -1,0 +1,5646 @@
+{
+  "id": "marrow-hotel-greybox",
+  "name": "Marrow Hotel (grey box)",
+  "wallHeightM": 3,
+  "wallThicknessM": 0.2,
+  "levels": [
+    {
+      "id": "ground",
+      "name": "Ground floor",
+      "minX": -33,
+      "maxX": 33,
+      "minZ": -32,
+      "maxZ": 28.5,
+      "y": 0,
+      "shiftX": 0,
+      "shiftZ": 0
+    },
+    {
+      "id": "upper",
+      "name": "Upper floor",
+      "minX": 67,
+      "maxX": 133,
+      "minZ": -32,
+      "maxZ": 28.5,
+      "y": 3,
+      "shiftX": -100,
+      "shiftZ": 0
+    },
+    {
+      "id": "basement",
+      "name": "Basement",
+      "minX": 170,
+      "maxX": 214,
+      "minZ": -30,
+      "maxZ": 18,
+      "y": -3,
+      "shiftX": -200,
+      "shiftZ": 0
+    }
+  ],
+  "stairs": [
+    {
+      "id": "grand-stairs",
+      "lower": "ground",
+      "upper": "upper",
+      "x": 7.75,
+      "z": 14,
+      "dir": "-z",
+      "lengthM": 6,
+      "widthM": 2.5
+    },
+    {
+      "id": "back-stairs",
+      "lower": "ground",
+      "upper": "upper",
+      "x": 21.75,
+      "z": -10.5,
+      "dir": "-z",
+      "lengthM": 6,
+      "widthM": 2.5
+    },
+    {
+      "id": "cellar-stairs",
+      "lower": "basement",
+      "upper": "ground",
+      "x": 192.25,
+      "z": 8,
+      "dir": "+z",
+      "lengthM": 6,
+      "widthM": 2.5
+    }
+  ],
+  "walls": [
+    [
+      -23,
+      4.5,
+      -11,
+      4.5
+    ],
+    [
+      -9.5,
+      4.5,
+      -1.25,
+      4.5
+    ],
+    [
+      1.25,
+      4.5,
+      9.5,
+      4.5
+    ],
+    [
+      11,
+      4.5,
+      16.25,
+      4.5
+    ],
+    [
+      17.75,
+      4.5,
+      23,
+      4.5
+    ],
+    [
+      -23,
+      18.5,
+      23,
+      18.5
+    ],
+    [
+      -9,
+      2,
+      -0.75,
+      2
+    ],
+    [
+      0.75,
+      2,
+      9,
+      2
+    ],
+    [
+      -9,
+      -14,
+      -0.75,
+      -14
+    ],
+    [
+      0.75,
+      -14,
+      9,
+      -14
+    ],
+    [
+      -11.5,
+      -16.5,
+      11.5,
+      -16.5
+    ],
+    [
+      -23,
+      11.5,
+      -17,
+      11.5
+    ],
+    [
+      -23,
+      -6,
+      -11.5,
+      -6
+    ],
+    [
+      11.5,
+      -6,
+      23,
+      -6
+    ],
+    [
+      -23,
+      0,
+      -19.1,
+      0
+    ],
+    [
+      -17.9,
+      0,
+      -17,
+      0
+    ],
+    [
+      -23,
+      -20,
+      -11.5,
+      -20
+    ],
+    [
+      17,
+      13.5,
+      19.4,
+      13.5
+    ],
+    [
+      20.6,
+      13.5,
+      23,
+      13.5
+    ],
+    [
+      11.5,
+      -17,
+      13.9,
+      -17
+    ],
+    [
+      15.1,
+      -17,
+      17,
+      -17
+    ],
+    [
+      11.5,
+      -22,
+      23,
+      -22
+    ],
+    [
+      -9,
+      -14,
+      -9,
+      2
+    ],
+    [
+      -9,
+      4.5,
+      -9,
+      8
+    ],
+    [
+      -9,
+      14,
+      -9,
+      18.5
+    ],
+    [
+      9,
+      -14,
+      9,
+      2
+    ],
+    [
+      9,
+      4.5,
+      9,
+      8
+    ],
+    [
+      9,
+      14,
+      9,
+      18.5
+    ],
+    [
+      -11.5,
+      -20,
+      -11.5,
+      -16
+    ],
+    [
+      -11.5,
+      -14.5,
+      -11.5,
+      -10.75
+    ],
+    [
+      -11.5,
+      -9.25,
+      -11.5,
+      -2.75
+    ],
+    [
+      -11.5,
+      -1.25,
+      -11.5,
+      4.5
+    ],
+    [
+      11.5,
+      -22,
+      11.5,
+      -16
+    ],
+    [
+      11.5,
+      -14.5,
+      11.5,
+      -2.75
+    ],
+    [
+      11.5,
+      -1.25,
+      11.5,
+      4.5
+    ],
+    [
+      -17,
+      -6,
+      -17,
+      0
+    ],
+    [
+      -17,
+      4.5,
+      -17,
+      7.4
+    ],
+    [
+      -17,
+      8.6,
+      -17,
+      14.4
+    ],
+    [
+      -17,
+      15.6,
+      -17,
+      18.5
+    ],
+    [
+      -23,
+      -20,
+      -23,
+      18.5
+    ],
+    [
+      23,
+      -22,
+      23,
+      -16.5
+    ],
+    [
+      23,
+      -10.5,
+      23,
+      18.5
+    ],
+    [
+      17,
+      -22,
+      17,
+      -17
+    ],
+    [
+      17,
+      13.5,
+      17,
+      18.5
+    ],
+    [
+      80.5,
+      2,
+      88.5,
+      2
+    ],
+    [
+      91,
+      2,
+      109,
+      2
+    ],
+    [
+      79.5,
+      4.5,
+      89,
+      4.5
+    ],
+    [
+      90.5,
+      4.5,
+      94.75,
+      4.5
+    ],
+    [
+      96.25,
+      4.5,
+      103.25,
+      4.5
+    ],
+    [
+      104.75,
+      4.5,
+      106.5,
+      4.5
+    ],
+    [
+      109,
+      4.5,
+      109.5,
+      4.5
+    ],
+    [
+      111,
+      4.5,
+      123,
+      4.5
+    ],
+    [
+      77,
+      -14,
+      88.5,
+      -14
+    ],
+    [
+      91,
+      -14,
+      109,
+      -14
+    ],
+    [
+      79.5,
+      8,
+      83,
+      8
+    ],
+    [
+      117,
+      8,
+      120.5,
+      8
+    ],
+    [
+      88.5,
+      -16.5,
+      111.5,
+      -16.5
+    ],
+    [
+      114.5,
+      -16.5,
+      120.5,
+      -16.5
+    ],
+    [
+      91,
+      18.5,
+      109,
+      18.5
+    ],
+    [
+      83,
+      11.5,
+      91,
+      11.5
+    ],
+    [
+      109,
+      11.5,
+      117,
+      11.5
+    ],
+    [
+      77,
+      -5,
+      88.5,
+      -5
+    ],
+    [
+      77,
+      -1.5,
+      80.5,
+      -1.5
+    ],
+    [
+      80.5,
+      -7,
+      88.5,
+      -7
+    ],
+    [
+      77,
+      -10.5,
+      80.5,
+      -10.5
+    ],
+    [
+      111.5,
+      -6,
+      123,
+      -6
+    ],
+    [
+      111.5,
+      -22,
+      123,
+      -22
+    ],
+    [
+      111.5,
+      -9,
+      114.5,
+      -9
+    ],
+    [
+      88.5,
+      -16.5,
+      88.5,
+      -10.75
+    ],
+    [
+      88.5,
+      -9.25,
+      88.5,
+      -2.25
+    ],
+    [
+      88.5,
+      -0.75,
+      88.5,
+      4.5
+    ],
+    [
+      111.5,
+      -22,
+      111.5,
+      -16
+    ],
+    [
+      111.5,
+      -14.5,
+      111.5,
+      -10.75
+    ],
+    [
+      111.5,
+      -9.25,
+      111.5,
+      -2.25
+    ],
+    [
+      111.5,
+      -0.75,
+      111.5,
+      4.5
+    ],
+    [
+      109,
+      -14,
+      109,
+      2
+    ],
+    [
+      109,
+      4.5,
+      109,
+      8
+    ],
+    [
+      109,
+      14,
+      109,
+      18.5
+    ],
+    [
+      106.5,
+      4.5,
+      106.5,
+      8
+    ],
+    [
+      91,
+      -14,
+      91,
+      2
+    ],
+    [
+      91,
+      4.5,
+      91,
+      18.5
+    ],
+    [
+      100,
+      4.5,
+      100,
+      18.5
+    ],
+    [
+      83,
+      4.5,
+      83,
+      5.75
+    ],
+    [
+      83,
+      6.75,
+      83,
+      11.5
+    ],
+    [
+      79.5,
+      4.5,
+      79.5,
+      8
+    ],
+    [
+      80.5,
+      -14,
+      80.5,
+      -12.75
+    ],
+    [
+      80.5,
+      -11.75,
+      80.5,
+      -7
+    ],
+    [
+      80.5,
+      -5,
+      80.5,
+      -3.75
+    ],
+    [
+      80.5,
+      -2.75,
+      80.5,
+      2
+    ],
+    [
+      77,
+      -14,
+      77,
+      -10.5
+    ],
+    [
+      77,
+      -5,
+      77,
+      -1.5
+    ],
+    [
+      117,
+      4.5,
+      117,
+      5.75
+    ],
+    [
+      117,
+      6.75,
+      117,
+      11.5
+    ],
+    [
+      120.5,
+      4.5,
+      120.5,
+      8
+    ],
+    [
+      123,
+      -22,
+      123,
+      -16.5
+    ],
+    [
+      123,
+      -6,
+      123,
+      4.5
+    ],
+    [
+      114.5,
+      -16.5,
+      114.5,
+      -9
+    ],
+    [
+      180,
+      2,
+      191,
+      2
+    ],
+    [
+      193.5,
+      2,
+      204,
+      2
+    ],
+    [
+      189,
+      8,
+      191,
+      8
+    ],
+    [
+      193.5,
+      8,
+      195.5,
+      8
+    ],
+    [
+      180,
+      -10,
+      182.25,
+      -10
+    ],
+    [
+      183.75,
+      -10,
+      199.75,
+      -10
+    ],
+    [
+      201.25,
+      -10,
+      204,
+      -10
+    ],
+    [
+      182,
+      -20,
+      202,
+      -20
+    ],
+    [
+      189,
+      2,
+      189,
+      8
+    ],
+    [
+      195.5,
+      2,
+      195.5,
+      8
+    ],
+    [
+      191,
+      -10,
+      191,
+      -0.75
+    ],
+    [
+      191,
+      0.75,
+      191,
+      2
+    ],
+    [
+      193.5,
+      -10,
+      193.5,
+      -0.75
+    ],
+    [
+      193.5,
+      0.75,
+      193.5,
+      2
+    ],
+    [
+      180,
+      -10,
+      180,
+      2
+    ],
+    [
+      204,
+      -10,
+      204,
+      2
+    ],
+    [
+      182,
+      -20,
+      182,
+      -10
+    ],
+    [
+      202,
+      -20,
+      202,
+      -10
+    ]
+  ],
+  "doors": [
+    {
+      "id": "hall-front",
+      "x": 0,
+      "z": 4.5,
+      "width": 2.5,
+      "axis": "x"
+    },
+    {
+      "id": "reception-front",
+      "x": -10.25,
+      "z": 4.5,
+      "width": 1.5,
+      "axis": "x"
+    },
+    {
+      "id": "restaurant-front",
+      "x": 10.25,
+      "z": 4.5,
+      "width": 1.5,
+      "axis": "x"
+    },
+    {
+      "id": "library-west",
+      "x": -11.5,
+      "z": -2,
+      "width": 1.5,
+      "axis": "z"
+    },
+    {
+      "id": "ballroom-west",
+      "x": -11.5,
+      "z": -10,
+      "width": 1.5,
+      "axis": "z"
+    },
+    {
+      "id": "ballroom-north",
+      "x": -11.5,
+      "z": -15.25,
+      "width": 1.5,
+      "axis": "z"
+    },
+    {
+      "id": "kitchen-restaurant",
+      "x": 17,
+      "z": 4.5,
+      "width": 1.5,
+      "axis": "x"
+    },
+    {
+      "id": "kitchen-east",
+      "x": 11.5,
+      "z": -2,
+      "width": 1.5,
+      "axis": "z"
+    },
+    {
+      "id": "service-north",
+      "x": 11.5,
+      "z": -15.25,
+      "width": 1.5,
+      "axis": "z"
+    },
+    {
+      "id": "courtyard-front",
+      "x": 0,
+      "z": 2,
+      "width": 1.5,
+      "axis": "x"
+    },
+    {
+      "id": "courtyard-north",
+      "x": 0,
+      "z": -14,
+      "width": 1.5,
+      "axis": "x"
+    },
+    {
+      "id": "reception-office",
+      "x": -17,
+      "z": 15,
+      "width": 1.2,
+      "axis": "z"
+    },
+    {
+      "id": "reception-luggage",
+      "x": -17,
+      "z": 8,
+      "width": 1.2,
+      "axis": "z"
+    },
+    {
+      "id": "library-study",
+      "x": -18.5,
+      "z": 0,
+      "width": 1.2,
+      "axis": "x"
+    },
+    {
+      "id": "restaurant-bar",
+      "x": 20,
+      "z": 13.5,
+      "width": 1.2,
+      "axis": "x"
+    },
+    {
+      "id": "service-fuse",
+      "x": 14.5,
+      "z": -17,
+      "width": 1.2,
+      "axis": "x"
+    },
+    {
+      "id": "bridal-corridor",
+      "x": 95.5,
+      "z": 4.5,
+      "width": 1.5,
+      "axis": "x"
+    },
+    {
+      "id": "nursery-corridor",
+      "x": 104,
+      "z": 4.5,
+      "width": 1.5,
+      "axis": "x"
+    },
+    {
+      "id": "guest1-corridor",
+      "x": 89.75,
+      "z": 4.5,
+      "width": 1.5,
+      "axis": "x"
+    },
+    {
+      "id": "guest2-corridor",
+      "x": 88.5,
+      "z": -1.5,
+      "width": 1.5,
+      "axis": "z"
+    },
+    {
+      "id": "guest3-corridor",
+      "x": 88.5,
+      "z": -10,
+      "width": 1.5,
+      "axis": "z"
+    },
+    {
+      "id": "guest4-corridor",
+      "x": 110.25,
+      "z": 4.5,
+      "width": 1.5,
+      "axis": "x"
+    },
+    {
+      "id": "staff-corridor",
+      "x": 111.5,
+      "z": -1.5,
+      "width": 1.5,
+      "axis": "z"
+    },
+    {
+      "id": "laundry-corridor",
+      "x": 111.5,
+      "z": -10,
+      "width": 1.5,
+      "axis": "z"
+    },
+    {
+      "id": "laundry-north",
+      "x": 111.5,
+      "z": -15.25,
+      "width": 1.5,
+      "axis": "z"
+    },
+    {
+      "id": "guest1-bath",
+      "x": 83,
+      "z": 6.25,
+      "width": 1,
+      "axis": "z"
+    },
+    {
+      "id": "guest2-bath",
+      "x": 80.5,
+      "z": -3.25,
+      "width": 1,
+      "axis": "z"
+    },
+    {
+      "id": "guest3-bath",
+      "x": 80.5,
+      "z": -12.25,
+      "width": 1,
+      "axis": "z"
+    },
+    {
+      "id": "guest4-bath",
+      "x": 117,
+      "z": 6.25,
+      "width": 1,
+      "axis": "z"
+    },
+    {
+      "id": "relic-door",
+      "x": 192.25,
+      "z": 2,
+      "width": 2.5,
+      "axis": "x"
+    },
+    {
+      "id": "passage-wine",
+      "x": 191,
+      "z": 0,
+      "width": 1.5,
+      "axis": "z"
+    },
+    {
+      "id": "passage-storage",
+      "x": 193.5,
+      "z": 0,
+      "width": 1.5,
+      "axis": "z"
+    },
+    {
+      "id": "wine-ritual",
+      "x": 183,
+      "z": -10,
+      "width": 1.5,
+      "axis": "x"
+    },
+    {
+      "id": "storage-ritual",
+      "x": 200.5,
+      "z": -10,
+      "width": 1.5,
+      "axis": "x"
+    }
+  ],
+  "rooms": [
+    {
+      "name": "Main Hall",
+      "minX": -6.5,
+      "maxX": 6.5,
+      "minZ": 4.5,
+      "maxZ": 18.5
+    },
+    {
+      "name": "Main Hall",
+      "minX": -9,
+      "maxX": -6.5,
+      "minZ": 4.5,
+      "maxZ": 8
+    },
+    {
+      "name": "Main Hall",
+      "minX": -9,
+      "maxX": -6.5,
+      "minZ": 14,
+      "maxZ": 18.5
+    },
+    {
+      "name": "Main Hall",
+      "minX": 6.5,
+      "maxX": 9,
+      "minZ": 4.5,
+      "maxZ": 8
+    },
+    {
+      "name": "Main Hall",
+      "minX": 6.5,
+      "maxX": 9,
+      "minZ": 14,
+      "maxZ": 18.5
+    },
+    {
+      "name": "Front Corridor",
+      "minX": -11.5,
+      "maxX": 11.5,
+      "minZ": 2,
+      "maxZ": 4.5
+    },
+    {
+      "name": "West Corridor",
+      "minX": -11.5,
+      "maxX": -9,
+      "minZ": -14,
+      "maxZ": 2
+    },
+    {
+      "name": "East Corridor",
+      "minX": 9,
+      "maxX": 11.5,
+      "minZ": -14,
+      "maxZ": 2
+    },
+    {
+      "name": "North Corridor",
+      "minX": -11.5,
+      "maxX": 11.5,
+      "minZ": -16.5,
+      "maxZ": -14
+    },
+    {
+      "name": "Garden Courtyard",
+      "minX": -9,
+      "maxX": 9,
+      "minZ": -14,
+      "maxZ": 2,
+      "outdoor": true
+    },
+    {
+      "name": "Reception",
+      "minX": -17,
+      "maxX": -9,
+      "minZ": 4.5,
+      "maxZ": 18.5
+    },
+    {
+      "name": "Reception",
+      "part": "back office",
+      "minX": -23,
+      "maxX": -17,
+      "minZ": 11.5,
+      "maxZ": 18.5
+    },
+    {
+      "name": "Reception",
+      "part": "luggage room",
+      "minX": -23,
+      "maxX": -17,
+      "minZ": 4.5,
+      "maxZ": 11.5
+    },
+    {
+      "name": "Library",
+      "minX": -17,
+      "maxX": -11.5,
+      "minZ": -6,
+      "maxZ": 4.5
+    },
+    {
+      "name": "Library",
+      "minX": -23,
+      "maxX": -17,
+      "minZ": 0,
+      "maxZ": 4.5
+    },
+    {
+      "name": "Library",
+      "part": "study",
+      "minX": -23,
+      "maxX": -17,
+      "minZ": -6,
+      "maxZ": 0
+    },
+    {
+      "name": "Ballroom",
+      "minX": -23,
+      "maxX": -11.5,
+      "minZ": -20,
+      "maxZ": -6
+    },
+    {
+      "name": "Restaurant",
+      "minX": 9,
+      "maxX": 23,
+      "minZ": 4.5,
+      "maxZ": 13.5
+    },
+    {
+      "name": "Restaurant",
+      "minX": 9,
+      "maxX": 17,
+      "minZ": 13.5,
+      "maxZ": 18.5
+    },
+    {
+      "name": "Restaurant",
+      "part": "bar",
+      "minX": 17,
+      "maxX": 23,
+      "minZ": 13.5,
+      "maxZ": 18.5
+    },
+    {
+      "name": "Kitchen",
+      "minX": 11.5,
+      "maxX": 23,
+      "minZ": -6,
+      "maxZ": 4.5
+    },
+    {
+      "name": "Service Room",
+      "minX": 11.5,
+      "maxX": 20.5,
+      "minZ": -17,
+      "maxZ": -6
+    },
+    {
+      "name": "Service Room",
+      "minX": 17,
+      "maxX": 20.5,
+      "minZ": -22,
+      "maxZ": -17
+    },
+    {
+      "name": "Service Room",
+      "part": "fuse room",
+      "minX": 11.5,
+      "maxX": 17,
+      "minZ": -22,
+      "maxZ": -17
+    },
+    {
+      "name": "Service Room",
+      "minX": 20.5,
+      "maxX": 23,
+      "minZ": -22,
+      "maxZ": -16.5
+    },
+    {
+      "name": "Service Room",
+      "minX": 20.5,
+      "maxX": 23,
+      "minZ": -10.5,
+      "maxZ": -6
+    },
+    {
+      "name": "Upper Corridor",
+      "minX": 88.5,
+      "maxX": 111.5,
+      "minZ": 2,
+      "maxZ": 4.5
+    },
+    {
+      "name": "Upper Corridor",
+      "minX": 109,
+      "maxX": 111.5,
+      "minZ": -14,
+      "maxZ": 2
+    },
+    {
+      "name": "Upper Corridor",
+      "minX": 106.5,
+      "maxX": 109,
+      "minZ": 4.5,
+      "maxZ": 8
+    },
+    {
+      "name": "Guest Corridor",
+      "minX": 88.5,
+      "maxX": 91,
+      "minZ": -14,
+      "maxZ": 2
+    },
+    {
+      "name": "Guest Corridor",
+      "minX": 88.5,
+      "maxX": 111.5,
+      "minZ": -16.5,
+      "maxZ": -14
+    },
+    {
+      "name": "Bridal Suite",
+      "minX": 91,
+      "maxX": 100,
+      "minZ": 4.5,
+      "maxZ": 18.5
+    },
+    {
+      "name": "Nursery",
+      "minX": 100,
+      "maxX": 106.5,
+      "minZ": 4.5,
+      "maxZ": 18.5
+    },
+    {
+      "name": "Nursery",
+      "minX": 106.5,
+      "maxX": 109,
+      "minZ": 14,
+      "maxZ": 18.5
+    },
+    {
+      "name": "Guest Room 1",
+      "minX": 83,
+      "maxX": 91,
+      "minZ": 4.5,
+      "maxZ": 11.5
+    },
+    {
+      "name": "Guest Room 1",
+      "part": "bathroom",
+      "minX": 79.5,
+      "maxX": 83,
+      "minZ": 4.5,
+      "maxZ": 8
+    },
+    {
+      "name": "Guest Room 2",
+      "minX": 80.5,
+      "maxX": 88.5,
+      "minZ": -5,
+      "maxZ": 2
+    },
+    {
+      "name": "Guest Room 2",
+      "part": "bathroom",
+      "minX": 77,
+      "maxX": 80.5,
+      "minZ": -5,
+      "maxZ": -1.5
+    },
+    {
+      "name": "Guest Room 3",
+      "minX": 80.5,
+      "maxX": 88.5,
+      "minZ": -14,
+      "maxZ": -7
+    },
+    {
+      "name": "Guest Room 3",
+      "part": "bathroom",
+      "minX": 77,
+      "maxX": 80.5,
+      "minZ": -14,
+      "maxZ": -10.5
+    },
+    {
+      "name": "Guest Room 4",
+      "minX": 109,
+      "maxX": 117,
+      "minZ": 4.5,
+      "maxZ": 11.5
+    },
+    {
+      "name": "Guest Room 4",
+      "part": "bathroom",
+      "minX": 117,
+      "maxX": 120.5,
+      "minZ": 4.5,
+      "maxZ": 8
+    },
+    {
+      "name": "Staff Quarters",
+      "minX": 111.5,
+      "maxX": 123,
+      "minZ": -6,
+      "maxZ": 4.5
+    },
+    {
+      "name": "Laundry",
+      "minX": 111.5,
+      "maxX": 120.5,
+      "minZ": -22,
+      "maxZ": -16.5
+    },
+    {
+      "name": "Laundry",
+      "minX": 120.5,
+      "maxX": 123,
+      "minZ": -22,
+      "maxZ": -16.5
+    },
+    {
+      "name": "Laundry",
+      "minX": 111.5,
+      "maxX": 114.5,
+      "minZ": -16.5,
+      "maxZ": -9
+    },
+    {
+      "name": "Stairwell",
+      "minX": 189,
+      "maxX": 195.5,
+      "minZ": 2,
+      "maxZ": 8
+    },
+    {
+      "name": "Cellar Passage",
+      "minX": 191,
+      "maxX": 193.5,
+      "minZ": -10,
+      "maxZ": 2
+    },
+    {
+      "name": "Wine Cellar",
+      "minX": 180,
+      "maxX": 191,
+      "minZ": -10,
+      "maxZ": 2
+    },
+    {
+      "name": "Storage",
+      "minX": 193.5,
+      "maxX": 204,
+      "minZ": -10,
+      "maxZ": 2
+    },
+    {
+      "name": "Ritual Room",
+      "minX": 182,
+      "maxX": 202,
+      "minZ": -20,
+      "maxZ": -10
+    }
+  ],
+  "hidingSpots": [
+    {
+      "id": "hall-wardrobe-west",
+      "kind": "wardrobe",
+      "x": -4,
+      "z": 18.1,
+      "sizeX": 1.2,
+      "sizeZ": 0.6,
+      "exit": {
+        "x": -4,
+        "z": 17.35
+      }
+    },
+    {
+      "id": "hall-wardrobe-east",
+      "kind": "wardrobe",
+      "x": 4,
+      "z": 18.1,
+      "sizeX": 1.2,
+      "sizeZ": 0.6,
+      "exit": {
+        "x": 4,
+        "z": 17.35
+      }
+    },
+    {
+      "id": "front-curtain",
+      "kind": "curtain",
+      "x": -6,
+      "z": 2.3,
+      "sizeX": 1,
+      "sizeZ": 0.4,
+      "exit": {
+        "x": -6,
+        "z": 2.95
+      }
+    },
+    {
+      "id": "west-curtain",
+      "kind": "curtain",
+      "x": -9.3,
+      "z": -12,
+      "sizeX": 0.4,
+      "sizeZ": 1,
+      "exit": {
+        "x": -9.95,
+        "z": -12
+      }
+    },
+    {
+      "id": "east-curtain",
+      "kind": "curtain",
+      "x": 9.3,
+      "z": -12,
+      "sizeX": 0.4,
+      "sizeZ": 1,
+      "exit": {
+        "x": 9.95,
+        "z": -12
+      }
+    },
+    {
+      "id": "north-curtain",
+      "kind": "curtain",
+      "x": -4,
+      "z": -16.2,
+      "sizeX": 1,
+      "sizeZ": 0.4,
+      "exit": {
+        "x": -4,
+        "z": -15.55
+      }
+    },
+    {
+      "id": "courtyard-shed-west",
+      "kind": "cupboard",
+      "x": -8.6,
+      "z": -11,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": -7.85,
+        "z": -11
+      }
+    },
+    {
+      "id": "courtyard-shed-east",
+      "kind": "cupboard",
+      "x": 8.6,
+      "z": -11,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": 7.85,
+        "z": -11
+      }
+    },
+    {
+      "id": "reception-wardrobe",
+      "kind": "wardrobe",
+      "x": -22.6,
+      "z": 9,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": -21.85,
+        "z": 9
+      }
+    },
+    {
+      "id": "reception-cupboard",
+      "kind": "cupboard",
+      "x": -16,
+      "z": 18.1,
+      "sizeX": 1.2,
+      "sizeZ": 0.6,
+      "exit": {
+        "x": -16,
+        "z": 17.35
+      }
+    },
+    {
+      "id": "library-wardrobe",
+      "kind": "wardrobe",
+      "x": -22.6,
+      "z": -4.5,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": -21.85,
+        "z": -4.5
+      }
+    },
+    {
+      "id": "library-cupboard",
+      "kind": "cupboard",
+      "x": -13.5,
+      "z": -5.6,
+      "sizeX": 1.2,
+      "sizeZ": 0.6,
+      "exit": {
+        "x": -13.5,
+        "z": -4.85
+      }
+    },
+    {
+      "id": "ballroom-curtain",
+      "kind": "curtain",
+      "x": -22.7,
+      "z": -8,
+      "sizeX": 0.4,
+      "sizeZ": 1,
+      "exit": {
+        "x": -22.05,
+        "z": -8
+      }
+    },
+    {
+      "id": "ballroom-wardrobe",
+      "kind": "wardrobe",
+      "x": -13.5,
+      "z": -19.6,
+      "sizeX": 1.2,
+      "sizeZ": 0.6,
+      "exit": {
+        "x": -13.5,
+        "z": -18.85
+      }
+    },
+    {
+      "id": "restaurant-wardrobe",
+      "kind": "wardrobe",
+      "x": 22.6,
+      "z": 8,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": 21.85,
+        "z": 8
+      }
+    },
+    {
+      "id": "restaurant-curtain",
+      "kind": "curtain",
+      "x": 19,
+      "z": 18.2,
+      "sizeX": 1,
+      "sizeZ": 0.4,
+      "exit": {
+        "x": 19,
+        "z": 17.55
+      }
+    },
+    {
+      "id": "kitchen-cupboard",
+      "kind": "cupboard",
+      "x": 22.6,
+      "z": 3,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": 21.85,
+        "z": 3
+      }
+    },
+    {
+      "id": "kitchen-pantry",
+      "kind": "cupboard",
+      "x": 13.5,
+      "z": 4.1,
+      "sizeX": 1.2,
+      "sizeZ": 0.6,
+      "exit": {
+        "x": 13.5,
+        "z": 3.35
+      }
+    },
+    {
+      "id": "service-wardrobe",
+      "kind": "wardrobe",
+      "x": 16,
+      "z": -21.6,
+      "sizeX": 1.2,
+      "sizeZ": 0.6,
+      "exit": {
+        "x": 16,
+        "z": -20.85
+      }
+    },
+    {
+      "id": "service-cupboard",
+      "kind": "cupboard",
+      "x": 20.1,
+      "z": -13,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": 19.35,
+        "z": -13
+      }
+    },
+    {
+      "id": "upper-front-curtain",
+      "kind": "curtain",
+      "x": 93,
+      "z": 2.3,
+      "sizeX": 1,
+      "sizeZ": 0.4,
+      "exit": {
+        "x": 93,
+        "z": 2.95
+      }
+    },
+    {
+      "id": "upper-east-curtain",
+      "kind": "curtain",
+      "x": 109.3,
+      "z": -8,
+      "sizeX": 0.4,
+      "sizeZ": 1,
+      "exit": {
+        "x": 109.95,
+        "z": -8
+      }
+    },
+    {
+      "id": "guest-west-curtain",
+      "kind": "curtain",
+      "x": 90.7,
+      "z": 0,
+      "sizeX": 0.4,
+      "sizeZ": 1,
+      "exit": {
+        "x": 90.05,
+        "z": 0
+      }
+    },
+    {
+      "id": "guest-north-curtain",
+      "kind": "curtain",
+      "x": 100,
+      "z": -14.3,
+      "sizeX": 1,
+      "sizeZ": 0.4,
+      "exit": {
+        "x": 100,
+        "z": -14.95
+      }
+    },
+    {
+      "id": "bridal-wardrobe-west",
+      "kind": "wardrobe",
+      "x": 91.4,
+      "z": 7,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": 92.15,
+        "z": 7
+      }
+    },
+    {
+      "id": "bridal-wardrobe-south",
+      "kind": "wardrobe",
+      "x": 98,
+      "z": 18.1,
+      "sizeX": 1.2,
+      "sizeZ": 0.6,
+      "exit": {
+        "x": 98,
+        "z": 17.35
+      }
+    },
+    {
+      "id": "nursery-wardrobe",
+      "kind": "wardrobe",
+      "x": 100.4,
+      "z": 8.5,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": 101.15,
+        "z": 8.5
+      }
+    },
+    {
+      "id": "nursery-cupboard",
+      "kind": "cupboard",
+      "x": 104,
+      "z": 18.1,
+      "sizeX": 1.2,
+      "sizeZ": 0.6,
+      "exit": {
+        "x": 104,
+        "z": 17.35
+      }
+    },
+    {
+      "id": "guest1-wardrobe-west",
+      "kind": "wardrobe",
+      "x": 83.4,
+      "z": 10,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": 84.15,
+        "z": 10
+      }
+    },
+    {
+      "id": "guest1-wardrobe-south",
+      "kind": "wardrobe",
+      "x": 90.6,
+      "z": 7.5,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": 89.85,
+        "z": 7.5
+      }
+    },
+    {
+      "id": "guest2-wardrobe",
+      "kind": "wardrobe",
+      "x": 80.9,
+      "z": -0.3,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": 81.65,
+        "z": -0.3
+      }
+    },
+    {
+      "id": "guest2-cupboard",
+      "kind": "cupboard",
+      "x": 84,
+      "z": 1.6,
+      "sizeX": 1.2,
+      "sizeZ": 0.6,
+      "exit": {
+        "x": 84,
+        "z": 0.8500000000000001
+      }
+    },
+    {
+      "id": "guest3-wardrobe",
+      "kind": "wardrobe",
+      "x": 80.9,
+      "z": -8.5,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": 81.65,
+        "z": -8.5
+      }
+    },
+    {
+      "id": "guest3-curtain",
+      "kind": "curtain",
+      "x": 86,
+      "z": -13.7,
+      "sizeX": 1,
+      "sizeZ": 0.4,
+      "exit": {
+        "x": 86,
+        "z": -13.05
+      }
+    },
+    {
+      "id": "guest4-wardrobe-east",
+      "kind": "wardrobe",
+      "x": 116.6,
+      "z": 9.2,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": 115.85,
+        "z": 9.2
+      }
+    },
+    {
+      "id": "guest4-wardrobe-south",
+      "kind": "wardrobe",
+      "x": 114.8,
+      "z": 11.1,
+      "sizeX": 1.2,
+      "sizeZ": 0.6,
+      "exit": {
+        "x": 114.8,
+        "z": 10.35
+      }
+    },
+    {
+      "id": "staff-wardrobe",
+      "kind": "wardrobe",
+      "x": 116,
+      "z": 4.1,
+      "sizeX": 1.2,
+      "sizeZ": 0.6,
+      "exit": {
+        "x": 116,
+        "z": 3.35
+      }
+    },
+    {
+      "id": "staff-cupboard",
+      "kind": "cupboard",
+      "x": 122.6,
+      "z": -1,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": 121.85,
+        "z": -1
+      }
+    },
+    {
+      "id": "laundry-cupboard",
+      "kind": "cupboard",
+      "x": 118,
+      "z": -16.9,
+      "sizeX": 1.2,
+      "sizeZ": 0.6,
+      "exit": {
+        "x": 118,
+        "z": -17.65
+      }
+    },
+    {
+      "id": "laundry-wardrobe",
+      "kind": "wardrobe",
+      "x": 115,
+      "z": -21.6,
+      "sizeX": 1.2,
+      "sizeZ": 0.6,
+      "exit": {
+        "x": 115,
+        "z": -20.85
+      }
+    },
+    {
+      "id": "stairwell-wardrobe",
+      "kind": "wardrobe",
+      "x": 189.4,
+      "z": 5,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": 190.15,
+        "z": 5
+      }
+    },
+    {
+      "id": "stairwell-cupboard",
+      "kind": "cupboard",
+      "x": 195.1,
+      "z": 5,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": 194.35,
+        "z": 5
+      }
+    },
+    {
+      "id": "passage-curtain",
+      "kind": "curtain",
+      "x": 191.3,
+      "z": -6,
+      "sizeX": 0.4,
+      "sizeZ": 1,
+      "exit": {
+        "x": 191.95,
+        "z": -6
+      }
+    },
+    {
+      "id": "wine-rack-west",
+      "kind": "wardrobe",
+      "x": 180.4,
+      "z": -2,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": 181.15,
+        "z": -2
+      }
+    },
+    {
+      "id": "wine-cupboard",
+      "kind": "cupboard",
+      "x": 185,
+      "z": 1.6,
+      "sizeX": 1.2,
+      "sizeZ": 0.6,
+      "exit": {
+        "x": 185,
+        "z": 0.8500000000000001
+      }
+    },
+    {
+      "id": "storage-cupboard",
+      "kind": "cupboard",
+      "x": 203.6,
+      "z": -2,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": 202.85,
+        "z": -2
+      }
+    },
+    {
+      "id": "storage-wardrobe",
+      "kind": "wardrobe",
+      "x": 200,
+      "z": 1.6,
+      "sizeX": 1.2,
+      "sizeZ": 0.6,
+      "exit": {
+        "x": 200,
+        "z": 0.8500000000000001
+      }
+    },
+    {
+      "id": "ritual-wardrobe-west",
+      "kind": "wardrobe",
+      "x": 182.4,
+      "z": -16.5,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": 183.15,
+        "z": -16.5
+      }
+    },
+    {
+      "id": "ritual-wardrobe-east",
+      "kind": "wardrobe",
+      "x": 201.6,
+      "z": -16.5,
+      "sizeX": 0.6,
+      "sizeZ": 1.2,
+      "exit": {
+        "x": 200.85,
+        "z": -16.5
+      }
+    }
+  ],
+  "saltJars": [
+    {
+      "id": "jar-reception",
+      "x": -22.43,
+      "z": 18.1
+    },
+    {
+      "id": "jar-hall",
+      "x": -7.75,
+      "z": 7.6
+    },
+    {
+      "id": "jar-restaurant",
+      "x": 13,
+      "z": 17.9
+    },
+    {
+      "id": "jar-service",
+      "x": 15.5,
+      "z": -6.375
+    },
+    {
+      "id": "jar-nursery",
+      "x": 100.8,
+      "z": 17.8
+    },
+    {
+      "id": "jar-guest1",
+      "x": 90.2,
+      "z": 10.8
+    },
+    {
+      "id": "jar-staff",
+      "x": 119.5,
+      "z": 3.8
+    },
+    {
+      "id": "jar-laundry",
+      "x": 120,
+      "z": -21.5
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task-clock",
+      "name": "Set the grandfather clock",
+      "room": "Main Hall",
+      "minigame": "clock",
+      "x": 0,
+      "z": 18.207,
+      "visible": true,
+      "noisy": false,
+      "clue": {
+        "x": 1.2,
+        "z": 11,
+        "heightM": 0.88
+      }
+    },
+    {
+      "id": "task-switchboard",
+      "name": "Repair the switchboard",
+      "room": "Reception",
+      "minigame": "switchboard",
+      "x": -22.2,
+      "z": 14,
+      "visible": false,
+      "noisy": false
+    },
+    {
+      "id": "task-letter",
+      "name": "Burn the cursed letter",
+      "room": "Library",
+      "minigame": "letter",
+      "x": -22.3,
+      "z": -1,
+      "visible": true,
+      "noisy": false
+    },
+    {
+      "id": "task-piano",
+      "name": "Tune the piano",
+      "room": "Ballroom",
+      "minigame": "piano",
+      "x": -22.55,
+      "z": -13,
+      "visible": false,
+      "noisy": true
+    },
+    {
+      "id": "task-roses",
+      "name": "Water the dead roses",
+      "room": "Garden Courtyard",
+      "minigame": "roses",
+      "x": -8.65,
+      "z": -6,
+      "visible": false,
+      "noisy": false
+    },
+    {
+      "id": "task-candelabra",
+      "name": "Light the candelabra",
+      "room": "Restaurant",
+      "minigame": "candelabra",
+      "x": 16,
+      "z": 12,
+      "visible": true,
+      "noisy": false
+    },
+    {
+      "id": "task-stove",
+      "name": "Turn off the stove",
+      "room": "Kitchen",
+      "minigame": "stove",
+      "x": 22.55,
+      "z": -1,
+      "visible": false,
+      "noisy": false
+    },
+    {
+      "id": "task-shutters",
+      "name": "Close the shutters",
+      "room": "Upper Corridor",
+      "minigame": "shutters",
+      "x": 100,
+      "z": 2.2,
+      "visible": true,
+      "noisy": true
+    },
+    {
+      "id": "task-portraits",
+      "name": "Straighten the portraits",
+      "room": "Guest Corridor",
+      "minigame": "portraits",
+      "x": 90.805,
+      "z": -6,
+      "visible": true,
+      "noisy": false
+    },
+    {
+      "id": "task-mirror",
+      "name": "Clean the mirror",
+      "room": "Bridal Suite",
+      "minigame": "mirror",
+      "x": 99.3,
+      "z": 12,
+      "visible": false,
+      "noisy": false
+    },
+    {
+      "id": "task-cradle",
+      "name": "Rock the cradle",
+      "room": "Nursery",
+      "minigame": "cradle",
+      "x": 103,
+      "z": 12,
+      "visible": false,
+      "noisy": true
+    },
+    {
+      "id": "task-sheets",
+      "name": "Fold the bedsheets",
+      "room": "Guest Room 1",
+      "minigame": "sheets",
+      "x": 87,
+      "z": 7.5,
+      "visible": false,
+      "noisy": false
+    },
+    {
+      "id": "task-trunk",
+      "name": "Seal the old trunk",
+      "room": "Staff Quarters",
+      "minigame": "trunk",
+      "x": 122.53,
+      "z": 3.3,
+      "visible": false,
+      "noisy": false
+    },
+    {
+      "id": "task-boiler",
+      "name": "Turn the boiler valve",
+      "room": "Laundry",
+      "minigame": "boiler",
+      "x": 112.2,
+      "z": -20,
+      "visible": false,
+      "noisy": false
+    }
+  ],
+  "relicSpots": [
+    {
+      "id": "relic-library",
+      "label": "Open the jewellery box",
+      "room": "Library",
+      "minigame": "lockbox",
+      "x": -22.55,
+      "z": 3.5
+    },
+    {
+      "id": "relic-ballroom",
+      "label": "Open the jewellery box",
+      "room": "Ballroom",
+      "minigame": "lockbox",
+      "x": -22.55,
+      "z": -19.39
+    },
+    {
+      "id": "relic-courtyard",
+      "label": "Dig in the flower bed",
+      "room": "Garden Courtyard",
+      "minigame": "dig",
+      "x": 5,
+      "z": -12.2,
+      "places": [
+        {
+          "id": "relic-courtyard-1",
+          "x": 5,
+          "z": -12.2
+        },
+        {
+          "id": "relic-courtyard-2",
+          "x": 5,
+          "z": -10
+        },
+        {
+          "id": "relic-courtyard-3",
+          "x": 5,
+          "z": -7.8
+        }
+      ]
+    },
+    {
+      "id": "relic-restaurant",
+      "label": "Open the jewellery box",
+      "room": "Restaurant",
+      "minigame": "lockbox",
+      "x": 22.55,
+      "z": 17.85
+    },
+    {
+      "id": "relic-kitchen",
+      "label": "Reach into the drain",
+      "room": "Kitchen",
+      "minigame": "drain",
+      "x": 19,
+      "z": -5.3
+    },
+    {
+      "id": "relic-service",
+      "label": "Reach into the drain",
+      "room": "Service Room",
+      "minigame": "drain",
+      "x": 19.5,
+      "z": -21.3
+    },
+    {
+      "id": "relic-bridal",
+      "label": "Open the jewellery box",
+      "room": "Bridal Suite",
+      "minigame": "lockbox",
+      "x": 95.5,
+      "z": 17.8
+    },
+    {
+      "id": "relic-nursery",
+      "label": "Dig in the plant pot",
+      "room": "Nursery",
+      "minigame": "dig",
+      "x": 108.3,
+      "z": 17.8,
+      "places": [
+        {
+          "id": "relic-nursery-1",
+          "x": 108.3,
+          "z": 17.8
+        },
+        {
+          "id": "relic-nursery-2",
+          "x": 108.3,
+          "z": 15.5
+        },
+        {
+          "id": "relic-nursery-3",
+          "x": 106,
+          "z": 17.8
+        }
+      ]
+    },
+    {
+      "id": "relic-guest2",
+      "label": "Open the jewellery box",
+      "room": "Guest Room 2",
+      "minigame": "lockbox",
+      "x": 81.15,
+      "z": 1.3
+    },
+    {
+      "id": "relic-guest4",
+      "label": "Open the jewellery box",
+      "room": "Guest Room 4",
+      "minigame": "lockbox",
+      "x": 116.35,
+      "z": 10.8
+    },
+    {
+      "id": "relic-laundry",
+      "label": "Reach into the drain",
+      "room": "Laundry",
+      "minigame": "drain",
+      "x": 117,
+      "z": -21.3
+    },
+    {
+      "id": "relic-guest-corridor",
+      "label": "Dig in the plant pot",
+      "room": "Guest Corridor",
+      "minigame": "dig",
+      "x": 92.5,
+      "z": -15.965,
+      "places": [
+        {
+          "id": "relic-guest-corridor-1",
+          "x": 92.5,
+          "z": -15.965
+        },
+        {
+          "id": "relic-guest-corridor-2",
+          "x": 95,
+          "z": -15.965
+        },
+        {
+          "id": "relic-guest-corridor-3",
+          "x": 97.5,
+          "z": -15.965
+        }
+      ]
+    }
+  ],
+  "relicNames": [
+    "the Founder's Ring",
+    "the Silver Bell",
+    "the Music Box",
+    "the Wedding Portrait",
+    "the Brass Key"
+  ],
+  "suspects": [
+    {
+      "id": "bride",
+      "icon": "👰",
+      "name": "the Bride",
+      "belonging": "the Wedding Portrait",
+      "clues": {
+        "mirror": "a face in a veil",
+        "portraits": "a woman in a wedding dress",
+        "switchboard": "a call from the Bridal Suite"
+      }
+    },
+    {
+      "id": "bellboy",
+      "icon": "🛎️",
+      "name": "the Bellboy",
+      "belonging": "the Silver Bell",
+      "clues": {
+        "mirror": "a face under a pillbox cap",
+        "portraits": "a boy in a bellboy's uniform",
+        "switchboard": "a call from the Staff Quarters"
+      }
+    },
+    {
+      "id": "founder",
+      "icon": "🎩",
+      "name": "the Founder",
+      "belonging": "the Founder's Ring",
+      "clues": {
+        "mirror": "a face under a top hat",
+        "portraits": "an old man with a ring",
+        "switchboard": "a call from the Library"
+      }
+    },
+    {
+      "id": "child",
+      "icon": "🎀",
+      "name": "the Child",
+      "belonging": "the Music Box",
+      "clues": {
+        "mirror": "a small face with ribbons",
+        "portraits": "a girl holding a music box",
+        "switchboard": "a call from the Nursery"
+      }
+    }
+  ],
+  "spawns": [
+    {
+      "x": -3,
+      "z": 9.5
+    },
+    {
+      "x": 3,
+      "z": 9.5
+    },
+    {
+      "x": -3,
+      "z": 12.5
+    },
+    {
+      "x": 3,
+      "z": 12.5
+    },
+    {
+      "x": -5,
+      "z": 11
+    },
+    {
+      "x": 5,
+      "z": 11
+    },
+    {
+      "x": -1,
+      "z": 14
+    },
+    {
+      "x": 1,
+      "z": 14
+    }
+  ],
+  "furniture": [
+    {
+      "id": "hall-meeting-table",
+      "kind": "table",
+      "room": "Main Hall",
+      "x": 0,
+      "z": 11,
+      "sizeX": 4.5,
+      "sizeZ": 1.4,
+      "heightM": 0.88
+    },
+    {
+      "id": "hall-sofa-west",
+      "kind": "sofa",
+      "room": "Main Hall",
+      "x": -4.2,
+      "z": 5.065,
+      "sizeX": 2.73,
+      "sizeZ": 0.93,
+      "heightM": 1.1
+    },
+    {
+      "id": "hall-coffee-west",
+      "kind": "table",
+      "room": "Main Hall",
+      "x": -4.2,
+      "z": 6.5,
+      "sizeX": 1.54,
+      "sizeZ": 0.97,
+      "heightM": 0.52
+    },
+    {
+      "id": "hall-armchair-west",
+      "kind": "chair",
+      "room": "Main Hall",
+      "x": -6,
+      "z": 6.6,
+      "sizeX": 0.77,
+      "sizeZ": 0.85,
+      "heightM": 1.06
+    },
+    {
+      "id": "hall-sofa-east",
+      "kind": "sofa",
+      "room": "Main Hall",
+      "x": 4.2,
+      "z": 4.93,
+      "sizeX": 1.57,
+      "sizeZ": 0.66,
+      "heightM": 0.8
+    },
+    {
+      "id": "hall-coffee-east",
+      "kind": "table",
+      "room": "Main Hall",
+      "x": 4.2,
+      "z": 6.5,
+      "sizeX": 1.44,
+      "sizeZ": 1.44,
+      "heightM": 0.56
+    },
+    {
+      "id": "hall-chair-east",
+      "kind": "chair",
+      "room": "Main Hall",
+      "x": 5.9,
+      "z": 6.5,
+      "sizeX": 0.66,
+      "sizeZ": 0.67,
+      "heightM": 1.06
+    },
+    {
+      "id": "hall-ottoman",
+      "kind": "chair",
+      "room": "Main Hall",
+      "x": 2.75,
+      "z": 6.5,
+      "sizeX": 0.62,
+      "sizeZ": 0.89,
+      "heightM": 0.62
+    },
+    {
+      "id": "hall-side-east",
+      "kind": "table",
+      "room": "Main Hall",
+      "x": 5.75,
+      "z": 4.85,
+      "sizeX": 0.55,
+      "sizeZ": 0.45,
+      "heightM": 0.55
+    },
+    {
+      "id": "hall-console-west",
+      "kind": "counter",
+      "room": "Main Hall",
+      "x": -2,
+      "z": 18.105,
+      "sizeX": 1.54,
+      "sizeZ": 0.59,
+      "heightM": 0.95
+    },
+    {
+      "id": "hall-console-east",
+      "kind": "counter",
+      "room": "Main Hall",
+      "x": 2,
+      "z": 18.105,
+      "sizeX": 1.54,
+      "sizeZ": 0.59,
+      "heightM": 0.95
+    },
+    {
+      "id": "hall-side-southeast",
+      "kind": "table",
+      "room": "Main Hall",
+      "x": 5.8,
+      "z": 17.9,
+      "sizeX": 0.55,
+      "sizeZ": 0.45,
+      "heightM": 0.55
+    },
+    {
+      "id": "hall-plant-door-west",
+      "kind": "plant",
+      "room": "Main Hall",
+      "x": -1.95,
+      "z": 5.05,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 0.84
+    },
+    {
+      "id": "hall-plant-door-east",
+      "kind": "plant",
+      "room": "Main Hall",
+      "x": 1.95,
+      "z": 5.05,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 0.84
+    },
+    {
+      "id": "hall-plant-southwest",
+      "kind": "plant",
+      "room": "Main Hall",
+      "x": -5.8,
+      "z": 17.8,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 1.35
+    },
+    {
+      "id": "hall-salt-cabinet",
+      "kind": "counter",
+      "room": "Main Hall",
+      "x": -7.75,
+      "z": 7.69,
+      "sizeX": 0.9,
+      "sizeZ": 0.42,
+      "heightM": 0.79,
+      "of": "jar-hall"
+    },
+    {
+      "id": "hall-luggage",
+      "kind": "crates",
+      "room": "Main Hall",
+      "x": 7.75,
+      "z": 18.25,
+      "sizeX": 1.61,
+      "sizeZ": 0.3,
+      "heightM": 0.57
+    },
+    {
+      "id": "hall-bell-stand",
+      "kind": "table",
+      "room": "Main Hall",
+      "x": 0,
+      "z": 8.5,
+      "sizeX": 0.4,
+      "sizeZ": 0.4,
+      "heightM": 1.03,
+      "of": "bell"
+    },
+    {
+      "id": "hall-clock-case",
+      "kind": "shelf",
+      "room": "Main Hall",
+      "x": 0,
+      "z": 18.185,
+      "sizeX": 0.63,
+      "sizeZ": 0.43,
+      "heightM": 2.19,
+      "of": "task-clock"
+    },
+    {
+      "id": "reception-desk",
+      "kind": "counter",
+      "room": "Reception",
+      "x": -13.5,
+      "z": 15.5,
+      "sizeX": 4,
+      "sizeZ": 1,
+      "heightM": 1.1
+    },
+    {
+      "id": "reception-keys",
+      "kind": "shelf",
+      "room": "Reception",
+      "x": -13.5,
+      "z": 18.25,
+      "sizeX": 1.8,
+      "sizeZ": 0.3,
+      "heightM": 2.1
+    },
+    {
+      "id": "reception-commode",
+      "kind": "counter",
+      "room": "Reception",
+      "x": -11,
+      "z": 18.11,
+      "sizeX": 1.2,
+      "sizeZ": 0.58,
+      "heightM": 1.21
+    },
+    {
+      "id": "reception-pillar-west",
+      "kind": "pillar",
+      "room": "Reception",
+      "x": -15,
+      "z": 12.5,
+      "sizeX": 0.5,
+      "sizeZ": 0.5,
+      "heightM": 3
+    },
+    {
+      "id": "reception-pillar-east",
+      "kind": "pillar",
+      "room": "Reception",
+      "x": -12,
+      "z": 12.5,
+      "sizeX": 0.5,
+      "sizeZ": 0.5,
+      "heightM": 3
+    },
+    {
+      "id": "reception-sofa",
+      "kind": "sofa",
+      "room": "Reception",
+      "x": -9.51,
+      "z": 9,
+      "sizeX": 0.82,
+      "sizeZ": 1.81,
+      "heightM": 0.71
+    },
+    {
+      "id": "reception-side-north",
+      "kind": "table",
+      "room": "Reception",
+      "x": -9.29,
+      "z": 7.6,
+      "sizeX": 0.38,
+      "sizeZ": 0.38,
+      "heightM": 0.76
+    },
+    {
+      "id": "reception-side-south",
+      "kind": "table",
+      "room": "Reception",
+      "x": -9.29,
+      "z": 10.4,
+      "sizeX": 0.38,
+      "sizeZ": 0.38,
+      "heightM": 0.76
+    },
+    {
+      "id": "reception-coffee",
+      "kind": "table",
+      "room": "Reception",
+      "x": -10.65,
+      "z": 9,
+      "sizeX": 0.97,
+      "sizeZ": 1.54,
+      "heightM": 0.52
+    },
+    {
+      "id": "reception-armchair-north",
+      "kind": "chair",
+      "room": "Reception",
+      "x": -11.95,
+      "z": 8.4,
+      "sizeX": 0.77,
+      "sizeZ": 0.85,
+      "heightM": 1.06
+    },
+    {
+      "id": "reception-armchair-south",
+      "kind": "chair",
+      "room": "Reception",
+      "x": -11.95,
+      "z": 9.6,
+      "sizeX": 0.77,
+      "sizeZ": 0.85,
+      "heightM": 1.06
+    },
+    {
+      "id": "reception-plant-northwest",
+      "kind": "plant",
+      "room": "Reception",
+      "x": -16.5,
+      "z": 5.05,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 1.35
+    },
+    {
+      "id": "reception-plant-east",
+      "kind": "plant",
+      "room": "Reception",
+      "x": -9.45,
+      "z": 13.2,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 0.84
+    },
+    {
+      "id": "office-desk",
+      "kind": "table",
+      "room": "Reception",
+      "x": -20,
+      "z": 11.88,
+      "sizeX": 1.33,
+      "sizeZ": 0.56,
+      "heightM": 0.83
+    },
+    {
+      "id": "office-chair",
+      "kind": "chair",
+      "room": "Reception",
+      "x": -20,
+      "z": 12.75,
+      "sizeX": 0.43,
+      "sizeZ": 0.58,
+      "heightM": 0.97
+    },
+    {
+      "id": "office-files",
+      "kind": "shelf",
+      "room": "Reception",
+      "x": -17.35,
+      "z": 12.7,
+      "sizeX": 0.5,
+      "sizeZ": 1.2,
+      "heightM": 1.25
+    },
+    {
+      "id": "office-salt-cabinet",
+      "kind": "counter",
+      "room": "Reception",
+      "x": -22.43,
+      "z": 18.19,
+      "sizeX": 0.9,
+      "sizeZ": 0.42,
+      "heightM": 0.79,
+      "of": "jar-reception"
+    },
+    {
+      "id": "office-ledgers",
+      "kind": "shelf",
+      "room": "Reception",
+      "x": -19.5,
+      "z": 18.11,
+      "sizeX": 1.37,
+      "sizeZ": 0.58,
+      "heightM": 2.06
+    },
+    {
+      "id": "office-switchboard",
+      "kind": "shelf",
+      "room": "Reception",
+      "x": -22.425,
+      "z": 14,
+      "sizeX": 0.95,
+      "sizeZ": 1.24,
+      "heightM": 1.9,
+      "of": "task-switchboard"
+    },
+    {
+      "id": "luggage-shelf-west",
+      "kind": "shelf",
+      "room": "Reception",
+      "x": -21.4,
+      "z": 4.9,
+      "sizeX": 1.4,
+      "sizeZ": 0.6,
+      "heightM": 1.6
+    },
+    {
+      "id": "luggage-shelf-east",
+      "kind": "shelf",
+      "room": "Reception",
+      "x": -19.6,
+      "z": 4.9,
+      "sizeX": 1.4,
+      "sizeZ": 0.6,
+      "heightM": 1.6
+    },
+    {
+      "id": "luggage-trunk",
+      "kind": "crates",
+      "room": "Reception",
+      "x": -21.3,
+      "z": 11.14,
+      "sizeX": 0.96,
+      "sizeZ": 0.52,
+      "heightM": 0.62
+    },
+    {
+      "id": "luggage-crate",
+      "kind": "crates",
+      "room": "Reception",
+      "x": -22.635,
+      "z": 6.4,
+      "sizeX": 0.53,
+      "sizeZ": 1.17,
+      "heightM": 0.46
+    },
+    {
+      "id": "luggage-trolley",
+      "kind": "crates",
+      "room": "Reception",
+      "x": -18.3,
+      "z": 11.1,
+      "sizeX": 1,
+      "sizeZ": 0.6,
+      "heightM": 1.75
+    },
+    {
+      "id": "luggage-cases",
+      "kind": "crates",
+      "room": "Reception",
+      "x": -19.9,
+      "z": 11.25,
+      "sizeX": 1.61,
+      "sizeZ": 0.3,
+      "heightM": 0.57
+    },
+    {
+      "id": "library-books-east-north",
+      "kind": "shelf",
+      "room": "Library",
+      "x": -11.81,
+      "z": -4.6,
+      "sizeX": 0.42,
+      "sizeZ": 2.2,
+      "heightM": 2.5
+    },
+    {
+      "id": "library-books-east",
+      "kind": "shelf",
+      "room": "Library",
+      "x": -11.81,
+      "z": 0.35,
+      "sizeX": 0.42,
+      "sizeZ": 2.2,
+      "heightM": 2.5
+    },
+    {
+      "id": "library-books-east-south",
+      "kind": "shelf",
+      "room": "Library",
+      "x": -11.81,
+      "z": 2.65,
+      "sizeX": 0.42,
+      "sizeZ": 2.2,
+      "heightM": 2.5
+    },
+    {
+      "id": "library-books-south-west",
+      "kind": "shelf",
+      "room": "Library",
+      "x": -15.65,
+      "z": 4.19,
+      "sizeX": 2.3,
+      "sizeZ": 0.42,
+      "heightM": 2.5
+    },
+    {
+      "id": "library-books-south-east",
+      "kind": "shelf",
+      "room": "Library",
+      "x": -13.25,
+      "z": 4.19,
+      "sizeX": 2.3,
+      "sizeZ": 0.42,
+      "heightM": 2.5
+    },
+    {
+      "id": "library-catalogue",
+      "kind": "shelf",
+      "room": "Library",
+      "x": -15.9,
+      "z": -5.395,
+      "sizeX": 1.72,
+      "sizeZ": 1.01,
+      "heightM": 1.09
+    },
+    {
+      "id": "library-table",
+      "kind": "table",
+      "room": "Library",
+      "x": -14.6,
+      "z": -1.6,
+      "sizeX": 1.1,
+      "sizeZ": 2.8,
+      "heightM": 0.78
+    },
+    {
+      "id": "library-chair-west-north",
+      "kind": "chair",
+      "room": "Library",
+      "x": -15.4,
+      "z": -2.4,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "library-chair-west-south",
+      "kind": "chair",
+      "room": "Library",
+      "x": -15.4,
+      "z": -0.8,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "library-chair-east-north",
+      "kind": "chair",
+      "room": "Library",
+      "x": -13.8,
+      "z": -2.4,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "library-chair-east-south",
+      "kind": "chair",
+      "room": "Library",
+      "x": -13.8,
+      "z": -0.8,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "library-armchair-west",
+      "kind": "chair",
+      "room": "Library",
+      "x": -15.6,
+      "z": 2.3,
+      "sizeX": 0.85,
+      "sizeZ": 0.77,
+      "heightM": 1.06
+    },
+    {
+      "id": "library-chess-table",
+      "kind": "table",
+      "room": "Library",
+      "x": -14.6,
+      "z": 2.3,
+      "sizeX": 0.45,
+      "sizeZ": 0.55,
+      "heightM": 0.55
+    },
+    {
+      "id": "library-armchair-east",
+      "kind": "chair",
+      "room": "Library",
+      "x": -13.6,
+      "z": 2.3,
+      "sizeX": 0.85,
+      "sizeZ": 0.77,
+      "heightM": 1.06
+    },
+    {
+      "id": "library-nightstand",
+      "kind": "table",
+      "room": "Library",
+      "x": -22.69,
+      "z": 0.65,
+      "sizeX": 0.42,
+      "sizeZ": 0.57,
+      "heightM": 0.7
+    },
+    {
+      "id": "library-rocking-chair",
+      "kind": "chair",
+      "room": "Library",
+      "x": -21.6,
+      "z": 1.6,
+      "sizeX": 0.85,
+      "sizeZ": 0.85,
+      "heightM": 0.99
+    },
+    {
+      "id": "library-display-cabinet",
+      "kind": "shelf",
+      "room": "Library",
+      "x": -19.6,
+      "z": 4.0649999999999995,
+      "sizeX": 2.02,
+      "sizeZ": 0.67,
+      "heightM": 2.24
+    },
+    {
+      "id": "library-jewel-cabinet",
+      "kind": "counter",
+      "room": "Library",
+      "x": -22.625,
+      "z": 3.5,
+      "sizeX": 0.55,
+      "sizeZ": 1,
+      "heightM": 0.85,
+      "of": "relic-library"
+    },
+    {
+      "id": "study-fireplace",
+      "kind": "shelf",
+      "room": "Library",
+      "x": -22.51,
+      "z": -1,
+      "sizeX": 0.78,
+      "sizeZ": 1.8,
+      "heightM": 3,
+      "of": "task-letter"
+    },
+    {
+      "id": "study-desk",
+      "kind": "table",
+      "room": "Library",
+      "x": -19.4,
+      "z": -3.4,
+      "sizeX": 1.5,
+      "sizeZ": 0.8,
+      "heightM": 0.78
+    },
+    {
+      "id": "study-chair",
+      "kind": "chair",
+      "room": "Library",
+      "x": -19.4,
+      "z": -4.25,
+      "sizeX": 0.67,
+      "sizeZ": 0.66,
+      "heightM": 1.06
+    },
+    {
+      "id": "study-armchair",
+      "kind": "chair",
+      "room": "Library",
+      "x": -21,
+      "z": -2.5,
+      "sizeX": 0.85,
+      "sizeZ": 0.85,
+      "heightM": 1.06
+    },
+    {
+      "id": "study-books",
+      "kind": "shelf",
+      "room": "Library",
+      "x": -19.6,
+      "z": -5.69,
+      "sizeX": 2,
+      "sizeZ": 0.42,
+      "heightM": 2.5
+    },
+    {
+      "id": "study-nightstand",
+      "kind": "table",
+      "room": "Library",
+      "x": -17.31,
+      "z": -2.2,
+      "sizeX": 0.42,
+      "sizeZ": 0.57,
+      "heightM": 0.7
+    },
+    {
+      "id": "courtyard-fountain",
+      "kind": "fountain",
+      "room": "Garden Courtyard",
+      "x": 0,
+      "z": -6,
+      "sizeX": 3,
+      "sizeZ": 3,
+      "heightM": 0.8
+    },
+    {
+      "id": "courtyard-potting-bench",
+      "kind": "counter",
+      "room": "Garden Courtyard",
+      "x": -8.65,
+      "z": -6,
+      "sizeX": 0.5,
+      "sizeZ": 1.5,
+      "heightM": 0.95,
+      "of": "task-roses"
+    },
+    {
+      "id": "courtyard-bed-1",
+      "kind": "counter",
+      "room": "Garden Courtyard",
+      "x": 5,
+      "z": -12.2,
+      "sizeX": 1.1,
+      "sizeZ": 2,
+      "heightM": 0.5,
+      "of": "relic-courtyard-1"
+    },
+    {
+      "id": "courtyard-bed-2",
+      "kind": "counter",
+      "room": "Garden Courtyard",
+      "x": 5,
+      "z": -10,
+      "sizeX": 1.1,
+      "sizeZ": 2,
+      "heightM": 0.5,
+      "of": "relic-courtyard-2"
+    },
+    {
+      "id": "courtyard-bed-3",
+      "kind": "counter",
+      "room": "Garden Courtyard",
+      "x": 5,
+      "z": -7.8,
+      "sizeX": 1.1,
+      "sizeZ": 2,
+      "heightM": 0.5,
+      "of": "relic-courtyard-3"
+    },
+    {
+      "id": "courtyard-seat-west",
+      "kind": "bench",
+      "room": "Garden Courtyard",
+      "x": -4.5,
+      "z": 1.625,
+      "sizeX": 1.5,
+      "sizeZ": 0.55,
+      "heightM": 0.86
+    },
+    {
+      "id": "courtyard-seat-east",
+      "kind": "bench",
+      "room": "Garden Courtyard",
+      "x": 4.5,
+      "z": 1.625,
+      "sizeX": 1.5,
+      "sizeZ": 0.55,
+      "heightM": 0.86
+    },
+    {
+      "id": "courtyard-seat-fountain",
+      "kind": "bench",
+      "room": "Garden Courtyard",
+      "x": 3.3,
+      "z": -6,
+      "sizeX": 0.55,
+      "sizeZ": 1.5,
+      "heightM": 0.86
+    },
+    {
+      "id": "courtyard-urn-1",
+      "kind": "urn",
+      "room": "Garden Courtyard",
+      "x": -2.9,
+      "z": -3.1,
+      "sizeX": 0.46,
+      "sizeZ": 0.46,
+      "heightM": 1.05
+    },
+    {
+      "id": "courtyard-urn-2",
+      "kind": "urn",
+      "room": "Garden Courtyard",
+      "x": 2.9,
+      "z": -3.1,
+      "sizeX": 0.46,
+      "sizeZ": 0.46,
+      "heightM": 1.05
+    },
+    {
+      "id": "courtyard-urn-3",
+      "kind": "urn",
+      "room": "Garden Courtyard",
+      "x": -2.9,
+      "z": -8.9,
+      "sizeX": 0.46,
+      "sizeZ": 0.46,
+      "heightM": 1.05
+    },
+    {
+      "id": "courtyard-urn-4",
+      "kind": "urn",
+      "room": "Garden Courtyard",
+      "x": 2.9,
+      "z": -8.9,
+      "sizeX": 0.46,
+      "sizeZ": 0.46,
+      "heightM": 1.05
+    },
+    {
+      "id": "courtyard-roses-west",
+      "kind": "counter",
+      "room": "Garden Courtyard",
+      "x": -8.5,
+      "z": -1.5,
+      "sizeX": 0.8,
+      "sizeZ": 5.6,
+      "heightM": 1.1
+    },
+    {
+      "id": "courtyard-roses-east",
+      "kind": "counter",
+      "room": "Garden Courtyard",
+      "x": 8.5,
+      "z": -1.5,
+      "sizeX": 0.8,
+      "sizeZ": 5.6,
+      "heightM": 1.1
+    },
+    {
+      "id": "courtyard-roses-east-mid",
+      "kind": "counter",
+      "room": "Garden Courtyard",
+      "x": 8.5,
+      "z": -7.4,
+      "sizeX": 0.8,
+      "sizeZ": 4.4,
+      "heightM": 1.1
+    },
+    {
+      "id": "courtyard-roses-north",
+      "kind": "counter",
+      "room": "Garden Courtyard",
+      "x": -5.9,
+      "z": -13.5,
+      "sizeX": 5,
+      "sizeZ": 0.8,
+      "heightM": 1.1
+    },
+    {
+      "id": "courtyard-roses-north-east",
+      "kind": "counter",
+      "room": "Garden Courtyard",
+      "x": 7.4,
+      "z": -13.5,
+      "sizeX": 2.2,
+      "sizeZ": 0.8,
+      "heightM": 1.1
+    },
+    {
+      "id": "front-console-west",
+      "kind": "counter",
+      "room": "Front Corridor",
+      "x": -3.5,
+      "z": 4.105,
+      "sizeX": 1.54,
+      "sizeZ": 0.59,
+      "heightM": 0.95
+    },
+    {
+      "id": "front-console-east",
+      "kind": "counter",
+      "room": "Front Corridor",
+      "x": 4.5,
+      "z": 4.105,
+      "sizeX": 1.54,
+      "sizeZ": 0.59,
+      "heightM": 0.95
+    },
+    {
+      "id": "front-side-table",
+      "kind": "table",
+      "room": "Front Corridor",
+      "x": 2.1,
+      "z": 2.325,
+      "sizeX": 0.55,
+      "sizeZ": 0.45,
+      "heightM": 0.55
+    },
+    {
+      "id": "front-chair",
+      "kind": "chair",
+      "room": "Front Corridor",
+      "x": 3,
+      "z": 2.43,
+      "sizeX": 0.67,
+      "sizeZ": 0.66,
+      "heightM": 1.06
+    },
+    {
+      "id": "front-plant-west",
+      "kind": "plant",
+      "room": "Front Corridor",
+      "x": -8.3,
+      "z": 2.4,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 0.84
+    },
+    {
+      "id": "front-plant-east",
+      "kind": "plant",
+      "room": "Front Corridor",
+      "x": 8.3,
+      "z": 2.4,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 0.84
+    },
+    {
+      "id": "west-bench",
+      "kind": "sofa",
+      "room": "West Corridor",
+      "x": -11.2,
+      "z": -6,
+      "sizeX": 0.4,
+      "sizeZ": 1.5,
+      "heightM": 0.45
+    },
+    {
+      "id": "west-stand",
+      "kind": "table",
+      "room": "West Corridor",
+      "x": -9.29,
+      "z": -3.5,
+      "sizeX": 0.38,
+      "sizeZ": 0.38,
+      "heightM": 0.76
+    },
+    {
+      "id": "west-plant",
+      "kind": "plant",
+      "room": "West Corridor",
+      "x": -9.4,
+      "z": -13.4,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 1.35
+    },
+    {
+      "id": "east-commode",
+      "kind": "counter",
+      "room": "East Corridor",
+      "x": 11.11,
+      "z": -6.5,
+      "sizeX": 0.58,
+      "sizeZ": 1.2,
+      "heightM": 1.21
+    },
+    {
+      "id": "east-suitcase",
+      "kind": "crates",
+      "room": "East Corridor",
+      "x": 11.28,
+      "z": -10.5,
+      "sizeX": 0.24,
+      "sizeZ": 1.61,
+      "heightM": 0.57
+    },
+    {
+      "id": "east-rocking-chair",
+      "kind": "chair",
+      "room": "East Corridor",
+      "x": 9.515,
+      "z": -3.5,
+      "sizeX": 0.83,
+      "sizeZ": 0.71,
+      "heightM": 1
+    },
+    {
+      "id": "east-plant",
+      "kind": "plant",
+      "room": "East Corridor",
+      "x": 11.1,
+      "z": -13.4,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 0.84
+    },
+    {
+      "id": "north-console",
+      "kind": "counter",
+      "room": "North Corridor",
+      "x": 5,
+      "z": -16.105,
+      "sizeX": 1.54,
+      "sizeZ": 0.59,
+      "heightM": 0.95
+    },
+    {
+      "id": "north-stand",
+      "kind": "table",
+      "room": "North Corridor",
+      "x": -7.5,
+      "z": -16.21,
+      "sizeX": 0.38,
+      "sizeZ": 0.38,
+      "heightM": 0.76
+    },
+    {
+      "id": "north-chair-west",
+      "kind": "chair",
+      "room": "North Corridor",
+      "x": -2.5,
+      "z": -14.43,
+      "sizeX": 0.67,
+      "sizeZ": 0.66,
+      "heightM": 1.06
+    },
+    {
+      "id": "north-chair-east",
+      "kind": "chair",
+      "room": "North Corridor",
+      "x": 2.5,
+      "z": -14.43,
+      "sizeX": 0.67,
+      "sizeZ": 0.66,
+      "heightM": 1.06
+    },
+    {
+      "id": "north-plant-west",
+      "kind": "plant",
+      "room": "North Corridor",
+      "x": -9.6,
+      "z": -16.1,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 1.35
+    },
+    {
+      "id": "north-plant-east",
+      "kind": "plant",
+      "room": "North Corridor",
+      "x": 9.6,
+      "z": -16.1,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 1.35
+    },
+    {
+      "id": "restaurant-table-1",
+      "kind": "table",
+      "room": "Restaurant",
+      "x": 12.2,
+      "z": 7.9,
+      "sizeX": 1.2,
+      "sizeZ": 1.2,
+      "heightM": 0.76
+    },
+    {
+      "id": "restaurant-table-1-chair-n",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 12.2,
+      "z": 7.12,
+      "sizeX": 0.43,
+      "sizeZ": 0.58,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-table-1-chair-s",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 12.2,
+      "z": 8.68,
+      "sizeX": 0.43,
+      "sizeZ": 0.58,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-table-1-chair-w",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 11.42,
+      "z": 7.9,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-table-1-chair-e",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 12.979999999999999,
+      "z": 7.9,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-table-2",
+      "kind": "table",
+      "room": "Restaurant",
+      "x": 19.6,
+      "z": 7.9,
+      "sizeX": 1.2,
+      "sizeZ": 1.2,
+      "heightM": 0.76
+    },
+    {
+      "id": "restaurant-table-2-chair-n",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 19.6,
+      "z": 7.12,
+      "sizeX": 0.43,
+      "sizeZ": 0.58,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-table-2-chair-s",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 19.6,
+      "z": 8.68,
+      "sizeX": 0.43,
+      "sizeZ": 0.58,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-table-2-chair-w",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 18.82,
+      "z": 7.9,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-table-2-chair-e",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 20.380000000000003,
+      "z": 7.9,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-table-3",
+      "kind": "table",
+      "room": "Restaurant",
+      "x": 12.2,
+      "z": 11.2,
+      "sizeX": 1.2,
+      "sizeZ": 1.2,
+      "heightM": 0.76
+    },
+    {
+      "id": "restaurant-table-3-chair-n",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 12.2,
+      "z": 10.42,
+      "sizeX": 0.43,
+      "sizeZ": 0.58,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-table-3-chair-s",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 12.2,
+      "z": 11.979999999999999,
+      "sizeX": 0.43,
+      "sizeZ": 0.58,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-table-3-chair-w",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 11.42,
+      "z": 11.2,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-table-3-chair-e",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 12.979999999999999,
+      "z": 11.2,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-table-4",
+      "kind": "table",
+      "room": "Restaurant",
+      "x": 19.2,
+      "z": 11,
+      "sizeX": 1.2,
+      "sizeZ": 1.2,
+      "heightM": 0.76
+    },
+    {
+      "id": "restaurant-table-4-chair-n",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 19.2,
+      "z": 10.22,
+      "sizeX": 0.43,
+      "sizeZ": 0.58,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-table-4-chair-s",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 19.2,
+      "z": 11.78,
+      "sizeX": 0.43,
+      "sizeZ": 0.58,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-table-4-chair-w",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 18.419999999999998,
+      "z": 11,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-table-4-chair-e",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 19.98,
+      "z": 11,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-table-5",
+      "kind": "table",
+      "room": "Restaurant",
+      "x": 11.4,
+      "z": 15.8,
+      "sizeX": 1.2,
+      "sizeZ": 1.2,
+      "heightM": 0.76
+    },
+    {
+      "id": "restaurant-table-5-chair-w",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 10.620000000000001,
+      "z": 15.8,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-table-5-chair-e",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 12.18,
+      "z": 15.8,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-table-6",
+      "kind": "table",
+      "room": "Restaurant",
+      "x": 14.9,
+      "z": 15.8,
+      "sizeX": 1.2,
+      "sizeZ": 1.2,
+      "heightM": 0.76
+    },
+    {
+      "id": "restaurant-table-6-chair-w",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 14.120000000000001,
+      "z": 15.8,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-table-6-chair-e",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 15.68,
+      "z": 15.8,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "restaurant-candelabra",
+      "kind": "table",
+      "room": "Restaurant",
+      "x": 16,
+      "z": 12,
+      "sizeX": 0.9,
+      "sizeZ": 0.9,
+      "heightM": 0.75,
+      "of": "task-candelabra"
+    },
+    {
+      "id": "restaurant-console",
+      "kind": "counter",
+      "room": "Restaurant",
+      "x": 9.395,
+      "z": 9.6,
+      "sizeX": 0.59,
+      "sizeZ": 1.54,
+      "heightM": 0.95
+    },
+    {
+      "id": "restaurant-sideboard",
+      "kind": "counter",
+      "room": "Restaurant",
+      "x": 13,
+      "z": 18.1,
+      "sizeX": 1.6,
+      "sizeZ": 0.6,
+      "heightM": 0.79,
+      "of": "jar-restaurant"
+    },
+    {
+      "id": "restaurant-plant-northeast",
+      "kind": "plant",
+      "room": "Restaurant",
+      "x": 22.45,
+      "z": 5.05,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 1.35
+    },
+    {
+      "id": "restaurant-plant-southwest",
+      "kind": "plant",
+      "room": "Restaurant",
+      "x": 9.55,
+      "z": 17.95,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 0.84
+    },
+    {
+      "id": "bar-counter",
+      "kind": "counter",
+      "room": "Restaurant",
+      "x": 21,
+      "z": 15.4,
+      "sizeX": 0.6,
+      "sizeZ": 2.8,
+      "heightM": 1.05
+    },
+    {
+      "id": "bar-stool-north",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 20.25,
+      "z": 15,
+      "sizeX": 0.48,
+      "sizeZ": 0.48,
+      "heightM": 0.75
+    },
+    {
+      "id": "bar-stool-middle",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 20.25,
+      "z": 15.8,
+      "sizeX": 0.48,
+      "sizeZ": 0.48,
+      "heightM": 0.75
+    },
+    {
+      "id": "bar-stool-south",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 20.25,
+      "z": 16.6,
+      "sizeX": 0.48,
+      "sizeZ": 0.48,
+      "heightM": 0.75
+    },
+    {
+      "id": "bar-back",
+      "kind": "shelf",
+      "room": "Restaurant",
+      "x": 22.675,
+      "z": 15.25,
+      "sizeX": 0.45,
+      "sizeZ": 3.2,
+      "heightM": 2.4
+    },
+    {
+      "id": "bar-jewel-cabinet",
+      "kind": "counter",
+      "room": "Restaurant",
+      "x": 22.625,
+      "z": 17.85,
+      "sizeX": 0.55,
+      "sizeZ": 1.1,
+      "heightM": 0.85,
+      "of": "relic-restaurant"
+    },
+    {
+      "id": "bar-table",
+      "kind": "table",
+      "room": "Restaurant",
+      "x": 18.1,
+      "z": 16,
+      "sizeX": 0.8,
+      "sizeZ": 0.8,
+      "heightM": 0.75
+    },
+    {
+      "id": "bar-chair-north",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 18.1,
+      "z": 15.3,
+      "sizeX": 0.43,
+      "sizeZ": 0.58,
+      "heightM": 0.97
+    },
+    {
+      "id": "bar-chair-south",
+      "kind": "chair",
+      "room": "Restaurant",
+      "x": 18.1,
+      "z": 16.7,
+      "sizeX": 0.43,
+      "sizeZ": 0.58,
+      "heightM": 0.97
+    },
+    {
+      "id": "bar-barrel-north",
+      "kind": "crates",
+      "room": "Restaurant",
+      "x": 17.55,
+      "z": 14.05,
+      "sizeX": 0.76,
+      "sizeZ": 0.76,
+      "heightM": 0.87
+    },
+    {
+      "id": "bar-barrel-south",
+      "kind": "crates",
+      "room": "Restaurant",
+      "x": 17.55,
+      "z": 17.95,
+      "sizeX": 0.76,
+      "sizeZ": 0.76,
+      "heightM": 0.87
+    },
+    {
+      "id": "kitchen-island",
+      "kind": "counter",
+      "room": "Kitchen",
+      "x": 17,
+      "z": -1,
+      "sizeX": 3,
+      "sizeZ": 1.2,
+      "heightM": 0.9
+    },
+    {
+      "id": "kitchen-range",
+      "kind": "counter",
+      "room": "Kitchen",
+      "x": 22.55,
+      "z": -1,
+      "sizeX": 0.7,
+      "sizeZ": 2.1,
+      "heightM": 0.9,
+      "of": "task-stove"
+    },
+    {
+      "id": "kitchen-sink",
+      "kind": "counter",
+      "room": "Kitchen",
+      "x": 13.21,
+      "z": -5.59,
+      "sizeX": 3.2,
+      "sizeZ": 0.62,
+      "heightM": 0.9
+    },
+    {
+      "id": "kitchen-cabinet",
+      "kind": "shelf",
+      "room": "Kitchen",
+      "x": 15.42,
+      "z": -5.59,
+      "sizeX": 1.2,
+      "sizeZ": 0.62,
+      "heightM": 1.18
+    },
+    {
+      "id": "kitchen-crate-north",
+      "kind": "crates",
+      "room": "Kitchen",
+      "x": 16.5,
+      "z": -5.695,
+      "sizeX": 0.83,
+      "sizeZ": 0.41,
+      "heightM": 0.35
+    },
+    {
+      "id": "kitchen-crock",
+      "kind": "crates",
+      "room": "Kitchen",
+      "x": 20.6,
+      "z": -5.65,
+      "sizeX": 0.66,
+      "sizeZ": 0.5,
+      "heightM": 0.37
+    },
+    {
+      "id": "kitchen-dresser",
+      "kind": "shelf",
+      "room": "Kitchen",
+      "x": 22.39,
+      "z": -5.535,
+      "sizeX": 1,
+      "sizeZ": 0.73,
+      "heightM": 2.57
+    },
+    {
+      "id": "kitchen-counter-west",
+      "kind": "counter",
+      "room": "Kitchen",
+      "x": 11.91,
+      "z": 0.9,
+      "sizeX": 0.62,
+      "sizeZ": 3,
+      "heightM": 0.9
+    },
+    {
+      "id": "kitchen-worktop",
+      "kind": "counter",
+      "room": "Kitchen",
+      "x": 20.75,
+      "z": 4.09,
+      "sizeX": 4.29,
+      "sizeZ": 0.62,
+      "heightM": 0.9
+    },
+    {
+      "id": "kitchen-crate-south",
+      "kind": "crates",
+      "room": "Kitchen",
+      "x": 15.2,
+      "z": 4.195,
+      "sizeX": 0.83,
+      "sizeZ": 0.41,
+      "heightM": 0.35
+    },
+    {
+      "id": "ballroom-stage",
+      "kind": "stage",
+      "room": "Ballroom",
+      "x": -17,
+      "z": -18.9,
+      "sizeX": 4,
+      "sizeZ": 2,
+      "heightM": 0.5
+    },
+    {
+      "id": "ballroom-piano",
+      "kind": "shelf",
+      "room": "Ballroom",
+      "x": -22.435,
+      "z": -13,
+      "sizeX": 0.93,
+      "sizeZ": 1.5,
+      "heightM": 1.29,
+      "of": "task-piano"
+    },
+    {
+      "id": "ballroom-jewel-cabinet",
+      "kind": "counter",
+      "room": "Ballroom",
+      "x": -22.625,
+      "z": -19.39,
+      "sizeX": 0.55,
+      "sizeZ": 1,
+      "heightM": 0.85,
+      "of": "relic-ballroom"
+    },
+    {
+      "id": "ballroom-chairs-south-west",
+      "kind": "chair",
+      "room": "Ballroom",
+      "x": -20.1,
+      "z": -6.325,
+      "sizeX": 3,
+      "sizeZ": 0.45,
+      "heightM": 0.9
+    },
+    {
+      "id": "ballroom-chairs-south-east",
+      "kind": "chair",
+      "room": "Ballroom",
+      "x": -14.7,
+      "z": -6.325,
+      "sizeX": 3,
+      "sizeZ": 0.45,
+      "heightM": 0.9
+    },
+    {
+      "id": "ballroom-chairs-east",
+      "kind": "chair",
+      "room": "Ballroom",
+      "x": -11.825,
+      "z": -12.6,
+      "sizeX": 0.45,
+      "sizeZ": 2.4,
+      "heightM": 0.9
+    },
+    {
+      "id": "ballroom-plant-northwest",
+      "kind": "plant",
+      "room": "Ballroom",
+      "x": -21,
+      "z": -19.35,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 1.35
+    },
+    {
+      "id": "ballroom-plant-northeast",
+      "kind": "plant",
+      "room": "Ballroom",
+      "x": -12.15,
+      "z": -19.35,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 0.84
+    },
+    {
+      "id": "ballroom-plant-southwest",
+      "kind": "plant",
+      "room": "Ballroom",
+      "x": -22.35,
+      "z": -6.65,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 0.84
+    },
+    {
+      "id": "ballroom-plant-southeast",
+      "kind": "plant",
+      "room": "Ballroom",
+      "x": -12.15,
+      "z": -6.65,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 1.35
+    },
+    {
+      "id": "ballroom-table-southwest",
+      "kind": "table",
+      "room": "Ballroom",
+      "x": -20,
+      "z": -9.2,
+      "sizeX": 1.2,
+      "sizeZ": 1.2,
+      "heightM": 0.76
+    },
+    {
+      "id": "ballroom-table-southwest-chair-w",
+      "kind": "chair",
+      "room": "Ballroom",
+      "x": -20.78,
+      "z": -9.2,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "ballroom-table-southwest-chair-e",
+      "kind": "chair",
+      "room": "Ballroom",
+      "x": -19.22,
+      "z": -9.2,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "ballroom-table-southeast",
+      "kind": "table",
+      "room": "Ballroom",
+      "x": -14.6,
+      "z": -9.2,
+      "sizeX": 1.2,
+      "sizeZ": 1.2,
+      "heightM": 0.76
+    },
+    {
+      "id": "ballroom-table-southeast-chair-w",
+      "kind": "chair",
+      "room": "Ballroom",
+      "x": -15.379999999999999,
+      "z": -9.2,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "ballroom-table-southeast-chair-e",
+      "kind": "chair",
+      "room": "Ballroom",
+      "x": -13.82,
+      "z": -9.2,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "ballroom-table-northwest",
+      "kind": "table",
+      "room": "Ballroom",
+      "x": -20,
+      "z": -16.6,
+      "sizeX": 1.2,
+      "sizeZ": 1.2,
+      "heightM": 0.76
+    },
+    {
+      "id": "ballroom-table-northwest-chair-w",
+      "kind": "chair",
+      "room": "Ballroom",
+      "x": -20.78,
+      "z": -16.6,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "ballroom-table-northwest-chair-e",
+      "kind": "chair",
+      "room": "Ballroom",
+      "x": -19.22,
+      "z": -16.6,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "ballroom-table-northeast",
+      "kind": "table",
+      "room": "Ballroom",
+      "x": -14.4,
+      "z": -16.6,
+      "sizeX": 1.2,
+      "sizeZ": 1.2,
+      "heightM": 0.76
+    },
+    {
+      "id": "ballroom-table-northeast-chair-w",
+      "kind": "chair",
+      "room": "Ballroom",
+      "x": -15.18,
+      "z": -16.6,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "ballroom-table-northeast-chair-e",
+      "kind": "chair",
+      "room": "Ballroom",
+      "x": -13.620000000000001,
+      "z": -16.6,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "ballroom-refreshments",
+      "kind": "table",
+      "room": "Ballroom",
+      "x": -22.5,
+      "z": -11,
+      "sizeX": 0.8,
+      "sizeZ": 1.8,
+      "heightM": 0.76
+    },
+    {
+      "id": "ballroom-candelabra-west",
+      "kind": "lamp",
+      "room": "Ballroom",
+      "x": -19.45,
+      "z": -18.55,
+      "sizeX": 0.44,
+      "sizeZ": 0.44,
+      "heightM": 1.83
+    },
+    {
+      "id": "ballroom-candelabra-east",
+      "kind": "lamp",
+      "room": "Ballroom",
+      "x": -14.55,
+      "z": -18.55,
+      "sizeX": 0.44,
+      "sizeZ": 0.44,
+      "heightM": 1.83
+    },
+    {
+      "id": "ballroom-fallen-chair",
+      "kind": "chair",
+      "room": "Ballroom",
+      "x": -17.3,
+      "z": -11,
+      "sizeX": 0.5,
+      "sizeZ": 1,
+      "heightM": 0.6
+    },
+    {
+      "id": "ballroom-sofa",
+      "kind": "sofa",
+      "room": "Ballroom",
+      "x": -11.93,
+      "z": -8.1,
+      "sizeX": 0.66,
+      "sizeZ": 1.57,
+      "heightM": 0.8
+    },
+    {
+      "id": "ballroom-ottoman",
+      "kind": "chair",
+      "room": "Ballroom",
+      "x": -22.59,
+      "z": -15,
+      "sizeX": 0.62,
+      "sizeZ": 0.89,
+      "heightM": 0.62
+    },
+    {
+      "id": "service-shelf",
+      "kind": "shelf",
+      "room": "Service Room",
+      "x": 11.85,
+      "z": -9,
+      "sizeX": 0.5,
+      "sizeZ": 2,
+      "heightM": 2
+    },
+    {
+      "id": "service-dresser",
+      "kind": "shelf",
+      "room": "Service Room",
+      "x": 11.965,
+      "z": -12.3,
+      "sizeX": 0.73,
+      "sizeZ": 1,
+      "heightM": 2.57
+    },
+    {
+      "id": "service-table",
+      "kind": "table",
+      "room": "Service Room",
+      "x": 15,
+      "z": -11.5,
+      "sizeX": 2.4,
+      "sizeZ": 0.9,
+      "heightM": 0.76
+    },
+    {
+      "id": "service-bench-north",
+      "kind": "chair",
+      "room": "Service Room",
+      "x": 15,
+      "z": -12.22,
+      "sizeX": 2,
+      "sizeZ": 0.32,
+      "heightM": 0.45
+    },
+    {
+      "id": "service-bench-south",
+      "kind": "chair",
+      "room": "Service Room",
+      "x": 15,
+      "z": -10.78,
+      "sizeX": 2,
+      "sizeZ": 0.32,
+      "heightM": 0.45
+    },
+    {
+      "id": "service-sideboard",
+      "kind": "counter",
+      "room": "Service Room",
+      "x": 15.5,
+      "z": -6.375,
+      "sizeX": 1.4,
+      "sizeZ": 0.55,
+      "heightM": 0.79,
+      "of": "jar-service"
+    },
+    {
+      "id": "service-fuse-board",
+      "kind": "shelf",
+      "room": "Service Room",
+      "x": 11.71,
+      "z": -20,
+      "sizeX": 0.22,
+      "sizeZ": 0.9,
+      "heightM": 2.1,
+      "of": "fuse box"
+    },
+    {
+      "id": "service-fuse-bench",
+      "kind": "table",
+      "room": "Service Room",
+      "x": 16.6,
+      "z": -18.4,
+      "sizeX": 0.6,
+      "sizeZ": 1.4,
+      "heightM": 0.85
+    },
+    {
+      "id": "service-fuse-crates",
+      "kind": "crates",
+      "room": "Service Room",
+      "x": 12.45,
+      "z": -21.635,
+      "sizeX": 1.17,
+      "sizeZ": 0.53,
+      "heightM": 0.81
+    },
+    {
+      "id": "service-sink",
+      "kind": "counter",
+      "room": "Service Room",
+      "x": 21.72,
+      "z": -21.59,
+      "sizeX": 2.3,
+      "sizeZ": 0.62,
+      "heightM": 0.9
+    },
+    {
+      "id": "service-baskets",
+      "kind": "crates",
+      "room": "Service Room",
+      "x": 20.05,
+      "z": -15.9,
+      "sizeX": 0.5,
+      "sizeZ": 0.5,
+      "heightM": 0.5
+    },
+    {
+      "id": "service-batteries",
+      "kind": "shelf",
+      "room": "Service Room",
+      "x": 13.2,
+      "z": -6.325,
+      "sizeX": 1.4,
+      "sizeZ": 0.45,
+      "heightM": 1.1
+    },
+    {
+      "id": "service-cupboard-south",
+      "kind": "shelf",
+      "room": "Service Room",
+      "x": 18.6,
+      "z": -6.41,
+      "sizeX": 1.19,
+      "sizeZ": 0.62,
+      "heightM": 1.18
+    },
+    {
+      "id": "service-chair-west",
+      "kind": "chair",
+      "room": "Service Room",
+      "x": 13.35,
+      "z": -11.5,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "service-chair-east",
+      "kind": "chair",
+      "room": "Service Room",
+      "x": 16.65,
+      "z": -11.5,
+      "sizeX": 0.58,
+      "sizeZ": 0.43,
+      "heightM": 0.97
+    },
+    {
+      "id": "service-stores",
+      "kind": "shelf",
+      "room": "Service Room",
+      "x": 20.175,
+      "z": -11.3,
+      "sizeX": 0.45,
+      "sizeZ": 1.2,
+      "heightM": 2
+    },
+    {
+      "id": "service-broom",
+      "kind": "crates",
+      "room": "Service Room",
+      "x": 22.825,
+      "z": -6.6,
+      "sizeX": 0.15,
+      "sizeZ": 0.5,
+      "heightM": 1.45
+    },
+    {
+      "id": "service-dynamo",
+      "kind": "crates",
+      "room": "Service Room",
+      "x": 14.1,
+      "z": -20.3,
+      "sizeX": 1.5,
+      "sizeZ": 0.76,
+      "heightM": 0.95
+    },
+    {
+      "id": "service-fuse-batteries",
+      "kind": "shelf",
+      "room": "Service Room",
+      "x": 14.25,
+      "z": -21.675,
+      "sizeX": 1.6,
+      "sizeZ": 0.45,
+      "heightM": 1.1
+    },
+    {
+      "id": "service-cable-drum",
+      "kind": "crates",
+      "room": "Service Room",
+      "x": 12,
+      "z": -17.7,
+      "sizeX": 0.45,
+      "sizeZ": 0.7,
+      "heightM": 0.7
+    },
+    {
+      "id": "service-ladder",
+      "kind": "shelf",
+      "room": "Service Room",
+      "x": 16.575,
+      "z": -20,
+      "sizeX": 0.65,
+      "sizeZ": 0.5,
+      "heightM": 2.6
+    },
+    {
+      "id": "service-scullery-shelves",
+      "kind": "shelf",
+      "room": "Service Room",
+      "x": 17.325,
+      "z": -20.5,
+      "sizeX": 0.45,
+      "sizeZ": 1.6,
+      "heightM": 2
+    },
+    {
+      "id": "bridal-bed",
+      "kind": "bed",
+      "room": "Bridal Suite",
+      "x": 93.5,
+      "z": 17.25,
+      "sizeX": 1.95,
+      "sizeZ": 2.3,
+      "heightM": 0.6
+    },
+    {
+      "id": "guest1-bed",
+      "kind": "bed",
+      "room": "Guest Room 1",
+      "x": 87.5,
+      "z": 10.375,
+      "sizeX": 1.5,
+      "sizeZ": 2.05,
+      "heightM": 0.6
+    },
+    {
+      "id": "guest2-bed",
+      "kind": "bed",
+      "room": "Guest Room 2",
+      "x": 83.55,
+      "z": -3.875,
+      "sizeX": 0.95,
+      "sizeZ": 2.05,
+      "heightM": 0.6
+    },
+    {
+      "id": "guest3-bed",
+      "kind": "bed",
+      "room": "Guest Room 3",
+      "x": 83.5,
+      "z": -12.875,
+      "sizeX": 1.45,
+      "sizeZ": 2.05,
+      "heightM": 0.6
+    },
+    {
+      "id": "guest4-bed",
+      "kind": "bed",
+      "room": "Guest Room 4",
+      "x": 112,
+      "z": 10.3,
+      "sizeX": 1.65,
+      "sizeZ": 2.2,
+      "heightM": 0.6
+    },
+    {
+      "id": "staff-bunk",
+      "kind": "bed",
+      "room": "Staff Quarters",
+      "x": 119,
+      "z": -5.4,
+      "sizeX": 2,
+      "sizeZ": 1,
+      "heightM": 1.6
+    },
+    {
+      "id": "laundry-tubs",
+      "kind": "counter",
+      "room": "Laundry",
+      "x": 114,
+      "z": -12.5,
+      "sizeX": 0.8,
+      "sizeZ": 2,
+      "heightM": 0.9
+    },
+    {
+      "id": "bridal-jewel-cabinet",
+      "kind": "counter",
+      "room": "Bridal Suite",
+      "x": 95.5,
+      "z": 18,
+      "sizeX": 0.8,
+      "sizeZ": 0.8,
+      "heightM": 0.85,
+      "of": "relic-bridal"
+    },
+    {
+      "id": "guest2-jewel-cabinet",
+      "kind": "counter",
+      "room": "Guest Room 2",
+      "x": 81,
+      "z": 1.3,
+      "sizeX": 0.8,
+      "sizeZ": 0.9,
+      "heightM": 0.85,
+      "of": "relic-guest2"
+    },
+    {
+      "id": "guest4-jewel-cabinet",
+      "kind": "counter",
+      "room": "Guest Room 4",
+      "x": 116.5,
+      "z": 10.8,
+      "sizeX": 0.8,
+      "sizeZ": 0.9,
+      "heightM": 0.85,
+      "of": "relic-guest4"
+    },
+    {
+      "id": "bridal-classic-nightstand-1",
+      "kind": "table",
+      "room": "Bridal Suite",
+      "x": 92.25,
+      "z": 18.18,
+      "sizeX": 0.568,
+      "sizeZ": 0.424,
+      "heightM": 0.7
+    },
+    {
+      "id": "bridal-classic-nightstand-2",
+      "kind": "table",
+      "room": "Bridal Suite",
+      "x": 94.75,
+      "z": 18.18,
+      "sizeX": 0.568,
+      "sizeZ": 0.424,
+      "heightM": 0.7
+    },
+    {
+      "id": "bridal-vintage-suitcase-1",
+      "kind": "counter",
+      "room": "Bridal Suite",
+      "x": 93.5,
+      "z": 15.709,
+      "sizeX": 1.608,
+      "sizeZ": 0.239,
+      "heightM": 0.568
+    },
+    {
+      "id": "bridal-sofa-1",
+      "kind": "sofa",
+      "room": "Bridal Suite",
+      "x": 91.57900000000001,
+      "z": 9.6,
+      "sizeX": 0.925,
+      "sizeZ": 2.731,
+      "heightM": 1.118
+    },
+    {
+      "id": "bridal-gothic-coffee-table-1",
+      "kind": "table",
+      "room": "Bridal Suite",
+      "x": 93.2,
+      "z": 9.601,
+      "sizeX": 1.443,
+      "sizeZ": 1.443,
+      "heightM": 0.559
+    },
+    {
+      "id": "bridal-sofa-2",
+      "kind": "sofa",
+      "room": "Bridal Suite",
+      "x": 95.032,
+      "z": 9.6,
+      "sizeX": 0.658,
+      "sizeZ": 1.571,
+      "heightM": 0.797
+    },
+    {
+      "id": "bridal-classic-console-1",
+      "kind": "counter",
+      "room": "Bridal Suite",
+      "x": 98.4,
+      "z": 4.862,
+      "sizeX": 1.543,
+      "sizeZ": 0.589,
+      "heightM": 0.949
+    },
+    {
+      "id": "bridal-floor-candelabra-1",
+      "kind": "plant",
+      "room": "Bridal Suite",
+      "x": 91.65,
+      "z": 15.6,
+      "sizeX": 0.479,
+      "sizeZ": 0.479,
+      "heightM": 1.5
+    },
+    {
+      "id": "nursery-old-bed-frame-1",
+      "kind": "bed",
+      "room": "Nursery",
+      "x": 101.116,
+      "z": 15.2,
+      "sizeX": 2.001,
+      "sizeZ": 0.905,
+      "heightM": 1.2
+    },
+    {
+      "id": "nursery-treasure-chest-1",
+      "kind": "counter",
+      "room": "Nursery",
+      "x": 101.9,
+      "z": 18.13,
+      "sizeX": 0.959,
+      "sizeZ": 0.523,
+      "heightM": 0.619
+    },
+    {
+      "id": "nursery-side-table-1",
+      "kind": "table",
+      "room": "Nursery",
+      "x": 101.6,
+      "z": 6.8,
+      "sizeX": 0.55,
+      "sizeZ": 0.45,
+      "heightM": 0.551
+    },
+    {
+      "id": "nursery-painted-wooden-cabinet-1",
+      "kind": "counter",
+      "room": "Nursery",
+      "x": 105.991,
+      "z": 6.2,
+      "sizeX": 0.722,
+      "sizeZ": 0.997,
+      "heightM": 2.569
+    },
+    {
+      "id": "nursery-rockingchair-1",
+      "kind": "chair",
+      "room": "Nursery",
+      "x": 104.046,
+      "z": 10.531,
+      "sizeX": 0.914,
+      "sizeZ": 0.875,
+      "heightM": 0.995
+    },
+    {
+      "id": "guest1-classic-nightstand-1",
+      "kind": "table",
+      "room": "Guest Room 1",
+      "x": 86.43,
+      "z": 11.18,
+      "sizeX": 0.568,
+      "sizeZ": 0.424,
+      "heightM": 0.7
+    },
+    {
+      "id": "guest1-classic-nightstand-2",
+      "kind": "table",
+      "room": "Guest Room 1",
+      "x": 88.57,
+      "z": 11.18,
+      "sizeX": 0.568,
+      "sizeZ": 0.424,
+      "heightM": 0.7
+    },
+    {
+      "id": "guest1-gothic-commode-1",
+      "kind": "counter",
+      "room": "Guest Room 1",
+      "x": 85.4,
+      "z": 4.902,
+      "sizeX": 1.201,
+      "sizeZ": 0.581,
+      "heightM": 1.212
+    },
+    {
+      "id": "guest1-green-chair-1",
+      "kind": "chair",
+      "room": "Guest Room 1",
+      "x": 84.16,
+      "z": 7.577,
+      "sizeX": 0.775,
+      "sizeZ": 0.778,
+      "heightM": 1.059
+    },
+    {
+      "id": "guest1-roll-top-bath-1",
+      "kind": "counter",
+      "room": "Guest Room 1",
+      "x": 80.48,
+      "z": 7.505,
+      "sizeX": 1.7,
+      "sizeZ": 0.77,
+      "heightM": 0.63
+    },
+    {
+      "id": "guest1-pedestal-basin-1",
+      "kind": "counter",
+      "room": "Guest Room 1",
+      "x": 79.86,
+      "z": 5.9,
+      "sizeX": 0.5,
+      "sizeZ": 0.72,
+      "heightM": 0.84
+    },
+    {
+      "id": "guest1-high-tank-toilet-1",
+      "kind": "chair",
+      "room": "Guest Room 1",
+      "x": 81.7,
+      "z": 4.865,
+      "sizeX": 0.4,
+      "sizeZ": 0.51,
+      "heightM": 0.42
+    },
+    {
+      "id": "guest2-painted-wooden-nightstand-1",
+      "kind": "table",
+      "room": "Guest Room 2",
+      "x": 84.6,
+      "z": -4.631,
+      "sizeX": 0.505,
+      "sizeZ": 0.508,
+      "heightM": 0.616
+    },
+    {
+      "id": "guest2-painted-wooden-cabinet-1",
+      "kind": "counter",
+      "room": "Guest Room 2",
+      "x": 88.059,
+      "z": -3.9,
+      "sizeX": 0.616,
+      "sizeZ": 1.195,
+      "heightM": 1.182
+    },
+    {
+      "id": "guest2-rockingchair-1",
+      "kind": "chair",
+      "room": "Guest Room 2",
+      "x": 87.456,
+      "z": 1.006,
+      "sizeX": 0.926,
+      "sizeZ": 0.926,
+      "heightM": 0.995
+    },
+    {
+      "id": "guest2-wooden-bucket-1",
+      "kind": "plant",
+      "room": "Guest Room 2",
+      "x": 77.55,
+      "z": -1.999,
+      "sizeX": 0.367,
+      "sizeZ": 0.342,
+      "heightM": 0.55
+    },
+    {
+      "id": "guest2-roll-top-bath-1",
+      "kind": "counter",
+      "room": "Guest Room 2",
+      "x": 77.495,
+      "z": -3.25,
+      "sizeX": 0.77,
+      "sizeZ": 1.7,
+      "heightM": 0.63
+    },
+    {
+      "id": "guest2-high-tank-toilet-1",
+      "kind": "chair",
+      "room": "Guest Room 2",
+      "x": 79.25,
+      "z": -4.635,
+      "sizeX": 0.4,
+      "sizeZ": 0.51,
+      "heightM": 0.42
+    },
+    {
+      "id": "guest2-pedestal-basin-1",
+      "kind": "counter",
+      "room": "Guest Room 2",
+      "x": 78.7,
+      "z": -1.86,
+      "sizeX": 0.72,
+      "sizeZ": 0.5,
+      "heightM": 0.84
+    },
+    {
+      "id": "guest3-side-table-1",
+      "kind": "table",
+      "room": "Guest Room 3",
+      "x": 82.45,
+      "z": -13.665,
+      "sizeX": 0.55,
+      "sizeZ": 0.45,
+      "heightM": 0.551
+    },
+    {
+      "id": "guest3-side-table-2",
+      "kind": "table",
+      "room": "Guest Room 3",
+      "x": 84.55,
+      "z": -13.665,
+      "sizeX": 0.55,
+      "sizeZ": 0.45,
+      "heightM": 0.551
+    },
+    {
+      "id": "guest3-dining-chair-1",
+      "kind": "chair",
+      "room": "Guest Room 3",
+      "x": 85,
+      "z": -8.193,
+      "sizeX": 0.434,
+      "sizeZ": 0.576,
+      "heightM": 0.973
+    },
+    {
+      "id": "guest3-arm-chair-1",
+      "kind": "chair",
+      "room": "Guest Room 3",
+      "x": 87.624,
+      "z": -7.976,
+      "sizeX": 0.969,
+      "sizeZ": 0.969,
+      "heightM": 1.065
+    },
+    {
+      "id": "guest3-pedestal-desk-1",
+      "kind": "table",
+      "room": "Guest Room 3",
+      "x": 85,
+      "z": -7.465,
+      "sizeX": 1.3,
+      "sizeZ": 0.7,
+      "heightM": 0.78
+    },
+    {
+      "id": "guest3-roll-top-bath-1",
+      "kind": "counter",
+      "room": "Guest Room 3",
+      "x": 78.75,
+      "z": -13.505,
+      "sizeX": 1.7,
+      "sizeZ": 0.77,
+      "heightM": 0.63
+    },
+    {
+      "id": "guest3-pedestal-basin-1",
+      "kind": "counter",
+      "room": "Guest Room 3",
+      "x": 77.36,
+      "z": -11.6,
+      "sizeX": 0.5,
+      "sizeZ": 0.72,
+      "heightM": 0.84
+    },
+    {
+      "id": "guest3-high-tank-toilet-1",
+      "kind": "chair",
+      "room": "Guest Room 3",
+      "x": 78.4,
+      "z": -10.865,
+      "sizeX": 0.4,
+      "sizeZ": 0.51,
+      "heightM": 0.42
+    },
+    {
+      "id": "guest4-side-table-tall-1",
+      "kind": "table",
+      "room": "Guest Room 4",
+      "x": 111,
+      "z": 11.198,
+      "sizeX": 0.384,
+      "sizeZ": 0.384,
+      "heightM": 0.761
+    },
+    {
+      "id": "guest4-side-table-tall-2",
+      "kind": "table",
+      "room": "Guest Room 4",
+      "x": 113,
+      "z": 11.198,
+      "sizeX": 0.384,
+      "sizeZ": 0.384,
+      "heightM": 0.761
+    },
+    {
+      "id": "guest4-ottoman-1",
+      "kind": "sofa",
+      "room": "Guest Room 4",
+      "x": 112,
+      "z": 8.851,
+      "sizeX": 0.885,
+      "sizeZ": 0.621,
+      "heightM": 0.624
+    },
+    {
+      "id": "guest4-classic-console-1",
+      "kind": "counter",
+      "room": "Guest Room 4",
+      "x": 109.362,
+      "z": 8,
+      "sizeX": 0.589,
+      "sizeZ": 1.543,
+      "heightM": 0.949
+    },
+    {
+      "id": "guest4-round-wooden-table-1",
+      "kind": "table",
+      "room": "Guest Room 4",
+      "x": 115.495,
+      "z": 5.6,
+      "sizeX": 0.59,
+      "sizeZ": 0.796,
+      "heightM": 0.746
+    },
+    {
+      "id": "guest4-dining-chair-1",
+      "kind": "chair",
+      "room": "Guest Room 4",
+      "x": 114.707,
+      "z": 5.6,
+      "sizeX": 0.576,
+      "sizeZ": 0.434,
+      "heightM": 0.973
+    },
+    {
+      "id": "guest4-roll-top-bath-1",
+      "kind": "counter",
+      "room": "Guest Room 4",
+      "x": 120.005,
+      "z": 6.25,
+      "sizeX": 0.77,
+      "sizeZ": 1.7,
+      "heightM": 0.63
+    },
+    {
+      "id": "guest4-high-tank-toilet-1",
+      "kind": "chair",
+      "room": "Guest Room 4",
+      "x": 118.3,
+      "z": 4.865,
+      "sizeX": 0.4,
+      "sizeZ": 0.51,
+      "heightM": 0.42
+    },
+    {
+      "id": "guest4-pedestal-basin-1",
+      "kind": "counter",
+      "room": "Guest Room 4",
+      "x": 118.5,
+      "z": 7.64,
+      "sizeX": 0.72,
+      "sizeZ": 0.5,
+      "heightM": 0.84
+    },
+    {
+      "id": "staff-painted-wooden-nightstand-1",
+      "kind": "table",
+      "room": "Staff Quarters",
+      "x": 117.3,
+      "z": -5.636,
+      "sizeX": 0.505,
+      "sizeZ": 0.508,
+      "heightM": 0.616
+    },
+    {
+      "id": "staff-wooden-bucket-1",
+      "kind": "plant",
+      "room": "Staff Quarters",
+      "x": 112,
+      "z": 3.851,
+      "sizeX": 0.406,
+      "sizeZ": 0.395,
+      "heightM": 0.55
+    },
+    {
+      "id": "staff-bunk-bed-1",
+      "kind": "bed",
+      "room": "Staff Quarters",
+      "x": 115.6,
+      "z": -5.395,
+      "sizeX": 2,
+      "sizeZ": 1,
+      "heightM": 1.6
+    },
+    {
+      "id": "staff-work-table-1",
+      "kind": "table",
+      "room": "Staff Quarters",
+      "x": 117.3,
+      "z": -0.5,
+      "sizeX": 1.8,
+      "sizeZ": 0.8,
+      "heightM": 0.76
+    },
+    {
+      "id": "staff-bench-1",
+      "kind": "sofa",
+      "room": "Staff Quarters",
+      "x": 117.3,
+      "z": -1.25,
+      "sizeX": 1.6,
+      "sizeZ": 0.3,
+      "heightM": 0.45
+    },
+    {
+      "id": "staff-bench-2",
+      "kind": "sofa",
+      "room": "Staff Quarters",
+      "x": 117.3,
+      "z": 0.25,
+      "sizeX": 1.6,
+      "sizeZ": 0.3,
+      "heightM": 0.45
+    },
+    {
+      "id": "laundry-wooden-bucket-1",
+      "kind": "plant",
+      "room": "Laundry",
+      "x": 118.051,
+      "z": -21.549,
+      "sizeX": 0.416,
+      "sizeZ": 0.408,
+      "heightM": 0.55
+    },
+    {
+      "id": "laundry-wooden-bucket-2",
+      "kind": "plant",
+      "room": "Laundry",
+      "x": 113.75,
+      "z": -13.999,
+      "sizeX": 0.393,
+      "sizeZ": 0.38,
+      "heightM": 0.55
+    },
+    {
+      "id": "laundry-mangle-1",
+      "kind": "counter",
+      "room": "Laundry",
+      "x": 115.795,
+      "z": -16.925,
+      "sizeX": 0.99,
+      "sizeZ": 0.68,
+      "heightM": 1.55
+    },
+    {
+      "id": "laundry-work-table-1",
+      "kind": "table",
+      "room": "Laundry",
+      "x": 111.955,
+      "z": -12.6,
+      "sizeX": 0.7,
+      "sizeZ": 1.6,
+      "heightM": 0.8
+    },
+    {
+      "id": "upper-console",
+      "kind": "counter",
+      "room": "Upper Corridor",
+      "x": 97.7,
+      "z": 4.105,
+      "sizeX": 1.54,
+      "sizeZ": 0.59,
+      "heightM": 0.95
+    },
+    {
+      "id": "upper-side-table",
+      "kind": "table",
+      "room": "Upper Corridor",
+      "x": 103.85,
+      "z": 2.325,
+      "sizeX": 0.55,
+      "sizeZ": 0.45,
+      "heightM": 0.55
+    },
+    {
+      "id": "upper-chair",
+      "kind": "chair",
+      "room": "Upper Corridor",
+      "x": 104.65,
+      "z": 2.43,
+      "sizeX": 0.67,
+      "sizeZ": 0.66,
+      "heightM": 1.06
+    },
+    {
+      "id": "upper-plant-west",
+      "kind": "plant",
+      "room": "Upper Corridor",
+      "x": 95.8,
+      "z": 2.4,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 1.35
+    },
+    {
+      "id": "upper-plant-east",
+      "kind": "plant",
+      "room": "Upper Corridor",
+      "x": 107.8,
+      "z": 2.4,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 0.84
+    },
+    {
+      "id": "upper-east-cabinet",
+      "kind": "counter",
+      "room": "Upper Corridor",
+      "x": 111.065,
+      "z": -5.75,
+      "sizeX": 0.67,
+      "sizeZ": 2.02,
+      "heightM": 2.2
+    },
+    {
+      "id": "upper-east-plant",
+      "kind": "plant",
+      "room": "Upper Corridor",
+      "x": 109.4,
+      "z": -3.4,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 0.84
+    },
+    {
+      "id": "guest-west-plant",
+      "kind": "plant",
+      "room": "Guest Corridor",
+      "x": 88.9,
+      "z": 1,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 1.35
+    },
+    {
+      "id": "guest-west-bench",
+      "kind": "sofa",
+      "room": "Guest Corridor",
+      "x": 88.8,
+      "z": -5.6,
+      "sizeX": 0.4,
+      "sizeZ": 1.6,
+      "heightM": 0.45
+    },
+    {
+      "id": "guest-north-console",
+      "kind": "counter",
+      "room": "Guest Corridor",
+      "x": 106.5,
+      "z": -16.105,
+      "sizeX": 1.54,
+      "sizeZ": 0.59,
+      "heightM": 0.95
+    },
+    {
+      "id": "guest-north-chair",
+      "kind": "chair",
+      "room": "Guest Corridor",
+      "x": 103.3,
+      "z": -14.43,
+      "sizeX": 0.67,
+      "sizeZ": 0.66,
+      "heightM": 1.06
+    },
+    {
+      "id": "guest-north-plant-east",
+      "kind": "plant",
+      "room": "Guest Corridor",
+      "x": 108.6,
+      "z": -16.1,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 0.84
+    },
+    {
+      "id": "upper-shutters",
+      "kind": "counter",
+      "room": "Upper Corridor",
+      "x": 100,
+      "z": 2.16,
+      "sizeX": 2.23,
+      "sizeZ": 0.12,
+      "heightM": 0.85,
+      "of": "task-shutters"
+    },
+    {
+      "id": "guest-portraits",
+      "kind": "counter",
+      "room": "Guest Corridor",
+      "x": 90.85,
+      "z": -6,
+      "sizeX": 0.1,
+      "sizeZ": 2,
+      "heightM": 0.1,
+      "of": "task-portraits"
+    },
+    {
+      "id": "guest-north-plant-west",
+      "kind": "plant",
+      "room": "Guest Corridor",
+      "x": 89.4,
+      "z": -16.1,
+      "sizeX": 0.6,
+      "sizeZ": 0.6,
+      "heightM": 1.35
+    },
+    {
+      "id": "guest-corridor-pot-1",
+      "kind": "counter",
+      "room": "Guest Corridor",
+      "x": 92.5,
+      "z": -15.97,
+      "sizeX": 0.86,
+      "sizeZ": 0.86,
+      "heightM": 0.5,
+      "of": "relic-guest-corridor-1"
+    },
+    {
+      "id": "guest-corridor-pot-2",
+      "kind": "counter",
+      "room": "Guest Corridor",
+      "x": 95,
+      "z": -15.97,
+      "sizeX": 0.86,
+      "sizeZ": 0.86,
+      "heightM": 0.5,
+      "of": "relic-guest-corridor-2"
+    },
+    {
+      "id": "guest-corridor-pot-3",
+      "kind": "counter",
+      "room": "Guest Corridor",
+      "x": 97.5,
+      "z": -15.97,
+      "sizeX": 0.86,
+      "sizeZ": 0.86,
+      "heightM": 0.5,
+      "of": "relic-guest-corridor-3"
+    },
+    {
+      "id": "wine-racks",
+      "kind": "shelf",
+      "room": "Wine Cellar",
+      "x": 188.5,
+      "z": -9.6,
+      "sizeX": 3,
+      "sizeZ": 0.6,
+      "heightM": 2
+    },
+    {
+      "id": "storage-crates",
+      "kind": "crates",
+      "room": "Storage",
+      "x": 198,
+      "z": -5,
+      "sizeX": 1.4,
+      "sizeZ": 1.4,
+      "heightM": 1
+    },
+    {
+      "id": "ritual-altar",
+      "kind": "altar",
+      "room": "Ritual Room",
+      "x": 192,
+      "z": -15.5,
+      "sizeX": 1.6,
+      "sizeZ": 1,
+      "heightM": 1
+    },
+    {
+      "id": "stairwell-crate",
+      "kind": "crates",
+      "room": "Stairwell",
+      "x": 189.525,
+      "z": 7.69,
+      "sizeX": 0.83,
+      "sizeZ": 0.41,
+      "heightM": 0.35
+    },
+    {
+      "id": "stairwell-bucket",
+      "kind": "plant",
+      "room": "Stairwell",
+      "x": 195.095,
+      "z": 7.595,
+      "sizeX": 0.37,
+      "sizeZ": 0.37,
+      "heightM": 0.55
+    },
+    {
+      "id": "passage-barrel",
+      "kind": "plant",
+      "room": "Cellar Passage",
+      "x": 192.7,
+      "z": -9.505,
+      "sizeX": 0.76,
+      "sizeZ": 0.76,
+      "heightM": 0.87
+    },
+    {
+      "id": "passage-crate",
+      "kind": "crates",
+      "room": "Cellar Passage",
+      "x": 191.65,
+      "z": -9.675,
+      "sizeX": 0.83,
+      "sizeZ": 0.41,
+      "heightM": 0.35
+    },
+    {
+      "id": "wine-cask-1",
+      "kind": "plant",
+      "room": "Wine Cellar",
+      "x": 186.7,
+      "z": 1.505,
+      "sizeX": 0.76,
+      "sizeZ": 0.76,
+      "heightM": 0.87
+    },
+    {
+      "id": "wine-cask-2",
+      "kind": "plant",
+      "room": "Wine Cellar",
+      "x": 187.55,
+      "z": 1.505,
+      "sizeX": 0.76,
+      "sizeZ": 0.76,
+      "heightM": 0.87
+    },
+    {
+      "id": "wine-cask-3",
+      "kind": "plant",
+      "room": "Wine Cellar",
+      "x": 188.4,
+      "z": 1.505,
+      "sizeX": 0.76,
+      "sizeZ": 0.76,
+      "heightM": 0.87
+    },
+    {
+      "id": "wine-cask-4",
+      "kind": "plant",
+      "room": "Wine Cellar",
+      "x": 190.505,
+      "z": -8.6,
+      "sizeX": 0.76,
+      "sizeZ": 0.76,
+      "heightM": 0.87
+    },
+    {
+      "id": "wine-cask-5",
+      "kind": "plant",
+      "room": "Wine Cellar",
+      "x": 190.505,
+      "z": -7.75,
+      "sizeX": 0.76,
+      "sizeZ": 0.76,
+      "heightM": 0.87
+    },
+    {
+      "id": "wine-rack-north",
+      "kind": "shelf",
+      "room": "Wine Cellar",
+      "x": 185.65,
+      "z": -9.595,
+      "sizeX": 2.5,
+      "sizeZ": 0.6,
+      "heightM": 2
+    },
+    {
+      "id": "wine-rack-west-wall",
+      "kind": "shelf",
+      "room": "Wine Cellar",
+      "x": 180.405,
+      "z": -7,
+      "sizeX": 0.6,
+      "sizeZ": 3,
+      "heightM": 2
+    },
+    {
+      "id": "wine-table",
+      "kind": "table",
+      "room": "Wine Cellar",
+      "x": 185,
+      "z": -3,
+      "sizeX": 1.6,
+      "sizeZ": 0.8,
+      "heightM": 0.78
+    },
+    {
+      "id": "wine-rack-middle",
+      "kind": "shelf",
+      "room": "Wine Cellar",
+      "x": 188.2,
+      "z": -4,
+      "sizeX": 2.5,
+      "sizeZ": 1.2,
+      "heightM": 1.6
+    },
+    {
+      "id": "wine-chair-1",
+      "kind": "chair",
+      "room": "Wine Cellar",
+      "x": 184.6,
+      "z": -2.25,
+      "sizeX": 0.43,
+      "sizeZ": 0.58,
+      "heightM": 0.97
+    },
+    {
+      "id": "wine-chair-2",
+      "kind": "chair",
+      "room": "Wine Cellar",
+      "x": 185.7,
+      "z": -3.95,
+      "sizeX": 0.5,
+      "sizeZ": 0.6,
+      "heightM": 0.97
+    },
+    {
+      "id": "storage-cabinet",
+      "kind": "counter",
+      "room": "Storage",
+      "x": 196,
+      "z": -9.337,
+      "sizeX": 1.72,
+      "sizeZ": 1.117,
+      "heightM": 2.36
+    },
+    {
+      "id": "storage-drawers",
+      "kind": "counter",
+      "room": "Storage",
+      "x": 196.5,
+      "z": 1.391,
+      "sizeX": 1.715,
+      "sizeZ": 1.007,
+      "heightM": 1.09
+    },
+    {
+      "id": "storage-chest",
+      "kind": "counter",
+      "room": "Storage",
+      "x": 202.9,
+      "z": -9.633,
+      "sizeX": 0.96,
+      "sizeZ": 0.52,
+      "heightM": 0.62
+    },
+    {
+      "id": "storage-bed-frame",
+      "kind": "bed",
+      "room": "Storage",
+      "x": 194.06,
+      "z": -2.748,
+      "sizeX": 0.905,
+      "sizeZ": 2,
+      "heightM": 1.2
+    },
+    {
+      "id": "storage-crates-east",
+      "kind": "crates",
+      "room": "Storage",
+      "x": 202.2,
+      "z": -4.6,
+      "sizeX": 1.17,
+      "sizeZ": 0.53,
+      "heightM": 0.81
+    },
+    {
+      "id": "storage-shelves-west",
+      "kind": "shelf",
+      "room": "Storage",
+      "x": 193.83,
+      "z": -6,
+      "sizeX": 0.45,
+      "sizeZ": 2.4,
+      "heightM": 2
+    },
+    {
+      "id": "storage-shelves-east",
+      "kind": "shelf",
+      "room": "Storage",
+      "x": 203.67,
+      "z": -7,
+      "sizeX": 0.45,
+      "sizeZ": 2,
+      "heightM": 2
+    },
+    {
+      "id": "ritual-candelabra-west",
+      "kind": "plant",
+      "room": "Ritual Room",
+      "x": 190.85,
+      "z": -16.75,
+      "sizeX": 0.44,
+      "sizeZ": 0.44,
+      "heightM": 1.5
+    },
+    {
+      "id": "ritual-candelabra-east",
+      "kind": "plant",
+      "room": "Ritual Room",
+      "x": 193.15,
+      "z": -16.75,
+      "sizeX": 0.44,
+      "sizeZ": 0.44,
+      "heightM": 1.5
+    },
+    {
+      "id": "ritual-bench-west",
+      "kind": "sofa",
+      "room": "Ritual Room",
+      "x": 185.4,
+      "z": -15.5,
+      "sizeX": 0.4,
+      "sizeZ": 2.4,
+      "heightM": 0.45
+    },
+    {
+      "id": "ritual-bench-east",
+      "kind": "sofa",
+      "room": "Ritual Room",
+      "x": 198.6,
+      "z": -15.5,
+      "sizeX": 0.4,
+      "sizeZ": 2.4,
+      "heightM": 0.45
+    }
+  ],
+  "relicDoor": "relic-door",
+  "ghostTrick": {
+    "kind": "bellboy",
+    "ringEverySec": [
+      40,
+      60
+    ],
+    "swingEverySec": [
+      25,
+      45
+    ],
+    "swingRangeM": 6
+  },
+  "roomColors": {
+    "Main Hall": "#8c6c48",
+    "Front Corridor": "#70604a",
+    "West Corridor": "#4e5c50",
+    "East Corridor": "#5c4e60",
+    "North Corridor": "#4e586c",
+    "Garden Courtyard": "#3c5638",
+    "Reception": "#7c4a3a",
+    "Library": "#4c5c38",
+    "Ballroom": "#6c4a6c",
+    "Restaurant": "#3e5c68",
+    "Kitchen": "#7c7a56",
+    "Service Room": "#5a5a6c",
+    "Upper Corridor": "#605668",
+    "Guest Corridor": "#4e6060",
+    "Bridal Suite": "#8c5a68",
+    "Nursery": "#6a7c8e",
+    "Guest Room 1": "#6c5a38",
+    "Guest Room 2": "#3a5c4a",
+    "Guest Room 3": "#5c3a3a",
+    "Guest Room 4": "#4a4a70",
+    "Staff Quarters": "#6c6c58",
+    "Laundry": "#566c6c",
+    "Stairwell": "#4c4640",
+    "Cellar Passage": "#42463a",
+    "Wine Cellar": "#4c2a32",
+    "Storage": "#4c4a38",
+    "Ritual Room": "#3c2422"
+  },
+  "bell": {
+    "x": 0,
+    "z": 8.5
+  },
+  "fuseBox": {
+    "x": 11.85,
+    "z": -20
+  },
+  "ghostStart": {
+    "x": -17,
+    "z": -13
+  },
+  "altar": {
+    "x": 192,
+    "z": -15.5
+  }
+}
