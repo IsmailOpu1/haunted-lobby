@@ -239,9 +239,11 @@ namespace Haunted.Editor
                 var importer = AssetImporter.GetAtPath(path) as TextureImporter;
                 if (importer == null) continue;
                 bool srgb = !IsData(Path.GetFileName(path));
-                if (importer.textureType == TextureImporterType.Default && importer.sRGBTexture == srgb) continue;
+                string group = GroupOf(importer);
+                if (importer.textureType == TextureImporterType.Default && importer.sRGBTexture == srgb && importer.mipmapLimitGroupName == group) continue;
                 importer.textureType = TextureImporterType.Default;
                 importer.sRGBTexture = srgb;
+                importer.mipmapLimitGroupName = group;
                 importer.SaveAndReimport();
             }
         }
@@ -270,6 +272,17 @@ namespace Haunted.Editor
             importer.textureCompression = TextureImporterCompression.CompressedHQ;
             importer.mipmapEnabled = true;
             importer.anisoLevel = 4;
+            importer.mipmapLimitGroupName = GroupOf(importer);
+        }
+
+        /// <summary>
+        /// Textures over 1024 pixels go in Low quality's group (HauntedQuality.LargeTextures), which
+        /// drops their top level: the browser's 1K set halves exactly those and keeps the rest.
+        /// </summary>
+        static string GroupOf(TextureImporter importer)
+        {
+            importer.GetSourceTextureWidthAndHeight(out int w, out int h);
+            return Math.Max(w, h) > 1024 ? Haunted.Game.HauntedQuality.LargeTextures : "";
         }
     }
 }

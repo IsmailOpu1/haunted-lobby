@@ -170,6 +170,9 @@ half3 SampleProbeSHVertex(in float3 absolutePositionWS, in float3 normalWS, in f
 #define LIGHTMAP_SAMPLE_EXTRA_ARGS staticLightmapUV
 #endif
 
+// Haunted Lobby: the lamps' power, 1 lit, 0 in a blackout (DressedRooms sets it).
+half _HauntedLamps;
+
 // Sample baked and/or realtime lightmap. Non-Direction and Directional if available.
 half3 SampleLightmap(float2 staticLightmapUV, float2 dynamicLightmapUV, half3 normalWS)
 {
@@ -186,6 +189,10 @@ half3 SampleLightmap(float2 staticLightmapUV, float2 dynamicLightmapUV, half3 no
         LIGHTMAP_SAMPLE_EXTRA_ARGS, transformCoords, normalWS, true);
 #elif defined(LIGHTMAP_ON)
     diffuseLighting = SampleSingleLightmap(TEXTURE2D_LIGHTMAP_ARGS(LIGHTMAP_NAME, LIGHTMAP_SAMPLER_NAME), LIGHTMAP_SAMPLE_EXTRA_ARGS, transformCoords, true);
+#endif
+#if defined(LIGHTMAP_ON)
+    // Haunted Lobby: a blackout fades the baked lamps out (dressedRooms.ts lightMapIntensity * power).
+    diffuseLighting *= _HauntedLamps;
 #endif
 
 #if defined(DYNAMICLIGHTMAP_ON) && defined(DIRLIGHTMAP_COMBINED)

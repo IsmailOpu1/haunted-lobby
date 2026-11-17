@@ -165,6 +165,20 @@ namespace Haunted.Editor
                 AssetDatabase.AddObjectToAsset(glass, renderer);
                 renderer.rendererFeatures.Add(glass);
             }
+            // High quality's ambient occlusion (HauntedAO), drawn before the bloom as in three.
+            var ao = renderer.rendererFeatures.Find(f => f is Haunted.Game.HauntedAO) as Haunted.Game.HauntedAO;
+            if (ao == null)
+            {
+                ao = ScriptableObject.CreateInstance<Haunted.Game.HauntedAO>();
+                ao.name = "Haunted ambient occlusion";
+                AssetDatabase.AddObjectToAsset(ao, renderer);
+                renderer.rendererFeatures.Add(ao);
+            }
+            ao.shader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Shaders/HauntedAO.shader");
+            // Low quality's 1K textures: the group HotelImport puts every texture over 1024 pixels in.
+            // HauntedQuality sets how many sizes it skips at run time.
+            if (!TextureMipmapLimitGroups.HasGroup(Haunted.Game.HauntedQuality.LargeTextures))
+                TextureMipmapLimitGroups.CreateGroup(Haunted.Game.HauntedQuality.LargeTextures);
             // A feature made by CreateInstance starts switched off.
             foreach (var f in renderer.rendererFeatures)
             {

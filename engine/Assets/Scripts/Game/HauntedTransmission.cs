@@ -32,8 +32,9 @@ namespace Haunted.Game
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
             var type = renderingData.cameraData.cameraType;
-            // Reflection probes and previews see glass over black, never another camera's picture.
-            if (type == CameraType.Game || type == CameraType.SceneView) renderer.EnqueuePass(pass);
+            // Reflection probes and previews see glass over black, never another camera's picture;
+            // on Low the glass is plain (HauntedQuality) and reads neither.
+            if ((type == CameraType.Game || type == CameraType.SceneView) && !HauntedQuality.PlainGlass) renderer.EnqueuePass(pass);
             else renderer.EnqueuePass(black);
         }
 

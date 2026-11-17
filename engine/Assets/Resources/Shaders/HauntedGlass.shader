@@ -48,6 +48,8 @@ Shader "Haunted/Glass"
     TEXTURE2D(_HauntedTransmissionOpaque);
     TEXTURE2D(_HauntedTransmission);
     // sampler_LinearClamp comes from URP's Core.hlsl.
+    // 1 on Low quality (HauntedQuality): plain glass, as the browser's.
+    float _HauntedPlainGlass;
 
     CBUFFER_START(UnityPerMaterial)
     float4 baseColorFactor;
@@ -251,6 +253,12 @@ Shader "Haunted/Glass"
         float3 bitangent = input.tangentWS.w * cross(geometryNormal, tangent);
         float3 normalWS = normalize(mul(normalTS, float3x3(tangent, bitangent, geometryNormal)));
 
+        // Low quality (dressedRooms.ts plainGlassShader): no picture behind; the glass part (not the
+        // metal) darkened to 0.3 and see-through to 0.3, drawn by its alpha (DressedRooms).
+        float plain = _HauntedPlainGlass > 0.5 ? transmissionFactor * (1 - metal) : 0;
+        base.rgb *= lerp(1.0, 0.3, plain);
+        base.a *= lerp(1.0, 0.3, plain);
+
         float occlusion = 1 + occlusionTexture_strength
             * (SAMPLE_TEXTURE2D(occlusionTexture, samplerocclusionTexture, UvOf(input, occlusionTexture_texCoord, occlusionTexture_ST)).r - 1);
         float3 emission = emissiveFactor.rgb
@@ -290,7 +298,8 @@ Shader "Haunted/Glass"
         float lod = log2(LevelSize(behind, 0).x) * threeRoughness;
         float3 seen = TextureBicubic(behind, inputData.normalizedScreenSpaceUV, lod).rgb;
         float3 transmitted = (1 - reflected) * seen * base.rgb * (1 - metal);
-        float t = transmissionFactor * SAMPLE_TEXTURE2D(transmissionTexture, samplertransmissionTexture, UvOf(input, 0, transmissionTexture_ST)).r;
+        float t = _HauntedPlainGlass > 0.5 ? 0
+            : transmissionFactor * SAMPLE_TEXTURE2D(transmissionTexture, samplertransmissionTexture, UvOf(input, 0, transmissionTexture_ST)).r;
         diffuse = lerp(diffuse, transmitted, t);
 
         half3 color = diffuse + specular + emission;

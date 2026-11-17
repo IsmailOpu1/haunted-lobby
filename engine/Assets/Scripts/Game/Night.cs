@@ -137,6 +137,8 @@ namespace Haunted.Game
         GameState S { get { return room.State; } }
         public Player Me { get { Player p; return S != null && S.players.TryGetValue(room.SessionId, out p) ? p : null; } }
         public bool IsHost { get { return S != null && S.host == room.SessionId; } }
+        /// <summary>True while the lamps are out (the ghost's Blackout, until the fuse box is fixed).</summary>
+        public bool Blackout { get { return S != null && S.blackout; } }
 
         double Cfg(string section, string key) { return Json.Num(Json.Obj(config, section), key); }
         bool CfgBool(string section, string key) { return (bool)Json.Obj(config, section)[key]; }

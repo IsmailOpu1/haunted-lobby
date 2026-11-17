@@ -20,3 +20,11 @@ package here the same way and make these changes again.
 4. **three.js's roughness** (`lights_physical_fragment`).
    - three never lets roughness go under 0.0525, and adds how fast the surface's own normal turns across the pixel (`geometryRoughness`), so small curved shiny things (bottles, knobs) shine more broadly and more dimly.
    - `ShaderLibrary/Lighting.hlsl` `HauntedThreeSmoothness` does the same to the smoothness at the top of `UniversalFragmentPBR`; `HauntedGeometryNormal` takes the normal before any normal map. The glass shader (`Assets/Resources/Shaders/HauntedGlass.shader`) uses it too.
+5. **three.js's direct shine** (`BRDF_GGX`).
+   - URP's direct light shines by its "minimalist" Cook-Torrance, which is twice three's GGX where you look along the light (the torch's case), so a lit glint bloomed far wider than in the browser.
+   - `ShaderLibrary/BRDF.hlsl` `HauntedDirectSpecular` is three's: Schlick Fresnel (three's exp2 form, f90 1), height-correlated Smith visibility and the GGX distribution, times pi because Unity's lights are three's intensity over pi. `DirectBRDF` and `Lighting.hlsl` `LightingPhysicallyBased` use it. The clear coat and deferred paths are unchanged.
+6. **three.js's diffuse colour.**
+   - URP takes 4% off every metallic-workflow surface's diffuse colour (`OneMinusReflectivityMetallic`); three's is albedo × (1 − metalness).
+   - `ShaderLibrary/BRDF.hlsl` `InitializeBRDFData` sets it so. Reflectivity is unchanged.
+7. **Blackout** (three.js's `lightMapIntensity`).
+   - `ShaderLibrary/GlobalIllumination.hlsl` `SampleLightmap` multiplies the baked lightmap by the global `_HauntedLamps`: the lamps' power, 1 lit, fading to 0 in the ghost's Blackout (`DressedRooms.Update`, as dressedRooms.ts). The game sets it to 1 at start.

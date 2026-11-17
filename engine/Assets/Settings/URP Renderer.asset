@@ -1,5 +1,19 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!114 &-665660278545504259
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f76a3364b08fe824ab6830bfdd366251, type: 3}
+  m_Name: Haunted ambient occlusion
+  m_EditorClassIdentifier: Haunted.Game::Haunted.Game.HauntedAO
+  m_Active: 1
+  shader: {fileID: 4800000, guid: 93a3735dcd71dfb4091b8a8708fbf19b, type: 3}
 --- !u!114 &-189998382215885001
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -41,7 +55,8 @@ MonoBehaviour:
   m_RendererFeatures:
   - {fileID: -189998382215885001}
   - {fileID: 3754715006036558905}
-  m_RendererFeatureMap: 378f1f607afd5cfd3944a397676d1b34
+  - {fileID: -665660278545504259}
+  m_RendererFeatureMap: 378f1f607afd5cfd3944a397676d1b34fd2735e48019c3f6
   m_UseNativeRenderPass: 0
   postProcessData: {fileID: 0}
   m_AssetVersion: 3

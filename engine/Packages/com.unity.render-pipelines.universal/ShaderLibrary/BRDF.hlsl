@@ -89,7 +89,8 @@ inline void InitializeBRDFData(half3 albedo, half metallic, half3 specular, half
 #else
     half oneMinusReflectivity = OneMinusReflectivityMetallic(metallic);
     half reflectivity = half(1.0) - oneMinusReflectivity;
-    half3 brdfDiffuse = albedo * oneMinusReflectivity;
+    // Haunted Lobby: three's diffuse colour is albedo * (1 - metalness), without URP's extra 0.96.
+    half3 brdfDiffuse = albedo * (half(1.0) - metallic);
     half3 brdfSpecular = lerp(kDielectricSpec.rgb, albedo, metallic);
 #endif
 
@@ -240,10 +241,35 @@ half3 DirectBDRF(BRDFData brdfData, half3 normalWS, half3 lightDirectionWS, half
 // * NDF [Modified] GGX
 // * Modified Kelemen and Szirmay-Kalos for Visibility term
 // * Fresnel approximated with 1/LdotH
+// Haunted Lobby: three.js's direct shine (bsdfs BRDF_GGX) in place of it: Schlick Fresnel to f90 1,
+// height-correlated Smith visibility and GGX, times PI because URP's lights leave out the 1 / PI
+// three puts on the diffuse side. URP's own is twice as bright where light and eye are together,
+// as with the torch, so its glints bloomed far wider.
+half3 HauntedDirectSpecular(BRDFData brdfData, half3 normalWS, half3 lightDirectionWS, half3 viewDirectionWS)
+{
+    float3 n = float3(normalWS);
+    float3 l = float3(lightDirectionWS);
+    float3 v = float3(viewDirectionWS);
+    float3 h = SafeNormalize(l + v);
+    float dotNL = saturate(dot(n, l));
+    float dotNV = saturate(dot(n, v));
+    float dotNH = saturate(dot(n, h));
+    float dotVH = saturate(dot(v, h));
+    float a2 = float(brdfData.roughness) * float(brdfData.roughness);
+    float gv = dotNL * sqrt(a2 + (1.0 - a2) * dotNV * dotNV);
+    float gl = dotNV * sqrt(a2 + (1.0 - a2) * dotNL * dotNL);
+    float visibility = 0.5 / max(gv + gl, 1e-6);
+    float denom = dotNH * dotNH * (a2 - 1.0) + 1.0;
+    float distribution = a2 / (PI * denom * denom);
+    float fresnel = exp2((-5.55473 * dotVH - 6.98316) * dotVH);
+    float3 f = float3(brdfData.specular) * (1.0 - fresnel) + fresnel;
+    return half3(f * (visibility * distribution * PI));
+}
+
 half3 DirectBRDF(BRDFData brdfData, half3 normalWS, half3 lightDirectionWS, half3 viewDirectionWS)
 {
 #ifndef _SPECULARHIGHLIGHTS_OFF
-    return brdfData.diffuse + DirectBRDFSpecular(brdfData, normalWS, lightDirectionWS, viewDirectionWS) * brdfData.specular;
+    return brdfData.diffuse + HauntedDirectSpecular(brdfData, normalWS, lightDirectionWS, viewDirectionWS);
 #else
     return brdfData.diffuse;
 #endif

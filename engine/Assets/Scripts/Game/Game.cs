@@ -120,6 +120,42 @@ namespace Haunted.Game
             ReadCommandLine();
         }
 
+        // game.ts DARK_AMBIENT and BLACKOUT_AMBIENT: the dressed hotel's faint fill, and in a blackout.
+        const float DarkAmbient = 0.04f, BlackoutAmbient = 0.005f;
+        bool blackoutLit, forceBlackout;
+
+        /// <summary>
+        /// The browser's hemisphere fill at this strength: sky b8c0d0 over ground 202020; three divides
+        /// it by pi for a diffuse surface, Unity doesn't.
+        /// </summary>
+        static void SetFill(float strength)
+        {
+            float fill = strength / Mathf.PI;
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+            // Worked out in linear light; Unity reads these colours as sRGB, hence .gamma.
+            Color sky = new Color(0xb8 / 255f, 0xc0 / 255f, 0xd0 / 255f).linear, ground = new Color(0x20 / 255f, 0x20 / 255f, 0x20 / 255f).linear;
+            RenderSettings.ambientSkyColor = (sky * fill).gamma;
+            RenderSettings.ambientEquatorColor = ((sky + ground) * (fill / 2)).gamma;
+            RenderSettings.ambientGroundColor = (ground * fill).gamma;
+        }
+
+        /// <summary>
+        /// game.ts on the blackout: the lamps fade out (DressedRooms) and the fill drops at once to
+        /// BLACKOUT_AMBIENT; fixing the fuse box brings both back. -blackout forces it (a test aid).
+        /// </summary>
+        void UpdateBlackout(float dt)
+        {
+            if (dressed == null) return;
+            bool blackout = forceBlackout || (room != null && night != null && night.Blackout);
+            if (blackout != blackoutLit)
+            {
+                blackoutLit = blackout;
+                dressed.SetPower(!blackout);
+                SetFill(blackout ? BlackoutAmbient : DarkAmbient);
+            }
+            dressed.Update(dt);
+        }
+
         void SetUpLight()
         {
             // Close to the browser's grey box: a black fog from 1 to 18 m, a dim fill, and the torch.
@@ -133,13 +169,7 @@ namespace Haunted.Game
                 // The dressed hotel is lit by its baked lightmaps, the torch and the browser's faint fill
                 // (game.ts DARK_AMBIENT: a 0.04 hemisphere, sky b8c0d0 over ground 202020; three divides
                 // it by pi for a diffuse surface, Unity doesn't). No moonlight: the bake has it.
-                const float fill = 0.04f / Mathf.PI;
-                RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
-                // Worked out in linear light; Unity reads these colours as sRGB, hence .gamma.
-                Color sky = new Color(0xb8 / 255f, 0xc0 / 255f, 0xd0 / 255f).linear, ground = new Color(0x20 / 255f, 0x20 / 255f, 0x20 / 255f).linear;
-                RenderSettings.ambientSkyColor = (sky * fill).gamma;
-                RenderSettings.ambientEquatorColor = ((sky + ground) * (fill / 2)).gamma;
-                RenderSettings.ambientGroundColor = (ground * fill).gamma;
+                SetFill(DarkAmbient);
                 // No sky to reflect: Unity's default reflects its bright built-in sky on every shiny
                 // surface. The browser's rooms reflect only themselves (dressedRooms.ts probes, step D2).
                 RenderSettings.skybox = null;
@@ -204,6 +234,13 @@ namespace Haunted.Game
             // Test aid: the picture shows only the bloom (HauntedPost), to see what glows.
             // "-bloomOnly 2": everything counts as bright, to check the glow reaches the picture.
             if (Array.IndexOf(args, "-bloomOnly") >= 0) Shader.SetGlobalFloat("_HauntedBloomOnly", arg("-bloomOnly") == "2" ? 2 : 1);
+            // Graphics quality (HauntedQuality): "-quality low" or High; the menus come in step E.
+            HauntedQuality.Apply(HauntedQuality.Parse(arg("-quality")));
+            // Test aid: the picture shows only the ambient occlusion (HauntedAO).
+            // Test aid: the lamps out, as in the ghost's Blackout.
+            forceBlackout = Array.IndexOf(args, "-blackout") >= 0;
+            HauntedAO.ShowOnly = Array.IndexOf(args, "-aoOnly") >= 0;
+            HauntedAO.Off = Array.IndexOf(args, "-noAO") >= 0;
             if (arg("-roomShots") != null)
             {
                 // The room-by-room picture test (RoomTour): no server, no HUD.
@@ -385,6 +422,7 @@ namespace Haunted.Game
         {
             double now = Time.realtimeSinceStartupAsDouble;
             stations.Update(Time.timeAsDouble);
+            UpdateBlackout(Time.deltaTime);
             doors.Update(Time.deltaTime);
             if (room != null && me != null)
             {

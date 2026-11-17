@@ -43,9 +43,44 @@ namespace Haunted.Game
         /// <summary>True once every probe has been taken (CaptureReflections).</summary>
         public bool ReflectionsReady { get; private set; }
 
+        /// <summary>dressedRooms.ts POWER_FADE_PER_SEC: how fast the lamps go out and come back.</summary>
+        const float PowerFadePerSec = 4;
+        /// <summary>The patched URP's lightmap strength (HAUNTED-PATCHES.md): the lamps' power, 0 to 1.</summary>
+        static readonly int Lamps = Shader.PropertyToID("_HauntedLamps");
+        static readonly int EmissiveFactor = Shader.PropertyToID("emissiveFactor");
+        /// <summary>Each bulb material and its full glow.</summary>
+        readonly List<(Material material, Vector4 full)> bulbs = new List<(Material, Vector4)>();
+        float power = 1, powerTarget = 1;
+
+        /// <summary>The lamps now: 1 lit, fading to 0 in a blackout (dressedRooms.ts lamps).</summary>
+        public float Power => power;
+
+        /// <summary>Blackout turns the lamps off; fixing the fuse box turns them back on.</summary>
+        public void SetPower(bool on) { powerTarget = on ? 1 : 0; }
+
+        /// <summary>
+        /// dressedRooms.ts update: the lamps fade toward on or off; the baked light, the bulbs' glow
+        /// and the rooms' reflections (and the probe light on their surfaces) go with them.
+        /// </summary>
+        public void Update(float dt)
+        {
+            if (power == powerTarget) return;
+            float step = PowerFadePerSec * dt, diff = powerTarget - power;
+            power = Mathf.Abs(diff) <= step ? powerTarget : power + Mathf.Sign(diff) * step;
+            UsePower();
+        }
+
+        void UsePower()
+        {
+            Shader.SetGlobalFloat(Lamps, power);
+            foreach (var b in bulbs) b.material.SetVector(EmissiveFactor, b.full * power);
+            foreach (var p in probes) p.intensity = power;
+        }
+
         public DressedRooms(HotelArt art)
         {
             Shader.SetGlobalFloat(ProbeDiffuse, 1);
+            Shader.SetGlobalFloat(Lamps, 1);
             Root = new GameObject("Dressed rooms");
             // glTFast brings glTF (x, y, z) in as Unity (-x, y, z); the game's Unity space is (x, y, -z)
             // (Coords), which is that turned half a circle around y.
@@ -62,8 +97,21 @@ namespace Haunted.Game
                 lightmaps.Add(new LightmapData { lightmapColor = room.lightmap });
                 var build = UnityEngine.Object.Instantiate(room.model, Root.transform, false);
                 build.name = room.name;
-                var renderers = build.GetComponentsInChildren<MeshRenderer>(true);
+                // Low quality's lighter copies (tools/engine-rooms.ts): kept hidden, swapped in by mesh.
+                var lighterRoot = FindChild(build.transform, LighterNode);
+                var lows = new Dictionary<string, Mesh>();
+                if (lighterRoot != null)
+                {
+                    foreach (var f in lighterRoot.GetComponentsInChildren<MeshFilter>(true)) lows[f.gameObject.name] = f.sharedMesh;
+                    lighterRoot.gameObject.SetActive(false);
+                }
+                var renderers = Array.FindAll(build.GetComponentsInChildren<MeshRenderer>(true), r => lighterRoot == null || !r.transform.IsChildOf(lighterRoot));
                 if (renderers.Length == 0) continue;
+                foreach (var r in renderers)
+                {
+                    var f = r.GetComponent<MeshFilter>();
+                    if (f != null && f.sharedMesh != null && lows.TryGetValue(f.sharedMesh.name, out var low)) lighter.Add(new Lighter { filter = f, full = f.sharedMesh, low = low });
+                }
                 var bounds = renderers[0].bounds;
                 foreach (var r in renderers) bounds.Encapsulate(r.bounds);
                 var spots = Spots(room, bounds);
@@ -73,8 +121,11 @@ namespace Haunted.Game
                 {
                     if (r.gameObject.name.StartsWith(BulbPrefix, StringComparison.Ordinal))
                     {
-                        // The browser gives bulbs no reflection, only their glow.
+                        // The browser gives bulbs no reflection, only their glow, which a blackout dims.
                         r.reflectionProbeUsage = ReflectionProbeUsage.Off;
+                        foreach (var m in r.sharedMaterials)
+                            if (m != null && m.HasProperty(EmissiveFactor) && !bulbs.Exists(b => b.material == m))
+                                bulbs.Add((m, m.GetVector(EmissiveFactor)));
                         continue;
                     }
                     UseGlass(r, glass);
@@ -90,11 +141,57 @@ namespace Haunted.Game
             }
             LightmapSettings.lightmapsMode = LightmapsMode.NonDirectional;
             LightmapSettings.lightmaps = lightmaps.ToArray();
+            HauntedQuality.Changed += UseQuality;
+            Debug.Log("Dressed rooms: " + lighter.Count + " pieces with lighter copies for Low quality");
+        }
+
+        /// <summary>tools/engine-rooms.ts LIGHTER_NODE: a build's lighter copies, a child per mesh.</summary>
+        const string LighterNode = "__lighter";
+
+        struct Lighter
+        {
+            public MeshFilter filter;
+            public Mesh full, low;
+        }
+
+        /// <summary>Every piece with a lighter copy (dressedRooms.ts lighter and lighterSingles).</summary>
+        readonly List<Lighter> lighter = new List<Lighter>();
+
+        static Transform FindChild(Transform t, string name)
+        {
+            if (t.name == name) return t;
+            foreach (Transform c in t)
+            {
+                var found = FindChild(c, name);
+                if (found != null) return found;
+            }
+            return null;
         }
 
         static Shader glassShader;
         /// <summary>Each glass material made so far, by the glTFast material it stands in for.</summary>
         readonly Dictionary<Material, Material> glassMade = new Dictionary<Material, Material>();
+        /// <summary>Whether each made glass is alphaMode BLEND in its file.</summary>
+        readonly Dictionary<Material, bool> glassBlends = new Dictionary<Material, bool>();
+
+        /// <summary>Drawn over what is behind by its alpha, or over it whole.</summary>
+        static void Blend(Material made, bool byAlpha)
+        {
+            made.SetFloat("_SrcBlend", (float)(byAlpha ? BlendMode.SrcAlpha : BlendMode.One));
+            made.SetFloat("_DstBlend", (float)(byAlpha ? BlendMode.OneMinusSrcAlpha : BlendMode.Zero));
+        }
+
+        /// <summary>
+        /// Low quality (dressedRooms.ts setPlainGlass): glass drawn plain and see-through by its alpha
+        /// (HauntedGlass with _HauntedPlainGlass), as three's transparent glass; High puts it back.
+        /// </summary>
+        void UseQuality(HauntedQuality.Level level)
+        {
+            bool plain = level == HauntedQuality.Level.Low;
+            foreach (var kv in glassBlends) Blend(kv.Key, kv.Value || plain);
+            // dressedRooms.ts setLowQuality: the most detailed pieces drawn from their lighter copies.
+            foreach (var l in lighter) l.filter.sharedMesh = plain ? l.low : l.full;
+        }
 
         /// <summary>The glTFast properties HauntedGlass reads, copied over as they are.</summary>
         static readonly string[] GlassTextures = { "baseColorTexture", "metallicRoughnessTexture", "normalTexture", "emissiveTexture", "occlusionTexture" };
@@ -131,12 +228,12 @@ namespace Haunted.Game
                     made.SetVector("baseColorFactor", (Vector4)art.baseColor);
                     made.SetFloat("transmissionFactor", art.transmission);
                     if (art.transmissionMap != null) made.SetTexture("transmissionTexture", art.transmissionMap);
-                    made.SetFloat("_SrcBlend", (float)(art.blend ? BlendMode.SrcAlpha : BlendMode.One));
-                    made.SetFloat("_DstBlend", (float)(art.blend ? BlendMode.OneMinusSrcAlpha : BlendMode.Zero));
                     // three's GLTFLoader: blended glass writes no depth.
                     made.SetFloat("_ZWrite", art.blend ? 0 : 1);
                     made.renderQueue = (int)RenderQueue.Transparent;
                     glassMade[m] = made;
+                    glassBlends[made] = art.blend;
+                    Blend(made, art.blend || HauntedQuality.PlainGlass);
                 }
                 materials[i] = made;
                 changed = true;

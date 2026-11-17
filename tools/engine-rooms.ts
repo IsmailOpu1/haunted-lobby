@@ -15,11 +15,12 @@ import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { promisify } from "node:util";
-import { NodeIO } from "@gltf-transform/core";
+import { type Document, NodeIO, Primitive } from "@gltf-transform/core";
 import { ALL_EXTENSIONS, type EmissiveStrength, KHRMaterialsEmissiveStrength, KHRTextureBasisu, type Transmission } from "@gltf-transform/extensions";
 import { dequantize } from "@gltf-transform/functions";
 import { dressings } from "@haunted/maps";
-import { MeshoptDecoder } from "meshoptimizer";
+import { MeshoptDecoder, MeshoptSimplifier } from "meshoptimizer";
+import { LOW_DETAIL_MIN_TRIANGLES } from "../client/src/lighter.ts";
 
 const run = promisify(execFile);
 const ROOT = resolve(import.meta.dirname, "..");
@@ -56,7 +57,7 @@ async function main() {
   for (const [room, entry] of entries) {
     const name = basename(entry.glb, ".gltf");
     const started = Date.now();
-    const count = await convert(io, join(PUBLIC, entry.glb), join(OUT, "Rooms"), name);
+    const count = await convert(io, join(PUBLIC, entry.glb), join(OUT, "Rooms"), name, true);
     await unpack(join(PUBLIC, entry.lightmap), join(OUT, "Lightmaps", `${name}.png`));
     console.log(`${room}: ${count} textures, ${((Date.now() - started) / 1000).toFixed(0)} s`);
   }
@@ -95,9 +96,10 @@ const MODELS: [string, string][] = [
  * Writes one browser glTF as a plain one for glTFast: meshes unpacked, textures as the shared PNGs
  * in Textures/, emissive strength folded in. Returns how many textures it uses.
  */
-async function convert(io: NodeIO, from: string, dir: string, name: string): Promise<number> {
+async function convert(io: NodeIO, from: string, dir: string, name: string, lighter = false): Promise<number> {
   const doc = await io.read(from);
   await doc.transform(dequantize());
+  if (lighter) await addLighter(doc);
   const textures = doc.getRoot().listTextures();
   const files = textures.map((t) => basename(t.getURI(), ".ktx2"));
   await inPairs([...new Set(files)], (file) => unpack(join(ASSETS, "textures", `${file}.ktx2`), join(OUT, "Textures", `${file}.png`)));
@@ -120,6 +122,67 @@ async function convert(io: NodeIO, from: string, dir: string, name: string): Pro
   for (const buffer of doc.getRoot().listBuffers()) buffer.setURI(`${name}.bin`);
   await io.write(join(dir, `${name}.gltf`), doc);
   return textures.length;
+}
+
+// client/src/lighter.ts: the copy keeps about this share of the triangles, within this share of
+// the piece's size, and is only kept if it saves at least this share. Looks only.
+const LOW_DETAIL_SHARE = 0.25;
+const LOW_DETAIL_ERROR = 0.01;
+const LOW_DETAIL_WORTH = 0.3;
+/** The node that carries a room's lighter copies; Unity's DressedRooms hides it and swaps them in on Low. */
+const LIGHTER_NODE = "__lighter";
+
+/**
+ * Low quality's lighter copies of a room's most detailed pieces, made here as the browser makes them
+ * once Low is chosen (lighter.ts, the same meshoptimizer): a piece of LOW_DETAIL_MIN_TRIANGLES or
+ * more keeps the triangles simplifyWithAttributes leaves. Each mesh with any becomes a copy named
+ * "<mesh> lighter" (its other pieces as they are, sharing the corners, so lightmap UVs hold), on a
+ * child of LIGHTER_NODE named after the mesh.
+ */
+async function addLighter(doc: Document) {
+  await MeshoptSimplifier.ready;
+  const root = doc.getRoot();
+  const buffer = root.listBuffers()[0];
+  const scene = root.getDefaultScene() ?? root.listScenes()[0];
+  if (!buffer || !scene) return;
+  const holder = doc.createNode(LIGHTER_NODE);
+  for (const mesh of root.listMeshes()) {
+    const copy = doc.createMesh(`${mesh.getName()} lighter`);
+    let any = false;
+    for (const prim of mesh.listPrimitives()) {
+      const piece = prim.clone();
+      const kept = lighterTriangles(prim);
+      if (kept) {
+        piece.setIndices(doc.createAccessor().setType("SCALAR").setArray(kept).setBuffer(buffer));
+        any = true;
+      }
+      copy.addPrimitive(piece);
+    }
+    if (any) holder.addChild(doc.createNode(mesh.getName()).setMesh(copy));
+    else {
+      for (const p of copy.listPrimitives()) p.dispose();
+      copy.dispose();
+    }
+  }
+  if (holder.listChildren().length) scene.addChild(holder);
+  else holder.dispose();
+}
+
+/** lighter.ts lighterTriangles, on a glTF piece: the kept triangles, or null for none. */
+function lighterTriangles(prim: Primitive): Uint32Array | null {
+  const index = prim.getIndices();
+  const position = prim.getAttribute("POSITION");
+  if (!index || !position || prim.getMode() !== Primitive.Mode.TRIANGLES) return null;
+  const indices = Uint32Array.from(index.getArray()!);
+  if (indices.length / 3 < LOW_DETAIL_MIN_TRIANGLES) return null;
+  const positions = Float32Array.from(position.getArray()!);
+  // dressedRooms.ts lighterPiece: no normals reads as zeros.
+  const normal = prim.getAttribute("NORMAL");
+  const normals = normal ? Float32Array.from(normal.getArray()!) : new Float32Array(positions.length);
+  const target = Math.floor((indices.length * LOW_DETAIL_SHARE) / 3) * 3;
+  const [kept] = MeshoptSimplifier.simplifyWithAttributes(indices, positions, 3, normals, 3, [0.5, 0.5, 0.5], null, target, LOW_DETAIL_ERROR);
+  if (kept.length > indices.length * (1 - LOW_DETAIL_WORTH) || kept.length === 0) return null;
+  return kept;
 }
 
 /**

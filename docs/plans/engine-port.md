@@ -252,7 +252,22 @@ The rooms' glass (`KHR_materials_transmission`: the bar's wine bottles, the lamp
 4. **three's roughness** for every lit surface (URP patch 4 in `HAUNTED-PATCHES.md`): at least 0.0525, plus the geometry's own curve, as three does.
 5. **Result** (room tour and close-ups, torch on and off). With the torch off, every room is within 3 of the browser; the Restaurant bar is 99.5 against 100.5 (the bottles on the bar are see-through as in the browser). With the torch on, the bar's view stays +25: not the glass but bloom round the torch's glints on the shelf's smooth (opaque) bottles, which spread wider in Unity. That, the ballroom doors from close by (−6) and the mirror (−18) are the bloom item below.
 
+### Step D2: shine, quality levels and blackout (2026-11-17)
+
+1. **three's direct shine** (URP patch 5): the torch's glints use three's GGX, not URP's "minimalist" version, which is twice as bright looking along the light. The Restaurant bar by torchlight went from +25 to +5.5.
+2. **three's diffuse colour** (URP patch 6): albedo × (1 − metalness), without URP's extra 4% off.
+3. **Quality levels** (`HauntedQuality`; `-quality low` until the menus of step E). Each does what the browser's does:
+   - **High:** full size, with ambient occlusion (`HauntedAO`: three's GTAOPass, its normal pass, 16-sample GTAO, Poisson denoise and blend, at half size). `-aoOnly` shows the occlusion alone; `-noAO` turns it off for a test.
+   - **Low:** at most 720 lines, scaled up; no occlusion; plain glass.
+   - **Low's textures:** textures over 1024 pixels drop a size (the "Large" mipmap group, which HotelImport puts them in).
+   - **Low's lighter meshes:** the lighter copies of detailed pieces, made by `tools/engine-rooms.ts` with the browser's settings (`client/src/lighter.ts`). There are 547 pieces; the restaurant's 538,240 triangles become 183,507.
+4. **Blackout** (URP patch 7): the lamps fade at 4 a second, as dressedRooms.ts does. The baked light (`_HauntedLamps`), the bulbs' glow and the rooms' reflection probes fade together, and the fill drops to game.ts's 0.005. It is driven by the server's `blackout`; `-blackout` forces it for a test.
+5. **Result.**
+   - **Room tours, High:** torch off, every room within 2 of the browser; torch on, within 2.5 except the Restaurant bar (+5.5).
+   - **Low against High:** within 2 everywhere.
+   - **Blackout tour:** black but for the torch, as the browser.
+   - **Close-ups:** the browser's close-up pictures turn out to have been taken without ambient occlusion and its room pictures with it (checked in the browser: AO off gives the same pictures). So the close-ups compare with `-noAO`: all within 4 of the browser except the ballroom doors (−6), the Kitchen relic (−7) and the mirror (−16).
+   - **AO itself:** the AO-only pictures of the two match (178.9 against 178.5 on the Kitchen). Turning AO on changes both alike: −15 in the browser and −17 in Unity on the stove close-up, about −10% in the Ballroom.
+
 Left for D2:
-- Bloom round the torch's brightest spots (the Restaurant's shelf, the Laundry, the Kitchen stove, the doors from close by, the mirror).
-- Quality levels (Low and High; ambient occlusion on High).
-- Blackout dimming of lightmaps, bulbs and probes.
+- Bloom round the torch's brightest spots from close by (the ballroom doors, the Kitchen relic, the mirror): the browser's glow spreads wider round the lit circle. The bloom's numbers are three's; what feeds it differs.
