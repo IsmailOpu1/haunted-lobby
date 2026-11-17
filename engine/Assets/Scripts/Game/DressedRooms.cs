@@ -123,6 +123,43 @@ namespace Haunted.Game
             return probe;
         }
 
+        // dressedRooms.ts lightMovable: the nearest probe within this, on the same floor (within SameFloorM).
+        const float MovableProbeRangeM = 20, SameFloorM = 1.5f;
+        /// <summary>The rendering layer the patched URP lights by its probe without a lightmap (HAUNTED-PATCHES.md).</summary>
+        const uint MovableLayer = 1u << 7;
+
+        /// <summary>
+        /// Lights something that moves (a door), which the baked lightmaps can't, by the nearest dressed
+        /// room's probe on its floor, as dressedRooms.ts lightMovable: its reflection and its light.
+        /// With none near (an undressed floor) it is lit by the faint fill alone. floorY: the Unity
+        /// height of the floor it stands on.
+        /// </summary>
+        public void LightMovable(GameObject obj, float floorY)
+        {
+            var at = obj.transform.position;
+            ReflectionProbe best = null;
+            float bestD = MovableProbeRangeM * MovableProbeRangeM;
+            foreach (var p in probes)
+            {
+                var o = p.transform.position;
+                if (Mathf.Abs(o.y - ProbeHeightM - floorY) > SameFloorM) continue;
+                float d = (o.x - at.x) * (o.x - at.x) + (o.z - at.z) * (o.z - at.z);
+                if (d < bestD)
+                {
+                    bestD = d;
+                    best = p;
+                }
+            }
+            if (best == null) return;
+            foreach (var r in obj.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                r.renderingLayerMask |= MovableLayer;
+                r.reflectionProbeUsage = ReflectionProbeUsage.Simple;
+                r.probeAnchor = best.transform;
+                lit.Add(r);
+            }
+        }
+
         /// <summary>The probe nearest across the floor, as dressedRooms.ts picks one for each piece.</summary>
         static ReflectionProbe Nearest(ReflectionProbe[] choices, Vector3 at)
         {

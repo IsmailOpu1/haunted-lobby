@@ -23,6 +23,7 @@ namespace Haunted.Editor
         const string Hotel = "Assets/Hotel";
         const string Rooms = Hotel + "/Rooms";
         const string Lightmaps = Hotel + "/Lightmaps";
+        const string Models = Hotel + "/Models";
 
         [MenuItem("Haunted/Import dressed hotel")]
         public static void Import()
@@ -73,12 +74,20 @@ namespace Haunted.Editor
                         : new Vector2[0],
                 });
             }
+            // Step D2: the doors and the stations' own models.
+            art.doors = AssetDatabase.LoadAssetAtPath<GameObject>(Models + "/doors.gltf");
+            art.clockHands = AssetDatabase.LoadAssetAtPath<GameObject>(Models + "/clock_hands.gltf");
+            art.cradle = AssetDatabase.LoadAssetAtPath<GameObject>(Models + "/cradle.gltf");
+            art.trunk = AssetDatabase.LoadAssetAtPath<GameObject>(Models + "/trunk.gltf");
+            if (File.Exists(Models + "/door-styles.json")) art.doorStyles = File.ReadAllText(Models + "/door-styles.json");
+            if (art.doors == null || art.clockHands == null || art.cradle == null || art.trunk == null)
+                Debug.LogWarning("Dressed hotel: a model in " + Models + " is not imported (run tools/engine-rooms.ts --models)");
             Directory.CreateDirectory(Hotel + "/Resources");
             AssetDatabase.DeleteAsset(Hotel + "/Resources/HotelArt.asset");
             AssetDatabase.CreateAsset(art, Hotel + "/Resources/HotelArt.asset");
             KeepLightmapShaders();
             AssetDatabase.SaveAssets();
-            Debug.Log("Dressed hotel: " + art.rooms.Count + " builds imported");
+            Debug.Log("Dressed hotel: " + art.rooms.Count + " builds imported, doors " + (art.doors != null) + ", station models " + (art.clockHands != null && art.cradle != null && art.trunk != null));
         }
 
         /// <summary>

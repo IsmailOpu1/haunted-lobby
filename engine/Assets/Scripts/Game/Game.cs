@@ -45,6 +45,7 @@ namespace Haunted.Game
         Hud hud;
         Items items;
         Stations stations;
+        Doors doors;
         Haunting haunting;
         MeetingScreen meetingScreen;
         /// <summary>The possessed's power wheel (hold R): open, and where the mouse has moved since it opened.</summary>
@@ -100,6 +101,7 @@ namespace Haunted.Game
             world = GameData.LoadWorld(Resources.Load<TextAsset>("Data/map").text, Resources.Load<TextAsset>("Data/world").text);
             baseMaterial = Resources.Load<Material>("Materials/GreyBox");
             if (baseMaterial == null) baseMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            Shapes.Load(baseMaterial);
 
             // The dressed rooms (step D) when engine/Assets/Hotel has been made; the grey box without them.
             var art = HotelArt.Load();
@@ -112,8 +114,8 @@ namespace Haunted.Game
             items = new Items(world, map, config, baseMaterial);
             others = new RemotePlayers(world, config, baseMaterial);
             HandsConfig.Load(config);
-            Shapes.Load(baseMaterial);
-            stations = new Stations(world, map, config);
+            stations = new Stations(world, map, config, dressed != null ? dressed.Drawn : null, art);
+            doors = new Doors(world, map, art, dressed);
             haunting = new Haunting(world, map, config);
             ReadCommandLine();
         }
@@ -212,6 +214,9 @@ namespace Haunted.Game
                 tour.Only = arg("-rooms");
                 tour.Ready = () => dressed == null || dressed.ReflectionsReady;
                 if (Array.IndexOf(args, "-torch") >= 0) tour.Flashlight = Json.Obj(config, "flashlight");
+                if (Array.IndexOf(args, "-closeUps") >= 0) tour.Map = map;
+                // As in the browser's tour, taken in a room: a night's relics, none placed yet.
+                doors.SetSlots(0, (int)Json.Num(Json.Obj(config, "relics"), "count"));
                 return;
             }
             string script = arg("-script");
@@ -309,7 +314,14 @@ namespace Haunted.Game
         void OnState(GameState state)
         {
             double now = Time.realtimeSinceStartupAsDouble;
-            foreach (var kv in state.doors) hotel.SetDoorOpen(kv.Key, kv.Value.open);
+            foreach (var kv in state.doors)
+            {
+                hotel.SetDoorOpen(kv.Key, kv.Value.open);
+                doors.SetOpen(kv.Key, kv.Value.open);
+            }
+            int placed = 0;
+            foreach (var kv in state.relics) if (kv.Value.status == "placed" || kv.Value.status == "crumbled") placed++;
+            if (state.relics.Count > 0) doors.SetSlots(placed, state.relics.Count);
             var ids = new HashSet<string>();
             foreach (var kv in state.players)
             {
@@ -373,6 +385,7 @@ namespace Haunted.Game
         {
             double now = Time.realtimeSinceStartupAsDouble;
             stations.Update(Time.timeAsDouble);
+            doors.Update(Time.deltaTime);
             if (room != null && me != null)
             {
                 HandleKeys();

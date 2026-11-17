@@ -516,6 +516,13 @@ half3 HauntedProbeLight(half3 normalWS)
     half4 encoded = half4(SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0, samplerunity_SpecCube0, normalWS, UNITY_SPECCUBE_LOD_STEPS));
     return DecodeHDREnvironment(encoded, unity_SpecCube0_HDR) * _HauntedProbeDiffuse;
 #else
+    // Something that moves (a door) is lit by its room's probe the same way (dressedRooms.ts
+    // lightMovable); the game marks it with rendering layer 7 (DressedRooms.LightMovable).
+    if ((GetMeshRenderingLayer() & 128u) != 0)
+    {
+        half4 encoded = half4(SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0, samplerunity_SpecCube0, normalWS, UNITY_SPECCUBE_LOD_STEPS));
+        return DecodeHDREnvironment(encoded, unity_SpecCube0_HDR) * _HauntedProbeDiffuse;
+    }
     return half3(0, 0, 0);
 #endif
 }

@@ -215,8 +215,31 @@ What it showed (mean brightness per view, browser vs Unity):
   - The Restaurant door's round fitting.
   The first two belong to the next part.
 
+### Step D2: doors, stations, salt crocks and relics (2026-11-17)
+
+1. **Doors** (`engine/Assets/Scripts/Game/Doors.cs`, from `world.ts` DoorView and buildDoorSigns).
+   - `tools/engine-rooms.ts --models` converts `assets/doors/doors.gltf` and the station models (clock hands, cradle, trunk) into `engine/Assets/Hotel/Models/`, with `door-styles.json` (map, door: style and number).
+   - Leaves hinge and swing at 4 rad/s as the browser's; a door with no model is a box.
+   - Lintels and room-name plaques, written in Georgia bold on the CPU (`Shapes.TextPainter`) as the browser's canvas does.
+   - The relic door's slots fill gold as relics are placed.
+   - Doors are lit by their nearest room probe, as moving pieces now can be (`DressedRooms.LightMovable`, plus a fourth URP patch: rendering layer 7 takes the probe's light).
+   - `Hotel.cs` no longer draws its grey door panels; it keeps their collision.
+2. **Stations** (`Stations.cs`): the dressed versions the browser draws over the baked rooms, from the candelabra to the sheets, plus the clock's hands and glowing face, the cradle and the trunk from their models, and the dressed lockbox, dig and drain search places. The portraits are painted on the CPU as the browser's canvas paints them.
+3. **Salt crocks and relics** (`Items.cs`): the crock is the browser's lathe with its glaze, lid and SALT label; the relic is unlit with its light at 1.2/π.
+4. **Materials**: three's Lambert has no shine, but URP Lit always adds some. GreyBox and Glow now have specular highlights and reflections off (the relic door's empty slots had come out grey, not near-black). New `Standard`, `StandardGlow` and `SpecularGlow` materials stand for three's MeshStandardMaterial and the mirror's Phong glass.
+5. **Unlit where the browser is**: the piano's card and the roses' number tags are MeshBasicMaterial in the browser and are now unlit in Unity too.
+
+The test: the room tours as before, plus close-ups. `-roomShots DIR -closeUps` (with or without `-torch`) and the browser's `roomTour(save, only, torch, true)` take each task station, relic search place and salt jar from 1.6 m in front, looking a little down, and each door from 2 m on both sides: 108 pictures each, same names (`RoomTour.CloseUpViews`, `game.ts closeUpViews`).
+- The browser pane must be 1280 × 720 for its shots. A narrower pane gives a narrower picture.
+
+What it showed (mean brightness, browser vs Unity):
+- Room tours, torch off: every view within about 2.
+- Room tours, torch on: within about 2, except four views that were the same before this step (the first part's tour gives the same numbers). These are the Restaurant's bar (glass bottles, +25), the Laundry (+7) and the Kitchen stove (+5), where Unity's bloom spreads further round the brightest spots, and the Nursery's last view (−6).
+- Close-ups, torch off: all 108 within 3 after the fixes above. The Nursery's salt jar is 3 darker because of its oil lamp's glass chimney.
+- Close-ups, torch on: within about 4, with Unity a little darker round the beam (less bloom spread at 2 m). The mirror is the exception: its glass now shines as the browser's Phong does (−22 went to −18, and −1 with the torch off), but the browser's glow round the reflected beam is wider. That goes with the bloom item below.
+
 Left for D2:
-- Doors, station models, salt crocks and relics as the browser draws them.
-- Glass (three's transmission).
+- Glass (three's transmission): the bar's bottles and the oil lamps' chimneys.
+- Bloom round the torch's brightest spots (the Laundry, the Kitchen stove, the doors from close by).
 - Quality levels (Low and High; ambient occlusion on High).
 - Blackout dimming of lightmaps, bulbs and probes.

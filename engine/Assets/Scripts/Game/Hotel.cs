@@ -16,12 +16,10 @@ namespace Haunted.Game
         public readonly WorldData World;
         public readonly Collision Collision;
         readonly GameObject root;
-        readonly Dictionary<string, GameObject> doorPanels = new Dictionary<string, GameObject>();
         readonly Dictionary<Color, Material> materials = new Dictionary<Color, Material>();
         readonly Material baseMaterial;
 
         static readonly Color WallColor = new Color(0.55f, 0.52f, 0.48f);
-        static readonly Color DoorColor = new Color(0.42f, 0.29f, 0.18f);
         static readonly Color HideColor = new Color(0.24f, 0.17f, 0.13f);
         static readonly Color FurnitureColor = new Color(0.36f, 0.28f, 0.2f);
         static readonly Color StairColor = new Color(0.45f, 0.4f, 0.36f);
@@ -48,12 +46,13 @@ namespace Haunted.Game
             foreach (var s in world.Solids)
             {
                 if (s.Kind == "furniture" && replaced != null && replaced(s)) continue;
+                // Doors are drawn by Doors (as world.ts DoorView), which swings them; collision keeps the box.
+                if (s.Kind == "door") continue;
                 // Walls and doors stay grey boxes, as in the browser: the builds line the walls from inside.
                 if (dressed != null && s.Id != null && (s.Kind == "furniture" || s.Kind == "hide") && dressed.Drawn.Contains(s.Id)) continue;
-                Color color = s.Kind == "door" ? DoorColor : s.Kind == "hide" ? HideColor : s.Kind == "furniture" ? FurnitureColor : WallColor;
+                Color color = s.Kind == "hide" ? HideColor : s.Kind == "furniture" ? FurnitureColor : WallColor;
                 var go = Box((s.Id ?? s.Kind), s.X, s.Z, s.SizeX, s.SizeZ, 0, s.HeightM, color);
                 go.transform.SetParent(root.transform, true);
-                if (s.Kind == "door" && s.Id != null) doorPanels[s.Id] = go;
             }
 
             foreach (var stair in world.Stairs)
@@ -115,12 +114,10 @@ namespace Haunted.Game
             return go;
         }
 
-        /// <summary>An open door stops blocking and is drawn open (step A: the panel simply goes).</summary>
+        /// <summary>An open door stops blocking (Doors swings it open).</summary>
         public void SetDoorOpen(string id, bool open)
         {
             Collision.SetDoorOpen(id, open);
-            GameObject panel;
-            if (doorPanels.TryGetValue(id, out panel) && panel.activeSelf == open) panel.SetActive(!open);
         }
     }
 }

@@ -32,6 +32,12 @@ namespace Haunted.Game
     public class HotelArt : ScriptableObject
     {
         public List<RoomArt> rooms = new List<RoomArt>();
+        /// <summary>The door models (client/src/doorModels.ts): a piece per style, part and width, by name.</summary>
+        public GameObject doors;
+        /// <summary>Each door's style by map id, then door id: the dressing's doors (JSON).</summary>
+        public string doorStyles;
+        /// <summary>The stations' own models (stations.ts): the clock's hands, the cradle, the trunk.</summary>
+        public GameObject clockHands, cradle, trunk;
 
         public static HotelArt Load()
         {

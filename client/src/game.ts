@@ -50,7 +50,7 @@ import { RelicsView } from "./relicsView.ts";
 import { MysteryView } from "./mysteryView.ts";
 import { RemotePlayers } from "./remotePlayers.ts";
 import { CharacterModels } from "./characterModels.ts";
-import { loadClockParts, loadCradleParts, loadTrunkParts, StationsView, type DressedClockParts, type DressedCradleParts, type DressedTrunkParts } from "./stations.ts";
+import { facingYaw, loadClockParts, loadCradleParts, loadTrunkParts, StationsView, type DressedClockParts, type DressedCradleParts, type DressedTrunkParts } from "./stations.ts";
 import { VoiceChat } from "./voice.ts";
 import type { TaskSoundKind } from "./hands/sounds.ts";
 import { buildWorld, type DoorView, type RitualCircleView } from "./world.ts";
@@ -68,6 +68,35 @@ const DARK_AMBIENT = 0.04;
 const BEAM_AIM_M = 8;
 /** The room tour's up-down view angle, the same as the Unity version's RoomTour.VerticalFovDeg. */
 const TOUR_FOV_DEG = 60;
+/** The close-up tour's views, the same as the Unity version's (RoomTour.cs CloseUpViews). */
+const CLOSE_STATION_M = 1.6;
+const CLOSE_STATION_PITCH = -0.35;
+const CLOSE_DOOR_M = 2.0;
+
+/**
+ * Development only: the close-ups of the picture test (roomTour with closeUps), in sim x, z: each
+ * task station, relic search place and salt jar from in front (it faces away from its wall,
+ * facingYaw), looking a little down; each door from both sides, level. Named
+ * close-<kind>-<id>, doors -a (the + side) and -b.
+ */
+function closeUpViews(map: MapData): { name: string; x: number; z: number; yaw: number; pitch: number }[] {
+  const views: { name: string; x: number; z: number; yaw: number; pitch: number }[] = [];
+  const front = (name: string, p: { x: number; z: number }) => {
+    const yaw = facingYaw(map, p);
+    views.push({ name, x: p.x + Math.sin(yaw) * CLOSE_STATION_M, z: p.z + Math.cos(yaw) * CLOSE_STATION_M, yaw, pitch: CLOSE_STATION_PITCH });
+  };
+  for (const t of map.tasks) front(`close-task-${t.id}`, t);
+  for (const spot of map.relicSpots) for (const p of searchPlaces(spot)) front(`close-search-${p.id}`, p);
+  for (const jar of map.saltJars) front(`close-salt-${jar.id}`, jar);
+  for (const d of map.doors) {
+    // A door across x is passed along z, and the other way round.
+    const dx = d.axis === "x" ? 0 : CLOSE_DOOR_M;
+    const dz = d.axis === "x" ? CLOSE_DOOR_M : 0;
+    views.push({ name: `close-door-${d.id}-a`, x: d.x + dx, z: d.z + dz, yaw: Math.atan2(dx, dz), pitch: 0 });
+    views.push({ name: `close-door-${d.id}-b`, x: d.x - dx, z: d.z - dz, yaw: Math.atan2(-dx, -dz), pitch: 0 });
+  }
+  return views;
+}
 /** Auto quality: once you are in the hotel, let it settle, watch this long, then choose. */
 const AUTO_SETTLE_SEC = 2;
 const AUTO_MEASURE_SEC = 5;
@@ -1111,7 +1140,7 @@ export class Game {
    * framed like the Unity version's RoomTour (60 degree up-down view); save gets each as
    * "<room>-<yaw>.png".
    */
-  async roomTour(save: (name: string, png: Blob) => Promise<void>, only?: string, torch = false) {
+  async roomTour(save: (name: string, png: Blob) => Promise<void>, only?: string, torch = false, closeUps = false) {
     const camera = this.camera;
     const was = { position: camera.position.clone(), rotation: camera.rotation.clone(), fov: camera.fov, torch: this.flashlight.light.visible, intensity: this.flashlight.light.intensity };
     this.flashlight.light.visible = torch;
@@ -1122,6 +1151,21 @@ export class Game {
     camera.fov = TOUR_FOV_DEG;
     camera.updateProjectionMatrix();
     try {
+      if (closeUps) {
+        for (const v of closeUpViews(this.map)) {
+          if (only && !v.name.toLowerCase().includes(only.toLowerCase())) continue;
+          const at = this.place(v);
+          camera.position.set(at.x, at.y + this.eyeHeight, at.z);
+          camera.rotation.set(v.pitch, v.yaw, 0, "YXZ");
+          camera.updateMatrixWorld();
+          this.view.setFromProjectionMatrix(this.viewMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+          this.dressed.showFloorsNear(camera.position.x, camera.position.y - this.eyeHeight, camera.position.z, { view: this.view, eye: camera.position });
+          this.post.render(performance.now() / 1000);
+          const png = await new Promise<Blob | null>((done) => this.renderer.domElement.toBlob(done, "image/png"));
+          if (png) await save(`${v.name}.png`, png);
+        }
+        return;
+      }
       for (const r of this.map.rooms) {
         if (only && !r.name.toLowerCase().includes(only.toLowerCase())) continue;
         const at = this.place({ x: (r.minX + r.maxX) / 2, z: (r.minZ + r.maxZ) / 2 });

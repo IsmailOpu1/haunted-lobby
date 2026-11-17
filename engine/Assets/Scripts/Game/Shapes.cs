@@ -13,7 +13,7 @@ namespace Haunted.Game
     /// </summary>
     public static class Shapes
     {
-        static Material lit, glow, clear, unlit, unlitClear;
+        static Material lit, glow, clear, unlit, unlitClear, standard, standardGlow;
         static Mesh cube, cylinder, sphere;
         static Material textMaterial;
         static readonly Dictionary<string, Mesh> meshes = new Dictionary<string, Mesh>();
@@ -25,6 +25,9 @@ namespace Haunted.Game
             clear = Resources.Load<Material>("Materials/Clear") ?? greyBox;
             unlit = Resources.Load<Material>("Materials/Unlit") ?? greyBox;
             unlitClear = Resources.Load<Material>("Materials/UnlitClear") ?? unlit;
+            // three's MeshStandardMaterial: it shines and reflects (Lit and Glow are Lambert, which doesn't).
+            standard = Resources.Load<Material>("Materials/Standard") ?? greyBox;
+            standardGlow = Resources.Load<Material>("Materials/StandardGlow") ?? glow;
             cube = Builtin(PrimitiveType.Cube);
             cylinder = Builtin(PrimitiveType.Cylinder);
             sphere = Builtin(PrimitiveType.Sphere);
@@ -49,11 +52,12 @@ namespace Haunted.Game
             return Quaternion.Euler((float)(-x * Mathf.Rad2Deg), (float)(-y * Mathf.Rad2Deg), (float)(z * Mathf.Rad2Deg));
         }
 
-        public enum Look { Lit, Glow, Clear, Unlit, UnlitClear }
+        /// <summary>Lit and Glow: three's Lambert (no shine); Standard and StandardGlow: its MeshStandardMaterial.</summary>
+        public enum Look { Lit, Glow, Clear, Unlit, UnlitClear, Standard, StandardGlow }
 
         public static Material Mat(Color c, Look look = Look.Lit, float alpha = 1)
         {
-            var source = look == Look.Glow ? glow : look == Look.Clear ? clear : look == Look.Unlit ? unlit : look == Look.UnlitClear ? unlitClear : lit;
+            var source = look == Look.Standard ? standard : look == Look.StandardGlow ? standardGlow : look == Look.Glow ? glow : look == Look.Clear ? clear : look == Look.Unlit ? unlit : look == Look.UnlitClear ? unlitClear : lit;
             var m = new Material(source);
             c.a = alpha;
             m.color = c;
@@ -149,6 +153,69 @@ namespace Haunted.Game
         /// <summary>A flat disc in the x-y plane.</summary>
         public static Mesh Disc(double r, int segments = 24) { return RingMesh(0, r, segments, 0, Mathf.PI * 2); }
 
+        static Mesh quad;
+
+        /// <summary>Unity's quad, 1 x 1: it faces three.js's +z (Shapes.P), its picture the right way round from there.</summary>
+        public static Mesh Quad()
+        {
+            if (quad == null) quad = Builtin(PrimitiveType.Quad);
+            return quad;
+        }
+
+        /// <summary>
+        /// three.js LatheGeometry: (radius, height) points turned round y, one-sided and facing out,
+        /// smooth like three's. phiStart and phiLength as three's (0 is three's +z).
+        /// With uv: u across the turn, v up the points (three's CylinderGeometry, open, when two points).
+        /// </summary>
+        public static Mesh Lathe(Vector2[] points, int segments, double phiStart = 0, double phiLength = Mathf.PI * 2)
+        {
+            var v = new List<Vector3>();
+            var uv = new List<Vector2>();
+            for (int i = 0; i <= segments; i++)
+            {
+                double phi = phiStart + phiLength * i / segments;
+                for (int j = 0; j < points.Length; j++)
+                {
+                    v.Add(P(points[j].x * System.Math.Sin(phi), points[j].y, points[j].x * System.Math.Cos(phi)));
+                    uv.Add(new Vector2((float)i / segments, (float)j / (points.Length - 1)));
+                }
+            }
+            var t = new List<int>();
+            for (int i = 0; i < segments; i++)
+                for (int j = 0; j < points.Length - 1; j++)
+                {
+                    int a = i * points.Length + j, b = a + points.Length, c = b + 1, d = a + 1;
+                    t.AddRange(new[] { a, b, d, b, c, d });
+                }
+            var m = new Mesh { name = "Lathe" };
+            m.SetVertices(v);
+            m.SetUVs(0, uv);
+            m.SetTriangles(t, 0);
+            // Whichever way that winds, make the faces look out from the axis.
+            if (SideFacing(v, t) < 0)
+            {
+                for (int k = 0; k < t.Count; k += 3) { int x = t[k + 1]; t[k + 1] = t[k + 2]; t[k + 2] = x; }
+                m.SetTriangles(t, 0);
+            }
+            m.RecalculateNormals();
+            m.RecalculateTangents();
+            m.RecalculateBounds();
+            return m;
+        }
+
+        /// <summary>Sums how much each face looks away from the y axis (positive: out).</summary>
+        static float SideFacing(List<Vector3> v, List<int> t)
+        {
+            float sum = 0;
+            for (int k = 0; k < t.Count; k += 3)
+            {
+                Vector3 p0 = v[t[k]], p1 = v[t[k + 1]], p2 = v[t[k + 2]];
+                var c = (p0 + p1 + p2) / 3;
+                sum += Vector3.Dot(Vector3.Cross(p1 - p0, p2 - p0), new Vector3(c.x, 0, c.z));
+            }
+            return sum;
+        }
+
         /// <summary>three.js RingGeometry: in the x-y plane, from start (counterclockwise from +x, as three.js draws it) round by length.</summary>
         public static Mesh RingMesh(double inner, double outer, int segments, double start, double length)
         {
@@ -220,7 +287,25 @@ namespace Haunted.Game
         public static void SetGlow(GameObject part, Color c)
         {
             var r = part.GetComponent<Renderer>();
-            if (r != null && r.material.HasProperty("_EmissionColor")) r.material.SetColor("_EmissionColor", c);
+            if (r == null) return;
+            if (r.material.name.StartsWith(AddedGlowName, System.StringComparison.Ordinal)) r.material.SetColor("_BaseColor", c);
+            else if (r.material.HasProperty("_EmissionColor")) r.material.SetColor("_EmissionColor", c);
+        }
+
+        const string AddedGlowName = "AddedGlow";
+
+        /// <summary>
+        /// Black and added over what is behind (three's AdditiveBlending): unseen until it glows. Its
+        /// glow (SetGlow) is its colour.
+        /// </summary>
+        public static Material AddedGlow()
+        {
+            var m = Mat(Color.black, Look.UnlitClear, 1);
+            m.name = AddedGlowName;
+            foreach (var p in new[] { "_SrcBlend", "_DstBlend", "_SrcBlendAlpha", "_DstBlendAlpha" })
+                if (m.HasProperty(p)) m.SetFloat(p, (float)UnityEngine.Rendering.BlendMode.One);
+            if (m.HasProperty("_ZWrite")) m.SetFloat("_ZWrite", 0);
+            return m;
         }
 
         public static void SetColor(GameObject go, Color c)
@@ -289,6 +374,86 @@ namespace Haunted.Game
                 m.RecalculateBounds();
                 return m;
             }
+        }
+    }
+
+    /// <summary>
+    /// Writes text on a picture as a canvas's fillText does (textAlign centre, textBaseline middle,
+    /// maxWidth squeezing): the browser's labels and signs, in Georgia (bold) from the system's fonts,
+    /// drawn on the CPU from the font's glyphs.
+    /// </summary>
+    public class TextPainter
+    {
+        readonly Font font;
+        readonly int fontPx;
+        readonly Texture2D atlas;
+
+        /// <summary>fontPx: the letters' size in picture pixels; text: every letter it will write.</summary>
+        public TextPainter(int fontPx, string text)
+        {
+            this.fontPx = fontPx;
+            font = Font.CreateDynamicFontFromOSFont(new[] { "Georgia", "Times New Roman" }, fontPx);
+            font.RequestCharactersInTexture("H" + text, fontPx, FontStyle.Bold);
+            // The font's glyphs live on the GPU: copy them back once to read.
+            var source = font.material.mainTexture;
+            var rt = RenderTexture.GetTemporary(source.width, source.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+            Graphics.Blit(source, rt);
+            var was = RenderTexture.active;
+            RenderTexture.active = rt;
+            atlas = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false, true);
+            atlas.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0);
+            atlas.Apply();
+            RenderTexture.active = was;
+            RenderTexture.ReleaseTemporary(rt);
+        }
+
+        /// <summary>Writes text centred on (cx, midY) (canvas pixels, y down) on a w x h picture whose row 0 is its bottom.</summary>
+        public void Write(Color32[] px, int w, int h, string text, float cx, float midY, Color32 ink, float maxWidth)
+        {
+            float total = 0;
+            CharacterInfo ci;
+            foreach (char c in text) if (font.GetCharacterInfo(c, out ci, fontPx, FontStyle.Bold)) total += ci.advance;
+            // The canvas squeezes text wider than its maxWidth.
+            float sx = total > maxWidth ? maxWidth / total : 1;
+            float capH = font.GetCharacterInfo('H', out ci, fontPx, FontStyle.Bold) ? ci.maxY : fontPx * 0.7f;
+            // textBaseline "middle" sets capitals' middle about 2 px above midY.
+            float baseline = midY - 2 + capH / 2;
+            float pen = cx - total * sx / 2;
+            foreach (char c in text)
+            {
+                if (!font.GetCharacterInfo(c, out ci, fontPx, FontStyle.Bold)) continue;
+                Glyph(px, w, h, ci, pen + ci.minX * sx, (ci.maxX - ci.minX) * sx, baseline, ink);
+                pen += ci.advance * sx;
+            }
+        }
+
+        void Glyph(Color32[] px, int w, int h, CharacterInfo ci, float x0, float width, float baseline, Color32 ink)
+        {
+            if (width <= 0 || ci.maxY <= ci.minY) return;
+            int top = Mathf.FloorToInt(baseline - ci.maxY), bottom = Mathf.CeilToInt(baseline - ci.minY);
+            for (int y = Mathf.Max(0, top); y < Mathf.Min(h, bottom); y++)
+            {
+                float t = (baseline - (y + 0.5f) - ci.minY) / (ci.maxY - ci.minY); // 0 at the glyph's bottom
+                for (int x = Mathf.Max(0, Mathf.FloorToInt(x0)); x < Mathf.Min(w, Mathf.CeilToInt(x0 + width)); x++)
+                {
+                    float s = (x + 0.5f - x0) / width;
+                    if (s < 0 || s > 1 || t < 0 || t > 1) continue;
+                    Vector2 uv = Vector2.Lerp(Vector2.Lerp(ci.uvBottomLeft, ci.uvBottomRight, s), Vector2.Lerp(ci.uvTopLeft, ci.uvTopRight, s), t);
+                    float a = atlas.GetPixelBilinear(uv.x, uv.y).a;
+                    if (a <= 0) continue;
+                    int i = (h - 1 - y) * w + x;
+                    px[i] = Color32.Lerp(px[i], ink, a);
+                }
+            }
+        }
+
+        /// <summary>A finished picture: sRGB, mipmapped, clamped.</summary>
+        public static Texture2D Picture(Color32[] px, int w, int h)
+        {
+            var t = new Texture2D(w, h, TextureFormat.RGBA32, true, false) { anisoLevel = 4, wrapMode = TextureWrapMode.Clamp };
+            t.SetPixels32(px);
+            t.Apply(true, true);
+            return t;
         }
     }
 

@@ -25,7 +25,7 @@ namespace Haunted.Game
         readonly WorldData world;
         readonly object config;
         readonly Transform root;
-        readonly Material saltMat, relicMat, jarMat, lidMat;
+        readonly Material saltMat, relicMat;
         readonly Dictionary<string, GameObject> jars = new Dictionary<string, GameObject>();
         readonly Dictionary<string, GameObject> lines = new Dictionary<string, GameObject>();
         readonly Dictionary<string, GameObject> relics = new Dictionary<string, GameObject>();
@@ -40,23 +40,83 @@ namespace Haunted.Game
             this.config = config;
             root = new GameObject("Items").transform;
             saltMat = Tinted(baseMaterial, SaltColor);
-            relicMat = Tinted(baseMaterial, RelicColor);
-            relicMat.EnableKeyword("_EMISSION");
-            relicMat.SetColor("_EmissionColor", RelicColor * 1.5f);
-            jarMat = Tinted(baseMaterial, new Color32(0xc9, 0xbc, 0x9c, 0xff));
-            lidMat = Tinted(baseMaterial, new Color32(0x4e, 0x30, 0x18, 0xff));
+            // relicsView.ts: a plain unlit gold box (MeshBasicMaterial) with a point light.
+            relicMat = Shapes.Mat(RelicColor, Shapes.Look.Unlit);
+            var crockParts = SaltCrockParts();
             foreach (var jar in map.SaltJars)
             {
                 // A crock on a sideboard (its top 0.79 m up), so it is easy to spot with a flashlight.
                 var crock = new GameObject("Salt " + jar.Key);
                 crock.transform.SetParent(root);
                 crock.transform.position = Coords.Place(world, jar.Value.X, jar.Value.Z) + Vector3.up * JarFootM;
-                Part(crock, PrimitiveType.Cylinder, jarMat, new Vector3(0, 0.0625f, 0), new Vector3(0.18f, 0.0625f, 0.18f));
-                Part(crock, PrimitiveType.Cylinder, lidMat, new Vector3(0, 0.15f, 0), new Vector3(0.16f, 0.025f, 0.16f));
-                Part(crock, PrimitiveType.Sphere, lidMat, new Vector3(0, 0.185f, 0), new Vector3(0.04f, 0.03f, 0.04f));
+                // The label toward the room.
+                crock.transform.rotation = Shapes.R(0, Stations.FacingYaw(map, jar.Value.X, jar.Value.Z), 0);
+                foreach (var p in crockParts)
+                {
+                    var part = new GameObject(p.Key.name);
+                    part.transform.SetParent(crock.transform, false);
+                    part.AddComponent<MeshFilter>().sharedMesh = p.Key;
+                    part.AddComponent<MeshRenderer>().sharedMaterial = p.Value;
+                }
                 jars[jar.Key] = crock;
             }
             musicBox = new MusicBox(root);
+        }
+
+        /// <summary>
+        /// items.ts saltCrockParts: cream stoneware with its top dipped in brown glaze, a turned wooden
+        /// lid, and a paper label lettered SALT. 0.22 m tall, its foot at the origin. Shared by every jar.
+        /// </summary>
+        static List<KeyValuePair<Mesh, Material>> SaltCrockParts()
+        {
+            Func<double[], Vector2[]> pts = a => { var v = new Vector2[a.Length / 2]; for (int i = 0; i < v.Length; i++) v[i] = new Vector2((float)a[2 * i], (float)a[2 * i + 1]); return v; };
+            Func<int, double, Material> std = (hex, roughness) =>
+            {
+                var m = Shapes.Mat(Shapes.Hex(hex), Shapes.Look.Standard);
+                m.SetFloat("_Smoothness", (float)(1 - roughness));
+                m.SetFloat("_Metallic", 0);
+                return m;
+            };
+            var stoneware = std(0xc9bc9c, 0.45);
+            var glaze = std(0x4e3018, 0.3);
+            var wood = std(0x3b2616, 0.75);
+            // The body to the glaze line, then the glazed shoulder and rim.
+            var body = Shapes.Lathe(pts(new[] { 0, 0, 0.078, 0, 0.084, 0.006, 0.092, 0.05, 0.094, 0.1, 0.093, 0.125 }), 28);
+            var top = Shapes.Lathe(pts(new[] { 0.093, 0.125, 0.09, 0.16, 0.078, 0.18, 0.072, 0.188, 0.074, 0.196, 0.066, 0.198 }), 28);
+            // The lid sits in the rim: a flat disc with a turned knob.
+            var lid = Shapes.Lathe(pts(new[] { 0, 0.2, 0.072, 0.2, 0.072, 0.208, 0.03, 0.212, 0.016, 0.218, 0.014, 0.228, 0.02, 0.236, 0, 0.24 }), 24);
+            // The label: a band of paper round the front of the belly (an open cylinder, 1.5 rad of it).
+            var label = Shapes.Lathe(pts(new[] { 0.0955, 0.075 - 0.0275, 0.0955, 0.075 + 0.0275 }), 24, -0.75, 1.5);
+            var paper = std(0xffffff, 0.85);
+            var picture = LabelTexture();
+            paper.mainTexture = picture;
+            if (paper.HasProperty("_BaseMap")) paper.SetTexture("_BaseMap", picture);
+            body.name = "Stoneware";
+            top.name = "Glaze";
+            lid.name = "Lid";
+            label.name = "Label";
+            return new List<KeyValuePair<Mesh, Material>>
+            {
+                new KeyValuePair<Mesh, Material>(body, stoneware),
+                new KeyValuePair<Mesh, Material>(top, glaze),
+                new KeyValuePair<Mesh, Material>(lid, wood),
+                new KeyValuePair<Mesh, Material>(label, paper),
+            };
+        }
+
+        /// <summary>The crock's label (items.ts): SALT in bold Georgia on paper in a ruled border, 256 x 96 px.</summary>
+        static Texture2D LabelTexture()
+        {
+            const int w = 256, h = 96;
+            Color32 paper = new Color32(0xcd, 0xbf, 0x98, 0xff), rule = new Color32(0x3a, 0x2a, 0x18, 0xff), ink = new Color32(0x2a, 0x1c, 0x10, 0xff);
+            var px = new Color32[w * h];
+            for (int i = 0; i < px.Length; i++) px[i] = paper;
+            // strokeRect(10, 10, 236, 76) with a 3 px line: 8.5 to 11.5 px in from each edge.
+            for (int y = 9; y < h - 9; y++)
+                for (int x = 9; x < w - 9; x++)
+                    if (x < 12 || x >= w - 12 || y < 12 || y >= h - 12) px[(h - 1 - y) * w + x] = rule;
+            new TextPainter(52, "SALT").Write(px, w, h, "SALT", 128, 52, ink, float.MaxValue);
+            return TextPainter.Picture(px, w, h);
         }
 
         static Material Tinted(Material baseMaterial, Color c)
@@ -126,7 +186,7 @@ namespace Haunted.Game
                     var glow = box.AddComponent<Light>();
                     glow.type = LightType.Point;
                     glow.color = new Color32(0xff, 0xc8, 0x60, 0xff);
-                    glow.intensity = 1.2f;
+                    glow.intensity = 1.2f / Mathf.PI; // three's 1.2 (its lights are pi brighter)
                     glow.range = RelicGlowRangeM;
                     relics[r.Id] = relic;
                 }

@@ -12,6 +12,7 @@ package here the same way and make these changes again.
 2. **Probe light on lightmapped surfaces** (three.js's envMap irradiance).
    - three lights a surface that has an envMap by that map at its blurriest, as well as by its lightmap. Unity's reflection probes only shine.
    - `ShaderLibrary/GlobalIllumination.hlsl` `HauntedProbeLight` adds the surface's probe, at its roughest mip, to the baked light of anything lightmapped. It is scaled by the global `_HauntedProbeDiffuse`.
+   - Something that moves and is not lightmapped (a door) gets the same when its renderer is on rendering layer 7, as three's `lightMovable` gives it its room's envMap (`DressedRooms.LightMovable`).
    - The game sets that global to 1, and to 0 while the probes are taken (three's are blank then).
 3. **Spot edge** (three.js's penumbra).
    - `ShaderLibrary/RealtimeLights.hlsl` `AngleAttenuation` returns `smoothstep` of URP's 0-to-1 edge, as three does between the outer and inner cone, instead of its square.

@@ -20,7 +20,8 @@ namespace Haunted.Game
         public class RelicSpot { public string Id, Label, Room, Minigame; public Point At; public List<Place> Places; }
         public class Place { public string Id; public Point At; }
         public class HidingSpot { public string Id, Kind; public Point At, Exit; }
-        public class Door { public string Id; public Point At; }
+        /// <summary>A doorway: its middle, width, and which way the closed door spans ("x" or "z").</summary>
+        public class Door { public string Id, Axis; public Point At; public double Width; }
         public class Suspect { public string Id, Name, Belonging, Icon; public Dictionary<string, string> Clues = new Dictionary<string, string>(); }
         public class Room { public string Name; public double MinX, MaxX, MinZ, MaxZ; }
 
@@ -34,6 +35,8 @@ namespace Haunted.Game
         /// <summary>Every wall as x1, z1, x2, z2 (axis-aligned).</summary>
         public readonly List<double[]> Walls = new List<double[]>();
         public readonly string RelicDoor;
+        /// <summary>The map's id (its dressing's mapId).</summary>
+        public readonly string Id;
         public readonly Point? Bell, Altar, FuseBox;
 
         public MapInfo(string mapJson)
@@ -62,7 +65,7 @@ namespace Haunted.Game
             }
             foreach (var h in List(map, "hidingSpots"))
                 HidingSpots.Add(new HidingSpot { Id = Str(h, "id"), Kind = Str(h, "kind"), At = Pt(h), Exit = Pt(Json.Obj(h, "exit")) });
-            foreach (var d in List(map, "doors")) Doors.Add(new Door { Id = Str(d, "id"), At = Pt(d) });
+            foreach (var d in List(map, "doors")) Doors.Add(new Door { Id = Str(d, "id"), At = Pt(d), Width = Json.Num(d, "width"), Axis = Str(d, "axis") });
             foreach (var j in List(map, "saltJars")) SaltJars[Str(j, "id")] = Pt(j);
             if (Has(map, "suspects"))
             {
@@ -80,6 +83,7 @@ namespace Haunted.Game
                 var a = (List<object>)w;
                 Walls.Add(new[] { Convert.ToDouble(a[0], CultureInfo.InvariantCulture), Convert.ToDouble(a[1], CultureInfo.InvariantCulture), Convert.ToDouble(a[2], CultureInfo.InvariantCulture), Convert.ToDouble(a[3], CultureInfo.InvariantCulture) });
             }
+            Id = Has(map, "id") ? Str(map, "id") : null;
             RelicDoor = Has(map, "relicDoor") ? Str(map, "relicDoor") : null;
             if (Has(map, "bell")) Bell = Pt(Json.Obj(map, "bell"));
             if (Has(map, "altar")) Altar = Pt(Json.Obj(map, "altar"));

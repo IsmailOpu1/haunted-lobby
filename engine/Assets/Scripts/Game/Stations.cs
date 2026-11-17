@@ -7,9 +7,11 @@ using static Haunted.Game.Shapes;
 
 namespace Haunted.Game
 {
-    // The task stations and relic places (GDD 9, 26.5), ported from client/src/stations.ts: the
-    // browser's plain models (its "not dressed" ones, as the hotel here is still the grey box until
-    // step D), every number the same. Positions and turns are in three.js's axes (Shapes.P, Shapes.R).
+    // The task stations and relic places (GDD 9, 26.5), ported from client/src/stations.ts, every
+    // number the same. In a dressed room whose build draws a station's furniture (DressedRooms.Drawn)
+    // only its live parts are drawn, as the browser's "dressed" ones (step D2); the clock's hands, the
+    // cradle and the trunk are the browser's own models (HotelArt). Positions and turns are in
+    // three.js's axes (Shapes.P, Shapes.R).
 
     /// <summary>The parts of a station your hands work on, and how to show what they do (stations.ts HandsModel).</summary>
     public abstract class HandsModel
@@ -102,12 +104,14 @@ namespace Haunted.Game
 
         static double H(string task, string key) { return HandsConfig.N(task, key); }
 
-        public Stations(WorldData world, MapInfo map, object config)
+        /// <summary>drawn: what the dressed rooms' builds draw (DressedRooms.Drawn), or null; art: the stations' own models, or null.</summary>
+        public Stations(WorldData world, MapInfo map, object config, HashSet<string> drawn = null, HotelArt art = null)
         {
             root = new GameObject("Stations").transform;
+            drawn = drawn ?? new HashSet<string>();
             foreach (var def in map.Tasks)
             {
-                var view = Make(def.Minigame);
+                var view = Make(def.Minigame, drawn.Contains(def.Id), drawn, art);
                 Place(view.Root, world, map, def.At.X, def.At.Z, FacingYaw(map, def.At.X, def.At.Z));
                 // Only visible tasks change for everyone; the rest never show a result.
                 if (!def.Visible) view.SetDone = d => { };
@@ -128,8 +132,10 @@ namespace Haunted.Game
                 var list = spot.Places ?? new List<MapInfo.Place> { new MapInfo.Place { Id = spot.Id, At = spot.At } };
                 foreach (var place in list)
                 {
-                    var view = spot.Minigame == "lockbox" ? LockboxSpot() : spot.Minigame == "dig" ? DigSpot() : DrainSpot();
-                    Place(view.Root, world, map, place.At.X, place.At.Z, FacingYaw(map, place.At.X, place.At.Z));
+                    bool built = drawn.Contains(place.Id);
+                    var view = spot.Minigame == "lockbox" ? LockboxSpot(built) : spot.Minigame == "dig" ? DigSpot(built, drawn.Contains(place.Id + ":pot")) : DrainSpot(built);
+                    // A pit in a bed is laid out with the map (the heap along the bed), not turned to a wall.
+                    Place(view.Root, world, map, place.At.X, place.At.Z, spot.Minigame == "dig" && built ? 0 : FacingYaw(map, place.At.X, place.At.Z));
                     places[place.Id] = view;
                 }
             }
@@ -172,24 +178,26 @@ namespace Haunted.Game
             return yaw;
         }
 
-        static StationView Make(string kind)
+        /// <summary>dressed: the room's build draws this station's furniture (stations.ts StationsView).</summary>
+        static StationView Make(string kind, bool dressed, HashSet<string> drawn, HotelArt art)
         {
             switch (kind)
             {
-                case "candelabra": return Candelabra();
-                case "clock": return Clock();
-                case "stove": return Stove();
-                case "letter": return Fireplace();
-                case "cradle": return Cradle();
-                case "piano": return Piano();
-                case "boiler": return Boiler();
-                case "switchboard": return Switchboard();
-                case "mirror": return Mirror();
-                case "trunk": return Trunk();
-                case "sheets": return Sheets();
-                case "roses": return Roses();
-                case "shutters": return Shutters();
-                default: return Portraits();
+                case "candelabra": return Candelabra(dressed);
+                case "clock": return dressed ? DressedClock(art != null ? art.clockHands : null) : Clock();
+                case "stove": return Stove(dressed);
+                case "letter": return Fireplace(dressed);
+                case "cradle": return Cradle(art != null ? art.cradle : null);
+                case "piano": return Piano(dressed);
+                case "boiler": return Boiler(dressed);
+                case "switchboard": return Switchboard(dressed);
+                case "mirror": return Mirror(dressed);
+                case "trunk": return Trunk(art != null ? art.trunk : null);
+                case "sheets": return Sheets(dressed);
+                case "roses": return Roses(dressed);
+                case "shutters": return Shutters(dressed);
+                // The portraits hang in a dressed corridor (the browser asks for its bench).
+                default: return Portraits(drawn.Contains("guest-west-bench"));
             }
         }
 
@@ -250,6 +258,49 @@ namespace Haunted.Game
             return l;
         }
 
+        /// <summary>three's MeshStandardMaterial: a colour, roughness and metalness (a part gets one that can glow).</summary>
+        static Material Std(int hex, double roughness, double metalness = 0, string part = null)
+        {
+            var m = Mat(Hex(hex), part != null ? Look.StandardGlow : Look.Standard);
+            m.SetFloat("_Smoothness", (float)(1 - roughness));
+            m.SetFloat("_Metallic", (float)metalness);
+            return m;
+        }
+
+        /// <summary>A stand-in the hands still grab but nobody sees (the browser's invisible material): the build draws the real thing.</summary>
+        static GameObject Unseen(GameObject g) { g.GetComponent<Renderer>().enabled = false; return g; }
+
+        /// <summary>A node of one of the browser's models, copied under parent: glTFast's axes are three's turned half a circle. keepPlace: its own position (else at parent's origin); its turn is kept.</summary>
+        static Transform ModelPart(Transform parent, GameObject model, string node, bool keepPlace)
+        {
+            Transform source = null;
+            foreach (var t in model.GetComponentsInChildren<Transform>(true)) if (t.name == node) { source = t; break; }
+            if (source == null) return null;
+            var frame = Group(parent, node);
+            frame.localRotation = Quaternion.Euler(0, 180, 0);
+            var copy = UnityEngine.Object.Instantiate(source.gameObject, frame, false).transform;
+            if (!keepPlace) copy.localPosition = Vector3.zero;
+            return copy;
+        }
+
+        /// <summary>stations.ts joined: pieces that share one material and never move apart, as one mesh.</summary>
+        static void Joined(Transform g)
+        {
+            var filters = g.GetComponentsInChildren<MeshFilter>();
+            if (filters.Length < 2) return;
+            var material = filters[0].GetComponent<MeshRenderer>().sharedMaterial;
+            var parts = new CombineInstance[filters.Length];
+            var toLocal = g.worldToLocalMatrix;
+            for (int i = 0; i < filters.Length; i++) parts[i] = new CombineInstance { mesh = filters[i].sharedMesh, transform = toLocal * filters[i].transform.localToWorldMatrix };
+            var mesh = new Mesh { name = g.name };
+            mesh.CombineMeshes(parts, true, true);
+            foreach (var f in filters) UnityEngine.Object.Destroy(f.gameObject);
+            var one = new GameObject(g.name + " joined");
+            one.transform.SetParent(g, false);
+            one.AddComponent<MeshFilter>().sharedMesh = mesh;
+            one.AddComponent<MeshRenderer>().sharedMaterial = material;
+        }
+
         static void Turn(Transform t, double x, double y, double z) { t.localRotation = R(x, y, z); }
         static void Turn(GameObject g, double x, double y, double z) { g.transform.localRotation = R(x, y, z); }
         static void Show(GameObject g, bool on) { g.GetComponent<Renderer>().enabled = on; }
@@ -258,25 +309,32 @@ namespace Haunted.Game
         static Action<string> NumberTag(Transform parent, double sizeM, out Transform tag)
         {
             tag = Group(parent, "Tag");
-            Shape(tag, Plane(sizeM, sizeM), Vector3.one, Mat(Hex(PAPER_SHADE)), 0, 0, 0);
+            // As the browser's: drawn unlit (MeshBasicMaterial), paper and ink dimmed by PAPER_SHADE.
+            var shade = Hex(PAPER_SHADE);
+            Shape(tag, Plane(sizeM, sizeM), Vector3.one, Mat(Hex(PAPER) * shade, Look.Unlit), 0, 0, 0);
+            var ink = Mat(Hex(INK) * shade, Look.Unlit);
             double e = sizeM * 0.47, w = sizeM * 0.047;
             foreach (var s in new[] { -1, 1 })
             {
-                Box(tag, sizeM * 0.94, w, 0.001, INK, 0, s * e, 0.001);
-                Box(tag, w, sizeM * 0.94, 0.001, INK, s * e, 0, 0.001);
+                Box(tag, sizeM * 0.94, w, 0.001, ink, 0, s * e, 0.001);
+                Box(tag, w, sizeM * 0.94, 0.001, ink, s * e, 0, 0.001);
             }
-            var text = Text(tag, "", sizeM * 0.45, Hex(INK), 0, -sizeM * 0.03, 0.002);
+            var text = Text(tag, "", sizeM * 0.45, Hex(INK) * shade, 0, -sizeM * 0.03, 0.002);
             return s2 => text.text = s2;
         }
 
         // ---------- The stations ----------
 
-        static StationView Candelabra()
+        /// <summary>dressed: the table and brass candelabra are baked with the room, so only the wax candles, flames and light are drawn.</summary>
+        static StationView Candelabra(bool dressed = false)
         {
             var g = NewRoot("Candelabra");
-            Box(g, 0.9, 0.75, 0.9, WOOD, 0, 0.375, 0); // table
-            Box(g, 0.06, 0.35, 0.06, BRASS, 0, 0.92, 0);
-            Box(g, 0.6, 0.04, 0.04, BRASS, 0, 1.08, 0);
+            if (!dressed)
+            {
+                Box(g, 0.9, 0.75, 0.9, WOOD, 0, 0.375, 0); // table
+                Box(g, 0.06, 0.35, 0.06, BRASS, 0, 0.92, 0);
+                Box(g, 0.6, 0.04, 0.04, BRASS, 0, 1.08, 0);
+            }
             var flames = new List<GameObject>();
             var wicks = new List<GameObject>();
             var tips = new List<Transform>();
@@ -285,7 +343,9 @@ namespace Haunted.Game
             {
                 double x = -0.28 + i * 0.14;
                 double h = 0.12 + Math.Sin(i / 4.0 * Math.PI) * 0.06;
-                wicks.Add(Box(g, 0.035, h, 0.035, 0xe9dfc6, x, 1.1 + h / 2, 0, "wick:" + i));
+                wicks.Add(dressed
+                    ? Cylinder(g, 0.016, 0.018, h, Std(0xe6dcc4, 0.55, 0, "wick"), x, 1.1 + h / 2, 0, "wick:" + i, 14)
+                    : Box(g, 0.035, h, 0.035, 0xe9dfc6, x, 1.1 + h / 2, 0, "wick:" + i));
                 // Where a flame must touch to light it: the top of the candle.
                 tips.Add(Group(g, "Tip", x, 1.1 + h + 0.01, 0));
                 var flame = Shape(g, Frustum(0, 0.018, 0.05, 6, false), Vector3.one, flameMat, x, 1.1 + h + 0.03, 0);
@@ -364,6 +424,57 @@ namespace Haunted.Game
             };
         }
 
+        // stations.ts DRESSED_CLOCK: the dressed grandfather clock's case is baked into the room, so this
+        // draws only what moves. In the model's axes: its centre at the station's place, front +z.
+        const double DC_PIVOT_Y = 1.7319, DC_HAND_Z = 0.1255, DC_FACE_R = 0.17, DC_MINUTE_AHEAD_M = 0.002;
+        const double DC_PENDULUM_TOP_Y = 1.36, DC_PENDULUM_Z = 0.02, DC_ROD_M = 0.55, DC_BOB_R = 0.05, DC_SWING_RAD = 0.09;
+
+        /// <summary>
+        /// stations.ts dressedClock: the model's own hands (or plain ones without it), a brass pendulum
+        /// behind the window in the trunk, and the face you grab, which is invisible until it glows.
+        /// </summary>
+        static StationView DressedClock(GameObject handsModel)
+        {
+            var g = NewRoot("Clock");
+            // Black, and adds its glow over the dial: you see the dial through it until you aim at it.
+            var face = Shape(g, Disc(DC_FACE_R, 40), Vector3.one, AddedGlow(), 0, DC_PIVOT_Y, DC_HAND_Z + 0.006, "face");
+            Func<string, double, double, double, Transform> hand = (node, length, width, z) =>
+            {
+                var pivot = Group(g, "Hand " + node, 0, DC_PIVOT_Y, z);
+                if (handsModel == null || ModelPart(pivot, handsModel, node, false) == null)
+                    Box(pivot, width, length, 0.004, 0x1a1410, 0, length / 2 - 0.02, 0);
+                return pivot;
+            };
+            var hourHand = hand("hour", 0.1, 0.014, DC_HAND_Z);
+            var minuteHand = hand("minute", 0.15, 0.008, DC_HAND_Z + DC_MINUTE_AHEAD_M);
+            var brass = Std(0xb8913f, 0.35, 0.6);
+            var pend = Group(g, "Pendulum", 0, DC_PENDULUM_TOP_Y, DC_PENDULUM_Z);
+            Box(pend, 0.012, DC_ROD_M, 0.004, brass, 0, -DC_ROD_M / 2, 0);
+            Turn(Cylinder(pend, DC_BOB_R, DC_BOB_R, 0.012, brass, 0, -DC_ROD_M, 0, null, 32), Math.PI / 2, 0, 0);
+            Action<double, double> setHands = (minuteDeg, hourDeg) =>
+            {
+                Turn(minuteHand, 0, 0, -minuteDeg * Math.PI / 180);
+                Turn(hourHand, 0, 0, -hourDeg * Math.PI / 180);
+            };
+            var model = new ClockModel { Kind = "clock", Root = g, Face = face, Target = 0, SetHands = setHands };
+            bool swinging = false;
+            // Stopped, it shows half a day from the time in the book; going, the time itself.
+            Action showTime = () =>
+            {
+                double minutes = swinging ? model.Target : (model.Target + 360) % 720;
+                setHands(minutes % 60 * 6, minutes / 720 * 360);
+            };
+            showTime();
+            return new StationView
+            {
+                Root = g,
+                SetDone = done => { swinging = done; if (!done) Turn(pend, 0, 0, 0); showTime(); },
+                SetClue = minutes => { model.Target = minutes; showTime(); },
+                Tick = time => { if (swinging) Turn(pend, 0, 0, Math.Sin(time / PENDULUM_PERIOD_SEC * Math.PI * 2) * DC_SWING_RAD); },
+                Hands = model,
+            };
+        }
+
         /// <summary>The guest book, open at the page that says when to wake the house (the clock's clue).</summary>
         static Transform GuestBook(double heightM, bool stand, out Action<int> setTime)
         {
@@ -406,10 +517,11 @@ namespace Haunted.Game
             return g;
         }
 
-        static StationView Stove()
+        /// <summary>dressed: the range itself is baked with the room, so only the burner plates, flames and knobs are drawn.</summary>
+        static StationView Stove(bool dressed = false)
         {
             var g = NewRoot("Stove");
-            Box(g, 1.2, 0.9, 0.7, IRON, 0, 0.45, 0);
+            if (!dressed) Box(g, 1.2, 0.9, 0.7, IRON, 0, 0.45, 0);
             var knobs = new List<GameObject>();
             var pivots = new List<Transform>();
             var flames = new List<GameObject>();
@@ -445,12 +557,16 @@ namespace Haunted.Game
             return new StationView { Root = g, Hands = new StoveModel { Kind = "stove", Root = g, Knobs = knobs, SetKnobs = setKnobs } };
         }
 
-        static StationView Fireplace()
+        /// <summary>dressed: the fireplace itself is baked with the room, so only the flames, the fire's light and the letter are drawn.</summary>
+        static StationView Fireplace(bool dressed = false)
         {
             var g = NewRoot("Fireplace");
-            Box(g, 1.4, 1.1, 0.5, 0x4a4440, 0, 0.55, -0.05);
-            Box(g, 1.6, 0.1, 0.6, 0x2a2522, 0, 1.15, -0.05); // mantel
-            Box(g, 0.8, 0.7, 0.42, 0x0b0807, 0, 0.35, 0.02); // opening
+            if (!dressed)
+            {
+                Box(g, 1.4, 1.1, 0.5, 0x4a4440, 0, 0.55, -0.05);
+                Box(g, 1.6, 0.1, 0.6, 0x2a2522, 0, 1.15, -0.05); // mantel
+                Box(g, 0.8, 0.7, 0.42, 0x0b0807, 0, 0.35, 0.02); // opening
+            }
             var fireMat = Mat(Hex(0xff8a3a), Look.Unlit);
             var flames = new List<GameObject>();
             for (int i = 0; i < 3; i++)
@@ -498,10 +614,11 @@ namespace Haunted.Game
             };
         }
 
-        static StationView Boiler()
+        /// <summary>dressed: the room's bake has the boiler; draw only the wheel and the dial.</summary>
+        static StationView Boiler(bool dressed = false)
         {
             var g = NewRoot("Boiler");
-            Cylinder(g, 0.45, 0.45, 1.8, Mat(Hex(0x4a3a2a)), 0, 0.9, -0.1);
+            if (!dressed) Cylinder(g, 0.45, 0.45, 1.8, Mat(Hex(0x4a3a2a)), 0, 0.9, -0.1);
             // The valve wheel turns about the axis pointing at you; its rim and spokes are all handles.
             var wheelPivot = Group(g, "Wheel", 0.25, 1.1, 0.42);
             const int red = 0xa8392a;
@@ -551,15 +668,19 @@ namespace Haunted.Game
             };
         }
 
-        static StationView Roses()
+        /// <summary>dressed: the courtyard's baked potting bench draws the table, the pump, the pail and the dead roses, so here they are only unseen stand-ins you still pick.</summary>
+        static StationView Roses(bool dressed = false)
         {
             var g = NewRoot("Roses");
             double y = ROSES_TABLE_Y;
-            Box(g, 1.5, y, 0.5, WOOD, 0, y / 2, 0);
+            if (!dressed) Box(g, 1.5, y, 0.5, WOOD, 0, y / 2, 0);
             // The pump, at the left end: you fill a jug from its spout.
             var pump = Box(g, 0.1, 0.36, 0.1, IRON, -0.62, y + 0.18, -0.05, "pump");
-            Box(g, 0.04, 0.03, 0.12, IRON, -0.62, y + 0.3, 0.05);
-            Box(g, 0.02, 0.02, 0.22, IRON, -0.62, y + 0.38, -0.1);
+            if (!dressed)
+            {
+                Box(g, 0.04, 0.03, 0.12, IRON, -0.62, y + 0.3, 0.05);
+                Box(g, 0.02, 0.02, 0.22, IRON, -0.62, y + 0.38, -0.1);
+            }
             // Two jugs, each on its own mat.
             var jugs = new List<GameObject>();
             var mats = new List<GameObject>();
@@ -586,9 +707,10 @@ namespace Haunted.Game
             var vaseTag = NumberTag(g, 0.12, out vaseTagT);
             vaseTagT.localPosition = P(0.28, y + 0.07, 0.17);
             Turn(vaseTagT, -0.4, 0, 0);
-            Box(g, 0.12, 0.12, 0.12, 0x5a2a26, 0.28, y + VASE_HEIGHT_M + 0.08, 0.02);
+            if (!dressed) Box(g, 0.12, 0.12, 0.12, 0x5a2a26, 0.28, y + VASE_HEIGHT_M + 0.08, 0.02);
             // The bucket, at the right end: you empty a jug into it.
             var bucket = Shape(g, Frustum(0.11, 0.09, 0.2, 12, false), Vector3.one, For(0x4a4a48, "bucket"), 0.6, y + 0.1, 0.02, "bucket");
+            if (dressed) { Unseen(pump); Unseen(bucket); }
             int vaseCap = HandsConfig.I("roses", "vaseCap");
             int[] puzzleJugs = { 0, 0 };
             Action<int[], int, int> setWater = (amounts, inVase, inHand) =>
@@ -615,7 +737,22 @@ namespace Haunted.Game
             return new StationView { Root = g, Hands = new RosesModel { Kind = "roses", Root = g, Jugs = jugs, Mats = mats, Vase = vase, Pump = pump, Bucket = bucket, SetPuzzle = setPuzzle, SetWater = setWater } };
         }
 
-        static StationView Shutters()
+        /// <summary>stations.ts louvredShutter: a painted louvred shutter, 0.54 x 1.3 x 0.04, its hinge side at x 0.</summary>
+        static void LouvredShutter(Transform hinge)
+        {
+            var g = Group(hinge, "Louvred shutter");
+            var paint = Std(0x27331f, 0.72);
+            Action<double, double, double, double, double, double> add = (w, h, d, x, yy, tilt) => Turn(Box(g, w, h, d, paint, x, yy, 0), tilt, 0, 0);
+            add(0.05, 1.3, 0.04, 0.025, 0, 0);
+            add(0.05, 1.3, 0.04, 0.515, 0, 0);
+            foreach (double yy in new[] { -0.62, 0, 0.62 }) add(0.44, 0.06, 0.036, 0.27, yy, 0);
+            foreach (var span in new[] { new[] { -0.59, -0.03 }, new[] { 0.03, 0.59 } })
+                for (int k = 0; k < 7; k++) add(0.44, 0.07, 0.008, 0.27, span[0] + (k + 0.5) * (span[1] - span[0]) / 7, -0.6);
+            Joined(g);
+        }
+
+        /// <summary>dressed: the room's bake has the windows; draw painted louvred shutters over them (the plain boxes the hand grabs are kept, never drawn).</summary>
+        static StationView Shutters(bool dressed = false)
         {
             // Three windows on the wall, each with a shutter banging in the wind until the task closes it.
             // A shutter hangs on its left side; open 1 is swung out into the corridor, 0 is shut.
@@ -625,9 +762,15 @@ namespace Haunted.Game
             for (int i = -1; i <= 1; i++)
             {
                 double x = i * 0.7;
-                Box(g, 0.55, 1.3, 0.06, 0x0b1018, x, 1.5, -0.08);
+                if (!dressed) Box(g, 0.55, 1.3, 0.06, 0x0b1018, x, 1.5, -0.08);
                 var hinge = Group(g, "Hinge", x - 0.27, 1.5, -0.02);
-                panels.Add(Box(hinge, 0.54, 1.3, 0.04, 0x5e4630, 0.27, 0, 0, "shutter:" + (i + 1)));
+                var panel = Box(hinge, 0.54, 1.3, 0.04, 0x5e4630, 0.27, 0, 0, "shutter:" + (i + 1));
+                if (dressed)
+                {
+                    Unseen(panel);
+                    LouvredShutter(hinge);
+                }
+                panels.Add(panel);
                 hinges.Add(hinge);
             }
             double[] open = { 1, 1, 1 };
@@ -650,7 +793,116 @@ namespace Haunted.Game
             };
         }
 
-        static StationView Portraits()
+        /// <summary>
+        /// stations.ts portraitCanvas: a small dark oil portrait, 128 x 176 px: a sitter's head and
+        /// shoulders against a murky ground, each of the three in its own colours, under old varnish.
+        /// Each pixel is the canvas's drawing at four points, for its smooth edges.
+        /// </summary>
+        static Texture2D PortraitTexture(int n)
+        {
+            const int w = 128, h = 176;
+            Color[][] grounds = { new[] { Css(0x2a2418), Css(0x0e0b07) }, new[] { Css(0x1d2421), Css(0x090b0a) }, new[] { Css(0x2b1d1b), Css(0x0d0808) } };
+            Color coat = Css(new[] { 0x141210, 0x1c1a2a, 0x2a1712 }[n]), hair = Css(new[] { 0x1a120c, 0x3a3026, 0x0c0a08 }[n]);
+            Color collar = Css(0x8f8676), skin = Css(0xa08066), eyes = Css(0x120c08);
+            Color shade = Css(0x140c08, 0.55f), varnish = Css(0x3c280a, 0.25f), crack = new Color(0, 0, 0, 0.25f);
+            var ground = grounds[n];
+            var px = new Color32[w * h];
+            var offsets = new[] { new Vector2(0.25f, 0.25f), new Vector2(0.75f, 0.25f), new Vector2(0.25f, 0.75f), new Vector2(0.75f, 0.75f) };
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    Color sum = Color.clear;
+                    foreach (var o in offsets)
+                    {
+                        float sx = x + o.x, sy = y + o.y;
+                        // createRadialGradient(64, 70, 10, 64, 88, 110)
+                        Color c = Color.Lerp(ground[0], ground[1], RadialT(sx, sy, 64, 70, 10, 64, 88, 110));
+                        if (InEllipse(sx, sy, 64, 176, 60, 62) && sy <= 176) c = coat;
+                        if (InTriangle(sx, sy, 52, 118, 64, 132, 76, 118)) c = collar;
+                        if (InEllipse(sx, sy, 64, 84, 21, 28)) c = skin;
+                        if (InEllipse(sx, sy, 70, 88, 14, 24)) c = Over(c, shade);
+                        if (InEllipse(sx, sy, 64, 66, 24, 16) && sy <= 66) c = hair;
+                        if ((sx >= 55 && sx < 61 || sx >= 68 && sx < 74) && sy >= 82 && sy < 85) c = eyes;
+                        c = Over(c, varnish);
+                        // A craquelure of fine lines, each 1 px wide.
+                        for (int k = 0; k < 40; k++)
+                        {
+                            float ax = (k * 37) % 128, ay = (k * 61) % 176;
+                            if (SegmentDistance(sx, sy, ax, ay, ax + (k % 5 - 2) * 6, ay + 9) <= 0.5f) c = Over(c, crack);
+                        }
+                        sum += c;
+                    }
+                    sum /= offsets.Length;
+                    px[(h - 1 - y) * w + x] = (Color32)new Color(sum.r, sum.g, sum.b, 1);
+                }
+            return TextPainter.Picture(px, w, h);
+        }
+
+        /// <summary>A canvas colour (sRGB, as the canvas mixes them), with an alpha for painting over.</summary>
+        static Color Css(int hex, float alpha = 1) { var c = (Color)Hex(hex); c.a = alpha; return c; }
+
+        static Color Over(Color under, Color paint) { return new Color(Mathf.Lerp(under.r, paint.r, paint.a), Mathf.Lerp(under.g, paint.g, paint.a), Mathf.Lerp(under.b, paint.b, paint.a), 1); }
+
+        static bool InEllipse(float x, float y, float cx, float cy, float rx, float ry)
+        {
+            float dx = (x - cx) / rx, dy = (y - cy) / ry;
+            return dx * dx + dy * dy <= 1;
+        }
+
+        static bool InTriangle(float x, float y, float ax, float ay, float bx, float by, float cx, float cy)
+        {
+            float d1 = (x - bx) * (ay - by) - (ax - bx) * (y - by);
+            float d2 = (x - cx) * (by - cy) - (bx - cx) * (y - cy);
+            float d3 = (x - ax) * (cy - ay) - (cx - ax) * (y - ay);
+            bool neg = d1 < 0 || d2 < 0 || d3 < 0, pos = d1 > 0 || d2 > 0 || d3 > 0;
+            return !(neg && pos);
+        }
+
+        static float SegmentDistance(float x, float y, float ax, float ay, float bx, float by)
+        {
+            float vx = bx - ax, vy = by - ay;
+            float t = Mathf.Clamp01(((x - ax) * vx + (y - ay) * vy) / (vx * vx + vy * vy));
+            float dx = x - (ax + t * vx), dy = y - (ay + t * vy);
+            return Mathf.Sqrt(dx * dx + dy * dy);
+        }
+
+        /// <summary>A canvas two-circle radial gradient's stop (0 to 1, padded) at a point: the largest t whose circle passes through it.</summary>
+        static float RadialT(float x, float y, float x0, float y0, float r0, float x1, float y1, float r1)
+        {
+            float cdx = x1 - x0, cdy = y1 - y0, dr = r1 - r0, pdx = x - x0, pdy = y - y0;
+            float a = cdx * cdx + cdy * cdy - dr * dr, b = pdx * cdx + pdy * cdy + r0 * dr, c = pdx * pdx + pdy * pdy - r0 * r0;
+            float t;
+            if (Mathf.Abs(a) < 1e-6f) t = c / (2 * b);
+            else
+            {
+                float disc = b * b - a * c;
+                if (disc < 0) return 0;
+                float s = Mathf.Sqrt(disc), t1 = (b + s) / a, t2 = (b - s) / a;
+                t = Mathf.Max(t1, t2);
+                if (r0 + t * dr < 0) t = Mathf.Min(t1, t2);
+            }
+            return Mathf.Clamp01(t);
+        }
+
+        /// <summary>stations.ts giltFrame: a gilt frame 0.5 x 0.65, 0.05 deep, centred at (0, y): four moulded bars and a sight edge.</summary>
+        static void GiltFrame(Transform pivot, double y)
+        {
+            var g = Group(pivot, "Gilt frame");
+            var gilt = Std(0x7a5a24, 0.55, 1);
+            Action<double, double, double, double> bar = (w, h, x, yy) =>
+            {
+                Box(g, w, h, 0.05, gilt, x, y + yy, 0);
+                Box(g, w * (w > h ? 0.8 : 0.4), h * (h > w ? 0.8 : 0.4), 0.012, gilt, x, y + yy, 0.03);
+            };
+            bar(0.5, 0.06, 0, 0.295);
+            bar(0.5, 0.06, 0, -0.295);
+            bar(0.06, 0.65, -0.22, 0);
+            bar(0.06, 0.65, 0.22, 0);
+            Joined(g);
+        }
+
+        /// <summary>dressed: in a dressed corridor, gilt frames round small dark oil portraits (the plain boxes the hand grabs are kept, never drawn).</summary>
+        static StationView Portraits(bool dressed = false)
         {
             var g = NewRoot("Portraits");
             var pivots = new List<Transform>();
@@ -660,8 +912,19 @@ namespace Haunted.Game
             {
                 // Each hangs from a nail at the top and swings about it.
                 var pivot = Group(g, "Portrait", i * 0.75, 1.9, -0.06);
-                frames.Add(Box(pivot, 0.5, 0.65, 0.05, BRASS, 0, -0.4, 0, "portrait:" + (i + 1)));
-                Box(pivot, 0.4, 0.55, 0.02, 0x2e2a24, 0, -0.4, 0.03);
+                var frame = Box(pivot, 0.5, 0.65, 0.05, BRASS, 0, -0.4, 0, "portrait:" + (i + 1));
+                frames.Add(frame);
+                if (dressed)
+                {
+                    Unseen(frame);
+                    GiltFrame(pivot, -0.4);
+                    var oil = Std(0xffffff, 0.75);
+                    var picture = PortraitTexture(i + 1);
+                    oil.mainTexture = picture;
+                    if (oil.HasProperty("_BaseMap")) oil.SetTexture("_BaseMap", picture);
+                    Shape(pivot, Quad(), new Vector3(0.38f, 0.53f, 1), oil, 0, -0.4, 0.02);
+                }
+                else Box(pivot, 0.4, 0.55, 0.02, 0x2e2a24, 0, -0.4, 0.03);
                 pivots.Add(pivot);
             }
             Action<double[]> setTilt = deg => { for (int i = 0; i < pivots.Count; i++) Turn(pivots[i], 0, 0, -(i < deg.Length ? deg[i] : 0) * Math.PI / 180); };
@@ -669,11 +932,15 @@ namespace Haunted.Game
             return new StationView { Root = g, SetDone = done => setTilt(done ? new double[] { 0, 0, 0 } : tilts), Hands = new PortraitsModel { Kind = "portraits", Root = g, Frames = frames, SetTilt = setTilt } };
         }
 
-        static StationView Piano()
+        /// <summary>dressed: the room's bake has the piano's case, keybed and music desk; draw only the keys and the card.</summary>
+        static StationView Piano(bool dressed = false)
         {
             var g = NewRoot("Piano");
-            Box(g, 1.5, 1.2, 0.6, 0x1e1410, 0, 0.6, -0.05);
-            Box(g, 1.5, 0.05, 0.32, 0x1e1410, 0, 0.74, 0.39); // keybed
+            if (!dressed)
+            {
+                Box(g, 1.5, 1.2, 0.6, 0x1e1410, 0, 0.6, -0.05);
+                Box(g, 1.5, 0.05, 0.32, 0x1e1410, 0, 0.74, 0.39); // keybed
+            }
             int count = HandsConfig.I("piano", "keys");
             var keys = new List<GameObject>();
             double width = PIANO_KEYS_M / count;
@@ -685,8 +952,8 @@ namespace Haunted.Game
                 if (i < count - 1 && i % 7 != 2 && i % 7 != 6) Box(g, width * 0.5, 0.03, 0.15, 0x0d0a08, x + width / 2, PIANO_KEY_Y + 0.03, 0.34);
             }
             // The card on the music stand: what the piano wants from you. Click it to hear the tune again.
-            Box(g, 0.9, 0.42, 0.02, 0x1e1410, 0, PIANO_CARD_Y, 0.24);
-            var card = Shape(g, Plane(0.84, 0.36), Vector3.one, Mat(Hex(0xe8dcc0) * Hex(PAPER_SHADE), Look.Glow), 0, PIANO_CARD_Y, 0.28, "card");
+            if (!dressed) Box(g, 0.9, 0.42, 0.02, 0x1e1410, 0, PIANO_CARD_Y, 0.24);
+            var card = Shape(g, Plane(0.84, 0.36), Vector3.one, Mat(Hex(0xe8dcc0) * Hex(PAPER_SHADE), Look.Unlit), 0, PIANO_CARD_Y, 0.28, "card");
             // Leaning back on the stand, its top clear of the board behind.
             Turn(card, -0.12, 0, 0);
             // The browser draws the card on 512 x 256 px.
@@ -729,12 +996,48 @@ namespace Haunted.Game
             return new StationView { Root = g, Hands = new PianoModel { Kind = "piano", Root = g, Keys = keys, Card = card, SetPiano = setPiano } };
         }
 
-        static StationView Cradle()
+        /// <summary>
+        /// The cradle: with its model (build_cradle.py), a painted cradle on rockers rocking side to side,
+        /// the baby, its stand and the mobile, each at its pivot, and an unseen box the hand grabs;
+        /// without it, plain boxes.
+        /// </summary>
+        static StationView Cradle(GameObject model = null)
         {
             var g = NewRoot("Cradle");
             var rock = Group(g, "Rock");
             var baby = Group(rock, "Baby");
             var mobile = Group(g, "Mobile", 0, 1.3, 0);
+            GameObject basket;
+            if (model != null)
+            {
+                ModelPart(rock, model, "cradle", true);
+                ModelPart(baby, model, "baby", true);
+                ModelPart(g, model, "stand", true);
+                ModelPart(mobile, model, "mobile", false);
+                basket = Unseen(Box(rock, 0.5, 0.45, 0.92, 0x6b4a2e, 0, 0.5, 0, "basket"));
+            }
+            else basket = PlainCradle(g, rock, baby, mobile);
+            double angle = 0, calm = 0, last = 0, spin = 0;
+            bool crying = false;
+            return new StationView
+            {
+                Root = g,
+                Tick = time =>
+                {
+                    double dt = Math.Min(0.1, Math.Max(0, time - last));
+                    last = time;
+                    Turn(rock, 0, 0, -angle);
+                    baby.localPosition = P(crying ? Math.Sin(time * 37) * 0.012 : 0, crying ? Math.Abs(Math.Sin(time * 23)) * 0.01 : 0, 0);
+                    spin += dt * calm * MOBILE_TURN_RAD_PER_SEC;
+                    Turn(mobile, 0, spin, 0);
+                },
+                Hands = new CradleModel { Kind = "cradle", Root = g, Basket = basket, SetCradle = (a, c, cry) => { angle = a; calm = c; crying = cry; } },
+            };
+        }
+
+        /// <summary>The plain cradle (no model): boxes, a ball for the head, a post and a mobile of stars.</summary>
+        static GameObject PlainCradle(Transform g, Transform rock, Transform baby, Transform mobile)
+        {
             Box(rock, 1.0, 0.05, 0.08, 0x5a3a22, 0, 0.12, 0.22);
             Box(rock, 1.0, 0.05, 0.08, 0x5a3a22, 0, 0.12, -0.22);
             var basket = Box(rock, 0.9, 0.35, 0.5, 0x6b4a2e, 0, 0.5, 0, "basket");
@@ -755,22 +1058,7 @@ namespace Haunted.Game
                 star.transform.localScale = new Vector3(0.05f, 0.07f, 0.05f);
                 star.transform.localRotation = Quaternion.Euler(0, 45, 0);
             }
-            double angle = 0, calm = 0, last = 0, spin = 0;
-            bool crying = false;
-            return new StationView
-            {
-                Root = g,
-                Tick = time =>
-                {
-                    double dt = Math.Min(0.1, Math.Max(0, time - last));
-                    last = time;
-                    Turn(rock, 0, 0, -angle);
-                    baby.localPosition = P(crying ? Math.Sin(time * 37) * 0.012 : 0, crying ? Math.Abs(Math.Sin(time * 23)) * 0.01 : 0, 0);
-                    spin += dt * calm * MOBILE_TURN_RAD_PER_SEC;
-                    Turn(mobile, 0, spin, 0);
-                },
-                Hands = new CradleModel { Kind = "cradle", Root = g, Basket = basket, SetCradle = (a, c, cry) => { angle = a; calm = c; crying = cry; } },
-            };
+            return basket;
         }
 
         static readonly Dictionary<int, Texture2D> signTextures = new Dictionary<int, Texture2D>();
@@ -832,11 +1120,15 @@ namespace Haunted.Game
             return Vector2.Distance(p, a + ab * t);
         }
 
-        static StationView Switchboard()
+        /// <summary>dressed: its cabinet and board are baked into the room, so only the live parts are drawn.</summary>
+        static StationView Switchboard(bool dressed = false)
         {
             var g = NewRoot("Switchboard");
-            Box(g, 1.0, 1.0, 0.15, WOOD, 0, BOARD_Y, -0.1);
-            Box(g, 1.0, 0.8, 0.4, WOOD, 0, 0.4, 0.05); // desk
+            if (!dressed)
+            {
+                Box(g, 1.0, 1.0, 0.15, WOOD, 0, BOARD_Y, -0.1);
+                Box(g, 1.0, 0.8, 0.4, WOOD, 0, 0.4, 0.05); // desk
+            }
             int cables = HandsConfig.I("switchboard", "cables");
             var hooks = new FacePoint[cables];
             var sockets = new FacePoint[cables];
@@ -929,14 +1221,20 @@ namespace Haunted.Game
 
         static bool Ellipse(double x, double y, double cx, double cy, double rx, double ry) { return (x - cx) * (x - cx) / (rx * rx) + (y - cy) * (y - cy) / (ry * ry) <= 1; }
 
-        static StationView Mirror()
+        /// <summary>dressed: the room's dressing table and its gilt frame are baked in; only the glass, the face and the fog are drawn.</summary>
+        static StationView Mirror(bool dressed = false)
         {
             var g = NewRoot("Mirror");
             double w = H("mirror", "widthM"), h = H("mirror", "heightM");
             int cols = HandsConfig.I("mirror", "cols"), rows = HandsConfig.I("mirror", "rows");
-            Box(g, w + 0.16, h + 0.16, 0.05, BRASS, 0, MIRROR_Y, -0.05);
-            var glassMat = Mat(Hex(0x1c2226), Look.Glow);
-            glassMat.SetFloat("_Smoothness", 0.9f);
+            if (!dressed) Box(g, w + 0.16, h + 0.16, 0.05, BRASS, 0, MIRROR_Y, -0.05);
+            // The browser's MeshPhongMaterial (specular 0x667078, shininess 90, no reflections): URP's
+            // specular set-up with that colour; Phong's 90 is GGX roughness sqrt(2 / 92), smoothness 0.62.
+            // (Resources/Materials/SpecularGlow keeps those shader variants in the build.)
+            var glassMat = new Material(Resources.Load<Material>("Materials/SpecularGlow"));
+            glassMat.SetColor("_BaseColor", Hex(0x1c2226));
+            glassMat.SetColor("_SpecColor", Hex(0x667078));
+            glassMat.SetFloat("_Smoothness", 1 - Mathf.Sqrt(Mathf.Sqrt(2f / 92f)));
             var glass = Shape(g, Plane(w, h), Vector3.one, glassMat, 0, MIRROR_Y, -0.02, "glass");
             var faceMat = Mat(Color.white, Look.UnlitClear, 0);
             faceMat.mainTexture = FaceTexture();
@@ -947,7 +1245,7 @@ namespace Haunted.Game
             fogMat.mainTexture = fogTex;
             fogMat.SetFloat("_Smoothness", 0.2f);
             Shape(g, Plane(w, h), Vector3.one, fogMat, 0, MIRROR_Y, -0.016);
-            Box(g, 0.9, 0.8, 0.4, WOOD, 0, 0.4, 0.1); // dresser
+            if (!dressed) Box(g, 0.9, 0.8, 0.4, WOOD, 0, 0.4, 0.1); // dresser
             var pixels = new Color32[cols * rows];
             Action<int[], double> setFog = (patches, showFace) =>
             {
@@ -963,22 +1261,43 @@ namespace Haunted.Game
             return new StationView { Root = g, Hands = new MirrorModel { Kind = "mirror", Root = g, Glass = glass, SetFog = setFog } };
         }
 
-        static StationView Trunk()
+        /// <summary>
+        /// The old trunk: a sprung lid hinged at the back, and latches on the front. With its model
+        /// (build_trunk.py), a canvas steamer trunk with iron corners and brass turn-buttons (the boxes
+        /// the hand grabs are kept, never drawn); without it, plain boxes.
+        /// </summary>
+        static StationView Trunk(GameObject model = null)
         {
             var g = NewRoot("Trunk");
-            Box(g, 1.0, 0.5, 0.55, 0x4b3420, 0, 0.25, 0);
-            Box(g, 0.94, 0.02, 0.49, 0x0b0807, 0, 0.495, 0); // the dark inside
+            if (model != null) ModelPart(g, model, "body", true);
+            else
+            {
+                Box(g, 1.0, 0.5, 0.55, 0x4b3420, 0, 0.25, 0);
+                Box(g, 0.94, 0.02, 0.49, 0x0b0807, 0, 0.495, 0); // the dark inside
+            }
             var hinge = Group(g, "Hinge", 0, 0.5, -0.285);
             var lid = Box(hinge, 1.02, 0.12, 0.57, 0x553a22, 0, 0.06, 0.285, "lid");
+            if (model != null)
+            {
+                Unseen(lid);
+                ModelPart(hinge, model, "lid", false);
+            }
             var pivots = new List<Transform>();
             var latches = new List<GameObject>();
             int count = HandsConfig.I("trunk", "latches");
             for (int i = 0; i < count; i++)
             {
                 double x = (i - (count - 1) / 2.0) * 0.3;
-                Box(g, 0.06, 0.06, 0.01, 0x2a2016, x, 0.44, 0.28); // the catch
+                if (model != null) ModelPart(Group(g, "Catch", x, 0.44, 0.28), model, "catch", false);
+                else Box(g, 0.06, 0.06, 0.01, 0x2a2016, x, 0.44, 0.28); // the catch
                 var pivot = Group(g, "Latch", x, 0.44, 0.29);
-                latches.Add(Box(pivot, 0.026, 0.1, 0.016, BRASS, 0, 0, 0.006, "latch:" + i));
+                var latch = Box(pivot, 0.026, 0.1, 0.016, BRASS, 0, 0, 0.006, "latch:" + i);
+                if (model != null)
+                {
+                    Unseen(latch);
+                    ModelPart(pivot, model, "latch", false);
+                }
+                latches.Add(latch);
                 pivots.Add(pivot);
             }
             double open = 0, rattle = 0;
@@ -1008,10 +1327,11 @@ namespace Haunted.Game
             return fold % 2 == 0 ? new Sheet { Cx = r.Cx, Cz = r.Cz + r.D / 4, W = r.W, D = r.D / 2 } : new Sheet { Cx = r.Cx - r.W / 4, Cz = r.Cz, W = r.W / 2, D = r.D };
         }
 
-        static StationView Sheets()
+        /// <summary>dressed: the room's bake has the table; draw only the sheet.</summary>
+        static StationView Sheets(bool dressed = false)
         {
             var g = NewRoot("Sheets");
-            Box(g, 1.2, 0.75, 0.7, WOOD, 0, 0.375, 0); // table
+            if (!dressed) Box(g, 1.2, 0.75, 0.7, WOOD, 0, 0.375, 0); // table
             const double top = 0.75;
             var flat = Box(g, 1, SHEET_THICK_M, 1, LINEN);
             var pivot = Group(g, "Fold");
@@ -1049,10 +1369,11 @@ namespace Haunted.Game
 
         // ---------- Places to search for a relic ----------
 
-        static StationView LockboxSpot()
+        /// <summary>dressed: the cabinet under the box is baked with the room.</summary>
+        static StationView LockboxSpot(bool dressed = false)
         {
             var g = NewRoot("Lockbox");
-            Box(g, 1.0, 0.85, 0.45, WOOD, 0, 0.425, 0); // sideboard or shelf
+            if (!dressed) Box(g, 1.0, 0.85, 0.45, WOOD, 0, 0.425, 0); // sideboard or shelf
             // A walnut box with brass bands round its foot and its lid's edge, on four brass feet.
             const int walnut = 0x1e1008;
             Box(g, 0.3, 0.15, 0.2, walnut, 0, 0.935, 0);
@@ -1083,17 +1404,48 @@ namespace Haunted.Game
             return new StationView { Root = g, SetDone = searched => setDial(0, searched ? pins : 0, searched), Hands = new LockboxModel { Kind = "lockbox", Root = g, Dial = dial, SetDial = setDial } };
         }
 
-        static StationView DigSpot()
+        /// <summary>stations.ts: the loose soil of a dressed bed's pit starts flush with the bed's soil.</summary>
+        const double DRESSED_SOIL_Y = 0.46;
+        /// <summary>A dead rose cut back to brown stalks: x, z, lean, turn, height.</summary>
+        static readonly double[][] DEAD_ROSE_STALKS =
+        {
+            new[] { 0, 0, 0.12, 0, 0.62 },
+            new[] { 0.05, 0.03, 0.35, 1.1, 0.5 },
+            new[] { -0.04, 0.05, 0.3, 2.4, 0.55 },
+            new[] { 0.02, -0.05, 0.4, 3.9, 0.42 },
+            new[] { -0.05, -0.02, 0.28, 5.2, 0.47 },
+        };
+
+        /// <summary>
+        /// dressed: a pit in the courtyard's baked raised bed, not a pot: only the loose soil that sinks,
+        /// a dead rose's stalks, the heap of dug soil (on the bed beside the pit) and the relic. pot: the
+        /// pit is a baked planter box's whole well, so the heap goes on the floor beside it, to the west.
+        /// </summary>
+        static StationView DigSpot(bool dressed = false, bool pot = false)
         {
             var g = NewRoot("Dig");
-            Box(g, 0.8, 0.5, 0.8, 0x5a3b22, 0, 0.25, 0);
-            const double soilY = 0.51;
-            var soil = Box(g, 0.7, 0.04, 0.7, 0x2e2014, 0, soilY, 0, "soil");
+            if (!dressed) Box(g, 0.8, 0.5, 0.8, 0x5a3b22, 0, 0.25, 0);
+            double soilY = dressed ? DRESSED_SOIL_Y : 0.51;
+            var soil = Box(g, 0.7, 0.04, 0.7, dressed ? 0x1f150c : 0x2e2014, 0, soilY, 0, "soil");
             var plant = Group(g, "Plant");
-            Box(plant, 0.06, 0.9, 0.06, 0x3d6a33, 0, 0.95, 0);
-            Box(plant, 0.6, 0.06, 0.06, 0x3d6a33, 0, 1.3, 0);
+            if (dressed)
+            {
+                var stalkMat = Mat(Hex(0x2b2014));
+                foreach (var st in DEAD_ROSE_STALKS)
+                {
+                    // three's Euler (lean, turn, 0) in the order YXZ: turned, then leaned.
+                    var stalk = Group(plant, "Stalk", st[0], DRESSED_SOIL_Y + 0.02, st[1]);
+                    stalk.localRotation = R(0, st[3], 0) * R(st[2], 0, 0);
+                    Box(stalk, 0.011, st[4], 0.011, stalkMat, 0, st[4] / 2, 0);
+                }
+            }
+            else
+            {
+                Box(plant, 0.06, 0.9, 0.06, 0x3d6a33, 0, 0.95, 0);
+                Box(plant, 0.6, 0.06, 0.06, 0x3d6a33, 0, 1.3, 0);
+            }
             // Soil thrown out of a dug pot, and the relic glinting at the bottom.
-            var heap = Box(g, 0.3, 0.12, 0.3, 0x2e2014, 0.55, 0.06, 0.2);
+            var heap = pot ? Box(g, 0.3, 0.12, 0.3, 0x2e2014, -0.62, 0.06, 0) : dressed ? Box(g, 0.3, 0.12, 0.3, 0x2e2014, 0, 0.56, 0.68) : Box(g, 0.3, 0.12, 0.3, 0x2e2014, 0.55, 0.06, 0.2);
             heap.SetActive(false);
             var relicMat = Mat(Hex(0xc9a640), Look.Glow);
             relicMat.SetColor("_EmissionColor", Hex(0x3a2a08));
@@ -1110,19 +1462,23 @@ namespace Haunted.Game
             return new StationView { Root = g, SetDone = searched => setDepth(searched ? SEARCHED_DEPTH : 0, false), Hands = new DigModel { Kind = "dig", Root = g, Soil = soil, SetDepth = setDepth } };
         }
 
-        static StationView DrainSpot()
+        /// <summary>dressed: the room's bake has the curb and grate; draw only the water, as a still, glossy black.</summary>
+        static StationView DrainSpot(bool dressed = false)
         {
             var g = NewRoot("Drain");
             const int stone = 0x4a4a44;
             double half = DRAIN_INNER_M / 2, t = DRAIN_CURB_WIDTH_M, outer = DRAIN_INNER_M + 2 * t;
-            foreach (var s in new[] { -1, 1 })
+            if (!dressed)
             {
-                Box(g, outer, DRAIN_CURB_M, t, stone, 0, DRAIN_CURB_M / 2, s * (half + t / 2));
-                Box(g, t, DRAIN_CURB_M, DRAIN_INNER_M, stone, s * (half + t / 2), DRAIN_CURB_M / 2, 0);
+                foreach (var s in new[] { -1, 1 })
+                {
+                    Box(g, outer, DRAIN_CURB_M, t, stone, 0, DRAIN_CURB_M / 2, s * (half + t / 2));
+                    Box(g, t, DRAIN_CURB_M, DRAIN_INNER_M, stone, s * (half + t / 2), DRAIN_CURB_M / 2, 0);
+                }
             }
-            var water = Shape(g, Plane(DRAIN_INNER_M, DRAIN_INNER_M), Vector3.one, For(0x10160f, "water"), 0, DRAIN_WATER_Y, 0, "water");
+            var water = Shape(g, Plane(DRAIN_INNER_M, DRAIN_INNER_M), Vector3.one, dressed ? Std(0x0b100d, 0.12, 0, "water") : For(0x10160f, "water"), 0, DRAIN_WATER_Y, 0, "water");
             Turn(water, -Math.PI / 2, 0, 0);
-            for (int i = -2; i <= 2; i++) Box(g, 0.03, 0.02, 0.5, 0x555048, half + t + 0.16 + i * 0.05, 0.01, 0); // the grate
+            if (!dressed) for (int i = -2; i <= 2; i++) Box(g, 0.03, 0.02, 0.5, 0x555048, half + t + 0.16 + i * 0.05, 0.01, 0); // the grate
             var rippleMat = Mat(Hex(0xa0b0a0), Look.UnlitClear, 0);
             var ripple = Shape(g, RingMesh(0.8, 1, 24, 0, Math.PI * 2), Vector3.one, rippleMat, 0, 0, 0);
             Turn(ripple, -Math.PI / 2, 0, 0);
