@@ -326,6 +326,8 @@ export class Game {
   /** Auto quality's measurement: seconds watched and frames drawn (null once it has chosen). */
   private autoQuality: { seconds: number; frames: number } | null = null;
   private fps = { shown: false, seconds: 0, frames: 0 };
+  /** True while the room-by-room picture test runs (roomTour): no held torch in the pictures. */
+  private touring = false;
   /** The quality drawn now, and the speed test while one runs (speedTest). */
   private level: QualityLevel = "high";
   private speed: SpeedTest | null = null;
@@ -1028,7 +1030,7 @@ export class Game {
       dt,
       this.camera,
       {
-        visible: this.me?.health !== "dead" && !this.hands.active && !this.cameraRaised,
+        visible: this.me?.health !== "dead" && !this.hands.active && !this.cameraRaised && !this.touring,
         on: this.flashlight.light.visible,
         brightness,
         ambient: this.ambient.intensity,
@@ -1094,6 +1096,46 @@ export class Game {
       this.flashlight.light.visible = was.torch;
       this.applyQuality(was.level);
       this.autoQuality = was.auto;
+    }
+  }
+
+  /**
+   * Development only: the room-by-room picture test of step D (docs/plans/engine-port.md). The
+   * camera stands in the middle of each room at eye height with the torch off and takes a picture
+   * looking each of four ways (yaw 0, 90, 180, 270 degrees), framed like the Unity version's
+   * RoomTour (60 degree up-down view); save gets each as "<room>-<yaw>.png".
+   */
+  async roomTour(save: (name: string, png: Blob) => Promise<void>, only?: string) {
+    const camera = this.camera;
+    const was = { position: camera.position.clone(), rotation: camera.rotation.clone(), fov: camera.fov, torch: this.flashlight.light.visible };
+    this.flashlight.light.visible = false;
+    this.touring = true;
+    // The next frame's update hides the held torch.
+    await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+    camera.fov = 60;
+    camera.updateProjectionMatrix();
+    try {
+      for (const r of this.map.rooms) {
+        if (only && !r.name.toLowerCase().includes(only.toLowerCase())) continue;
+        const at = this.place({ x: (r.minX + r.maxX) / 2, z: (r.minZ + r.maxZ) / 2 });
+        for (const yaw of [0, 90, 180, 270]) {
+          camera.position.set(at.x, at.y + this.eyeHeight, at.z);
+          camera.rotation.set(0, (yaw * Math.PI) / 180, 0, "YXZ");
+          camera.updateMatrixWorld();
+          this.view.setFromProjectionMatrix(this.viewMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+          this.dressed.showFloorsNear(camera.position.x, camera.position.y - this.eyeHeight, camera.position.z, { view: this.view, eye: camera.position });
+          this.post.render(performance.now() / 1000);
+          const png = await new Promise<Blob | null>((done) => this.renderer.domElement.toBlob(done, "image/png"));
+          if (png) await save(`${r.name}-${yaw}.png`, png);
+        }
+      }
+    } finally {
+      camera.position.copy(was.position);
+      camera.rotation.copy(was.rotation);
+      camera.fov = was.fov;
+      camera.updateProjectionMatrix();
+      this.flashlight.light.visible = was.torch;
+      this.touring = false;
     }
   }
 

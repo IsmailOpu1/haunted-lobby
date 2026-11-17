@@ -7,6 +7,7 @@ namespace Haunted.Editor
 {
     /// <summary>
     /// Lets Claude drive an open editor without clicks: write a method name ("Setup", "BuildWindows")
+    /// (or "ImportHotel", "Refresh", "Resolve")
     /// to engine/Temp/command.txt and the editor runs it, writing "done: ..." or "failed: ..." to
     /// engine/Temp/command-result.txt. Used because the editor's license works only when the
     /// editor is started from Unity Hub, so the command-line batch mode cannot run it.
@@ -39,6 +40,9 @@ namespace Haunted.Editor
                         break;
                     case "BuildWindows":
                         ProjectSetup.BuildWindows();
+                        break;
+                    case "ImportHotel":
+                        HotelImport.Import();
                         break;
                     case "Refresh":
                         AssetDatabase.Refresh();

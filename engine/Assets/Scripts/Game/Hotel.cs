@@ -27,8 +27,9 @@ namespace Haunted.Game
         static readonly Color StairColor = new Color(0.45f, 0.4f, 0.36f);
         const float FloorThicknessM = 0.1f;
 
-        /// <summary>replaced: whether a model stands in this furniture's place (a task station), so its grey box is left out, as the browser leaves out boxes its models replace. Collision still has it.</summary>
-        public Hotel(WorldData world, double bodyRadiusM, Material baseMaterial, System.Func<SolidBox, bool> replaced = null)
+        /// <summary>replaced: whether a model stands in this furniture's place (a task station), so its grey box is left out, as the browser leaves out boxes its models replace. Collision still has it.
+        /// dressed: the dressed rooms (step D), whose floors, furniture, hiding spots and stairs are drawn by their builds (as client/src/world.ts leaves them out); null for the plain grey box.</summary>
+        public Hotel(WorldData world, double bodyRadiusM, Material baseMaterial, System.Func<SolidBox, bool> replaced = null, DressedRooms dressed = null)
         {
             World = world;
             Collision = new Collision(world, bodyRadiusM);
@@ -37,6 +38,7 @@ namespace Haunted.Game
 
             foreach (var room in world.Rooms)
             {
+                if (dressed != null && dressed.Rooms.Contains(room.Name)) continue;
                 string hex;
                 world.RoomColors.TryGetValue(room.Name, out hex);
                 var floor = Box("Floor " + room.Name, (room.MinX + room.MaxX) / 2, (room.MinZ + room.MaxZ) / 2, room.MaxX - room.MinX, room.MaxZ - room.MinZ, -FloorThicknessM, FloorThicknessM, Coords.ParseColor(hex, Color.gray));
@@ -46,13 +48,19 @@ namespace Haunted.Game
             foreach (var s in world.Solids)
             {
                 if (s.Kind == "furniture" && replaced != null && replaced(s)) continue;
+                // Walls and doors stay grey boxes, as in the browser: the builds line the walls from inside.
+                if (dressed != null && s.Id != null && (s.Kind == "furniture" || s.Kind == "hide") && dressed.Drawn.Contains(s.Id)) continue;
                 Color color = s.Kind == "door" ? DoorColor : s.Kind == "hide" ? HideColor : s.Kind == "furniture" ? FurnitureColor : WallColor;
                 var go = Box((s.Id ?? s.Kind), s.X, s.Z, s.SizeX, s.SizeZ, 0, s.HeightM, color);
                 go.transform.SetParent(root.transform, true);
                 if (s.Kind == "door" && s.Id != null) doorPanels[s.Id] = go;
             }
 
-            foreach (var stair in world.Stairs) Ramp(stair).transform.SetParent(root.transform, true);
+            foreach (var stair in world.Stairs)
+            {
+                if (dressed != null && dressed.Drawn.Contains(stair.Id)) continue;
+                Ramp(stair).transform.SetParent(root.transform, true);
+            }
         }
 
         Material MaterialFor(Color color)

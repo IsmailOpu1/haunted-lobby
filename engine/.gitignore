@@ -11,3 +11,7 @@ Builds/
 *.sln
 .vscode/
 *.slnx
+
+# Made by tools/engine-rooms.ts from the browser assets; never committed.
+Assets/Hotel/
+Assets/Hotel.meta

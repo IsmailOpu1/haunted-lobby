@@ -145,3 +145,33 @@ The stations are the browser's plain models until step D. A search cannot open w
 - Everyone dead (`lose-dead`, the Unity player downed with `-debugAtNight`): the possessed win.
 - Outnumbered (`lose-dead` with `DIE=2`, the Unity player possessed): the possessed win.
 - After each ending the clock stopped and the players froze. New test option: `-shotAtEnd path`.
+
+### Step D: the plan (2026-11-17)
+
+Step D gives the Unity version the browser's dressed hotel. It is done in five parts, each tested before the next. The rule for the whole step: the first goal is the same look as the browser, room by room; anything better comes after, and only where it is clearly better.
+
+How the rooms come across: the browser's room files (`client/public/assets/rooms/*.gltf`, shared textures in `assets/textures`) are imported in the Unity editor with Unity's own glTF importer (glTFast, with its KTX and meshopt packages), by an editor script, not by hand. Textures shared between rooms are saved once. The Blender-baked lightmaps are reused as Unity lightmaps (the same light the owner approved), so nothing is rebaked in Unity unless a room needs it. The doorway arch fix (posts start 1 cm under the floor, ending the Nursery flicker) is made in the Blender builder and that room rebuilt.
+
+| Part | What | Tested by |
+|---|---|---|
+| D1 | Rooms: every dressed room imported, placed in the hotel, lit by its lightmap, bulbs and flames glowing; the grey boxes they replace are hidden (the browser's `drawn` lists); collision unchanged | A screenshot of each room from the same spot in Unity and in the browser |
+| D2 | Light and look: the torch (beam, range, softness from `shared/config.ts`), tone mapping, exposure, bloom and the browser's other post effects, reflections, fog; doors, station models, salt crocks and relics as the browser draws them | The same screenshots with the torch on, plus each station and door |
+| D3 | People: the eight characters and their animations (walk, run, crouch, down, crawl), the Low copies, the held torch in the character's own hand, recognition tint | Bots walking, crouching and downed, seen from Unity, next to the browser |
+| D4 | Sound: room tone, rumble, wind, random creaks, the subtitles that go with them | Heard in a night; levels match the browser |
+| D5 | The done-when test | Every room matches or beats the browser's look, checked room by room with screenshots, on Low and High |
+
+### Step D1: results (2026-11-17)
+
+How the rooms come across, as built (it differs from the plan above in one way: the KTX and meshopt packages are not used):
+
+1. `npx tsx tools/engine-rooms.ts` reads each browser room file, unpacks its meshes (meshopt, quantization) and its KTX2 textures (to PNG, with KTX-Software's `ktx extract`, two at a time), and writes plain glTF files to `engine/Assets/Hotel` (447 shared textures, 22 builds, about 1.2 GB; never committed, `engine/.gitignore`). It also writes `texture-roles.json`: which textures are normal maps and which hold data, not colour.
+2. In the editor, `Haunted/Import dressed hotel` (CommandRunner `ImportHotel`, `engine/Assets/Editor/HotelImport.cs`) sets each texture up as it first imports (normal map, sRGB or not, at most 2K), turns each Blender lightmap into a Unity lightmap (an EXR holding linear(png) × the room's lightmapScale), and lists every build in `Assets/Hotel/Resources/HotelArt.asset`. It also keeps the lightmap and linear-fog shader versions in the build, which the scene alone would strip.
+3. In the game, `DressedRooms` places every build (turned half a circle: glTFast's axes against the game's), gives each mesh its room's lightmap (bulbs excepted, as in the browser), and `Hotel` leaves out the grey floors, furniture, hiding spots and stairs that a dressed room draws itself, from the browser's `drawn` lists. `Game.SetUpLight` gives dressed rooms the browser's faint fill and no sky to reflect.
+
+The test: `-roomShots DIR` (`RoomTour.cs`) and the browser's `roomTour` (dev, `window.__game`) each take every room from its middle at eye height, looking four ways, 60° view, torch off: 108 pictures each, same names.
+
+What it showed:
+
+- Every room lines up with the browser: same builds in the same places, the same baked lamp light on the walls.
+- Fixed on the way: Unity reflected its bright built-in sky on every shiny surface (the rooms came out grey and bright); and the black fog was missing, because the build had stripped the fog shaders.
+- Left for D2, as planned: Unity has no tone mapping or bloom yet, so bulbs and flames are flat orange where the browser's are white-hot with a glow, and bright and dark parts sit a little differently; the browser's rooms also reflect their own light (dressedRooms.ts probes), which makes a few (the Staff Quarters) a touch brighter.

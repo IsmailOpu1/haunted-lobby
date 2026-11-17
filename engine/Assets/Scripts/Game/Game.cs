@@ -67,6 +67,8 @@ namespace Haunted.Game
         Client client;
         Room<GameState> room;
         Material baseMaterial;
+        DressedRooms dressed;
+        RoomTour tour;
 
         string serverUrl = "ws://localhost:2567";
         string playerName = "Unity";
@@ -97,9 +99,12 @@ namespace Haunted.Game
             baseMaterial = Resources.Load<Material>("Materials/GreyBox");
             if (baseMaterial == null) baseMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
 
+            // The dressed rooms (step D) when engine/Assets/Hotel has been made; the grey box without them.
+            var art = HotelArt.Load();
+            dressed = art != null ? new DressedRooms(art) : null;
             SetUpLight();
             map = new MapInfo(Resources.Load<TextAsset>("Data/map").text);
-            hotel = new Hotel(world, Json.Num(Json.Obj(config, "body"), "radiusM"), baseMaterial, Stations.Replaces(map));
+            hotel = new Hotel(world, Json.Num(Json.Obj(config, "body"), "radiusM"), baseMaterial, Stations.Replaces(map), dressed);
             items = new Items(world, map, config, baseMaterial);
             others = new RemotePlayers(world, config, baseMaterial);
             HandsConfig.Load(config);
@@ -117,6 +122,29 @@ namespace Haunted.Game
             RenderSettings.fogColor = Color.black;
             RenderSettings.fogStartDistance = 1;
             RenderSettings.fogEndDistance = 18;
+            if (dressed != null)
+            {
+                // The dressed hotel is lit by its baked lightmaps, the torch and the browser's faint fill
+                // (game.ts DARK_AMBIENT: a 0.04 hemisphere, sky b8c0d0 over ground 202020; three divides
+                // it by pi for a diffuse surface, Unity doesn't). No moonlight: the bake has it.
+                const float fill = 0.04f / Mathf.PI;
+                RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+                // Worked out in linear light; Unity reads these colours as sRGB, hence .gamma.
+                Color sky = new Color(0xb8 / 255f, 0xc0 / 255f, 0xd0 / 255f).linear, ground = new Color(0x20 / 255f, 0x20 / 255f, 0x20 / 255f).linear;
+                RenderSettings.ambientSkyColor = (sky * fill).gamma;
+                RenderSettings.ambientEquatorColor = ((sky + ground) * (fill / 2)).gamma;
+                RenderSettings.ambientGroundColor = (ground * fill).gamma;
+                // No sky to reflect: Unity's default reflects its bright built-in sky on every shiny
+                // surface. The browser's rooms reflect only themselves (dressedRooms.ts probes, step D2).
+                RenderSettings.skybox = null;
+                var black = new Cubemap(1, TextureFormat.RGBA32, false);
+                foreach (CubemapFace face in System.Enum.GetValues(typeof(CubemapFace)))
+                    if (face != CubemapFace.Unknown) black.SetPixel(face, 0, 0, Color.black);
+                black.Apply();
+                RenderSettings.defaultReflectionMode = UnityEngine.Rendering.DefaultReflectionMode.Custom;
+                RenderSettings.customReflectionTexture = black;
+                return;
+            }
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
             RenderSettings.ambientLight = new Color(0.32f, 0.3f, 0.28f);
             var sun = new GameObject("Moonlight").AddComponent<Light>();
@@ -167,6 +195,16 @@ namespace Haunted.Game
                 if (args[i] == "-sendAtNight" && i + 3 < args.Length) nightSends.Add(new KeyValuePair<double, string[]>(at, new[] { args[i + 2], args[i + 3] }));
             }
             if (arg("-voiceTone") != null) voiceToneHz = float.Parse(arg("-voiceTone"), CultureInfo.InvariantCulture);
+            if (arg("-roomShots") != null)
+            {
+                // The room-by-room picture test (RoomTour): no server, no HUD.
+                tour = gameObject.AddComponent<RoomTour>();
+                tour.Dir = arg("-roomShots");
+                tour.World = world;
+                tour.EyeHeightM = (float)Json.Num(Json.Obj(config, "movement"), "eyeHeightM");
+                tour.Only = arg("-rooms");
+                return;
+            }
             string script = arg("-script");
             if (Array.IndexOf(args, "-create") >= 0) Connect(null, script);
             else if (arg("-join") != null) Connect(arg("-join"), script);
@@ -750,6 +788,7 @@ namespace Haunted.Game
 
         void OnGUI()
         {
+            if (tour != null) return;
             var style = new GUIStyle(GUI.skin.label) { fontSize = 18 };
             if (room == null)
             {
