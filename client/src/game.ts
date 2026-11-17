@@ -66,6 +66,8 @@ import { dressings } from "@haunted/maps";
 const DARK_AMBIENT = 0.04;
 /** The beam aims at the point this far ahead of your eye, so it lines up with the crosshair. */
 const BEAM_AIM_M = 8;
+/** The room tour's up-down view angle, the same as the Unity version's RoomTour.VerticalFovDeg. */
+const TOUR_FOV_DEG = 60;
 /** Auto quality: once you are in the hotel, let it settle, watch this long, then choose. */
 const AUTO_SETTLE_SEC = 2;
 const AUTO_MEASURE_SEC = 5;
@@ -803,7 +805,8 @@ export class Game {
     const { innerWidth: w, innerHeight: h } = window;
     this.post.setSize(w, h);
     this.camera.aspect = w / h;
-    this.camera.fov = this.viewFov();
+    // The room tour keeps its own view angle even if the window changes size mid-way.
+    this.camera.fov = this.touring ? TOUR_FOV_DEG : this.viewFov();
     this.camera.updateProjectionMatrix();
     this.heldCamera.aspect = w / h;
     this.heldCamera.updateProjectionMatrix();
@@ -1025,7 +1028,9 @@ export class Game {
     const cam = this.camera.position;
     const ghostDistance = this.ghost.distanceTo({ x: cam.x, y: cam.y - this.eyeHeight, z: cam.z });
     const brightness = this.flicker.update(dt, ghostDistance);
-    this.flashlight.light.intensity = this.flashlightIntensity * brightness * this.beamAdapt.update(dt, this.camera);
+    const beam = this.beamAdapt.update(dt, this.camera);
+    // The room tour's pictures are taken by the torch at full strength (roomTour).
+    this.flashlight.light.intensity = this.touring ? this.flashlightIntensity : this.flashlightIntensity * brightness * beam;
     this.held.update(
       dt,
       this.camera,
@@ -1101,18 +1106,20 @@ export class Game {
 
   /**
    * Development only: the room-by-room picture test of step D (docs/plans/engine-port.md). The
-   * camera stands in the middle of each room at eye height with the torch off and takes a picture
-   * looking each of four ways (yaw 0, 90, 180, 270 degrees), framed like the Unity version's
-   * RoomTour (60 degree up-down view); save gets each as "<room>-<yaw>.png".
+   * camera stands in the middle of each room at eye height with the torch off (or, with torch, on
+   * at full strength) and takes a picture looking each of four ways (yaw 0, 90, 180, 270 degrees),
+   * framed like the Unity version's RoomTour (60 degree up-down view); save gets each as
+   * "<room>-<yaw>.png".
    */
-  async roomTour(save: (name: string, png: Blob) => Promise<void>, only?: string) {
+  async roomTour(save: (name: string, png: Blob) => Promise<void>, only?: string, torch = false) {
     const camera = this.camera;
-    const was = { position: camera.position.clone(), rotation: camera.rotation.clone(), fov: camera.fov, torch: this.flashlight.light.visible };
-    this.flashlight.light.visible = false;
+    const was = { position: camera.position.clone(), rotation: camera.rotation.clone(), fov: camera.fov, torch: this.flashlight.light.visible, intensity: this.flashlight.light.intensity };
+    this.flashlight.light.visible = torch;
+    this.flashlight.light.intensity = this.flashlightIntensity;
     this.touring = true;
     // The next frame's update hides the held torch.
     await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
-    camera.fov = 60;
+    camera.fov = TOUR_FOV_DEG;
     camera.updateProjectionMatrix();
     try {
       for (const r of this.map.rooms) {
@@ -1135,6 +1142,7 @@ export class Game {
       camera.fov = was.fov;
       camera.updateProjectionMatrix();
       this.flashlight.light.visible = was.torch;
+      this.flashlight.light.intensity = was.intensity;
       this.touring = false;
     }
   }
@@ -1589,7 +1597,7 @@ export class Game {
       this.room?.send("taskDone", { stationId: this.openStation });
     }
     const fov = this.viewFov();
-    if (Math.abs(this.camera.fov - fov) > 0.05) {
+    if (!this.touring && Math.abs(this.camera.fov - fov) > 0.05) {
       this.camera.fov += (fov - this.camera.fov) * Math.min(1, FOV_LERP_PER_SEC * dt);
       this.camera.updateProjectionMatrix();
     }

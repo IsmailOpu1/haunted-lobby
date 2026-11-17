@@ -5,7 +5,9 @@
         "Haunted.Sim",
         "ColyseusSDK",
         "Unity.InputSystem",
-        "LiveKit"
+        "LiveKit",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

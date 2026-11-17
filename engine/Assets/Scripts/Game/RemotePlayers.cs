@@ -33,6 +33,12 @@ namespace Haunted.Game
         readonly double delaySec;
         readonly float height, radius;
         readonly Material material;
+        readonly double coneM, coneHalfAngleDeg;
+        /// <summary>remotePlayers.ts: the torch's lens on the head (Unity's z forward), and its colour.</summary>
+        static readonly Vector3 RemoteTorchAt = new Vector3(0.2f, -0.25f, 0.2f);
+        const float LensRadiusM = 0.05f;
+        const int LensColour = 0xfff2d6;
+        Material lens;
         readonly Dictionary<string, View> views = new Dictionary<string, View>();
 
         public RemotePlayers(WorldData world, object config, Material baseMaterial)
@@ -43,6 +49,9 @@ namespace Haunted.Game
             height = (float)Json.Num(body, "heightM");
             radius = (float)Json.Num(body, "radiusM");
             material = new Material(baseMaterial) { color = new Color(0.75f, 0.72f, 0.66f) };
+            var flashlight = Json.Obj(config, "flashlight");
+            coneM = Json.Num(flashlight, "coneM");
+            coneHalfAngleDeg = Json.Num(flashlight, "coneHalfAngleDeg");
         }
 
         public int Count { get { return views.Count; } }
@@ -133,14 +142,16 @@ namespace Haunted.Game
             }
             v.Eyes.SetActive(false);
 
-            var torch = new GameObject("Torch");
-            torch.transform.SetParent(head, false);
-            torch.transform.localPosition = new Vector3(0.15f, -0.25f, 0);
-            v.Torch = torch.AddComponent<Light>();
-            v.Torch.type = LightType.Spot;
-            v.Torch.spotAngle = 52;
-            v.Torch.range = 12;
-            v.Torch.intensity = 6;
+            // remotePlayers.ts: the torch at the right hip of the head, pointing straight ahead.
+            v.Torch = Torch.Make(head, RemoteTorchAt, RemoteTorchAt + Vector3.forward, coneM, coneHalfAngleDeg);
+            var glass = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            Object.Destroy(glass.GetComponent<Collider>());
+            glass.name = "Lens";
+            glass.transform.SetParent(head, false);
+            glass.transform.localPosition = RemoteTorchAt;
+            glass.transform.localScale = Vector3.one * LensRadiusM * 2;
+            if (lens == null) lens = Shapes.Mat(Shapes.Hex(LensColour), Shapes.Look.Unlit);
+            glass.GetComponent<MeshRenderer>().sharedMaterial = lens;
 
             var label = new GameObject("Name");
             label.transform.SetParent(v.Body.transform, false);

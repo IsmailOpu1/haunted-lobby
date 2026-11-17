@@ -17,6 +17,11 @@ namespace Haunted.Game
         public Texture2D lightmap;
         /// <summary>Map furniture, hiding spots and stairs the model draws, so their grey boxes are left out.</summary>
         public string[] drawn;
+        /// <summary>
+        /// Where its reflections are taken (the browser's world x, z), from its dressing; none means
+        /// one in the middle of the build.
+        /// </summary>
+        public Vector2[] probes;
     }
 
     /// <summary>

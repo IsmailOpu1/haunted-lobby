@@ -51,6 +51,8 @@ namespace Haunted.Editor
                 QualitySettings.renderPipeline = pipeline;
             }
 
+            AddPost();
+
             // One lit material the hotel copies for each colour (kept in Resources so builds include the shader).
             if (AssetDatabase.LoadAssetAtPath<Material>(MaterialPath) == null)
             {
@@ -133,6 +135,39 @@ namespace Haunted.Editor
             setUp(mat);
             if (made) AssetDatabase.CreateAsset(mat, path);
             else EditorUtility.SetDirty(mat);
+        }
+
+        /// <summary>
+        /// Puts the browser's finished picture (Haunted.Game.HauntedPost: bloom, AgX, grain, vignette)
+        /// on the URP renderer, once. The renderer keeps a list of its features' file ids beside the
+        /// features themselves, so both are written.
+        /// </summary>
+        static void AddPost()
+        {
+            var renderer = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(RendererPath);
+            var shader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Shaders/HauntedPost.shader");
+            var post = renderer.rendererFeatures.Find(f => f is Haunted.Game.HauntedPost) as Haunted.Game.HauntedPost;
+            if (post == null)
+            {
+                post = ScriptableObject.CreateInstance<Haunted.Game.HauntedPost>();
+                post.name = "Haunted post";
+                AssetDatabase.AddObjectToAsset(post, renderer);
+                renderer.rendererFeatures.Add(post);
+            }
+            post.shader = shader;
+            EditorUtility.SetDirty(post);
+            EditorUtility.SetDirty(renderer);
+            AssetDatabase.SaveAssets();
+            var data = new SerializedObject(renderer);
+            var map = data.FindProperty("m_RendererFeatureMap");
+            map.arraySize = renderer.rendererFeatures.Count;
+            for (int i = 0; i < renderer.rendererFeatures.Count; i++)
+            {
+                AssetDatabase.TryGetGUIDAndLocalFileIdentifier(renderer.rendererFeatures[i], out string _, out long id);
+                map.GetArrayElementAtIndex(i).longValue = id;
+            }
+            data.ApplyModifiedProperties();
+            renderer.SetDirty();
         }
 
         [MenuItem("Haunted/Build for Windows")]

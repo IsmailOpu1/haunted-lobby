@@ -4,7 +4,8 @@
 //   engine/Assets/Hotel/Textures/<name>.png   each shared texture once, unpacked from its KTX2
 //   engine/Assets/Hotel/Rooms/<room>.gltf/.bin the room with plain meshes, pointing at those PNGs
 //   engine/Assets/Hotel/Lightmaps/<room>.png   the room's baked light (light / lightmapScale, sRGB)
-//   engine/Assets/Hotel/rooms.json             the browser's room list (drawn ids, lightmap scale)
+//   engine/Assets/Hotel/rooms.json             the browser's room list (drawn ids, lightmap scale),
+//                                              plus each build's reflection spots from its dressing
 //   engine/Assets/Hotel/texture-roles.json     which textures are normal maps or data (not colour)
 // Unity then compresses the textures for the PC itself. The folder is made by this tool and never
 // committed (engine/.gitignore). Run: npx tsx tools/engine-rooms.ts [room file name ...]
@@ -13,8 +14,9 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { basename, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { NodeIO } from "@gltf-transform/core";
-import { ALL_EXTENSIONS, KHRTextureBasisu } from "@gltf-transform/extensions";
+import { ALL_EXTENSIONS, type EmissiveStrength, KHRMaterialsEmissiveStrength, KHRTextureBasisu } from "@gltf-transform/extensions";
 import { dequantize } from "@gltf-transform/functions";
+import { dressings } from "@haunted/maps";
 import { MeshoptDecoder } from "meshoptimizer";
 
 const run = promisify(execFile);
@@ -59,6 +61,15 @@ async function main() {
       t.setMimeType("image/png").setURI(`../Textures/${files[i]}.png`);
       t.setImage(readFileSync(join(OUT, "Textures", `${files[i]}.png`)));
     });
+    // glTFast ignores KHR_materials_emissive_strength, so bulbs and flames would glow 6 times too
+    // weakly: fold the strength into the emissive colour (glTFast doesn't clamp it to 1).
+    for (const material of doc.getRoot().listMaterials()) {
+      const strength = material.getExtension<EmissiveStrength>(KHRMaterialsEmissiveStrength.EXTENSION_NAME);
+      if (!strength) continue;
+      const s = strength.getEmissiveStrength();
+      material.setEmissiveFactor(material.getEmissiveFactor().map((c) => c * s) as [number, number, number]);
+      material.setExtension(KHRMaterialsEmissiveStrength.EXTENSION_NAME, null);
+    }
     for (const ext of doc.getRoot().listExtensionsUsed()) {
       if (ext.extensionName === KHRTextureBasisu.EXTENSION_NAME || ext.extensionName === "EXT_meshopt_compression" || ext.extensionName === "KHR_mesh_quantization") ext.dispose();
     }
@@ -67,7 +78,13 @@ async function main() {
     await unpack(join(PUBLIC, entry.lightmap), join(OUT, "Lightmaps", `${name}.png`));
     console.log(`${room}: ${textures.length} textures, ${((Date.now() - started) / 1000).toFixed(0)} s`);
   }
-  writeFileSync(join(OUT, "rooms.json"), readFileSync(join(ASSETS, "rooms/rooms.json")));
+  // The browser takes each build's reflections where its dressing says (one in the middle when it
+  // says nothing: DressedRooms.add); Unity's copy of the list carries those spots too.
+  const all = JSON.parse(readFileSync(join(ASSETS, "rooms/rooms.json"), "utf8")) as Record<string, Record<string, unknown>>;
+  for (const room of Object.values(dressings).flatMap((d) => d.rooms)) {
+    if (room.probes?.length && all[room.room]) all[room.room]!.probes = room.probes;
+  }
+  writeFileSync(join(OUT, "rooms.json"), JSON.stringify(all, null, 1));
   await writeRoles(io);
 }
 

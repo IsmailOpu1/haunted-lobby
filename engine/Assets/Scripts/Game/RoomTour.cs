@@ -10,7 +10,8 @@ namespace Haunted.Game
     /// The room-by-room picture test of step D (docs/plans/engine-port.md): with `-roomShots DIR` the
     /// game needs no server; a camera stands in the middle of each room at eye height and takes a
     /// picture looking each of four ways (yaw 0, 90, 180, 270 degrees, the browser's yaw), saved as
-    /// DIR/&lt;room&gt;-&lt;yaw&gt;.png. tools/room-shots.ts takes the browser's pictures of the same views.
+    /// DIR/&lt;room&gt;-&lt;yaw&gt;.png; with -torch, by the light of your torch. The browser's game.ts
+    /// roomTour takes the same views.
     /// Then the game quits.
     /// </summary>
     public class RoomTour : MonoBehaviour
@@ -25,10 +26,15 @@ namespace Haunted.Game
         [System.NonSerialized] public float EyeHeightM;
         /// <summary>Only rooms whose names contain this (case-insensitive), or every room.</summary>
         [System.NonSerialized] public string Only;
+        /// <summary>Whether the hotel is ready to be pictured (its reflections taken).</summary>
+        [System.NonSerialized] public System.Func<bool> Ready;
+        /// <summary>With `-torch`: config.flashlight, and every picture is taken by your torch, at full strength.</summary>
+        [System.NonSerialized] public object Flashlight;
         public bool Done { get; private set; }
 
         IEnumerator Start()
         {
+            while (Ready != null && !Ready()) yield return null;
             Directory.CreateDirectory(Dir);
             var camera = new GameObject("Tour view").AddComponent<Camera>();
             camera.nearClipPlane = 0.05f;
@@ -36,6 +42,15 @@ namespace Haunted.Game
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = Color.black;
             camera.fieldOfView = VerticalFovDeg;
+            if (Flashlight != null)
+            {
+                var torch = Torch.Make(camera.transform, LocalPlayer.TorchAt, Vector3.forward * LocalPlayer.BeamAimM, Json.Num(Flashlight, "coneM"), Json.Num(Flashlight, "coneHalfAngleDeg"));
+                torch.enabled = true;
+                // Test aid: -torchDecay D tries another fall-off.
+                string decay = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-torchDecay") is int at && at >= 0 ? System.Environment.GetCommandLineArgs()[at + 1] : null;
+                if (decay != null) UnityEngine.Rendering.Universal.HauntedLightDecay.Set(torch, float.Parse(decay, CultureInfo.InvariantCulture));
+                Debug.Log("Room tour by torchlight: intensity " + torch.intensity + ", range " + torch.range + ", angles " + torch.spotAngle + "/" + torch.innerSpotAngle + ", baked " + torch.bakingOutput.isBaked + " " + torch.bakingOutput.lightmapBakeType + ", decay " + UnityEngine.Rendering.Universal.HauntedLightDecay.Of(torch));
+            }
             foreach (var room in World.Rooms)
             {
                 if (!string.IsNullOrEmpty(Only) && room.Name.IndexOf(Only, System.StringComparison.OrdinalIgnoreCase) < 0) continue;

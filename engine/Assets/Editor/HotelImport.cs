@@ -30,10 +30,12 @@ namespace Haunted.Editor
             if (!File.Exists(Hotel + "/rooms.json")) throw new FileNotFoundException("Run npx tsx tools/engine-rooms.ts first: " + Hotel + "/rooms.json is missing");
             var manifest = (Dictionary<string, object>)Json.Parse(File.ReadAllText(Hotel + "/rooms.json"));
 
-            // Textures were already set up as they imported (HotelTextures below).
+            // Textures were already set up as they imported (HotelTextures below); any imported under
+            // older rules are brought in line.
             AssetDatabase.StartAssetEditing();
             try
             {
+                HotelTextures.Recheck();
                 foreach (var entry in manifest)
                 {
                     var e = (Dictionary<string, object>)entry.Value;
@@ -66,6 +68,9 @@ namespace Haunted.Editor
                     model = model,
                     lightmap = lightmap,
                     drawn = e.ContainsKey("drawn") ? ((List<object>)e["drawn"]).Cast<string>().ToArray() : new string[0],
+                    probes = e.ContainsKey("probes")
+                        ? ((List<object>)e["probes"]).Cast<Dictionary<string, object>>().Select(p => new Vector2((float)Json.Num(p, "x"), (float)Json.Num(p, "z"))).ToArray()
+                        : new Vector2[0],
                 });
             }
             Directory.CreateDirectory(Hotel + "/Resources");
@@ -134,9 +139,12 @@ namespace Haunted.Editor
     }
 
     /// <summary>
-    /// Sets the hotel's textures up the first time they import, so each is compressed once: normal
-    /// maps as normal maps, data (metal/roughness, occlusion) without sRGB, colour with it, all at
-    /// most 2K (the browser's High set), plus the lightmaps (HotelImport.MakeLightmap's EXRs).
+    /// Sets the hotel's textures up the first time they import, so each is compressed once: data
+    /// (normal maps, metal/roughness, occlusion) without sRGB, colour with it, all at most 2K (the
+    /// browser's High set), plus the lightmaps (HotelImport.MakeLightmap's EXRs). Normal maps stay
+    /// plain RGB pictures, not Unity normal maps: glTFast's shaders read x and y from red and green
+    /// (its Normal.cginc), as they come from a glTF file; Unity's normal-map packing moves them, and
+    /// the walls then face sideways (step D2: the torch lit only one side of its beam).
     /// Roles come from Assets/Hotel/texture-roles.json, written by tools/engine-rooms.ts.
     /// </summary>
     public class HotelTextures : AssetPostprocessor
@@ -158,6 +166,28 @@ namespace Haunted.Editor
             rolesRead = stamp;
         }
 
+        static bool IsData(string file)
+        {
+            return (normals != null && normals.Contains(file)) || (data != null && data.Contains(file));
+        }
+
+        /// <summary>Re-imports any hotel texture whose type or sRGB is not what these rules give now.</summary>
+        public static void Recheck()
+        {
+            ReadRoles();
+            foreach (var guid in AssetDatabase.FindAssets("t:Texture2D", new[] { Textures.TrimEnd('/') }))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+                if (importer == null) continue;
+                bool srgb = !IsData(Path.GetFileName(path));
+                if (importer.textureType == TextureImporterType.Default && importer.sRGBTexture == srgb) continue;
+                importer.textureType = TextureImporterType.Default;
+                importer.sRGBTexture = srgb;
+                importer.SaveAndReimport();
+            }
+        }
+
         void OnPreprocessTexture()
         {
             var importer = (TextureImporter)assetImporter;
@@ -176,9 +206,8 @@ namespace Haunted.Editor
             if (!assetPath.StartsWith(Textures, StringComparison.Ordinal)) return;
             ReadRoles();
             string file = Path.GetFileName(assetPath);
-            bool normal = normals != null && normals.Contains(file);
-            importer.textureType = normal ? TextureImporterType.NormalMap : TextureImporterType.Default;
-            importer.sRGBTexture = !normal && (data == null || !data.Contains(file));
+            importer.textureType = TextureImporterType.Default;
+            importer.sRGBTexture = !IsData(file);
             importer.maxTextureSize = 2048;
             importer.textureCompression = TextureImporterCompression.CompressedHQ;
             importer.mipmapEnabled = true;

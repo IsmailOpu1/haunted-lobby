@@ -175,3 +175,48 @@ What it showed:
 - Every room lines up with the browser: same builds in the same places, the same baked lamp light on the walls.
 - Fixed on the way: Unity reflected its bright built-in sky on every shiny surface (the rooms came out grey and bright); and the black fog was missing, because the build had stripped the fog shaders.
 - Left for D2, as planned: Unity has no tone mapping or bloom yet, so bulbs and flames are flat orange where the browser's are white-hot with a glow, and bright and dark parts sit a little differently; the browser's rooms also reflect their own light (dressedRooms.ts probes), which makes a few (the Staff Quarters) a touch brighter.
+
+### Step D2: light and look, first part (2026-11-17)
+
+Done so far: the browser's picture finish, the rooms' reflections and the torch. Doors, stations, salt crocks and relics come next.
+
+1. **Picture finish** (`engine/Assets/Scripts/Game/HauntedPost.cs`, `engine/Assets/Shaders/HauntedPost.shader`).
+   - It is a renderer feature in place of Unity's own post effects, doing what `client/src/post.ts` does on High, with the same numbers.
+   - Bloom: three's UnrealBloomPass (bright pass over 2.5, five blurred levels, mixed by radius 0.45 at strength 0.55).
+   - Then AgX tone mapping (three's matrices), exposure 1, film grain 0.035 and the vignette.
+   - `-bloomOnly` shows only what glows.
+2. **Glow**: glTFast ignores `KHR_materials_emissive_strength`, so bulbs did not glow. `tools/engine-rooms.ts` now folds the strength into each emissive colour.
+3. **Reflections** (`DressedRooms`).
+   - One realtime probe per build, as `dressedRooms.ts` places them: the dressing's `probes` spots, or the build's middle, 1.6 m over its floor. 256 px, near 0.05, far 50.
+   - Each probe is taken once the hotel stands, with the fog off and every other probe's light off. Each piece reflects its nearest probe; bulbs reflect none.
+4. **Patched URP**: `engine/Packages/com.unity.render-pipelines.universal` is URP 17.3.0 copied in, with three changes listed in its `HAUNTED-PATCHES.md`.
+   - Per-light decay as three's (the torch 1.2, the camera flash 1.5).
+   - Lightmapped surfaces also take light from their probe, as three's envMap gives. This is what lit the Staff Quarters, which was almost black.
+   - The spot's edge is three's smoothstep.
+5. **Normal maps are now plain linear textures**, not Unity normal maps. glTFast's shaders read x and y from red and green, and Unity's normal-map packing had turned every wall's surface sideways.
+   - Unnoticed under lightmaps alone. Under the torch it lit only one side of the beam, with a hard, ragged edge.
+   - `HotelImport` re-imports any texture still set up the old way.
+6. **The torch** (`Torch.cs`).
+   - It matches `flashlight.ts`: colour fff2d6, 30/π (three's lights are π brighter), `coneM` 12 m and `coneHalfAngleDeg` 26 from config, penumbra 0.5, decay 1.2, no shadows.
+   - It starts at the held torch's lens, as the browser's does. The live browser light sits at (0.18, −0.225, −0.54) from the eyes, not at the eyes.
+   - It dims near walls as `BeamAdaptation` does: within 2.5 m, to no less than 0.2, at 6/s. Simple pieces are tested exactly, detailed ones by their box.
+   - Remote players' torches use the same light and have a lens.
+   - The camera flash is 60/π with decay 1.5.
+
+The test: `-roomShots DIR` with `-torch`, and the browser's `roomTour(save, only, true)`. Both take every picture by the torch at full strength.
+- The browser's tour now keeps its 60° view through window resizes. A resize mid-tour had brought back the game's own view.
+- Its shots must be taken with the browser pane showing: hidden, the page gets no frames.
+
+What it showed (mean brightness per view, browser vs Unity):
+- Torch off: every room within about 1.5 of the browser in every view. The Staff Quarters went from 86 to 88 (browser 89).
+- Torch on: within about 2 in almost every view. Three views stand out:
+  - The Stairwell's relic door, which the browser draws and Unity lacks for now.
+  - The Restaurant's bar: glass bottles glare in Unity, where the browser bends light through them.
+  - The Restaurant door's round fitting.
+  The first two belong to the next part.
+
+Left for D2:
+- Doors, station models, salt crocks and relics as the browser draws them.
+- Glass (three's transmission).
+- Quality levels (Low and High; ambient occlusion on High).
+- Blackout dimming of lightmaps, bulbs and probes.

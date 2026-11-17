@@ -17,7 +17,8 @@ namespace Haunted.Game
         const float JarFootM = 0.79f;
         const float SaltLineThicknessM = 0.18f;
         const float RelicSizeM = 0.2f, RelicHeightM = 0.18f, BobM = 0.04f, BobPerSec = 2.2f, RelicGlowRangeM = 2.5f;
-        const float FlashIntensity = 6, FlashSec = 0.15f;
+        // items.ts flashAt: PointLight(white, 60, flashVisibleM, decay 1.5) for 0.15 s; three's lights are π brighter than Unity's.
+        const float FlashIntensity = 60 / Mathf.PI, FlashSec = 0.15f, FlashDecay = 1.5f;
         static readonly Color SaltColor = new Color32(0xf2, 0xef, 0xe6, 0xff);
         static readonly Color RelicColor = new Color32(0xe0, 0xb2, 0x4a, 0xff);
 
@@ -149,6 +150,8 @@ namespace Haunted.Game
             light.intensity = FlashIntensity;
             light.range = (float)Json.Num(Json.Obj(config, "camera"), "flashVisibleM");
             light.transform.position = Coords.Place(world, x, z) + Vector3.up * 1.6f;
+            light.shadows = LightShadows.None;
+            UnityEngine.Rendering.Universal.HauntedLightDecay.Set(light, FlashDecay);
             flashes.Add(new KeyValuePair<Light, double>(light, now + FlashSec));
         }
 

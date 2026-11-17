@@ -71,24 +71,24 @@ namespace Haunted.Game
             Camera.clearFlags = CameraClearFlags.SolidColor;
             Camera.backgroundColor = Color.black;
             cam.AddComponent<AudioListener>();
-            // The held torch: a soft spot from just below the eyes (the browser's flashlight.ts look comes in step D).
-            var torch = new GameObject("Torch");
-            torch.transform.SetParent(cam.transform, false);
-            torch.transform.localPosition = new Vector3(0.15f, -0.25f, 0);
-            flashlight = torch.AddComponent<Light>();
-            flashlight.type = LightType.Spot;
-            flashlight.spotAngle = 52;
-            flashlight.innerSpotAngle = 30;
-            flashlight.range = 12;
-            flashlight.intensity = 6;
-            flashlight.shadows = LightShadows.Soft;
-            flashlight.enabled = false;
+            // The held torch, as the browser's: from the lens, low and to the right in front of the
+            // eyes, aimed at where you look BeamAimM ahead.
+            var f = Json.Obj(config, "flashlight");
+            flashlight = Torch.Make(cam.transform, TorchAt, Vector3.forward * BeamAimM, Json.Num(f, "coneM"), Json.Num(f, "coneHalfAngleDeg"));
         }
 
         public bool FlashlightOn { set { flashlight.enabled = value; } }
 
         /// <summary>The flashlight's brightness, 0 to 1: it flickers and dies near the ghost (GDD 8.1).</summary>
-        public float Brightness { set { flashlight.intensity = 6 * value; } }
+        public float Brightness { set { flashlight.intensity = Torch.Intensity * value; } }
+
+        /// <summary>
+        /// Where the beam starts: the held torch's lens at rest, in camera space (Unity's z forward), as
+        /// the browser measures it (heldFlashlight.ts: HOLD plus the model's lens, read off the live
+        /// light: 0.18, -0.225, -0.539 in three's space). It aims BeamAimM ahead of the eyes (game.ts).
+        /// </summary>
+        public static readonly Vector3 TorchAt = new Vector3(0.18f, -0.225f, 0.539f);
+        public const float BeamAimM = 8;
 
         /// <summary>The possessed's power wheel is open: the mouse picks a power instead of turning your head.</summary>
         public bool WheelOpen;

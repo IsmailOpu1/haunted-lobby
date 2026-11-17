@@ -68,6 +68,8 @@ namespace Haunted.Game
         Room<GameState> room;
         Material baseMaterial;
         DressedRooms dressed;
+        /// <summary>Your torch dims up close, as the browser's (flashlight.ts BeamAdaptation).</summary>
+        BeamAdaptation beam;
         RoomTour tour;
 
         string serverUrl = "ws://localhost:2567";
@@ -105,6 +107,8 @@ namespace Haunted.Game
             SetUpLight();
             map = new MapInfo(Resources.Load<TextAsset>("Data/map").text);
             hotel = new Hotel(world, Json.Num(Json.Obj(config, "body"), "radiusM"), baseMaterial, Stations.Replaces(map), dressed);
+            // A frame from now, once everything this sets up stands and before any player arrives.
+            if (dressed != null) StartCoroutine(dressed.CaptureReflections());
             items = new Items(world, map, config, baseMaterial);
             others = new RemotePlayers(world, config, baseMaterial);
             HandsConfig.Load(config);
@@ -195,6 +199,9 @@ namespace Haunted.Game
                 if (args[i] == "-sendAtNight" && i + 3 < args.Length) nightSends.Add(new KeyValuePair<double, string[]>(at, new[] { args[i + 2], args[i + 3] }));
             }
             if (arg("-voiceTone") != null) voiceToneHz = float.Parse(arg("-voiceTone"), CultureInfo.InvariantCulture);
+            // Test aid: the picture shows only the bloom (HauntedPost), to see what glows.
+            // "-bloomOnly 2": everything counts as bright, to check the glow reaches the picture.
+            if (Array.IndexOf(args, "-bloomOnly") >= 0) Shader.SetGlobalFloat("_HauntedBloomOnly", arg("-bloomOnly") == "2" ? 2 : 1);
             if (arg("-roomShots") != null)
             {
                 // The room-by-room picture test (RoomTour): no server, no HUD.
@@ -203,6 +210,8 @@ namespace Haunted.Game
                 tour.World = world;
                 tour.EyeHeightM = (float)Json.Num(Json.Obj(config, "movement"), "eyeHeightM");
                 tour.Only = arg("-rooms");
+                tour.Ready = () => dressed == null || dressed.ReflectionsReady;
+                if (Array.IndexOf(args, "-torch") >= 0) tour.Flashlight = Json.Obj(config, "flashlight");
                 return;
             }
             string script = arg("-script");
@@ -374,7 +383,8 @@ namespace Haunted.Game
                 }));
                 if (night.End != null && hands.Active) StopHands();
                 var feet = me.Camera.transform.position - Vector3.up * (float)Json.Num(Json.Obj(config, "movement"), "eyeHeightM");
-                me.Brightness = haunting.Update(now, Time.deltaTime, feet, me.Camera);
+                if (beam == null) beam = new BeamAdaptation(dressed?.Root);
+                me.Brightness = haunting.Update(now, Time.deltaTime, feet, me.Camera) * beam.Update(Time.deltaTime, me.Camera);
                 if (night.End != null || (night.Me != null && night.Me.health != "alive")) CloseWheel(false);
                 if (bot != null) bot.Frame();
                 UpdateHands(Time.deltaTime);
