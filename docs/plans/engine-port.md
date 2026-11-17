@@ -238,8 +238,21 @@ What it showed (mean brightness, browser vs Unity):
 - Close-ups, torch off: all 108 within 3 after the fixes above. The Nursery's salt jar is 3 darker because of its oil lamp's glass chimney.
 - Close-ups, torch on: within about 4, with Unity a little darker round the beam (less bloom spread at 2 m). The mirror is the exception: its glass now shines as the browser's Phong does (−22 went to −18, and −1 with the torch off), but the browser's glow round the reflected beam is wider. That goes with the bloom item below.
 
+### Step D2: glass (2026-11-17)
+
+The rooms' glass (`KHR_materials_transmission`: the bar's wine bottles, the lamp chimneys, the chandeliers, the spectacles, the magnifier) is drawn as three.js draws it.
+
+1. **What lies behind** (`engine/Assets/Scripts/Game/HauntedTransmission.cs`, a renderer feature).
+   - As three's `renderTransmissionPass`: before the see-through things, URP's copy of the opaque world (full size; ProjectSetup turns its downsampling off) goes into a mipmapped half-float picture; the glass's back faces are drawn into a copy of it; both get mip levels.
+   - Cameras other than the game's (the reflection probes) see glass over black.
+2. **The glass** (`engine/Assets/Resources/Shaders/HauntedGlass.shader`).
+   - Lit by URP's own light functions, kept apart into diffuse and shine. The diffuse is swapped, by the transmission (and its map's red), for the picture behind at the same spot: blurred by three's bicubic mip read at log2(width) × roughness, tinted by the colour, less what the surface reflects (three's DFGApprox). Shine and glow stay on top.
+   - Double-sided as three: back faces first, then front faces. BLEND glass blends by its alpha without writing depth.
+3. **Where it comes from.** glTFast keeps nothing of transmission, so `HotelImport` reads each glass material from the glTF files into `HotelArt.glass` (factor, map, colour, blend), and `DressedRooms` gives those materials HauntedGlass with glTFast's own properties copied over. `tools/engine-rooms.ts` marks the transmission maps as data.
+4. **three's roughness** for every lit surface (URP patch 4 in `HAUNTED-PATCHES.md`): at least 0.0525, plus the geometry's own curve, as three does.
+5. **Result** (room tour and close-ups, torch on and off). With the torch off, every room is within 3 of the browser; the Restaurant bar is 99.5 against 100.5 (the bottles on the bar are see-through as in the browser). With the torch on, the bar's view stays +25: not the glass but bloom round the torch's glints on the shelf's smooth (opaque) bottles, which spread wider in Unity. That, the ballroom doors from close by (−6) and the mirror (−18) are the bloom item below.
+
 Left for D2:
-- Glass (three's transmission): the bar's bottles and the oil lamps' chimneys.
-- Bloom round the torch's brightest spots (the Laundry, the Kitchen stove, the doors from close by).
+- Bloom round the torch's brightest spots (the Restaurant's shelf, the Laundry, the Kitchen stove, the doors from close by, the mirror).
 - Quality levels (Low and High; ambient occlusion on High).
 - Blackout dimming of lightmaps, bulbs and probes.

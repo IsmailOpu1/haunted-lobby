@@ -16,7 +16,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { basename, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { NodeIO } from "@gltf-transform/core";
-import { ALL_EXTENSIONS, type EmissiveStrength, KHRMaterialsEmissiveStrength, KHRTextureBasisu } from "@gltf-transform/extensions";
+import { ALL_EXTENSIONS, type EmissiveStrength, KHRMaterialsEmissiveStrength, KHRTextureBasisu, type Transmission } from "@gltf-transform/extensions";
 import { dequantize } from "@gltf-transform/functions";
 import { dressings } from "@haunted/maps";
 import { MeshoptDecoder } from "meshoptimizer";
@@ -137,7 +137,9 @@ async function writeRoles(io: NodeIO) {
       const name = (t: { getURI(): string } | null) => (t ? basename(t.getURI()) : null);
       const normal = name(m.getNormalTexture());
       if (normal) normals.add(normal);
-      for (const t of [m.getMetallicRoughnessTexture(), m.getOcclusionTexture()]) {
+      // Glass's transmission map is data too (its red is how much light passes).
+      const transmission = m.getExtension<Transmission>("KHR_materials_transmission");
+      for (const t of [m.getMetallicRoughnessTexture(), m.getOcclusionTexture(), transmission?.getTransmissionTexture() ?? null]) {
         const n = name(t);
         if (n) data.add(n);
       }

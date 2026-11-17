@@ -80,6 +80,7 @@ namespace Haunted.Editor
             art.cradle = AssetDatabase.LoadAssetAtPath<GameObject>(Models + "/cradle.gltf");
             art.trunk = AssetDatabase.LoadAssetAtPath<GameObject>(Models + "/trunk.gltf");
             if (File.Exists(Models + "/door-styles.json")) art.doorStyles = File.ReadAllText(Models + "/door-styles.json");
+            art.glass = ReadGlass();
             if (art.doors == null || art.clockHands == null || art.cradle == null || art.trunk == null)
                 Debug.LogWarning("Dressed hotel: a model in " + Models + " is not imported (run tools/engine-rooms.ts --models)");
             Directory.CreateDirectory(Hotel + "/Resources");
@@ -88,6 +89,54 @@ namespace Haunted.Editor
             KeepLightmapShaders();
             AssetDatabase.SaveAssets();
             Debug.Log("Dressed hotel: " + art.rooms.Count + " builds imported, doors " + (art.doors != null) + ", station models " + (art.clockHands != null && art.cradle != null && art.trunk != null));
+        }
+
+        /// <summary>
+        /// Every glass material (KHR_materials_transmission) of the rooms and models, read from their
+        /// glTF files: its transmission (and map), base colour and alpha mode. One per material name;
+        /// the same name is the same glass in every file.
+        /// </summary>
+        static List<GlassArt> ReadGlass()
+        {
+            var glass = new Dictionary<string, GlassArt>();
+            foreach (var dir in new[] { Rooms, Models })
+            {
+                if (!Directory.Exists(dir)) continue;
+                foreach (var file in Directory.GetFiles(dir, "*.gltf"))
+                {
+                    var gltf = (Dictionary<string, object>)Json.Parse(File.ReadAllText(file));
+                    if (!gltf.ContainsKey("materials")) continue;
+                    foreach (Dictionary<string, object> m in (List<object>)gltf["materials"])
+                    {
+                        var ext = m.ContainsKey("extensions") ? (Dictionary<string, object>)m["extensions"] : null;
+                        if (ext == null || !ext.ContainsKey("KHR_materials_transmission")) continue;
+                        string name = m.ContainsKey("name") ? (string)m["name"] : "";
+                        if (glass.ContainsKey(name)) continue;
+                        var t = (Dictionary<string, object>)ext["KHR_materials_transmission"];
+                        var pbr = m.ContainsKey("pbrMetallicRoughness") ? (Dictionary<string, object>)m["pbrMetallicRoughness"] : new Dictionary<string, object>();
+                        var c = pbr.ContainsKey("baseColorFactor") ? ((List<object>)pbr["baseColorFactor"]).Select(v => (float)Convert.ToDouble(v)).ToArray() : new[] { 1f, 1f, 1f, 1f };
+                        glass[name] = new GlassArt
+                        {
+                            material = name,
+                            transmission = t.ContainsKey("transmissionFactor") ? (float)Json.Num(t, "transmissionFactor") : 0,
+                            transmissionMap = t.ContainsKey("transmissionTexture") ? TextureOf(gltf, file, (int)Json.Num((Dictionary<string, object>)t["transmissionTexture"], "index")) : null,
+                            baseColor = new Color(c[0], c[1], c[2], c[3]),
+                            blend = m.ContainsKey("alphaMode") && (string)m["alphaMode"] == "BLEND",
+                        };
+                    }
+                }
+            }
+            return glass.Values.ToList();
+        }
+
+        /// <summary>The imported texture a glTF texture index points at (its image's file beside the room files).</summary>
+        static Texture2D TextureOf(Dictionary<string, object> gltf, string file, int index)
+        {
+            var texture = (Dictionary<string, object>)((List<object>)gltf["textures"])[index];
+            var image = (Dictionary<string, object>)((List<object>)gltf["images"])[(int)Json.Num(texture, "source")];
+            string path = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(file), (string)image["uri"]));
+            string project = Path.GetFullPath(".") + Path.DirectorySeparatorChar;
+            return AssetDatabase.LoadAssetAtPath<Texture2D>(path.Substring(project.Length).Replace('\\', '/'));
         }
 
         /// <summary>

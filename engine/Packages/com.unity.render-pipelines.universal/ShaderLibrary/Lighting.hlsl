@@ -279,8 +279,33 @@ half3 CalculateBlinnPhong(Light light, InputData inputData, SurfaceData surfaceD
 ////////////////////////////////////////////////////////////////////////////////
 /// PBR lighting...
 ////////////////////////////////////////////////////////////////////////////////
+// Haunted Lobby: three.js's roughness (lights_physical_fragment): at least 0.0525, plus how fast the
+// surface's own (unmapped) normal turns across the pixel, so small curved shiny things (bottles,
+// knobs) shine as broadly and as dimly as in the browser. Takes and gives smoothness.
+half HauntedThreeSmoothness(half smoothness, float3 geometryNormalWS)
+{
+#if defined(SHADER_STAGE_FRAGMENT)
+    float3 n = normalize(geometryNormalWS);
+    float3 dxy = max(abs(ddx(n)), abs(ddy(n)));
+    float geometryRoughness = max(max(dxy.x, dxy.y), dxy.z);
+    return half(1.0 - min(max(1.0 - smoothness, 0.0525) + geometryRoughness, 1.0));
+#else
+    return smoothness;
+#endif
+}
+
+// Haunted Lobby: the interpolated normal before any normal map (the forward passes keep it in
+// tangentToWorld when they have a normal map, and otherwise use it as it is).
+float3 HauntedGeometryNormal(InputData inputData)
+{
+    float3 n = inputData.tangentToWorld[2];
+    return dot(n, n) > 0 ? n : inputData.normalWS;
+}
+
 half4 UniversalFragmentPBR(InputData inputData, SurfaceData surfaceData)
 {
+    // Haunted Lobby: three's roughness (HauntedThreeSmoothness).
+    surfaceData.smoothness = HauntedThreeSmoothness(surfaceData.smoothness, HauntedGeometryNormal(inputData));
     #if defined(_SPECULARHIGHLIGHTS_OFF)
     bool specularHighlightsOff = true;
     #else

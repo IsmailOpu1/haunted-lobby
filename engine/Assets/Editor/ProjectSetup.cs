@@ -156,6 +156,25 @@ namespace Haunted.Editor
             }
             post.shader = shader;
             EditorUtility.SetDirty(post);
+            // The rooms' glass (HauntedGlass) reads what is behind it from HauntedTransmission's
+            // pictures; drawn before the bloom, as three draws transmission inside the scene.
+            if (!renderer.rendererFeatures.Exists(f => f is Haunted.Game.HauntedTransmission))
+            {
+                var glass = ScriptableObject.CreateInstance<Haunted.Game.HauntedTransmission>();
+                glass.name = "Haunted transmission";
+                AssetDatabase.AddObjectToAsset(glass, renderer);
+                renderer.rendererFeatures.Add(glass);
+            }
+            // A feature made by CreateInstance starts switched off.
+            foreach (var f in renderer.rendererFeatures)
+            {
+                f.SetActive(true);
+                EditorUtility.SetDirty(f);
+            }
+            // Its copy of the opaque world at full size, as three's transmission target.
+            var pipeline = new SerializedObject(AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>(PipelinePath));
+            pipeline.FindProperty("m_OpaqueDownsampling").intValue = (int)Downsampling.None;
+            pipeline.ApplyModifiedProperties();
             EditorUtility.SetDirty(renderer);
             AssetDatabase.SaveAssets();
             var data = new SerializedObject(renderer);

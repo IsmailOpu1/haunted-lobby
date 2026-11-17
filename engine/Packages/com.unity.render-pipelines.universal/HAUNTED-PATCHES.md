@@ -17,3 +17,6 @@ package here the same way and make these changes again.
 3. **Spot edge** (three.js's penumbra).
    - `ShaderLibrary/RealtimeLights.hlsl` `AngleAttenuation` returns `smoothstep` of URP's 0-to-1 edge, as three does between the outer and inner cone, instead of its square.
    - The torch sets its inner angle to three's `angle × (1 − penumbra)`.
+4. **three.js's roughness** (`lights_physical_fragment`).
+   - three never lets roughness go under 0.0525, and adds how fast the surface's own normal turns across the pixel (`geometryRoughness`), so small curved shiny things (bottles, knobs) shine more broadly and more dimly.
+   - `ShaderLibrary/Lighting.hlsl` `HauntedThreeSmoothness` does the same to the smoothness at the top of `UniversalFragmentPBR`; `HauntedGeometryNormal` takes the normal before any normal map. The glass shader (`Assets/Resources/Shaders/HauntedGlass.shader`) uses it too.

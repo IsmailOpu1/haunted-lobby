@@ -53,6 +53,8 @@ namespace Haunted.Game
             var reflections = new GameObject("Dressed reflections").transform;
             QualitySettings.realtimeReflectionProbes = true;
             var lightmaps = new List<LightmapData>();
+            var glass = new Dictionary<string, GlassArt>();
+            foreach (var g in art.glass ?? new List<GlassArt>()) glass[g.material] = g;
             foreach (var room in art.rooms)
             {
                 if (room.model == null || room.lightmap == null) continue;
@@ -75,6 +77,7 @@ namespace Haunted.Game
                         r.reflectionProbeUsage = ReflectionProbeUsage.Off;
                         continue;
                     }
+                    UseGlass(r, glass);
                     // The lightmap covers the whole build with its own UVs (glTF TEXCOORD_1 = Unity uv2).
                     r.lightmapIndex = index;
                     r.lightmapScaleOffset = new Vector4(1, 1, 0, 0);
@@ -87,6 +90,58 @@ namespace Haunted.Game
             }
             LightmapSettings.lightmapsMode = LightmapsMode.NonDirectional;
             LightmapSettings.lightmaps = lightmaps.ToArray();
+        }
+
+        static Shader glassShader;
+        /// <summary>Each glass material made so far, by the glTFast material it stands in for.</summary>
+        readonly Dictionary<Material, Material> glassMade = new Dictionary<Material, Material>();
+
+        /// <summary>The glTFast properties HauntedGlass reads, copied over as they are.</summary>
+        static readonly string[] GlassTextures = { "baseColorTexture", "metallicRoughnessTexture", "normalTexture", "emissiveTexture", "occlusionTexture" };
+        static readonly string[] GlassFloats = { "metallicFactor", "roughnessFactor", "normalTexture_scale", "occlusionTexture_strength" };
+
+        /// <summary>
+        /// Draws a build's glass (GlassArt) as the browser does (HauntedGlass, with HauntedTransmission):
+        /// what is behind it, blurred by its roughness, tinted by its colour, under its own shine.
+        /// </summary>
+        void UseGlass(Renderer r, Dictionary<string, GlassArt> glass)
+        {
+            if (glass.Count == 0) return;
+            var materials = r.sharedMaterials;
+            bool changed = false;
+            for (int i = 0; i < materials.Length; i++)
+            {
+                var m = materials[i];
+                if (m == null || !glass.TryGetValue(m.name, out var art)) continue;
+                if (!glassMade.TryGetValue(m, out var made))
+                {
+                    if (glassShader == null) glassShader = Resources.Load<Shader>("Shaders/HauntedGlass");
+                    if (glassShader == null) return;
+                    made = new Material(glassShader) { name = m.name + " (glass)" };
+                    foreach (var p in GlassTextures)
+                    {
+                        if (!m.HasProperty(p)) continue;
+                        made.SetTexture(p, m.GetTexture(p));
+                        if (m.HasProperty(p + "_ST")) made.SetVector(p + "_ST", m.GetVector(p + "_ST"));
+                        if (m.HasProperty(p + "_texCoord")) made.SetFloat(p + "_texCoord", m.GetFloat(p + "_texCoord"));
+                    }
+                    foreach (var p in GlassFloats) if (m.HasProperty(p)) made.SetFloat(p, m.GetFloat(p));
+                    if (m.HasProperty("emissiveFactor")) made.SetVector("emissiveFactor", m.GetVector("emissiveFactor"));
+                    // glTFast's stand-in changed the alpha; the file's colour is linear as given.
+                    made.SetVector("baseColorFactor", (Vector4)art.baseColor);
+                    made.SetFloat("transmissionFactor", art.transmission);
+                    if (art.transmissionMap != null) made.SetTexture("transmissionTexture", art.transmissionMap);
+                    made.SetFloat("_SrcBlend", (float)(art.blend ? BlendMode.SrcAlpha : BlendMode.One));
+                    made.SetFloat("_DstBlend", (float)(art.blend ? BlendMode.OneMinusSrcAlpha : BlendMode.Zero));
+                    // three's GLTFLoader: blended glass writes no depth.
+                    made.SetFloat("_ZWrite", art.blend ? 0 : 1);
+                    made.renderQueue = (int)RenderQueue.Transparent;
+                    glassMade[m] = made;
+                }
+                materials[i] = made;
+                changed = true;
+            }
+            if (changed) r.sharedMaterials = materials;
         }
 
         /// <summary>
