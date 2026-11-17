@@ -1239,8 +1239,9 @@ namespace Haunted.Game
             var faceMat = Mat(Color.white, Look.UnlitClear, 0);
             faceMat.mainTexture = FaceTexture();
             Shape(g, Plane(0.26, 0.33), Vector3.one, faceMat, 0.06, MIRROR_Y + 0.14, -0.018);
-            // The fog: one texel for each patch of glass.
-            var fogTex = new Texture2D(cols, rows, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            // The fog: one texel for each patch of glass. Linear, as three reads a DataTexture: as sRGB
+            // its 200 grey came out 0.58, not 0.78, and the torch-lit fog a quarter darker (step D2).
+            var fogTex = new Texture2D(cols, rows, TextureFormat.RGBA32, false, true) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
             var fogMat = Mat(Color.white, Look.Clear, 1);
             fogMat.mainTexture = fogTex;
             fogMat.SetFloat("_Smoothness", 0.2f);

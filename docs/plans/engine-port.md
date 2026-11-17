@@ -269,5 +269,16 @@ The rooms' glass (`KHR_materials_transmission`: the bar's wine bottles, the lamp
    - **Close-ups:** the browser's close-up pictures turn out to have been taken without ambient occlusion and its room pictures with it (checked in the browser: AO off gives the same pictures). So the close-ups compare with `-noAO`: all within 4 of the browser except the ballroom doors (−6), the Kitchen relic (−7) and the mirror (−16).
    - **AO itself:** the AO-only pictures of the two match (178.9 against 178.5 on the Kitchen). Turning AO on changes both alike: −15 in the browser and −17 in Unity on the stove close-up, about −10% in the Ballroom.
 
+### Step D2: the glow round the torch up close (2026-11-18)
+
+The bloom itself was right (with no threshold the two glow alike). What fed it was a little darker in Unity, and at three's threshold of 2.5 a torch-lit wall sits just under it (1.6 to 2.2), so a few percent changed the glow by 40%. Measured on the light before bloom and tone mapping (`-hdrOut` writes it into the picture):
+
+1. **64-bit HDR.** URP's default 32-bit picture (R11G11B10) keeps 5 or 6 bits a colour; the browser draws in half floats. Torch-lit surfaces came out 3% darker. `ProjectSetup` now sets 64 bits.
+2. **The night fill on lightmapped surfaces** (URP patch 8). three adds its 0.04 hemisphere fill to everything; URP gave lightmapped surfaces no ambient, so dark corners were 7 to 14% darker. Now within 2%.
+3. **The mirror's fog** was made as an sRGB texture; three reads its DataTexture as linear, so the fog was a quarter darker. The mirror close-up went from −17 to −4.6, its glow from 13,457 to 19,467 against the browser's 20,800.
+4. **Ruled out:** the torch (position, strength, colour, cone, fall-off all identical), AO, mipmaps, normal maps, MSAA. Using three's lower least roughness for the shine made no measured difference except pushing the Restaurant bar to −6.5, so it was left out.
+5. **Result** (mean difference from the browser, last commit → now): rooms 0.45 → 0.26 (none over 2); close-ups 0.48 → 0.19; close-ups by torch 1.86 → 0.53; rooms by torch 0.89 → 0.71; Low against High 0.33 → 0.10. Blackout still black but for the torch.
+6. **Test aids kept:** `-hdrOut` (the light before bloom, as an exact 8-bit code), `-exposure X`, `-bloomScale X`, `-bloomThreshold X`.
+
 Left for D2:
-- Bloom round the torch's brightest spots from close by (the ballroom doors, the Kitchen relic, the mirror): the browser's glow spreads wider round the lit circle. The bloom's numbers are three's; what feeds it differs.
+- The Restaurant bar by torchlight is +6.4 (the bottles' central glint glows a little wider than the browser's), and a few torch-lit walls +2 to +3.6. Small; to look at again in D5 with every room on Low and High.

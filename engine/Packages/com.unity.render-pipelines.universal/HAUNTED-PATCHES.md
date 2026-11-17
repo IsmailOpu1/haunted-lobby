@@ -28,3 +28,6 @@ package here the same way and make these changes again.
    - `ShaderLibrary/BRDF.hlsl` `InitializeBRDFData` sets it so. Reflectivity is unchanged.
 7. **Blackout** (three.js's `lightMapIntensity`).
    - `ShaderLibrary/GlobalIllumination.hlsl` `SampleLightmap` multiplies the baked lightmap by the global `_HauntedLamps`: the lamps' power, 1 lit, fading to 0 in the ghost's Blackout (`DressedRooms.Update`, as dressedRooms.ts). The game sets it to 1 at start.
+8. **The night fill on lightmapped surfaces** (three.js's hemisphere light).
+   - three adds game.ts's faint hemisphere fill (sky b8c0d0 over ground 202020) to every surface, lightmapped or not. URP gives lightmapped surfaces no ambient light, so with the torch off the dressed rooms' dark corners were 7 to 14% darker.
+   - `ShaderLibrary/GlobalIllumination.hlsl` `SampleLightmap` adds `lerp(_HauntedFillGround, _HauntedFillSky, 0.5 n.y + 0.5)` to the lightmap, as three's `getHemisphereLightIrradiance`. The game sets both globals with the Trilight ambient (`Game.SetFill`), already divided by pi, and drops them in a blackout.

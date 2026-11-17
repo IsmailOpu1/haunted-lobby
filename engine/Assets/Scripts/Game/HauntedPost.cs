@@ -18,6 +18,12 @@ namespace Haunted.Game
     {
         // post.ts: looks only, so not game numbers (shared/config.ts holds those).
         public const float Exposure = 1.0f;
+        /// <summary>Test aid (-exposure X): the picture X times as bright, to compare what tone mapping hides.</summary>
+        public static float ExposureScale = 1;
+        /// <summary>Test aid (-bloomScale X): the glow X times as strong (0: none).</summary>
+        public static float BloomScale = 1;
+        /// <summary>Test aid (-bloomThreshold X): what counts as bright.</summary>
+        public static float ThresholdNow = BloomThreshold;
         public const float BloomThreshold = 2.5f;
         public const float BloomStrength = 0.55f;
         public const float BloomRadius = 0.45f;
@@ -91,7 +97,6 @@ namespace Haunted.Game
                     down[i] = Blur(shader, Kernels[i]);
                 }
                 final = CoreUtils.CreateEngineMaterial(shader);
-                var shares = new float[Levels];
                 for (int i = 0; i < Levels; i++) shares[i] = 3f * BloomStrength * Mathf.Lerp(Factors[i], 1.2f - Factors[i], BloomRadius);
                 final.SetFloatArray("_BloomFactors", shares);
                 final.SetFloat("_Exposure", Exposure);
@@ -125,11 +130,17 @@ namespace Haunted.Game
                 return m;
             }
 
+            readonly float[] shares = new float[Levels], shareNow = new float[Levels];
+
             /// <summary>JavaScript's Math.round (halves go up), as the browser sizes its levels.</summary>
             static int Round(float v) => (int)Math.Floor(v + 0.5f);
 
             public override void RecordRenderGraph(RenderGraph graph, ContextContainer frameData)
             {
+                final.SetFloat("_Exposure", Exposure * ExposureScale);
+                bright.SetFloat("_Threshold", ThresholdNow);
+                for (int i = 0; i < Levels; i++) shareNow[i] = shares[i] * BloomScale;
+                final.SetFloatArray("_BloomFactors", shareNow);
                 var resources = frameData.Get<UniversalResourceData>();
                 if (resources.isActiveTargetBackBuffer) return;
                 var source = resources.activeColorTexture;
@@ -139,6 +150,9 @@ namespace Haunted.Game
                 picture.clearBuffer = false;
 
                 var level = picture;
+                // Each level its own size (three's mips): the camera's description may size by scale,
+                // which would ignore the width and height below and keep every level full size.
+                level.sizeMode = TextureSizeMode.Explicit;
                 level.colorFormat = GraphicsFormat.R16G16B16A16_SFloat;
                 level.filterMode = FilterMode.Bilinear;
                 level.wrapMode = TextureWrapMode.Clamp;

@@ -40,6 +40,9 @@ namespace Haunted.Editor
                 AssetDatabase.CreateAsset(pipeline, PipelinePath);
             }
             pipeline.supportsHDR = true;
+            // Half floats per colour, as the browser's post.ts targets: the default 32-bit picture
+            // (R11G11B10) keeps 5 or 6 bits a colour and drew torch-lit surfaces about 3% darker.
+            pipeline.hdrColorBufferPrecision = HDRColorBufferPrecision._64Bits;
             pipeline.msaaSampleCount = 4;
             pipeline.shadowDistance = 30;
             pipeline.maxAdditionalLightsCount = 8;

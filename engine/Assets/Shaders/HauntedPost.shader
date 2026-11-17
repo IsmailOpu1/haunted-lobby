@@ -85,6 +85,7 @@ Shader "Hidden/Haunted/Post"
             float _Darkness;
             float _Start;
             float _HauntedBloomOnly;
+            float _HauntedHdrOut;
 
             // GLSL's mat3(c0, c1, c2) * v, written out (its vectors are columns).
             float3 Columns(float3 c0, float3 c1, float3 c2, float3 v) { return c0 * v.x + c1 * v.y + c2 * v.z; }
@@ -136,6 +137,13 @@ Shader "Hidden/Haunted/Post"
                    + _BloomFactors[4] * SAMPLE_TEXTURE2D_X(_Bloom4, sampler_LinearClamp, uv).rgb;
                 // Test aid (Game's -bloomOnly): the glow by itself, plain.
                 if (_HauntedBloomOnly > 0.5) return float4(saturate(bloom), 1);
+                // Test aid (Game's -hdrOut): the picture's luminance before bloom and tone mapping, written
+                // exactly into an 8-bit PNG: red is floor(L / 4 * 255), green the fraction left over.
+                if (_HauntedHdrOut > 0.5)
+                {
+                    float v = min(dot(c, Luma) / 4 * 255, 254.999);
+                    return float4(SRGBToLinear(float3(floor(v) / 255, frac(v), 0)), 1);
+                }
                 c = Agx(c + bloom);
                 // The browser adds grain and the vignette to the finished (sRGB) picture.
                 float3 s = LinearToSRGB(c);

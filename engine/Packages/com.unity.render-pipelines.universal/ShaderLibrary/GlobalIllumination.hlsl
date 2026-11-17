@@ -172,6 +172,10 @@ half3 SampleProbeSHVertex(in float3 absolutePositionWS, in float3 normalWS, in f
 
 // Haunted Lobby: the lamps' power, 1 lit, 0 in a blackout (DressedRooms sets it).
 half _HauntedLamps;
+// Haunted Lobby: game.ts's hemisphere fill (sky over ground, times strength / PI, linear; Game.SetFill
+// sets them). three adds it to lightmapped surfaces as well; URP gives those no ambient.
+float4 _HauntedFillSky;
+float4 _HauntedFillGround;
 
 // Sample baked and/or realtime lightmap. Non-Direction and Directional if available.
 half3 SampleLightmap(float2 staticLightmapUV, float2 dynamicLightmapUV, half3 normalWS)
@@ -193,6 +197,8 @@ half3 SampleLightmap(float2 staticLightmapUV, float2 dynamicLightmapUV, half3 no
 #if defined(LIGHTMAP_ON)
     // Haunted Lobby: a blackout fades the baked lamps out (dressedRooms.ts lightMapIntensity * power).
     diffuseLighting *= _HauntedLamps;
+    // three's getHemisphereLightIrradiance: ground to sky by how far the surface faces up.
+    diffuseLighting += lerp(_HauntedFillGround.rgb, _HauntedFillSky.rgb, 0.5 * float(normalWS.y) + 0.5);
 #endif
 
 #if defined(DYNAMICLIGHTMAP_ON) && defined(DIRLIGHTMAP_COMBINED)

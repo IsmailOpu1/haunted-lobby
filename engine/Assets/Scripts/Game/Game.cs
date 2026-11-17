@@ -137,6 +137,9 @@ namespace Haunted.Game
             RenderSettings.ambientSkyColor = (sky * fill).gamma;
             RenderSettings.ambientEquatorColor = ((sky + ground) * (fill / 2)).gamma;
             RenderSettings.ambientGroundColor = (ground * fill).gamma;
+            // The same fill on lightmapped surfaces, as three adds it (the patched URP's SampleLightmap).
+            Shader.SetGlobalVector("_HauntedFillSky", sky * fill);
+            Shader.SetGlobalVector("_HauntedFillGround", ground * fill);
         }
 
         /// <summary>
@@ -241,6 +244,10 @@ namespace Haunted.Game
             forceBlackout = Array.IndexOf(args, "-blackout") >= 0;
             HauntedAO.ShowOnly = Array.IndexOf(args, "-aoOnly") >= 0;
             HauntedAO.Off = Array.IndexOf(args, "-noAO") >= 0;
+            if (arg("-bloomScale") != null) HauntedPost.BloomScale = float.Parse(arg("-bloomScale"), System.Globalization.CultureInfo.InvariantCulture);
+            if (arg("-bloomThreshold") != null) HauntedPost.ThresholdNow = float.Parse(arg("-bloomThreshold"), System.Globalization.CultureInfo.InvariantCulture);
+            Shader.SetGlobalFloat("_HauntedHdrOut", Array.IndexOf(args, "-hdrOut") >= 0 ? 1 : 0);
+            if (arg("-exposure") != null) HauntedPost.ExposureScale = float.Parse(arg("-exposure"), System.Globalization.CultureInfo.InvariantCulture);
             if (arg("-roomShots") != null)
             {
                 // The room-by-room picture test (RoomTour): no server, no HUD.
