@@ -342,7 +342,7 @@ Left for D2:
 9. **Found, not from D4:** the Windows build crashes (segmentation fault) as it quits after a night with bots. The D3 build does the same. A plain quit from the lobby is clean.
 10. **Test aids kept:** `-soundTest DIR` (the list above, written to `unity-sound.wav` and `.txt`, then quits), `-recordSound DIR` (the whole run, `night-sound.wav`).
 
-### Step D: the crash on quitting, looked into, not fixed (2026-11-18)
+### Step D: the crash on quitting, looked into (2026-11-18; fixed below)
 
 1. **What it is.** The Windows build crashes as it quits after a night with others in it: an access violation in `D3D12Core.dll` (Event Viewer, Application Error 1000), after the Input System has shut down. Windows writes a dump to `%LOCALAPPDATA%\CrashDumps` each time; Unity's own crash handler writes nothing. It does not happen every time: 11 of 19 nights with the hotel's art crashed (the C4 bots, quitting at 20 or 60 s).
 2. **What it needs**, each tried in the same build:
@@ -357,3 +357,20 @@ Left for D2:
 5. **Tidy-ups on the way** (neither is the fix):
    - `TextPainter` restored the wrong active texture (`Releasing render texture that is set to be RenderTexture.active!` in every log).
    - Quitting with `-quitAt` left the room twice.
+
+### Step D: the crash on quitting, fixed (2026-11-18)
+
+1. **The stack.** Read from Windows' dumps (`%LOCALAPPDATA%\CrashDumps`) with Windows' own `dbgeng.dll` driven from Python, with Unity's and Microsoft's symbols. All four dumps read stop at the same place, on the main thread:
+   `D3D12Core!CLibrary::Serialize` (inside `memcpy` or `DXBCGetSizeAssumingValidPointer`), called from `UnityPlayer!GfxDeviceD3D12::~GfxDeviceD3D12`, called from `DestroyGfxDevice` and `Shutdown`.
+   So it happens while Unity, tearing the D3D12 device down, saves its pipeline library (`%TEMP%\Haunted Lobby\Haunted Lobby\dx12_pso_cache_lib.bin`). It is not in the game's code.
+2. **Why, unverified.** D3D12 reads memory that is no longer there. The likeliest explanation is that the library still points into the file Unity loaded at the start and has since freed. The library is saved when new pipelines were made in the run (others' bodies lit by torches), and a crash then depends on what has become of that memory. Nothing in the game decides this.
+3. **The fix** (`Game.OnApplicationQuit`). On D3D12 the game ends its own process (exit code 0) once its own quit work is done: voice off, the room left, `-recordSound`'s file saved. Unity's device teardown never runs.
+   - **Every quit leaves the room and waits for it** (`Application.wantsToQuit`, up to 2 s), so the server sees a player go, not lose their connection. That includes closing the window.
+   - **The cost:** pipelines made in a run are no longer saved for the next launch. The NVIDIA driver keeps its own shader cache.
+   - **`-unityShutdown`** leaves the teardown to Unity, to show the crash.
+   - **Unity's own switch** `-force-d3d12-single-pso-disk-cache` avoids the library too, but only on the command line. `boot.config` does not pass switches (`force-d3d11=1` there was ignored too).
+4. **The test.** The cache folder as it was when the game crashed was put back before every run (the C4 bots, quit 20 s into the night).
+   - With `-unityShutdown`: 3 of 3 crashed.
+   - With the fix: 5 of 5 quit cleanly (exit code 0, no Application Error, no dump).
+   - Also clean with the fix: a full 60 s night to the end screen, and the window closed during a night (the room left, code 4000).
+5. **Found on the way:** a worktree has no `engine/Assets/Hotel` (not in git). A build there draws no rooms or people, and quits cleanly for that reason. Copy the folder in before testing.

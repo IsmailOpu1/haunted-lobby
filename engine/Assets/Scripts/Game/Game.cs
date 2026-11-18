@@ -25,6 +25,7 @@ namespace Haunted.Game
     ///   -teleportAt 40 -20 -17   at 40 s in the room, ask a debug server to move us to x -20, z -17
     ///   -startWith 3       as host on a debug server, start the night (no countdown) once 3 players are in
     ///   -ready             press Ready on joining
+    ///   -unityShutdown     on quitting, leave D3D12's teardown to Unity (shows the old crash)
     ///   -debugAtNight 30 '{"down":true}'   30 s into the night, send this debug message (may repeat)
     ///   -sendAtNight 12 pourSalt '{}'   12 s into the night, send this message as if a key were pressed (may repeat)
     ///   -shotAtNight 14 path   save a screenshot 14 s into the night (may repeat)
@@ -110,6 +111,7 @@ namespace Haunted.Game
         {
             Application.targetFrameRate = -1;
             QualitySettings.vSyncCount = 1;
+            Application.wantsToQuit += WantsToQuit;
             config = Json.Parse(Resources.Load<TextAsset>("Data/config").text);
             world = GameData.LoadWorld(Resources.Load<TextAsset>("Data/map").text, Resources.Load<TextAsset>("Data/world").text);
             baseMaterial = Resources.Load<Material>("Materials/GreyBox");
@@ -1029,11 +1031,48 @@ namespace Haunted.Game
             if (status != "") GUI.Label(new Rect(16, Screen.height - 70, 900, 30), status, style);
         }
 
+        /// <summary>How long a quit waits for the server to let us go (WantsToQuit).</summary>
+        const int LeaveTimeoutMs = 2000;
+
+        /// <summary>
+        /// Any quit (the window closed too): leave the room first and wait for it, so the server sees
+        /// us go rather than lose us (OnApplicationQuit may end the process at once).
+        /// </summary>
+        bool WantsToQuit()
+        {
+            if (room == null || left) return true;
+            LeaveThenQuit();
+            return false;
+        }
+
+        async void LeaveThenQuit()
+        {
+            left = true;
+            try { await Task.WhenAny(room.Leave(), Task.Delay(LeaveTimeoutMs)); } catch (Exception) { }
+            Application.Quit();
+        }
+
         void OnApplicationQuit()
         {
             if (voice != null) voice.Disconnect();
-            // Once only: Quit() has already left and waited for it.
             if (room != null && !left) { left = true; room.Leave(); }
+            if (soundTest != null) soundTest.SaveRecording();
+            // Unity's D3D12 teardown saves its pipeline library (dx12_pso_cache_lib.bin) and crashed
+            // doing so (D3D12Core CLibrary::Serialize under ~GfxDeviceD3D12), about one quit in two
+            // after a night with others in it. With the game's own work done, the process ends here
+            // instead; the cost is that new pipelines are not saved for the next launch.
+            // -unityShutdown leaves the teardown to Unity (to show the crash).
+            if (!Application.isEditor && SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Direct3D12
+                && Array.IndexOf(Environment.GetCommandLineArgs(), "-unityShutdown") < 0)
+            {
+                Debug.Log("Quitting: ending the process before Unity's D3D12 teardown");
+                TerminateProcess(GetCurrentProcess(), 0);
+            }
         }
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+        static extern IntPtr GetCurrentProcess();
+        [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+        static extern bool TerminateProcess(IntPtr process, uint exitCode);
     }
 }
