@@ -17,6 +17,8 @@ namespace Haunted.Game
         const float REF_DISTANCE_M = 2, MAX_DISTANCE_M = 40;
 
         static readonly Dictionary<string, AudioClip> clips = new Dictionary<string, AudioClip>();
+        /// <summary>Silence before each made sound (5.3 ms at 48 kHz): see Clip.</summary>
+        const int LeadSamples = 256;
         static AudioSource flat;
         static int rate;
         static readonly System.Random noiseDice = new System.Random(7);
@@ -34,8 +36,17 @@ namespace Haunted.Game
             }
         }
 
-        static readonly List<AudioSource> placed = new List<AudioSource>();
+        /// <summary>
+        /// audio.ts MASTER_LEVEL: every game sound (not the voices) goes through it in the browser.
+        /// </summary>
+        public const float MasterLevel = 0.8f;
+
+        /// <summary>The placed sounds still playing, with their own loudness before the master.</summary>
+        static readonly List<KeyValuePair<AudioSource, float>> placed = new List<KeyValuePair<AudioSource, float>>();
         static float level = 1;
+
+        /// <summary>What a game sound is multiplied by now: the master, and the pre-hunt silence.</summary>
+        public static float Out { get { return level * MasterLevel; } }
 
         /// <summary>
         /// How loud the game's own sounds are, 0 to 1: the hunt's warning drops them all to silence
@@ -47,9 +58,9 @@ namespace Haunted.Game
             set
             {
                 level = value;
-                if (flat != null) flat.volume = value;
-                placed.RemoveAll(x => x == null);
-                foreach (var x in placed) x.volume = value;
+                if (flat != null) flat.volume = Out;
+                placed.RemoveAll(x => x.Key == null);
+                foreach (var x in placed) x.Key.volume = x.Value * Out;
             }
         }
 
@@ -57,7 +68,7 @@ namespace Haunted.Game
         public static void PlayScaled(string kind, float volume)
         {
             Play(kind, -1, false);
-            flat.PlayOneShot(Clip(kind, -1), volume);
+            flat.PlayOneShot(BothEars(Clip(kind, -1)), volume);
         }
 
         /// <summary>A sound that loops for as long as it plays, silent until its volume is raised.</summary>
@@ -66,7 +77,7 @@ namespace Haunted.Game
             var go = new GameObject("Loop " + kind);
             UnityEngine.Object.DontDestroyOnLoad(go);
             var s = go.AddComponent<AudioSource>();
-            s.clip = Clip(kind, -1);
+            s.clip = BothEars(Clip(kind, -1));
             s.loop = true;
             s.spatialBlend = 0;
             s.volume = 0;
@@ -84,50 +95,193 @@ namespace Haunted.Game
                 UnityEngine.Object.DontDestroyOnLoad(go);
                 flat = go.AddComponent<AudioSource>();
                 flat.spatialBlend = 0;
-                flat.volume = level;
+                flat.volume = Out;
             }
-            if (sound) flat.PlayOneShot(Clip(kind, pitch));
+            if (sound) flat.PlayOneShot(BothEars(Clip(kind, pitch)));
+        }
+
+        /// <summary>
+        /// One footstep (audio.ts step): with a place it comes from there (inverse rolloff from 1.5 m,
+        /// factor 1.3; a crawl's drag 0.2 m up), without one it is your own, in your ears. delaySec
+        /// puts it that far ahead (the phantom steps' spacing).
+        /// </summary>
+        public static void Step(string kind, Vector3? at, double delaySec = 0)
+        {
+            // Each step is a little different: one of StepVariants clips made with audio.ts's 0.85-1.15 spread.
+            var clip = Clip("step:" + kind + ":" + (FixedStepVariant ? StepVariants / 2 : noiseDice.Next(StepVariants)), -1);
+            if (at.HasValue)
+            {
+                var from = at.Value + Vector3.up * (kind == "crawl" ? 0.2f : 0);
+                if (Ears != null && Hrtf.Ready) PlayHrtf(clip, from, delaySec);
+                else PlayClipAt(clip, from, STEP_REF_M, STEP_ROLLOFF, 1, 1, delaySec);
+                return;
+            }
+            Play("", -1, false);
+            flat.PlayOneShot(BothEars(clip));
         }
 
         /// <summary>A sound from a point on the floor (world space); it is heard 1 m up, as the browser's.</summary>
         public static void PlayAt(string kind, Vector3 floor) { PlayAt(kind, floor, REF_DISTANCE_M, 1); }
 
+        /// <summary>Where you hear from (the camera): set each frame by the game.</summary>
+        public static Transform Ears;
+
+        static readonly Dictionary<AudioClip, float[]> monoData = new Dictionary<AudioClip, float[]>();
+
+        /// <summary>
+        /// A step through the browser's HRTF panner (Hrtf): heard from where it is, at the panner's
+        /// distance gain (inverse from 1.5 m, factor 1.3), as a stereo sound in your ears.
+        /// </summary>
+        static void PlayHrtf(AudioClip clip, Vector3 at, double delaySec)
+        {
+            if (!monoData.TryGetValue(clip, out var mono))
+            {
+                mono = new float[clip.samples];
+                clip.GetData(mono, 0);
+                monoData[clip] = mono;
+            }
+            var d = at - Ears.position;
+            Hrtf.Angles(d, Ears.forward, out float azimuth, out float elevation);
+            float dist = d.magnitude;
+            float gain = STEP_REF_M / (STEP_REF_M + STEP_ROLLOFF * (Mathf.Max(dist, STEP_REF_M) - STEP_REF_M));
+            var heard = Hrtf.Render(mono, clip.name, azimuth, elevation);
+            var go = new GameObject("Step " + clip.name);
+            var s = go.AddComponent<AudioSource>();
+            s.clip = heard;
+            s.spatialBlend = 0;
+            s.volume = gain * Out;
+            placed.Add(new KeyValuePair<AudioSource, float>(s, gain));
+            if (delaySec > 0) s.PlayScheduled(AudioSettings.dspTime + delaySec);
+            else s.Play();
+            float life = (float)delaySec + heard.length + 0.1f;
+            UnityEngine.Object.Destroy(go, life);
+            UnityEngine.Object.Destroy(heard, life + 0.1f);
+        }
+
         /// <summary>A sound from a point (world space), lifted by up metres, with inverse rolloff from refM.</summary>
         public static void PlayAt(string kind, Vector3 floor, float refM, float up)
         {
-            var clip = Clip(kind, -1);
-            var go = new GameObject("Sound " + kind);
-            go.transform.position = floor + Vector3.up * up;
+            PlayClipAt(Clip(kind, -1), floor + Vector3.up * up, refM, 1, 1, 1, 0);
+        }
+
+        /// <summary>
+        /// A clip from a point (world space), as a Web Audio panner with the "inverse" distance model
+        /// gives it: refM / (refM + rolloff * (max(d, refM) - refM)). volume is its own loudness
+        /// (before the master), pitch its playback rate.
+        /// </summary>
+        public static void PlayClipAt(AudioClip clip, Vector3 at, float refM, float rolloff, float volume, float pitch, double delaySec)
+        {
+            var go = new GameObject("Sound " + clip.name);
+            go.transform.position = at;
             var s = go.AddComponent<AudioSource>();
             s.clip = clip;
             s.spatialBlend = 1;
             s.dopplerLevel = 0;
+            s.spread = 0;
             s.rolloffMode = AudioRolloffMode.Custom;
-            var curve = new AnimationCurve();
-            for (float d = 0; d <= MAX_DISTANCE_M; d += 0.5f) curve.AddKey(d / MAX_DISTANCE_M, refM / Mathf.Max(refM, d));
-            s.SetCustomCurve(AudioSourceCurveType.CustomRolloff, curve);
+            s.SetCustomCurve(AudioSourceCurveType.CustomRolloff, Rolloff(refM, rolloff));
             s.maxDistance = MAX_DISTANCE_M;
-            s.volume = level;
-            placed.Add(s);
-            s.Play();
-            UnityEngine.Object.Destroy(go, clip.length + 0.1f);
+            s.pitch = pitch;
+            s.volume = volume * Out;
+            placed.Add(new KeyValuePair<AudioSource, float>(s, volume));
+            if (delaySec > 0) s.PlayScheduled(AudioSettings.dspTime + delaySec);
+            else s.Play();
+            UnityEngine.Object.Destroy(go, (float)delaySec + clip.length / Mathf.Max(0.01f, pitch) + 0.1f);
+        }
+
+        static readonly Dictionary<long, AnimationCurve> curves = new Dictionary<long, AnimationCurve>();
+
+        /// <summary>Web Audio's inverse distance model as a Unity rolloff curve (out to MAX_DISTANCE_M, then held).</summary>
+        static AnimationCurve Rolloff(float refM, float rolloff)
+        {
+            long key = ((long)Mathf.RoundToInt(refM * 1000) << 32) | (uint)Mathf.RoundToInt(rolloff * 1000);
+            if (curves.TryGetValue(key, out var curve)) return curve;
+            curve = new AnimationCurve();
+            for (float d = 0; d <= MAX_DISTANCE_M; d += 0.25f)
+                curve.AddKey(d / MAX_DISTANCE_M, refM / (refM + rolloff * (Mathf.Max(d, refM) - refM)));
+            curves[key] = curve;
+            return curve;
+        }
+
+        static readonly Dictionary<AudioClip, AudioClip> bothEars = new Dictionary<AudioClip, AudioClip>();
+
+        /// <summary>
+        /// A mono clip as two channels. The browser plays a mono sound into both ears at full level;
+        /// Unity plays a mono clip in 2D at -3 dB each side (measured: the ambience 3.1 dB under), so
+        /// the sounds in your ears are given to it as stereo.
+        /// </summary>
+        public static AudioClip BothEars(AudioClip mono)
+        {
+            if (mono.channels != 1) return mono;
+            if (bothEars.TryGetValue(mono, out var stereo)) return stereo;
+            var data = new float[mono.samples];
+            mono.GetData(data, 0);
+            var two = new float[data.Length * 2];
+            for (int i = 0; i < data.Length; i++) two[i * 2] = two[i * 2 + 1] = data[i];
+            stereo = AudioClip.Create(mono.name + " (both ears)", mono.samples, 2, mono.frequency, false);
+            stereo.SetData(two, 0);
+            bothEars[mono] = stereo;
+            return stereo;
         }
 
         static AudioClip Clip(string kind, int pitch)
         {
             if (kind != "note") pitch = 0;
             int step = PIANO_SCALE[Math.Max(0, pitch) % PIANO_SCALE.Length];
-            string key = kind + ":" + step;
+            string key = kind.StartsWith("step:", StringComparison.Ordinal) ? kind : kind + ":" + step;
             AudioClip clip;
             if (clips.TryGetValue(key, out clip)) return clip;
             if (rate == 0) rate = AudioSettings.outputSampleRate;
-            var buf = Make(kind, step);
-            clip = AudioClip.Create(key, buf.Length, 1, rate, false);
-            var data = new float[buf.Length];
-            for (int i = 0; i < buf.Length; i++) data[i] = (float)Math.Max(-1, Math.Min(1, buf[i]));
+            var buf = kind.StartsWith("step:", StringComparison.Ordinal) ? MakeStep(kind) : Make(kind, step);
+            // Unity fades every sound in over its first 64 samples or so (against clicks), which ate a
+            // third of a tick (its loudness is in its first millisecond); a short silence takes the fade.
+            // Not for the loop, which would then have a gap.
+            int lead = kind == "pulse" ? 0 : LeadSamples;
+            clip = AudioClip.Create(key, buf.Length + lead, 1, rate, false);
+            var data = new float[buf.Length + lead];
+            for (int i = 0; i < buf.Length; i++) data[lead + i] = (float)Math.Max(-1, Math.Min(1, buf[i]));
             clip.SetData(data, 0);
             clips[key] = clip;
             return clip;
+        }
+
+        // ---------- Footsteps (audio.ts STEP_SOUNDS and step) ----------
+
+        const float STEP_REF_M = 1.5f, STEP_ROLLOFF = 1.3f;
+        /// <summary>How many slightly different clips each kind of step has (audio.ts varies every step); odd, so the middle one is unvaried.</summary>
+        const int StepVariants = 9;
+        /// <summary>Test aid (-soundTest): every step the unvaried middle clip, as the browser's with Math.random at 0.5.</summary>
+        public static bool FixedStepVariant;
+
+        /// <summary>
+        /// audio.ts STEP_SOUNDS: gain, the low body's pitch (thudHz) and share (thudMix), the tap's
+        /// band (noiseHz, q) and length. Player steps are mostly tap, above the heartbeat; the
+        /// ghost's are heavy stomps.
+        /// </summary>
+        static readonly Dictionary<string, double[]> StepSounds = new Dictionary<string, double[]>
+        {
+            { "walk", new[] { 0.3, 130, 0.25, 1100, 1.4, 0.06 } },
+            { "run", new[] { 0.4, 140, 0.3, 1300, 1.2, 0.05 } },
+            { "crouch", new[] { 0.08, 120, 0.2, 1000, 1.4, 0.05 } },
+            { "crawl", new[] { 0.14, 90, 0.1, 600, 0.7, 0.28 } },
+            { "ghost", new[] { 0.9, 45, 0.6, 260, 0.9, 0.22 } },
+        };
+
+        /// <summary>"step:kind:n": the step at the n-th of StepVariants spreads between 0.85 and 1.15.</summary>
+        static double[] MakeStep(string key)
+        {
+            var parts = key.Split(':');
+            var p = StepSounds[parts[1]];
+            double gain = p[0], thudHz = p[1], thudMix = p[2], noiseHz = p[3], q = p[4], sec = p[5];
+            double vary = 0.85 + 0.3 * (int.Parse(parts[2]) + 0.5) / StepVariants;
+            var b = New(sec * 2);
+            // The body: a short sine that drops in pitch.
+            double body = gain * thudMix * vary;
+            Osc(b, Wave.Sine, Exp(thudHz * vary, thudHz * 0.6, 0, sec), t => t < 0.006 ? ExpAt(0.0001, body, 0, 0.006, t) : ExpAt(body, 0.0001, 0.006, sec * 1.6, t), 0, sec * 2);
+            // The tap: band-passed noise, like a shoe on old boards, driven harder for what the band-pass keeps.
+            double tap = gain * (1 - thudMix) * 1.6 * vary;
+            Noise(b, Filter.BandPass, Fixed(noiseHz * vary), q, t => t < 0.004 ? ExpAt(0.0001, tap, 0, 0.004, t) : ExpAt(tap, 0.0001, 0.004, sec, t), 0, sec + 0.05);
+            return b;
         }
 
         // ---------- The recipes (audio.ts taskSound) ----------
@@ -249,8 +403,16 @@ namespace Haunted.Game
                 case "beat":
                 {
                     // One heartbeat at full strength (audio.ts beat); the volume sets how hard it beats.
+                    // Muffled through a low-pass at HEARTBEAT_LOWPASS_HZ (Web Audio's default Q, 1 dB),
+                    // then shaped.
                     var b = New(0.3);
-                    Osc(b, Wave.Sine, Exp(52, 34, 0, 0.2), t => t < 0.025 ? ExpAt(0.0001, 1, 0, 0.025, t) : ExpAt(1, 0.0001, 0.025, 0.25, t), 0, 0.3);
+                    Osc(b, Wave.Sine, Exp(52, 34, 0, 0.2), t => 1, 0, 0.3);
+                    Biquad(b, Filter.LowPass, Fixed(110), Math.Pow(10, 1 / 20.0));
+                    for (int n = 0; n < b.Length; n++)
+                    {
+                        double t = n / (double)rate;
+                        b[n] *= t < 0.025 ? ExpAt(0.0001, 1, 0, 0.025, t) : ExpAt(1, 0.0001, 0.025, 0.25, t);
+                    }
                     return b;
                 }
                 case "pulse":
@@ -258,16 +420,6 @@ namespace Haunted.Game
                     // The hunt pulse (audio.ts): a deep 46 Hz sine whose loudness wobbles at 1.2 Hz; 5 s loops cleanly.
                     var b = New(5);
                     Osc(b, Wave.Sine, Fixed(46), t => 0.6 + 0.4 * Math.Sin(2 * Math.PI * 1.2 * t), 0, 5);
-                    return b;
-                }
-                case "ghostStep":
-                {
-                    // The ghost's heavy step (audio.ts step "ghost"): a deep thud and a dull scuff.
-                    const double Gain = 0.9, ThudHz = 45, ThudMix = 0.6, NoiseHz = 260, Q = 0.9, Seconds = 0.22;
-                    var b = New(Seconds * 2);
-                    Osc(b, Wave.Sine, Exp(ThudHz, ThudHz * 0.6, 0, Seconds), t => t < 0.006 ? ExpAt(0.0001, Gain * ThudMix, 0, 0.006, t) : ExpAt(Gain * ThudMix, 0.0001, 0.006, Seconds * 1.6, t), 0, Seconds * 2);
-                    double tap = Gain * (1 - ThudMix) * 1.6;
-                    Noise(b, Filter.BandPass, Fixed(NoiseHz), Q, t => t < 0.004 ? ExpAt(0.0001, tap, 0, 0.004, t) : ExpAt(tap, 0.0001, 0.004, Seconds, t), 0, Seconds + 0.05);
                     return b;
                 }
                 default:
@@ -283,7 +435,7 @@ namespace Haunted.Game
         // ---------- The parts ----------
 
         enum Wave { Sine, Triangle, Square, Saw }
-        enum Filter { None, BandPass, HighPass }
+        enum Filter { None, BandPass, HighPass, LowPass }
 
         static double[] New(double seconds) { return new double[(int)Math.Ceiling(seconds * rate)]; }
 
@@ -368,6 +520,7 @@ namespace Haunted.Game
                 double cos = Math.Cos(w0), alpha = Math.Sin(w0) / (2 * q);
                 double b0, b1, b2, a0 = 1 + alpha, a1 = -2 * cos, a2 = 1 - alpha;
                 if (filter == Filter.BandPass) { b0 = alpha; b1 = 0; b2 = -alpha; }
+                else if (filter == Filter.LowPass) { b0 = (1 - cos) / 2; b1 = 1 - cos; b2 = (1 - cos) / 2; }
                 else { b0 = (1 + cos) / 2; b1 = -(1 + cos); b2 = (1 + cos) / 2; }
                 double y = (b0 * x[n] + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2) / a0;
                 x2 = x1; x1 = x[n]; y2 = y1; y1 = y;

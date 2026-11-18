@@ -21,8 +21,8 @@ namespace Haunted.Game
         const int MaxSnapshots = 30;
         // audio.ts: the heartbeat is heard within this distance of the ghost; the hunt pulse's level.
         const double HeartbeatRangeM = 12, HuntPulseLevel = 0.14;
-        // footsteps.ts: the ghost's stride; game.ts: how near its steps or your heart give a subtitle.
-        const double GhostStrideM = 1.1, GhostCueM = 15;
+        // game.ts GHOST_CUE_M: how near its steps or your heart give a subtitle.
+        const double GhostCueM = 12;
         // wispsView.ts
         const float WispRadiusM = 0.12f, WispHeightM = 1.3f, WispLight = 1.2f, WispRangeM = 3, FollowPerSec = 12, BobM = 0.08f;
         // mysteryView.ts
@@ -60,8 +60,7 @@ namespace Haunted.Game
         AudioSource pulse;
         double silentUntil, nextBeatAt;
         bool hunting;
-        Vector3? lastStep;
-        double strideLeft;
+        readonly StepTracker steps = new StepTracker();
         readonly List<KeyValuePair<double, Action>> later = new List<KeyValuePair<double, Action>>();
 
         // The Wisps, the clues, the altar and the circle.
@@ -74,6 +73,12 @@ namespace Haunted.Game
 
         /// <summary>What you hear of the ghost, in words (GDD 23 subtitles), or null.</summary>
         public string Cue;
+        /// <summary>Where the cue comes from (an arrow points there), or null for none (your heart).</summary>
+        public Vector3? CueAt;
+        /// <summary>The pre-hunt silence is on (audio.ts silentUntil): no creaks, no distant steps.</summary>
+        public bool Silent { get { return silentUntil > 0; } }
+        /// <summary>A hunt is on (no distant steps then).</summary>
+        public bool Hunting { get { return hunting; } }
 
         public Haunting(WorldData world, MapInfo map, object config)
         {
@@ -163,8 +168,9 @@ namespace Haunted.Game
             DrawGhost(now);
             double distance = Known.HasValue ? Vector3.Distance(Known.Value, feet) : double.PositiveInfinity;
             UpdateSounds(now, dt, distance);
-            Cue = Shown && Vector3.Distance(ghost.position, feet) <= GhostCueM ? "Heavy footsteps"
-                : distance <= GhostCueM ? "Your heart pounds" : null;
+            bool heard = Shown && Vector3.Distance(ghost.position, feet) <= GhostCueM;
+            Cue = heard ? "Heavy footsteps" : distance <= GhostCueM ? "Your heart pounds" : null;
+            CueAt = heard ? ghost.position : (Vector3?)null;
             float k = Mathf.Min(1, FollowPerSec * dt);
             int n = 0;
             foreach (var kv in wisps)
@@ -237,20 +243,15 @@ namespace Haunted.Game
             if (pulse == null) pulse = TaskSounds.Loop("pulse");
             if (silentUntil > 0 && now >= silentUntil) { silentUntil = 0; TaskSounds.Level = 1; }
             // The pulse swells in slowly and fades out slower (audio.ts setTargetAtTime 0.4 s and 0.6 s).
-            float want = hunting && silentUntil == 0 ? (float)HuntPulseLevel : 0;
+            float want = hunting && silentUntil == 0 ? (float)HuntPulseLevel * TaskSounds.MasterLevel : 0;
             pulse.volume += (want - pulse.volume) * (1 - Mathf.Exp(-dt / (hunting ? 0.4f : 0.6f)));
-            // The ghost's heavy steps while it hunts, one every stride.
+            // The ghost's heavy steps while it hunts, one every stride (game.ts playFootsteps).
             if (Shown)
             {
                 var at = ghost.position;
-                if (lastStep.HasValue)
-                {
-                    strideLeft -= Vector3.Distance(at, lastStep.Value);
-                    if (strideLeft <= 0) { strideLeft = GhostStrideM; TaskSounds.PlayAt("ghostStep", at, 1.5f, 0); }
-                }
-                lastStep = at;
+                if (steps.Update(at.x, at.z, dt, "ghost")) TaskSounds.Step("ghost", at);
             }
-            else { lastStep = null; strideLeft = GhostStrideM; }
+            else steps.Reset();
             // Heartbeat: about 60 bpm at the edge of range, about 150 bpm right next to the ghost.
             if (silentUntil > 0 || distance > HeartbeatRangeM) return;
             double closeness = 1 - distance / HeartbeatRangeM;

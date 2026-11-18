@@ -285,4 +285,28 @@ namespace Haunted.Editor
             return Math.Max(w, h) > 1024 ? Haunted.Game.HauntedQuality.LargeTextures : "";
         }
     }
+
+    /// <summary>
+    /// The recorded sounds (step D4, copied by tools/engine-rooms.ts): kept as plain PCM at their
+    /// own rate, decoded when loaded, as the browser's decodeAudioData keeps them. Unity's default
+    /// (Vorbis) would change the quiet loops' level and give the loops a seam.
+    /// </summary>
+    public class HotelSounds : AssetPostprocessor
+    {
+        const string Sounds = "Assets/Hotel/Resources/Sounds/";
+
+        void OnPreprocessAudio()
+        {
+            if (!assetPath.StartsWith(Sounds, StringComparison.Ordinal)) return;
+            var importer = (AudioImporter)assetImporter;
+            importer.forceToMono = false;
+            importer.loadInBackground = false;
+            var settings = importer.defaultSampleSettings;
+            settings.loadType = AudioClipLoadType.DecompressOnLoad;
+            settings.compressionFormat = AudioCompressionFormat.PCM;
+            settings.sampleRateSetting = AudioSampleRateSetting.PreserveSampleRate;
+            settings.preloadAudioData = true;
+            importer.defaultSampleSettings = settings;
+        }
+    }
 }

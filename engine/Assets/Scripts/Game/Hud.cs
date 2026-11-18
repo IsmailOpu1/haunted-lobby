@@ -4,6 +4,14 @@ using UnityEngine;
 
 namespace Haunted.Game
 {
+    /// <summary>One sound subtitle (game.ts SoundCue): its words, the arrow's turn from straight ahead (radians, clockwise; none when null), and "above" or "below".</summary>
+    public struct SoundCue
+    {
+        public string Text;
+        public float? Angle;
+        public string Vertical;
+    }
+
     /// <summary>
     /// What the player sees on top of the 3D view during a night (step C1), with the browser's
     /// wording: the lobby, the countdown and role card, the night clock with its parts, the task
@@ -29,8 +37,11 @@ namespace Haunted.Game
         public bool ShowTasks;
         /// <summary>The Spirit Camera's viewfinder is up (key 2).</summary>
         public bool CameraRaised;
-        /// <summary>What you hear that matters, in words (GDD 23 subtitles): the relic's music box.</summary>
-        public string SoundCue;
+        /// <summary>
+        /// What you hear that matters, in words, each with an arrow toward it (GDD 23 subtitles;
+        /// game.ts updateWhereabouts): the relic's music box, the bell, a slammed door, the ghost.
+        /// </summary>
+        public readonly List<SoundCue> SoundCues = new List<SoundCue>();
         public double ScreenFlashUntil;
         /// <summary>While you work with your hands (GDD 26.5): how to, and how to stop; null otherwise.</summary>
         public string WorkHint;
@@ -57,6 +68,70 @@ namespace Haunted.Game
             big = new GUIStyle(label) { fontSize = 26, alignment = TextAnchor.MiddleCenter };
             title = new GUIStyle(label) { fontSize = 44, alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
             box = new GUIStyle(GUI.skin.box);
+        }
+
+        // style.css #sound-cues and .cue: a column of rows 22% up from the bottom, 6 px apart; each a
+        // panel (--panel) with 4 x 12 px padding, a 20 px arrow 8 px before 15 px text.
+        static readonly Color CuePanel = new Color(12 / 255f, 12 / 255f, 16 / 255f, 0.88f);
+        static Texture2D cueArrow;
+
+        /// <summary>The cue's arrow (main.ts's SVG polygon 0,-1.6 1.1,1.2 0,0.5 -1.1,1.2 in a 4 x 4 box), pointing up, smoothed.</summary>
+        static Texture2D CueArrow()
+        {
+            if (cueArrow != null) return cueArrow;
+            const int Size = 64, Samples = 4;
+            var pts = new[] { new Vector2(0, -1.6f), new Vector2(1.1f, 1.2f), new Vector2(0, 0.5f), new Vector2(-1.1f, 1.2f) };
+            var pixels = new Color32[Size * Size];
+            for (int y = 0; y < Size; y++)
+                for (int x = 0; x < Size; x++)
+                {
+                    int inside = 0;
+                    for (int sy = 0; sy < Samples; sy++)
+                        for (int sx = 0; sx < Samples; sx++)
+                        {
+                            var p = new Vector2(-2 + 4 * (x + (sx + 0.5f) / Samples) / Size, -2 + 4 * (y + (sy + 0.5f) / Samples) / Size);
+                            bool odd = false;
+                            for (int i = 0, j = pts.Length - 1; i < pts.Length; j = i++)
+                                if ((pts[i].y > p.y) != (pts[j].y > p.y) && p.x < (pts[j].x - pts[i].x) * (p.y - pts[i].y) / (pts[j].y - pts[i].y) + pts[i].x) odd = !odd;
+                            if (odd) inside++;
+                        }
+                    // Texture rows run bottom-up; the SVG's run top-down.
+                    pixels[(Size - 1 - y) * Size + x] = new Color32(0xf0, 0xec, 0xe4, (byte)(255 * inside / (Samples * Samples)));
+                }
+            cueArrow = new Texture2D(Size, Size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            cueArrow.SetPixels32(pixels);
+            cueArrow.Apply();
+            return cueArrow;
+        }
+
+        void DrawSoundCues()
+        {
+            var s = state();
+            if (SoundCues.Count == 0 || night.End != null || (s != null && !string.IsNullOrEmpty(s.meeting))) return;
+            const float Gap = 6, PadX = 12, PadY = 4, Arrow = 20, ArrowGap = 8;
+            var text = new GUIStyle(small) { wordWrap = false, alignment = TextAnchor.MiddleLeft, padding = new RectOffset(0, 0, 0, 0), margin = new RectOffset(0, 0, 0, 0) };
+            float rowH = Mathf.Max(Arrow, text.CalcSize(new GUIContent("Ag")).y) + PadY * 2;
+            float y = Screen.height * (1 - 0.22f) - SoundCues.Count * rowH - (SoundCues.Count - 1) * Gap;
+            foreach (var cue in SoundCues)
+            {
+                string words = cue.Vertical != null ? cue.Text + " (" + cue.Vertical + ")" : cue.Text;
+                float textW = text.CalcSize(new GUIContent(words)).x;
+                float w = PadX * 2 + textW + (cue.Angle.HasValue ? Arrow + ArrowGap : 0);
+                var row = new Rect(Screen.width / 2f - w / 2, y, w, rowH);
+                Fill(row, CuePanel);
+                float x = row.x + PadX;
+                if (cue.Angle.HasValue)
+                {
+                    var arrow = new Rect(x, row.y + (rowH - Arrow) / 2, Arrow, Arrow);
+                    var matrix = GUI.matrix;
+                    GUIUtility.RotateAroundPivot(cue.Angle.Value * Mathf.Rad2Deg, arrow.center);
+                    GUI.DrawTexture(arrow, CueArrow());
+                    GUI.matrix = matrix;
+                    x += Arrow + ArrowGap;
+                }
+                GUI.Label(new Rect(x, row.y, textW + 1, rowH), words, text);
+                y += rowH + Gap;
+            }
         }
 
         public static void Fill(Rect r, Color c)
@@ -214,8 +289,7 @@ namespace Haunted.Game
                     Fill(edge, new Color(1, 1, 1, 0.7f));
                 GUI.Label(new Rect(frame.x, frame.yMax + 8, frame.width, 30), "Click to take the photo · 2 to lower", new GUIStyle(label) { alignment = TextAnchor.UpperCenter });
             }
-            if (!string.IsNullOrEmpty(SoundCue))
-                GUI.Label(new Rect(Screen.width - 420, Screen.height - 40, 400, 30), "[" + SoundCue + "]", new GUIStyle(small) { alignment = TextAnchor.UpperRight });
+            DrawSoundCues();
 
             // The crosshair is your hand while you work, and your aim otherwise.
             if (Cursor.lockState == CursorLockMode.Locked) Fill(new Rect(Screen.width / 2f - 3, Screen.height / 2f - 3, 6, 6), new Color(1, 1, 1, 0.8f));

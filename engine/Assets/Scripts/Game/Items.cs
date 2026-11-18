@@ -315,7 +315,8 @@ namespace Haunted.Game
             source.transform.position = at.Value + Vector3.up * 0.8f;
             if (t < nextAt) return;
             double near = Math.Max(0, Math.Min(1, closeness));
-            source.volume = (float)((1 + NearGain * near) / (1 + NearGain));
+            // Through the master and the pre-hunt silence, as audio.ts relicWhisper.
+            source.volume = (float)((1 + NearGain * near) / (1 + NearGain)) * TaskSounds.Out;
             source.Play();
             nextAt = t + Phrase + GapFarSec - (GapFarSec - GapNearSec) * near;
         }

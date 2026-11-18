@@ -435,6 +435,20 @@ namespace Haunted.Game
             }
         }
 
+        /// <summary>
+        /// Each player in view as drawn this frame, for their footsteps (game.ts playFootsteps reads
+        /// remotes.views()): id, feet, crouching, health, hidden.
+        /// </summary>
+        public void ForEachWalker(Action<string, Vector3, bool, string, bool> walker)
+        {
+            foreach (var kv in views)
+            {
+                var v = kv.Value;
+                if (v.Snapshots.Count == 0) continue;
+                walker(kv.Key, v.Root.transform.position, v.Snapshots[v.Snapshots.Count - 1].Crouching, v.State.Health, !v.State.Visible);
+            }
+        }
+
         public void Update(double now, Camera camera)
         {
             double at = now - delaySec;

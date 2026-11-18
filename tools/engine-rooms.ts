@@ -11,11 +11,13 @@
 //   engine/Assets/Hotel/Characters/<name>.gltf the people (step D3): characters, low/ copies,
 //                                              anims, and the held torch in each hand
 //   engine/Assets/Hotel/texture-roles.json     which textures are normal maps or data (not colour)
+//   engine/Assets/Hotel/Resources/Sounds/      the recorded sounds (step D4): the ambience loops
+//                                              and the creaks, as the browser plays them
 // Unity then compresses the textures for the PC itself. The folder is made by this tool and never
-// committed (engine/.gitignore). Run: npx tsx tools/engine-rooms.ts [room file name ... | --models | --characters]
+// committed (engine/.gitignore). Run: npx tsx tools/engine-rooms.ts [room file name ... | --models | --characters | --sounds]
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { type Document, NodeIO, Primitive } from "@gltf-transform/core";
@@ -57,6 +59,11 @@ async function main() {
     await writeRoles(io);
     return;
   }
+  // --sounds: only the recorded sounds (step D4).
+  if (process.argv[2] === "--sounds") {
+    sounds();
+    return;
+  }
   // --models: only the models that are not rooms (quick, after a door or station rebuild).
   const modelsOnly = process.argv[2] === "--models";
   const only = modelsOnly ? [] : process.argv.slice(2);
@@ -78,6 +85,7 @@ async function main() {
     // Each door's style (the map dressing), for Unity's Doors as world.ts's DoorView reads it.
     const doors = Object.fromEntries(Object.values(dressings).map((d) => [d.mapId, d.doors ?? {}]));
     writeFileSync(join(OUT, "Models", "door-styles.json"), JSON.stringify(doors, null, 1));
+    sounds();
   }
   // The browser takes each build's reflections where its dressing says (one in the middle when it
   // says nothing: DressedRooms.add); Unity's copy of the list carries those spots too.
@@ -87,6 +95,19 @@ async function main() {
   }
   writeFileSync(join(OUT, "rooms.json"), JSON.stringify(all, null, 1));
   await writeRoles(io);
+}
+
+/**
+ * The recorded sounds (step D4): audio.ts's ambience loops and creaks, copied as they are (16-bit
+ * WAV) into Resources/Sounds, where Unity's game loads them by name (HouseSounds.cs).
+ */
+function sounds() {
+  const from = join(ASSETS, "sounds");
+  const dir = join(OUT, "Resources", "Sounds");
+  mkdirSync(dir, { recursive: true });
+  const files = readdirSync(from).filter((f) => f.endsWith(".wav"));
+  for (const f of files) copyFileSync(join(from, f), join(dir, f));
+  console.log(`sounds: ${files.length} files`);
 }
 
 /**

@@ -48,6 +48,18 @@ namespace Haunted.Game
         Stations stations;
         Doors doors;
         Haunting haunting;
+        HouseSounds house;
+        /// <summary>-soundTest DIR: the levels test (step D4).</summary>
+        SoundTest soundTest;
+        // game.ts BELL_CUE_SEC, SLAM_CUE_SEC and CUE_FLOOR_DIFF_M: how long the bell's and a slammed
+        // door's subtitles stay up, and how far above or below you a sound is on another floor.
+        const double BellCueSec = 4, SlamCueSec = 3;
+        const float CueFloorDiffM = 1.5f;
+        Vector3 bellCueAt, slamCueAt;
+        double bellCueUntil = -1, slamCueUntil = -1;
+        /// <summary>The nearest hidden relic within whisper range (its music box), and how far it is from your feet.</summary>
+        Vector3? whisperAt;
+        double whisperM;
         MeetingScreen meetingScreen;
         /// <summary>The possessed's power wheel (hold R): open, and where the mouse has moved since it opened.</summary>
         bool wheelOpen;
@@ -118,6 +130,7 @@ namespace Haunted.Game
             stations = new Stations(world, map, config, dressed != null ? dressed.Drawn : null, art);
             doors = new Doors(world, map, art, dressed);
             haunting = new Haunting(world, map, config);
+            house = new HouseSounds(config, Time.realtimeSinceStartupAsDouble);
             ReadCommandLine();
         }
 
@@ -265,6 +278,8 @@ namespace Haunted.Game
             if (arg("-bloomThreshold") != null) HauntedPost.ThresholdNow = float.Parse(arg("-bloomThreshold"), System.Globalization.CultureInfo.InvariantCulture);
             Shader.SetGlobalFloat("_HauntedHdrOut", Array.IndexOf(args, "-hdrOut") >= 0 ? 1 : 0);
             if (arg("-exposure") != null) HauntedPost.ExposureScale = float.Parse(arg("-exposure"), System.Globalization.CultureInfo.InvariantCulture);
+            if (arg("-soundTest") != null) soundTest = new SoundTest(arg("-soundTest"));
+            if (arg("-recordSound") != null) soundTest = new SoundTest(arg("-recordSound"), true);
             if (arg("-roomShots") != null)
             {
                 // The room-by-room picture test (RoomTour): no server, no HUD.
@@ -469,6 +484,7 @@ namespace Haunted.Game
                 var feet = me.Camera.transform.position - Vector3.up * (float)Json.Num(Json.Obj(config, "movement"), "eyeHeightM");
                 if (beam == null) beam = new BeamAdaptation(dressed?.Root);
                 float flicker = haunting.Update(now, Time.deltaTime, feet, me.Camera);
+                PlaySounds(now, Time.deltaTime);
                 me.Brightness = flicker * beam.Update(Time.deltaTime, me.Camera);
                 // game.ts: the torch in your hand, not while working a task, holding up the camera, or as a Wisp.
                 var mine = night.Me;
@@ -483,8 +499,7 @@ namespace Haunted.Game
                 others.Update(now, me.Camera);
                 hud.Prompt = night.PromptAt(me.State.X, me.State.Z);
                 UpdateItems(now);
-                // The ghost's cue matters more than the music box's.
-                if (haunting.Cue != null) hud.SoundCue = haunting.Cue;
+                UpdateCues(now);
                 hud.WheelOpen = wheelOpen;
                 hud.WheelSelected = wheelOpen ? PowerHud.Pick(wheelMouse) : null;
                 if (voice != null)
@@ -605,8 +620,9 @@ namespace Haunted.Game
             {
                 var at = Coords.Place(world, x, z);
                 // audio.ts: where each is heard from, and how far it carries.
-                if (kind == "bellRing") TaskSounds.PlayAt("bell", at, 4, 1);
-                else if (kind == "doorSlam") TaskSounds.PlayAt("slam", at, 6, 1);
+                double t = Time.realtimeSinceStartupAsDouble;
+                if (kind == "bellRing") { TaskSounds.PlayAt("bell", at, 4, 1); bellCueAt = at; bellCueUntil = t + BellCueSec; }
+                else if (kind == "doorSlam") { TaskSounds.PlayAt("slam", at, 6, 1); slamCueAt = at; slamCueUntil = t + SlamCueSec; }
                 else if (kind == "powerWhisper") TaskSounds.PlayAt("whisper", at, 1, 1.5f);
                 else TaskSounds.PlayAt("thud", at);
                 Debug.Log("Heard " + kind + " at " + x.ToString("0.0", CultureInfo.InvariantCulture) + ", " + z.ToString("0.0", CultureInfo.InvariantCulture));
@@ -784,6 +800,69 @@ namespace Haunted.Game
         }
 
         /// <summary>
+        /// The house's sounds each frame (HouseSounds): the ambience and creaks round your ears, and
+        /// the footsteps, yours and others' (game.ts playFootsteps).
+        /// </summary>
+        void PlaySounds(double now, float dt)
+        {
+            var ears = me.Camera.transform;
+            TaskSounds.Ears = ears;
+            house.Update(now, dt, ears.position, haunting.Silent, haunting.Hunting);
+            var mine = night.Me;
+            bool walking = mine != null && mine.health != "dead" && string.IsNullOrEmpty(mine.hidingSpot);
+            house.MySteps(dt, ears.position, walking, me.State.Crouching, mine != null && mine.health == "downed");
+            others.ForEachWalker((id, feet, crouching, health, hidden) => house.TheirSteps(id, dt, feet, crouching, health, hidden));
+            house.KeepOnly(others.Ids);
+            if (soundTest != null && (now > 10 || soundTest.RecordOnly)) soundTest.Frame(now, ears, house);
+        }
+
+        /// <summary>
+        /// The sound subtitles (game.ts updateWhereabouts): the music box, the bell, a slammed door,
+        /// then the ghost, each with an arrow toward it and "above" or "below" on another floor.
+        /// </summary>
+        void UpdateCues(double now)
+        {
+            hud.SoundCues.Clear();
+            var ears = me.Camera.transform;
+            float floor = Coords.Place(world, me.State.X, me.State.Z).y;
+            if (whisperAt.HasValue)
+            {
+                var search = Json.Obj(Json.Obj(config, "relics"), "search");
+                double close = Json.Num(search, "closeM");
+                string text = whisperM <= Json.Num(search, "veryCloseM") ? "A music box plays, very close"
+                    : whisperM <= close ? "A music box plays close by" : "A faint music box";
+                var cue = Cue(text, whisperAt.Value, ears, floor);
+                // From afar a rough arrow (eight ways) points the way; up close there is none, so you
+                // must listen and search (GDD 26.5).
+                const float Eighth = Mathf.PI / 4;
+                cue.Angle = whisperM <= close ? (float?)null : Mathf.Round(cue.Angle.Value / Eighth) * Eighth;
+                hud.SoundCues.Add(cue);
+            }
+            if (now < bellCueUntil) hud.SoundCues.Add(Cue("The bell rings", bellCueAt, ears, floor));
+            if (now < slamCueUntil) hud.SoundCues.Add(Cue("A door slams", slamCueAt, ears, floor));
+            // While it hunts you hear its heavy steps from where it is; otherwise only your heart tells you it is close.
+            if (haunting.Cue != null)
+                hud.SoundCues.Add(haunting.CueAt.HasValue ? Cue(haunting.Cue, haunting.CueAt.Value, ears, floor) : new SoundCue { Text = haunting.Cue });
+        }
+
+        /// <summary>cues.ts directionTo: the turn from where you look to the sound (clockwise), and whether it is on another floor.</summary>
+        static SoundCue Cue(string text, Vector3 at, Transform ears, float floor)
+        {
+            var ahead = ears.forward;
+            ahead.y = 0;
+            ahead.Normalize();
+            var right = Vector3.Cross(Vector3.up, ahead);
+            var d = at - ears.position;
+            float dy = at.y - floor;
+            return new SoundCue
+            {
+                Text = text,
+                Angle = Mathf.Atan2(Vector3.Dot(d, right), Vector3.Dot(d, ahead)),
+                Vertical = dy > CueFloorDiffM ? "above" : dy < -CueFloorDiffM ? "below" : null,
+            };
+        }
+
+        /// <summary>
         /// Items each frame: dropped relics, flashes, and the music box of the nearest hidden relic
         /// within whisper range (client/src/game.ts nearestHiddenRelic and whisperCue).
         /// </summary>
@@ -803,10 +882,8 @@ namespace Haunted.Game
                 if (d <= best) { best = d; whisper = at; }
             }
             items.Update(now, whisper, whisper.HasValue ? 1 - best / Json.Num(relics, "whisperM") : 0);
-            hud.SoundCue = !whisper.HasValue ? null
-                : best <= Json.Num(search, "veryCloseM") ? "A music box plays, very close"
-                : best <= Json.Num(search, "closeM") ? "A music box plays close by"
-                : "A faint music box";
+            whisperAt = whisper;
+            whisperM = best;
             hud.ScreenFlashUntil = items.ScreenFlashUntil;
             var mine = night.Me;
             if (mine == null || mine.cameraShots <= 0 || mine.health != "alive") hud.CameraRaised = false;
@@ -892,7 +969,7 @@ namespace Haunted.Game
                 {
                     if (now - nightSince < nightShots[i].Key) continue;
                     ScreenCapture.CaptureScreenshot(nightShots[i].Value);
-                    Debug.Log("Screenshot " + nightShots[i].Value + " (prompt: " + hud.Prompt + ", cue: " + hud.SoundCue + ")");
+                    Debug.Log("Screenshot " + nightShots[i].Value + " (prompt: " + hud.Prompt + ", cues: " + string.Join(" | ", hud.SoundCues.Select(c => c.Text + (c.Angle.HasValue ? " @" + (c.Angle.Value * Mathf.Rad2Deg).ToString("0", CultureInfo.InvariantCulture) : "") + (c.Vertical != null ? " " + c.Vertical : ""))) + ")");
                     nightShots.RemoveAt(i);
                 }
             }

@@ -303,3 +303,41 @@ Left for D2:
    - The bodies, within 1 to 6 levels, as the wall behind them (−3).
    - Poses and timing match, as does Low (with its Low copies) against High.
 7. **Test aids kept:** `-heldTest <character>` (the hand alone, straight ahead, as the browser's held scene) and `-cast Rafi=detective,...` (draw players as these characters, to set beside a browser night that was dealt otherwise).
+
+### Step D4: sound (2026-11-18)
+
+1. **The recordings come across.** `npx tsx tools/engine-rooms.ts --sounds` (and every full run) copies the browser's room tone, rumble, wind and five creaks to `engine/Assets/Hotel/Resources/Sounds`. `HotelImport.HotelSounds` keeps them as plain PCM at their own rate, decoded on load, as the browser's decodeAudioData does. Unity's default (Vorbis) would change the quiet loops' level and put a seam in the loops.
+2. **The house** (`HouseSounds.cs`, as audio.ts):
+   - The three loops at the browser's gains (0.05, 0.05, 0.035), each from a random point, fading in over 4 s, and dropping out with everything else in the pre-hunt silence (gliding as the browser's master gain does).
+   - A creak every 12 to 35 s, 3 to 9 m from your ears, gain 0.25 to 0.55, rate 0.85 to 1.12, never in the silence.
+   - A few distant steps every 30 to 60 s, 10 to 16 m away, never in a hunt or the silence.
+3. **Footsteps**, the game's real background, were missing from Unity until now.
+   - Yours, in your ears, and others' from where they are drawn (`Footsteps.cs`, as footsteps.ts: one step per stride, walk, run, crouch or crawl from speed and state, none while hidden or dead).
+   - The ghost's steps use the same tracker now.
+   - The sounds are audio.ts's recipes (`TaskSounds.MakeStep`): a falling sine and a band-passed tap, each step a little different (nine clips per kind, the browser's 0.85 to 1.15 spread).
+4. **3D steps through the browser's own HRTF** (`HrtfSteps.cs`). The browser places steps with Web Audio's HRTF panner; Unity has none, and its left-right panning made other people's and the ghost's steps 12 to 17 dB quieter than the browser's.
+   - `tools/engine-hrtf.js`, run in the dev client's console, takes the panner's response from 1,368 directions at 48 kHz (every 5° round, every 7.5° from −45° to 90° up) into `Resources/Data/hrtf.bytes`.
+   - Each step is convolved with the response for where it is (the four nearest, blended) and played at the panner's distance gain (inverse from 1.5 m, factor 1.3).
+   - The browser's listener faces where you look round, never up or down, and so does this.
+5. **Fixes found by measuring:**
+   - **The master level.** Every game sound goes through audio.ts's master gain of 0.8 in the browser; Unity had none (all 25% loud). `TaskSounds.MasterLevel` now applies to everything but the voices, the music box included.
+   - **Mono in both ears.** Unity plays a mono clip in 2D at −3 dB on each side; the browser plays it at full level in both. The sounds in your ears (ambience, your steps, task sounds, the heartbeat, the hunt pulse) are now given to Unity as two channels.
+   - **The start of a sound.** Unity fades every voice in over its first ~64 samples, which ate a third of a tick (its loudness is in its first millisecond). Each made sound now starts with 5 ms of silence.
+   - **The heartbeat** goes through a 110 Hz low-pass in the browser (Web Audio's default Q of 1 dB lifts 34 to 52 Hz a little); Unity's had none.
+   - Unity's placed sounds used Web Audio's inverse distance model with factor 1 only; it takes the factor now (steps 1.3).
+   - The ghost's subtitle range was 15 m in Unity; game.ts's is 12.
+6. **Subtitles** (`Hud.SoundCues`, as game.ts updateWhereabouts and main.ts):
+   - All of them at once now, in the browser's order: the music box, the bell (4 s), a slammed door (3 s), the ghost ("Heavy footsteps" while it hunts near you, "Your heart pounds" otherwise).
+   - Each has its arrow (cues.ts directionTo; the music box's in eight steps and none up close) and "(above)" or "(below)" on another floor.
+   - They sit where the browser puts them (a column 22% up from the bottom), and are hidden in meetings and at the end.
+   - The ambience and creaks have none in the browser either.
+7. **The test**, a fixed list played in both and recorded as it leaves each (`-soundTest DIR`, and the same list from the browser console).
+   - The list: 12 s of ambience, then alone and 2 s apart, your walk, run and crouch steps; others' steps 3 m ahead, 3 m right and 8 m ahead; the ghost 5 m ahead; three creaks; the bell; a tick; a heartbeat.
+   - Against the browser at 48 kHz, every sound is within 0.5 dB on each side, except steps at up to ±1.3 dB, from their random noise.
+   - **This PC's sound runs at 192 kHz.** At that rate Chrome's HRTF is about 10 dB louder than at 48 kHz (a Chrome quirk; a 48 kHz offline render shows the panner's true levels), so the browser's steps are louder here than on most computers. Unity follows the 48 kHz levels.
+8. **Heard in a night** (`-recordSound DIR`, the C4 bots: a Summon, a hunt, a slammed door, a bot bleeding out), 150 s:
+   - The ambience held at about −44 dB, under everything else.
+   - Four creaks and three sets of distant steps came at the browser's spacing.
+   - The hunt's silence, sting and heavy steps played, with "Heavy footsteps" behind you and "A door slams" with its arrow (`step-d/d4-door-slam-cue.png`).
+9. **Found, not from D4:** the Windows build crashes (segmentation fault) as it quits after a night with bots. The D3 build does the same. A plain quit from the lobby is clean.
+10. **Test aids kept:** `-soundTest DIR` (the list above, written to `unity-sound.wav` and `.txt`, then quits), `-recordSound DIR` (the whole run, `night-sound.wav`).
