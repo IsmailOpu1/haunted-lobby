@@ -19,6 +19,9 @@ namespace Haunted.Game
         const float RelicSizeM = 0.2f, RelicHeightM = 0.18f, BobM = 0.04f, BobPerSec = 2.2f, RelicGlowRangeM = 2.5f;
         // items.ts flashAt: PointLight(white, 60, flashVisibleM, decay 1.5) for 0.15 s; three's lights are π brighter than Unity's.
         const float FlashIntensity = 60 / Mathf.PI, FlashSec = 0.15f, FlashDecay = 1.5f;
+        // Photosensitivity mode (items.ts): someone's flash is a soft glow that swells and fades over
+        // this long, at this share of the flash's brightness (GDD 23).
+        const float GentleFlashSec = 1.2f, GentleFlashShare = 0.3f;
         static readonly Color SaltColor = new Color32(0xf2, 0xef, 0xe6, 0xff);
         static readonly Color RelicColor = new Color32(0xe0, 0xb2, 0x4a, 0xff);
 
@@ -29,10 +32,12 @@ namespace Haunted.Game
         readonly Dictionary<string, GameObject> jars = new Dictionary<string, GameObject>();
         readonly Dictionary<string, GameObject> lines = new Dictionary<string, GameObject>();
         readonly Dictionary<string, GameObject> relics = new Dictionary<string, GameObject>();
-        readonly List<KeyValuePair<Light, double>> flashes = new List<KeyValuePair<Light, double>>();
+        class LitFlash { public Light Light; public double Start, End; public bool Gentle; }
+        readonly List<LitFlash> flashes = new List<LitFlash>();
         readonly MusicBox musicBox;
-        /// <summary>Your own photo: the screen goes white until then.</summary>
-        public double ScreenFlashUntil;
+        /// <summary>Your own photo: when the screen flashed, and whether softly (photosensitivity mode).</summary>
+        public double ScreenFlashAt = double.NegativeInfinity;
+        public bool ScreenFlashGentle;
 
         public Items(WorldData world, MapInfo map, object config, Material baseMaterial)
         {
@@ -204,15 +209,16 @@ namespace Haunted.Game
         public void Flash(bool mine, double x, double z)
         {
             double now = Time.realtimeSinceStartupAsDouble;
-            if (mine) { ScreenFlashUntil = now + FlashSec * 2; return; }
+            bool gentle = Options.Photosensitive;
+            if (mine) { ScreenFlashAt = now; ScreenFlashGentle = gentle; return; }
             var light = new GameObject("Flash").AddComponent<Light>();
             light.type = LightType.Point;
-            light.intensity = FlashIntensity;
+            light.intensity = gentle ? 0 : FlashIntensity;
             light.range = (float)Json.Num(Json.Obj(config, "camera"), "flashVisibleM");
             light.transform.position = Coords.Place(world, x, z) + Vector3.up * 1.6f;
             light.shadows = LightShadows.None;
             UnityEngine.Rendering.Universal.HauntedLightDecay.Set(light, FlashDecay);
-            flashes.Add(new KeyValuePair<Light, double>(light, now + FlashSec));
+            flashes.Add(new LitFlash { Light = light, Start = now, End = now + (gentle ? GentleFlashSec : FlashSec), Gentle = gentle });
         }
 
         /// <summary>Every frame: bob the relics, end flashes, and play the nearest hidden relic's music box.</summary>
@@ -226,8 +232,13 @@ namespace Haunted.Game
             }
             for (int i = flashes.Count - 1; i >= 0; i--)
             {
-                if (now < flashes[i].Value) continue;
-                UnityEngine.Object.Destroy(flashes[i].Key.gameObject);
+                var f = flashes[i];
+                if (now < f.End)
+                {
+                    if (f.Gentle) f.Light.intensity = FlashIntensity * GentleFlashShare * Mathf.Sin(Mathf.PI * (float)((now - f.Start) / GentleFlashSec));
+                    continue;
+                }
+                UnityEngine.Object.Destroy(f.Light.gameObject);
                 flashes.RemoveAt(i);
             }
             musicBox.Update(whisperAt, closeness);

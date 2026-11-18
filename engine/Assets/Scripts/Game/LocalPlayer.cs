@@ -15,9 +15,10 @@ namespace Haunted.Game
     {
         // The browser version's view (client/src/input.ts and game.ts).
         const double DegPerCountPerSensitivity = 0.022;
-        public double Sensitivity = 2.5;
+        public double Sensitivity = Options.DefaultSensitivity;
         const double MaxPitch = Mathf.PI / 2 - 0.05;
-        const float HorizontalFovDeg = 90;
+        /// <summary>Field of view, side to side, in degrees (Options).</summary>
+        public float HorizontalFovDeg = Options.DefaultFov;
         const float MaxVerticalFovDeg = 75;
         const float CorrectionFadePerSec = 20;
         const float SnapDistanceM = 2;
@@ -161,10 +162,11 @@ namespace Haunted.Game
             var k = Keyboard.current;
             var input = new MoveInput { Yaw = Yaw, Pitch = Pitch };
             if (k == null || Working) return input;
-            input.Forward = (k.wKey.isPressed ? 1 : 0) - (k.sKey.isPressed ? 1 : 0);
-            input.Right = (k.dKey.isPressed ? 1 : 0) - (k.aKey.isPressed ? 1 : 0);
-            input.Run = k.leftShiftKey.isPressed;
-            input.Crouch = k.leftCtrlKey.isPressed || k.cKey.isPressed;
+            // The bound keys (Options, keys.ts), as input.ts movement().
+            input.Forward = (KeyInput.Held("forward") ? 1 : 0) - (KeyInput.Held("back") ? 1 : 0);
+            input.Right = (KeyInput.Held("right") ? 1 : 0) - (KeyInput.Held("left") ? 1 : 0);
+            input.Run = KeyInput.Held("run");
+            input.Crouch = KeyInput.Held("crouch");
             return input;
         }
 
@@ -192,6 +194,17 @@ namespace Haunted.Game
             UpdateCamera(dt);
         }
 
+        float shakeLeft, shakeSec, shakeRad;
+
+        /// <summary>Shakes the view for a moment (game.ts shakeView), scaled by Options' screen shake.</summary>
+        public void Shake(float seconds, float strengthRad)
+        {
+            if (Options.Shake <= 0) return;
+            shakeSec = seconds;
+            shakeLeft = seconds;
+            shakeRad = strengthRad * Options.Shake / 100f;
+        }
+
         void UpdateCamera(float dt)
         {
             float alpha = (float)(accumulator / simDt);
@@ -203,6 +216,16 @@ namespace Haunted.Game
             eyeNow = Mathf.MoveTowards(eyeNow, wantEye, 4 * dt);
             Camera.transform.position = Vector3.Lerp(a, b, alpha) + correction + Vector3.up * eyeNow;
             Camera.transform.rotation = Coords.Look(Yaw, Pitch);
+            if (shakeLeft > 0)
+            {
+                // game.ts: the view trembles for a moment, fading out (scaled by the Options slider).
+                shakeLeft = Mathf.Max(0, shakeLeft - dt);
+                float t = Time.realtimeSinceStartup;
+                float fade = shakeLeft / shakeSec * shakeRad;
+                // three's rotation.x is pitch (up is +), .y yaw (left is +), .z roll; Coords.Look turns the same way.
+                Camera.transform.rotation = Coords.Look(Yaw + Mathf.Sin(t * 39 + 1.3f) * fade, Pitch + Mathf.Sin(t * 47) * fade)
+                    * Quaternion.AngleAxis(Mathf.Sin(t * 31 + 2.1f) * fade * 0.5f * Mathf.Rad2Deg, Vector3.forward);
+            }
             float aspect = Camera.aspect;
             float upDown = 2 * Mathf.Atan(Mathf.Tan(HorizontalFovDeg * Mathf.Deg2Rad / 2) / aspect) * Mathf.Rad2Deg;
             float fov = Mathf.Min(MaxVerticalFovDeg, upDown) * (Working ? WorkZoom : 1);

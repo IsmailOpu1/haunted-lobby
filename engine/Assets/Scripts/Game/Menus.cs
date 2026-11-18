@@ -28,8 +28,7 @@ namespace Haunted.Game
         TextField createName, joinName, joinCode;
         VisualElement photoWarning;
 
-        const float ManropeLine = (2132f + 600f) / 2000f;
-        static readonly string[] Upper ={ "eyebrow", "field-name", "back", "photo-warning-title" };
+        static readonly string[] Upper ={ "eyebrow", "field-name", "back", "photo-warning-title", "group-title", "range-name" };
 
         public Menus(object config)
         {
@@ -55,6 +54,7 @@ namespace Haunted.Game
             BuildStart();
             BuildCreate();
             BuildJoin();
+            BuildOptions();
             string name = PlayerPrefs.GetString("playerName", "");
             createName.value = joinName.value = name;
             Reset("start");
@@ -71,6 +71,7 @@ namespace Haunted.Game
             // Gaps once the columns are laid out (a panel's scheduler skips what was built before
             // it joined the panel).
             if (regapDue) { regapDue = false; RegapAll(); }
+            PollKeys();
         }
 
         void Resize()
@@ -89,12 +90,46 @@ namespace Haunted.Game
         /// <summary>Shows the menus or hides them all (once in a room, until step E3's room screen).</summary>
         public bool Visible
         {
-            get => root.style.display != DisplayStyle.None;
+            get => visible;
             set
             {
-                root.style.display = value ? DisplayStyle.Flex : DisplayStyle.None;
-                HauntedUi.Texture = value ? panel.targetTexture : null;
+                visible = value;
+                if (!value) StopListening();
+                if (!value && qualityList != null) qualityList.style.display = DisplayStyle.None;
+                foreach (var kv in screens) kv.Value.style.display = value && kv.Key == shown ? DisplayStyle.Flex : DisplayStyle.None;
+                ShowPanel();
             }
+        }
+
+        bool visible;
+        Label fps;
+
+        /// <summary>
+        /// The FPS counter (game.ts setFps, style.css #fps): over the night and the menus alike, or
+        /// null to take it away.
+        /// </summary>
+        public string Fps
+        {
+            set
+            {
+                if (fps == null)
+                {
+                    fps = new Label { pickingMode = PickingMode.Ignore };
+                    fps.AddToClassList("fps");
+                    root.Add(fps);
+                }
+                fps.text = value ?? "";
+                fps.style.display = value != null ? DisplayStyle.Flex : DisplayStyle.None;
+                fps.BringToFront();
+                ShowPanel();
+            }
+        }
+
+        /// <summary>The panel is laid over the picture while a screen or the counter is up.</summary>
+        void ShowPanel()
+        {
+            bool any = visible || fps != null && fps.style.display == DisplayStyle.Flex;
+            HauntedUi.Texture = any ? panel.targetTexture : null;
         }
 
         /// <summary>Opens a screen as a new step (Back returns from it).</summary>
@@ -142,7 +177,10 @@ namespace Haunted.Game
         {
             if (!screens.ContainsKey(name)) name = "start";
             shown = name;
-            foreach (var kv in screens) kv.Value.style.display = kv.Key == name ? DisplayStyle.Flex : DisplayStyle.None;
+            StopListening();
+            if (qualityList != null) qualityList.style.display = DisplayStyle.None;
+            foreach (var kv in screens) kv.Value.style.display = visible && kv.Key == name ? DisplayStyle.Flex : DisplayStyle.None;
+            if (name == "options") foreach (var view in optionViews) view();
             var screen = screens[name];
             var body = screen.Q<ScrollView>(className: "screen-body");
             if (body != null) body.scrollOffset = Vector2.zero;
@@ -219,21 +257,36 @@ namespace Haunted.Game
             label.text = lineHeight > 0 && words != "" ? "<line-height=" + lineHeight.ToString(System.Globalization.CultureInfo.InvariantCulture) + "px>" + words : words;
             if (lineHeight > 0)
             {
-                // The line-height tag spaces the lines after the first; the browser also centres the
-                // first line in its line box, so half the leading goes above and below (Manrope's
-                // ascent plus descent is 1.366 of its size).
-                EventCallback<GeometryChangedEvent> lead = null;
-                lead = _ =>
-                {
-                    label.UnregisterCallback(lead);
-                    float half = Mathf.Max(0, (lineHeight - ManropeLine * label.resolvedStyle.fontSize) / 2);
-                    label.style.paddingTop = half;
-                    label.style.paddingBottom = half;
-                };
-                label.RegisterCallback(lead);
+                label.userData = lineHeight;
+                label.RegisterCallback<GeometryChangedEvent>(_ => Lead(label));
             }
             parent.Add(label);
             return label;
+        }
+
+        /// <summary>
+        /// The browser's line boxes: the line-height tag spaces the lines after the first, and the
+        /// label is made as tall as its lines at the browser's line height, with the text centred in
+        /// it, so the first line sits in the middle of its line box as in CSS (Unity's own first line
+        /// is about 1.47 of the font size, taller than some of the browser's line heights).
+        /// </summary>
+        static void Lead(Label label)
+        {
+            if (!(label.userData is float lineHeight)) return;
+            float w = label.contentRect.width;
+            if (float.IsNaN(w) || w <= 0) return;
+            float h = 0;
+            if (label.text != "")
+            {
+                float first = label.MeasureTextSize("X", 0, VisualElement.MeasureMode.Undefined, 0, VisualElement.MeasureMode.Undefined).y;
+                float whole = label.MeasureTextSize(label.text, w, VisualElement.MeasureMode.Exactly, 0, VisualElement.MeasureMode.Undefined).y;
+                h = Mathf.Max(1, Mathf.RoundToInt((whole - first) / lineHeight) + 1) * lineHeight;
+            }
+            if (label.style.height != h) label.style.height = h;
+            var align = label.resolvedStyle.unityTextAlign;
+            var middle = align == TextAnchor.UpperCenter || align == TextAnchor.MiddleCenter || align == TextAnchor.LowerCenter ? TextAnchor.MiddleCenter
+                : align == TextAnchor.UpperRight || align == TextAnchor.MiddleRight || align == TextAnchor.LowerRight ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft;
+            if (align != middle) label.style.unityTextAlign = middle;
         }
 
         /// <summary>A column's parts with the browser's gap between them (USS has no gap).</summary>
@@ -359,7 +412,7 @@ namespace Haunted.Game
             Quiet(buttons, "Continue", () => AnswerWarning(false), true);
             photoWarning.Add(buttons);
             col.Add(photoWarning);
-            if (PlayerPrefs.HasKey("photoWarningSeen")) photoWarning.style.display = DisplayStyle.None;
+            if (Options.PhotoWarningSeen) photoWarning.style.display = DisplayStyle.None;
 
             Error(col, "start");
             // The browser's line begins "No accounts, no downloads."; this version is a download.
@@ -371,13 +424,52 @@ namespace Haunted.Game
         public Vector2? ScreenPoint(string text)
         {
             string Plain(string t) => System.Text.RegularExpressions.Regex.Replace(System.Text.RegularExpressions.Regex.Replace(t ?? "", "<[^>]+>", ""), @"\s+", " ").Trim();
-            var e = screens[shown].Query<VisualElement>().Where(v => v.resolvedStyle.display != DisplayStyle.None &&
-                (v is Label l && Plain(l.text) == Plain(text) || v is Button b && Plain(b.text) == Plain(text))).First();
+            Func<VisualElement, bool> match = v => v.resolvedStyle.display != DisplayStyle.None &&
+                (v is Label l && Plain(l.text) == Plain(text) || v is Button b && Plain(b.text) == Plain(text));
+            var e = screens[shown].Query<VisualElement>().Where(match).First();
+            // The open quality list lies over the screen, outside it.
+            if (e == null && qualityList != null && qualityList.style.display == DisplayStyle.Flex)
+            {
+                var c2 = qualityList.Query<VisualElement>().Where(match).First()?.worldBound.center;
+                return c2.HasValue ? new Vector2(c2.Value.x, UnityEngine.Screen.height - c2.Value.y) : (Vector2?)null;
+            }
             if (e == null) return null;
             // Below the fold (the warning at 720 lines): scrolled to, as a player would.
             screens[shown].Q<ScrollView>(className: "screen-body")?.ScrollTo(e);
             var c = e.worldBound.center;
             return new Vector2(c.x, UnityEngine.Screen.height - c.y);
+        }
+
+        /// <summary>Tests: a point a share f along the shown screen's slider number i, in screen pixels (y up).</summary>
+        public Vector2 RangePoint(int i, float f)
+        {
+            var slider = screens[shown].Query<VisualElement>(className: "range").ToList()[i];
+            screens[shown].Q<ScrollView>(className: "screen-body")?.ScrollTo(slider);
+            var r = slider.worldBound;
+            return new Vector2(r.x + 8 + f * (r.width - 16), UnityEngine.Screen.height - r.center.y);
+        }
+
+        /// <summary>Tests: widths of a few letter pairs and of each letter alone, to see whether pairs are kerned.</summary>
+        public string KerningLog()
+        {
+            // A laid-out paragraph on the shown screen (a fresh label has no style yet to measure with).
+            var l = screens[shown].Query<Label>(className: "muted-line").First();
+            if (l == null) return "Kerning: no paragraph on this screen";
+            var sb = new System.Text.StringBuilder("Kerning:");
+            foreach (var pair in new[] { "AV", "To", "Te", "yo", "ty", "LT" })
+            {
+                float Width(string t) => l.MeasureTextSize(t, 0, VisualElement.MeasureMode.Undefined, 0, VisualElement.MeasureMode.Undefined).x;
+                sb.Append(" " + pair + " " + Width(pair).ToString("0.00") + " vs " + (Width(pair.Substring(0, 1)) + Width(pair.Substring(1))).ToString("0.00"));
+            }
+            sb.Append(" | line \"default). From Valorant, multiply yours by 3.18.\" " + l.MeasureTextSize("default). From Valorant, multiply yours by 3.18.", 0, VisualElement.MeasureMode.Undefined, 0, VisualElement.MeasureMode.Undefined).x.ToString("0.00"));
+            return sb.ToString();
+        }
+
+        /// <summary>Tests: the shown screen scrolled as far down as it goes.</summary>
+        public void ScrollToEnd()
+        {
+            var body = screens[shown].Q<ScrollView>(className: "screen-body");
+            if (body != null) body.scrollOffset = new Vector2(0, body.contentContainer.layout.height);
         }
 
         /// <summary>Tests: the centre of the shown screen's field number i, in screen pixels (y up).</summary>
@@ -422,10 +514,11 @@ namespace Haunted.Game
             bool first = true;
             screens[shown].Query<VisualElement>().ForEach(e =>
             {
-                if (!(e is Label || e is TextField || e is Button) || e.resolvedStyle.display == DisplayStyle.None) return;
+                bool box = e.ClassListContains("range") || e.ClassListContains("group") || e.ClassListContains("field") || e.ClassListContains("setting") || e.ClassListContains("key-row") || e.ClassListContains("check");
+                if (!(e is Label || e is TextField || e is Button || box) || e.resolvedStyle.display == DisplayStyle.None) return;
                 var r = e.worldBound;
                 if (r.width <= 0 || r.height <= 0) return;
-                string text = e is Label l ? System.Text.RegularExpressions.Regex.Replace(l.text, "<[^>]+>", "") : e is TextField f ? f.value : ((Button)e).text;
+                string text = e is Label l ? System.Text.RegularExpressions.Regex.Replace(l.text, "<[^>]+>", "") : e is TextField f ? f.value : e is Button bt ? bt.text : "";
                 string cls = string.Join(".", e.GetClasses());
                 if (!first) sb.Append(",\n");
                 first = false;
@@ -437,9 +530,8 @@ namespace Haunted.Game
 
         void AnswerWarning(bool on)
         {
-            if (on) PlayerPrefs.SetInt("photosensitive", 1);
-            PlayerPrefs.SetString("photoWarningSeen", "1");
-            PlayerPrefs.Save();
+            if (on) { Options.Photosensitive = true; Options.Notify(); }
+            Options.PhotoWarningSeen = true;
             photoWarning.style.display = DisplayStyle.None;
             RegapAll();
         }
@@ -469,6 +561,419 @@ namespace Haunted.Game
             Error(col, "create");
             Gap(col, 16);
             OnEnter(createName, OnCreate);
+        }
+
+        // ---- Options (step E2): index.html's #screen-options, with main.ts's wiring ----
+
+        static readonly Color Dim = new Color32(143, 137, 123, 255);
+        /// <summary>The checked box's tick: the primary button's dark ink on brass.</summary>
+        static readonly Color Ink = new Color32(21, 17, 10, 255);
+        /// <summary>Redraws each control from Options (the warning may have turned photosensitivity on).</summary>
+        readonly List<Action> optionViews = new List<Action>();
+        Label qualityNote;
+        VisualElement keyRows;
+        string listeningAction;
+        Button listeningButton;
+        /// <summary>A key heard from the keyboard itself: the window's own key message for it is swallowed too.</summary>
+        int heardFrame = -10;
+        VisualElement qualityList;
+
+        void BuildOptions()
+        {
+            Screen("options", out var col);
+            BackButton(col);
+            Text(col, "eyebrow", "Your choices on this computer", 15);
+            Text(col, "screen-title", "Options");
+
+            var sound = Group(col, "Sound");
+            Range(sound, "Sound volume", 0, 100, 5, () => Options.Volume, v => v + "%", v => Options.Volume = (int)v);
+
+            var comfort = Group(col, "Comfort");
+            Check(comfort, "Photosensitivity mode", () => Options.Photosensitive, on => Options.Photosensitive = on);
+            Text(comfort, "muted-line", "Flickering lights become a slow dimming and camera flashes become a soft glow.", 20.25f);
+            Range(comfort, "Jump-scare volume", 0, 100, 5, () => Options.ScareVolume, v => v + "%", v => Options.ScareVolume = (int)v);
+            Range(comfort, "Screen shake", 0, 100, 5, () => Options.Shake, v => v + "%", v => Options.Shake = (int)v);
+
+            var controls = Group(col, "Controls");
+            // main.ts: String(Math.round(v * 100) / 100), in a box where it can also be typed.
+            Range(controls, "Mouse sensitivity", Options.SensitivityMin, Options.SensitivityMax, 0.05, () => Options.Sensitivity,
+                v => Math.Round(v, 2).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture), v => Options.Sensitivity = v, true);
+            Text(controls, "muted-line", "The same scale as Counter-Strike (2.5 is its default). From Valorant, multiply yours by 3.18.", 20.25f);
+            Range(controls, "Field of view", Options.FovMin, Options.FovMax, 1, () => Options.Fov, v => v + "°", v => Options.Fov = (int)v);
+
+            var graphics = Group(col, "Graphics");
+            Select(graphics, "Quality", new[] { "auto", "high", "low" }, new[] { "Auto", "High", "Low" }, () => Options.Quality, v => Options.Quality = v);
+            qualityNote = Text(graphics, "muted-line", "", 20.25f);
+            optionViews.Add(ShowQualityNote);
+            Check(graphics, "Show FPS counter", () => Options.ShowFps, on => Options.ShowFps = on);
+            // The speed test comes in step E6, the microphone group in E4.
+
+            var keys = Group(col, "Keys");
+            Text(keys, "muted-line", "Click a key to change it, then press the new one. Esc cancels.", 20.25f);
+            var table = new VisualElement();
+            table.AddToClassList("controls");
+            KeyRow(table, "Mouse", "Look");
+            KeyRow(table, "Mouse button", "Flashlight on / off; with the camera raised, take the photo; at a task, your hand (point, hold to grab, move to work)");
+            keyRows = new VisualElement();
+            table.Add(keyRows);
+            DrawKeyRows();
+            KeyRow(table, "Esc", "Free the mouse and open the room menu");
+            keys.Add(table);
+            Quiet(keys, "Reset all keys", () =>
+            {
+                StopListening();
+                Options.Keys.Reset();
+                DrawKeyRows();
+            }, true).AddToClassList("keys-reset");
+            Gap(col, 16);
+
+            // Listening for a new key: the window's key messages (and a test's) come as KeyDownEvents.
+            root.RegisterCallback<KeyDownEvent>(e =>
+            {
+                if (listeningButton == null && Time.frameCount > heardFrame + 1) return;
+                e.StopImmediatePropagation();
+                root.focusController?.IgnoreEvent(e);
+                if (listeningButton == null || e.keyCode == KeyCode.None) return;
+                Heard(KeyInput.CodeOf(e.keyCode));
+            }, TrickleDown.TrickleDown);
+            root.RegisterCallback<NavigationMoveEvent>(e =>
+            {
+                if (listeningButton == null && Time.frameCount > heardFrame + 1) return;
+                e.StopImmediatePropagation();
+                root.focusController?.IgnoreEvent(e);
+            }, TrickleDown.TrickleDown);
+            // A click anywhere but the open quality list closes it, as a select's list does.
+            root.RegisterCallback<PointerDownEvent>(e =>
+            {
+                if (qualityList == null || qualityList.style.display == DisplayStyle.None) return;
+                if (e.target is VisualElement t && (qualityList.Contains(t) || t.ClassListContains("select"))) return;
+                qualityList.style.display = DisplayStyle.None;
+            }, TrickleDown.TrickleDown);
+            // Scrolling moves the box away from its list: the list closes, as a select's does.
+            root.RegisterCallback<WheelEvent>(_ =>
+            {
+                if (qualityList != null) qualityList.style.display = DisplayStyle.None;
+            }, TrickleDown.TrickleDown);
+        }
+
+        /// <summary>Each frame while listening: a key from the keyboard (Shift alone, say, never reaches the window as a character).</summary>
+        void PollKeys()
+        {
+            if (listeningButton == null) return;
+            var k = UnityEngine.InputSystem.Keyboard.current;
+            if (k == null) return;
+            foreach (var key in k.allKeys)
+            {
+                if (key == null || !key.wasPressedThisFrame) continue;
+                heardFrame = Time.frameCount;
+                Heard(KeyInput.CodeOf(key.keyCode));
+                return;
+            }
+        }
+
+        void Heard(string code)
+        {
+            if (code == null || listeningButton == null) return;
+            if (code != "Escape" && !Options.Keys.Set(listeningAction, code))
+            {
+                listeningButton.text = "Not that key";
+                return;
+            }
+            StopListening();
+            DrawKeyRows();
+        }
+
+        void StopListening()
+        {
+            if (listeningButton == null) return;
+            listeningButton.RemoveFromClassList("listening");
+            listeningButton.text = KeyBindings.KeyName(Options.Keys.Code(listeningAction));
+            listeningButton = null;
+            listeningAction = null;
+        }
+
+        /// <summary>Tests: whether a key button is waiting for its new key.</summary>
+        public bool Listening => listeningButton != null;
+
+        void DrawKeyRows()
+        {
+            keyRows.Clear();
+            foreach (var a in KeyBindings.Actions)
+            {
+                string action = a[0];
+                var row = new VisualElement();
+                row.AddToClassList("key-row");
+                var cell = new VisualElement();
+                cell.AddToClassList("key-cell");
+                Button b = null;
+                b = new Button(() =>
+                {
+                    StopListening();
+                    listeningAction = action;
+                    listeningButton = b;
+                    b.AddToClassList("listening");
+                    b.text = "Press a key";
+                }) { text = KeyBindings.KeyName(Options.Keys.Code(action)) };
+                b.AddToClassList("key-button");
+                cell.Add(b);
+                row.Add(cell);
+                Text(row, "key-what", a[1], 18.85f);
+                keyRows.Add(row);
+            }
+        }
+
+        static void KeyRow(VisualElement table, string key, string what)
+        {
+            var row = new VisualElement();
+            row.AddToClassList("key-row");
+            var cell = new VisualElement();
+            cell.AddToClassList("key-cell");
+            Text(cell, "key-fixed", key, 16.675f);
+            row.Add(cell);
+            Text(row, "key-what", what, 18.85f);
+            table.Add(row);
+        }
+
+        void ShowQualityNote()
+        {
+            // main.ts applyQuality's note. Unity changes texture detail at once, so it never adds
+            // "Texture detail changes the next time you open the game."
+            string q = Options.Quality, picked = Options.AutoQuality;
+            string text = q != "auto" ? "" : picked != null ? "Auto chose " + (picked == "high" ? "High" : "Low") + " for this computer." : "Auto tests this computer the first time you walk the hotel.";
+            qualityNote.text = text == "" ? "" : "<line-height=20.25px>" + text;
+            // An empty paragraph keeps its place (and the gaps round it) but no height.
+            Lead(qualityNote);
+        }
+
+        /// <summary>A group: a line above, a small title, its parts 10 px apart.</summary>
+        static VisualElement Group(VisualElement parent, string title)
+        {
+            var g = new VisualElement();
+            g.AddToClassList("group");
+            Text(g, "group-title", title);
+            parent.Add(g);
+            Gap(g, 10);
+            return g;
+        }
+
+        /// <summary>A setting's row: its name, and the control on the right.</summary>
+        static VisualElement Setting(VisualElement parent, string name)
+        {
+            var row = new VisualElement();
+            row.AddToClassList("setting");
+            Text(row, "setting-name", name);
+            parent.Add(row);
+            return row;
+        }
+
+        /// <summary>A checkbox at the end of a setting's row; the whole row toggles it, as a label does.</summary>
+        void Check(VisualElement parent, string name, Func<bool> get, Action<bool> set)
+        {
+            var row = Setting(parent, name);
+            var box = new VisualElement { pickingMode = PickingMode.Ignore };
+            box.AddToClassList("check");
+            box.generateVisualContent += ctx =>
+            {
+                if (!box.ClassListContains("on")) return;
+                var p = ctx.painter2D;
+                p.strokeColor = Ink;
+                p.lineWidth = 1.8f;
+                p.lineCap = LineCap.Round;
+                p.lineJoin = LineJoin.Round;
+                p.BeginPath();
+                p.MoveTo(new Vector2(2.6f, 5.9f));
+                p.LineTo(new Vector2(4.9f, 8.3f));
+                p.LineTo(new Vector2(8.8f, 3.2f));
+                p.Stroke();
+            };
+            row.Add(box);
+            Action view = () => { box.EnableInClassList("on", get()); box.MarkDirtyRepaint(); };
+            row.RegisterCallback<ClickEvent>(_ =>
+            {
+                set(!get());
+                view();
+                Options.Notify();
+            });
+            optionViews.Add(view);
+            view();
+        }
+
+        /// <summary>
+        /// A slider with its name and value above (or a box to type it in): Chrome's range input in
+        /// brass, an 8 px track, filled up to a 16 px round thumb.
+        /// </summary>
+        void Range(VisualElement parent, string name, double min, double max, double step, Func<double> get, Func<double, string> show, Action<double> set, bool typed = false)
+        {
+            var field = new VisualElement();
+            field.AddToClassList("range-field");
+            var head = new VisualElement();
+            head.AddToClassList("field-head");
+            Text(head, "range-name", name);
+            Label output = null;
+            TextField box = null;
+            if (typed)
+            {
+                box = new TextField();
+                box.AddToClassList("number-box");
+                head.Add(box);
+            }
+            else output = Text(head, "output", "");
+            field.Add(head);
+
+            var slider = new VisualElement { focusable = true };
+            slider.AddToClassList("range");
+            var track = new VisualElement { pickingMode = PickingMode.Ignore };
+            track.AddToClassList("range-track");
+            var fill = new VisualElement { pickingMode = PickingMode.Ignore };
+            fill.AddToClassList("range-fill");
+            var thumb = new VisualElement { pickingMode = PickingMode.Ignore };
+            thumb.AddToClassList("range-thumb");
+            slider.Add(track);
+            slider.Add(fill);
+            slider.Add(thumb);
+            field.Add(slider);
+            parent.Add(field);
+            Gap(field, 6);
+
+            double value = get();
+            Action place = () =>
+            {
+                float w = slider.resolvedStyle.width;
+                if (float.IsNaN(w)) return;
+                float left = (float)((value - min) / (max - min)) * (w - 16);
+                thumb.style.left = left;
+                fill.style.width = left + 8;
+            };
+            Action view = () =>
+            {
+                value = get();
+                if (output != null) output.text = show(value);
+                if (box != null) box.SetValueWithoutNotify(show(value));
+                place();
+            };
+            Action<double> change = v =>
+            {
+                v = Math.Min(max, Math.Max(min, v));
+                if (v == value) return;
+                value = v;
+                set(v);
+                view();
+                Options.Notify();
+            };
+            // The value a point on the track stands for, on the slider's steps.
+            Func<float, double> at = x =>
+            {
+                float w = slider.resolvedStyle.width;
+                double f = Mathf.Clamp01((x - 8) / Mathf.Max(1, w - 16));
+                return Math.Round(Math.Round(f * (max - min) / step) * step + min, 6);
+            };
+            slider.RegisterCallback<GeometryChangedEvent>(_ => place());
+            slider.RegisterCallback<PointerDownEvent>(e =>
+            {
+                if (e.button != 0) return;
+                slider.CapturePointer(e.pointerId);
+                slider.Focus();
+                change(at(e.localPosition.x));
+            });
+            slider.RegisterCallback<PointerMoveEvent>(e =>
+            {
+                if (slider.HasPointerCapture(e.pointerId)) change(at(e.localPosition.x));
+            });
+            slider.RegisterCallback<PointerUpEvent>(e =>
+            {
+                if (slider.HasPointerCapture(e.pointerId)) slider.ReleasePointer(e.pointerId);
+            });
+            // Arrow keys step it, as a focused range does.
+            slider.RegisterCallback<KeyDownEvent>(e =>
+            {
+                int dir = e.keyCode == KeyCode.RightArrow || e.keyCode == KeyCode.UpArrow ? 1 : e.keyCode == KeyCode.LeftArrow || e.keyCode == KeyCode.DownArrow ? -1 : 0;
+                if (dir == 0) return;
+                change(Math.Round(value + dir * step, 6));
+                e.StopPropagation();
+            });
+            if (box != null)
+            {
+                // main.ts: a typed value is kept within the limits; anything else puts the old one back.
+                Action typedIn = () =>
+                {
+                    double v;
+                    if (double.TryParse(box.value.Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v) && !double.IsNaN(v) && !double.IsInfinity(v)) change(v);
+                    view();
+                };
+                box.RegisterCallback<FocusOutEvent>(_ => typedIn());
+                box.RegisterCallback<KeyDownEvent>(e =>
+                {
+                    if (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter) typedIn();
+                }, TrickleDown.TrickleDown);
+            }
+            optionViews.Add(view);
+            view();
+        }
+
+        /// <summary>A setting's list to choose from, drawn as the browser's select: a box with a chevron, its list below.</summary>
+        void Select(VisualElement parent, string name, string[] values, string[] labels, Func<string> get, Action<string> set)
+        {
+            var row = Setting(parent, name);
+            var button = new Button();
+            button.AddToClassList("select");
+            var shown = new Label { pickingMode = PickingMode.Ignore };
+            shown.AddToClassList("select-text");
+            button.Add(shown);
+            var chevron = new VisualElement { pickingMode = PickingMode.Ignore };
+            chevron.AddToClassList("select-chevron");
+            // style.css: an SVG path M1 1l4 4 4-4, stroke #8f897b, 1.4 wide, in a 10 x 6 box.
+            chevron.generateVisualContent += ctx =>
+            {
+                var p = ctx.painter2D;
+                p.strokeColor = Dim;
+                p.lineWidth = 1.4f;
+                p.BeginPath();
+                p.MoveTo(new Vector2(1, 1));
+                p.LineTo(new Vector2(5, 5));
+                p.LineTo(new Vector2(9, 1));
+                p.Stroke();
+            };
+            button.Add(chevron);
+            row.Add(button);
+
+            var list = new VisualElement();
+            list.AddToClassList("select-list");
+            list.style.display = DisplayStyle.None;
+            qualityList = list;
+            Action view = () =>
+            {
+                int i = Array.IndexOf(values, get());
+                shown.text = labels[Math.Max(0, i)];
+                foreach (var child in list.Children()) child.EnableInClassList("chosen", (string)child.userData == get());
+            };
+            for (int i = 0; i < values.Length; i++)
+            {
+                string v = values[i];
+                var option = new Button(() =>
+                {
+                    list.style.display = DisplayStyle.None;
+                    if (v != get()) { set(v); Options.Notify(); }
+                    foreach (var f in optionViews) f();
+                }) { text = labels[i], userData = v };
+                option.AddToClassList("select-option");
+                list.Add(option);
+            }
+            button.clicked += () =>
+            {
+                if (list.style.display == DisplayStyle.Flex) { list.style.display = DisplayStyle.None; return; }
+                // Laid over everything, just under the box, as wide as it.
+                var r = button.worldBound;
+                list.style.left = r.x;
+                // Above the box when there is no room below it, as a select's list opens.
+                float height = values.Length * 26 + 6;
+                list.style.top = r.yMax + height <= root.worldBound.height ? r.yMax : r.y - height;
+                list.style.width = r.width;
+                list.style.display = DisplayStyle.Flex;
+                list.BringToFront();
+            };
+            root.Add(list);
+            optionViews.Add(view);
+            view();
         }
 
         void BuildJoin()

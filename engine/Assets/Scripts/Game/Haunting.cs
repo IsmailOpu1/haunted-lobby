@@ -54,6 +54,10 @@ namespace Haunted.Game
         // The flicker.
         double deadLeft, flickerLeft;
         bool wasClose;
+        // Photosensitivity mode (flicker.ts): how fast the light eases toward its level, per second, and
+        // how dim it gets with the ghost right beside you, in place of flickering.
+        const double GentleRatePerSec = 1.5, GentleLowest = 0.35;
+        double gentle = 1;
         readonly System.Random dice = new System.Random();
 
         // The sounds.
@@ -222,8 +226,22 @@ namespace Haunted.Game
             aura.intensity = AuraIntensity * (0.85f + 0.15f * shimmer);
         }
 
-        /// <summary>flicker.ts: random flicker within flickerGhostM; the light dies for deadSec within deadGhostM.</summary>
+        /// <summary>
+        /// flicker.ts: random flicker within flickerGhostM; the light dies for deadSec within deadGhostM. In
+        /// photosensitivity mode the same warning comes as a slow dimming instead (GDD 23).
+        /// </summary>
         float Flicker(float dt, double distance)
+        {
+            float sharp = SharpFlicker(dt, distance);
+            if (!Options.Photosensitive) { gentle = sharp; return sharp; }
+            double range = Json.Num(Json.Obj(config, "flashlight"), "flickerGhostM");
+            double closeness = distance > range ? 0 : 1 - distance / range;
+            double target = deadLeft > 0 ? 0 : 1 - (1 - GentleLowest) * closeness;
+            gentle += (target - gentle) * (1 - Math.Exp(-GentleRatePerSec * dt));
+            return (float)gentle;
+        }
+
+        float SharpFlicker(float dt, double distance)
         {
             var f = Json.Obj(config, "flashlight");
             bool veryClose = distance <= Json.Num(f, "deadGhostM");
@@ -418,6 +436,7 @@ namespace Haunted.Game
             silentUntil = 0;
             TaskSounds.Level = 1;
             deadLeft = flickerLeft = 0;
+            gentle = 1;
         }
     }
 }

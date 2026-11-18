@@ -42,7 +42,9 @@ namespace Haunted.Game
         /// game.ts updateWhereabouts): the relic's music box, the bell, a slammed door, the ghost.
         /// </summary>
         public readonly List<SoundCue> SoundCues = new List<SoundCue>();
-        public double ScreenFlashUntil;
+        /// <summary>Your own photo: when the screen flashed, and whether softly (photosensitivity mode).</summary>
+        public double ScreenFlashAt = double.NegativeInfinity;
+        public bool ScreenFlashGentle;
         /// <summary>While you work with your hands (GDD 26.5): how to, and how to stop; null otherwise.</summary>
         public string WorkHint;
         /// <summary>The meeting screen (GDD 16), drawn over everything while one runs.</summary>
@@ -162,9 +164,37 @@ namespace Haunted.Game
                 case "intro": DrawIntro(s); break;
                 case "night": DrawNight(s, now); break;
             }
-            if (now < ScreenFlashUntil) Fill(new Rect(0, 0, Screen.width, Screen.height), new Color(1, 1, 1, (float)((ScreenFlashUntil - now) / 0.3)));
+            float flash = ScreenFlash(now - ScreenFlashAt, ScreenFlashGentle);
+            if (flash > 0) Fill(new Rect(0, 0, Screen.width, Screen.height), new Color(1, 1, 1, flash));
             if (night.Banner != null && now < night.BannerUntil)
-                GUI.Label(new Rect(Screen.width / 2f - 400, 90, 800, 70), night.Banner, big);
+                GUI.Label(new Rect(Screen.width / 2f - 400, 90, 800, 70), Options.Keys.Hint(night.Banner), big);
+        }
+
+        /// <summary>
+        /// style.css #screen-flash: white at 0.9 that fades out over 0.6 s (ease-out); in photosensitivity
+        /// mode a glow that rises to 0.25 over 0.5 s (ease-in), then fades over 1.4 s (ease-in-out).
+        /// </summary>
+        static float ScreenFlash(double t, bool gentle)
+        {
+            if (t < 0) return 0;
+            if (!gentle) return t >= 0.6 ? 0 : 0.9f * (1 - Bezier(0, 0, 0.58f, 1, (float)(t / 0.6)));
+            if (t < 0.5) return 0.25f * Bezier(0.42f, 0, 1, 1, (float)(t / 0.5));
+            t -= 0.5;
+            return t >= 1.4 ? 0 : 0.25f * (1 - Bezier(0.42f, 0, 0.58f, 1, (float)(t / 1.4)));
+        }
+
+        /// <summary>A CSS cubic-bezier timing curve at x (0 to 1).</summary>
+        static float Bezier(float x1, float y1, float x2, float y2, float x)
+        {
+            // Solve x(u) = x by bisection, then return y(u).
+            float lo = 0, hi = 1, u = x;
+            for (int i = 0; i < 24; i++)
+            {
+                u = (lo + hi) / 2;
+                float bx = 3 * (1 - u) * (1 - u) * u * x1 + 3 * (1 - u) * u * u * x2 + u * u * u;
+                if (bx < x) lo = u; else hi = u;
+            }
+            return 3 * (1 - u) * (1 - u) * u * y1 + 3 * (1 - u) * u * u * y2 + u * u * u;
         }
 
         void DrawLobby(GameState s, string roomCode, double now)
@@ -223,7 +253,7 @@ namespace Haunted.Game
                 string partners = night.Partners.Count > 0 ? "Also possessed: " + string.Join(", ", night.Partners) + ". " : "";
                 // Only the possessed know who the ghost was (GDD 26.13): lie about the clues.
                 string ghost = night.GhostWas != null ? "The ghost was " + night.GhostWas + ". Lead the team to the wrong relic. " : "";
-                DrawCentre("YOU ARE POSSESSED", "Stop the ritual. Do not get caught.", (character != null ? "You are " + character + ". " : "") + partners + ghost + "Hold R for your powers.", Possessed);
+                DrawCentre("YOU ARE POSSESSED", "Stop the ritual. Do not get caught.", (character != null ? "You are " + character + ". " : "") + partners + ghost + Options.Keys.Hint("Hold R") + " for your powers.", Possessed);
             }
             else
             {
@@ -263,10 +293,10 @@ namespace Haunted.Game
             if (me != null)
             {
                 var items = new List<string>();
-                if (me.salt > 0) items.Add("Salt " + me.salt);
-                if (me.cameraShots > 0) items.Add("Camera " + me.cameraShots);
+                if (me.salt > 0) items.Add("Salt " + me.salt + " (" + Options.Keys.Name("salt") + ")");
+                if (me.cameraShots > 0) items.Add("Camera " + me.cameraShots + " (" + Options.Keys.Name("camera") + ")");
                 Relic relic;
-                if (!string.IsNullOrEmpty(me.relic) && s.relics.TryGetValue(me.relic, out relic)) items.Add("Carrying " + relic.name + " (G to drop)");
+                if (!string.IsNullOrEmpty(me.relic) && s.relics.TryGetValue(me.relic, out relic)) items.Add(Options.Keys.Hint("Carrying " + relic.name + " (G to drop)"));
                 GUI.Label(new Rect(20, Screen.height - 40, 700, 30), string.Join("    ", items), label);
             }
 
@@ -287,7 +317,7 @@ namespace Haunted.Game
                 var frame = new Rect(Screen.width * 0.2f, Screen.height * 0.18f, Screen.width * 0.6f, Screen.height * 0.6f);
                 foreach (var edge in new[] { new Rect(frame.x, frame.y, frame.width, 2), new Rect(frame.x, frame.yMax, frame.width, 2), new Rect(frame.x, frame.y, 2, frame.height), new Rect(frame.xMax, frame.y, 2, frame.height + 2) })
                     Fill(edge, new Color(1, 1, 1, 0.7f));
-                GUI.Label(new Rect(frame.x, frame.yMax + 8, frame.width, 30), "Click to take the photo · 2 to lower", new GUIStyle(label) { alignment = TextAnchor.UpperCenter });
+                GUI.Label(new Rect(frame.x, frame.yMax + 8, frame.width, 30), "Click to take the photo · " + Options.Keys.Name("camera") + " to lower", new GUIStyle(label) { alignment = TextAnchor.UpperCenter });
             }
             DrawSoundCues();
 
@@ -312,7 +342,7 @@ namespace Haunted.Game
             }
             else if (!string.IsNullOrEmpty(Prompt))
             {
-                GUI.Label(new Rect(Screen.width / 2f - 300, Screen.height - 130, 600, 30), Prompt, new GUIStyle(big) { fontSize = 20 });
+                GUI.Label(new Rect(Screen.width / 2f - 300, Screen.height - 130, 600, 30), Options.Keys.Hint(Prompt), new GUIStyle(big) { fontSize = 20 });
             }
         }
 
@@ -347,7 +377,7 @@ namespace Haunted.Game
             {
                 text = me.holdingBreath ? "Holding your breath"
                     : me.breathCooldown > 0 ? "Catching your breath (" + Math.Ceiling(me.breathCooldown) + " s)"
-                    : "Hidden. Hold Shift to hold your breath, hold E to step out.";
+                    : Options.Keys.Hint("Hidden. Hold Shift to hold your breath, hold E to step out.");
             }
             if (text == null) return;
             var r = new Rect(Screen.width / 2f - 360, Screen.height / 2f + 60, 720, 110);

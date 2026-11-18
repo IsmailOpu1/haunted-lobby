@@ -45,8 +45,8 @@
 
 /* A thin bar in the line colour (scrollbar-width: thin; scrollbar-color: var(--line) transparent). */
 .screen-body .unity-scroller--vertical {
-    width: 6px;
-    min-width: 6px;
+    width: 10px;
+    min-width: 10px;
     border-width: 0;
     background-color: rgba(0, 0, 0, 0);
 }
@@ -62,7 +62,7 @@
 }
 
 .screen-body .unity-scroller--vertical .unity-base-slider__dragger {
-    left: 0;
+    left: 2px;
     width: 6px;
     background-color: rgba(236, 230, 216, 0.12);
     border-width: 0;
@@ -416,4 +416,282 @@ Button {
 .rise.before {
     opacity: 0;
     translate: 0 8px;
+}
+
+/* Options (step E2): groups, sliders, checkboxes, the quality list and the keys. */
+.group {
+    padding: 16px 0;
+    border-top-width: 1px;
+    border-top-color: rgba(236, 230, 216, 0.12);
+}
+
+.group-title {
+    font-size: 11px;
+    height: 15px;
+    letter-spacing: 16px;
+    color: rgb(143, 137, 123);
+    -unity-text-align: middle-left;
+}
+
+.field-head {
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.range-name,
+.output {
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    font-size: 11px;
+    height: 15px;
+    letter-spacing: 16px;
+    color: rgb(143, 137, 123);
+    -unity-text-align: middle-left;
+}
+
+.output {
+    color: rgb(201, 162, 75);
+}
+
+/* Chrome's range input with accent-color brass: an 8 px track, a 16 px thumb, 2 px margins. */
+.range {
+    width: 100%;
+    height: 18px;
+    margin: 2px 2px 0 2px;
+}
+
+/* The range's 2 px bottom margin, kept on its field (a last child's bottom margin here is lost). */
+.range-field {
+    padding-bottom: 2px;
+}
+
+.range-track,
+.range-fill {
+    position: absolute;
+    left: 0;
+    top: 5px;
+    height: 8px;
+    border-width: 1px;
+    border-radius: 4px;
+}
+
+.range-track {
+    right: 0;
+    border-color: rgb(133, 133, 133);
+    background-color: rgb(59, 59, 59);
+}
+
+.range-fill {
+    border-color: rgb(201, 162, 75);
+    background-color: rgb(201, 162, 75);
+}
+
+.range-thumb {
+    position: absolute;
+    top: 1px;
+    width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    background-color: rgb(201, 162, 75);
+}
+
+.number-box {
+    margin: 0;
+    padding: 0;
+    width: 71.5px;
+    height: 21px;
+}
+
+.number-box > .unity-base-text-field__input {
+    margin: 0;
+    padding: 0 0 2px 0;
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    font-size: 13px;
+    letter-spacing: 4px;
+    -unity-text-align: upper-right;
+    color: rgb(236, 230, 216);
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-bottom-width: 1px;
+    border-radius: 0;
+    border-color: rgba(236, 230, 216, 0.12);
+    --unity-cursor-color: rgb(236, 230, 216);
+    --unity-selection-color: rgba(201, 162, 75, 0.35);
+    transition-property: border-color;
+    transition-duration: 0.2s;
+}
+
+.number-box:focus > .unity-base-text-field__input,
+.number-box > .unity-base-text-field__input:focus {
+    border-color: rgb(201, 162, 75);
+}
+
+.setting {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 0;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(236, 230, 216, 0.06);
+}
+
+.setting-name {
+    font-size: 14px;
+    height: 19px;
+    color: rgb(236, 230, 216);
+    -unity-text-align: middle-left;
+}
+
+/* Chrome's checkbox: white, a grey line, round corners; checked in brass (GDD 26.16). */
+.check {
+    width: 13px;
+    height: 13px;
+    margin: 3px 3px 3px 4px;
+    border-width: 1px;
+    border-radius: 2px;
+    border-color: rgb(118, 118, 118);
+    background-color: rgb(255, 255, 255);
+}
+
+.check.on {
+    border-color: rgb(201, 162, 75);
+    background-color: rgb(201, 162, 75);
+}
+
+.select {
+    min-width: 112px;
+    height: 32px;
+    padding: 6px 28px 6px 10px;
+    border-width: 1px;
+    border-radius: 2px;
+    border-color: rgba(236, 230, 216, 0.12);
+    background-color: rgba(0, 0, 0, 0);
+    transition-property: border-color;
+    transition-duration: 0.18s;
+}
+
+.select:hover,
+.select:focus,
+.select:active {
+    border-color: rgb(201, 162, 75);
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.select-text {
+    font-size: 13px;
+    height: 18px;
+    color: rgb(236, 230, 216);
+    -unity-text-align: middle-left;
+}
+
+.select-chevron {
+    position: absolute;
+    right: 10px;
+    top: 12px;
+    width: 10px;
+    height: 6px;
+}
+
+/* The list a select opens, in the options' own colours (style.css .setting option). */
+.select-list {
+    position: absolute;
+    padding: 2px 0;
+    border-width: 1px;
+    border-color: rgba(236, 230, 216, 0.12);
+    background-color: rgb(20, 18, 23);
+}
+
+.select-option {
+    height: 26px;
+    padding: 0 10px;
+    font-size: 13px;
+    color: rgb(236, 230, 216);
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-radius: 0;
+    -unity-text-align: middle-left;
+}
+
+.select-option:hover,
+.select-option:active {
+    color: rgb(201, 162, 75);
+    background-color: rgba(201, 162, 75, 0.08);
+}
+
+.select-option.chosen {
+    background-color: rgba(201, 162, 75, 0.16);
+}
+
+.controls {
+    font-size: 13px;
+}
+
+.key-row {
+    flex-direction: row;
+    align-items: flex-start;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(236, 230, 216, 0.06);
+}
+
+.key-cell {
+    width: 38%;
+    flex-shrink: 0;
+    padding-right: 10px;
+}
+
+.key-fixed {
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    margin: 6px 0;
+    font-size: 11.5px;
+    color: rgb(201, 162, 75);
+}
+
+.key-what {
+    flex-grow: 1;
+    flex-shrink: 1;
+    margin: 6px 0;
+    font-size: 13px;
+    color: rgb(236, 230, 216);
+}
+
+.key-button {
+    align-self: flex-start;
+    min-width: 64px;
+    height: 26.7px;
+    margin: 6px 0;
+    padding: 4px 10px;
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    font-size: 11.5px;
+    color: rgb(201, 162, 75);
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 1px;
+    border-radius: 2px;
+    border-color: rgba(236, 230, 216, 0.12);
+    -unity-text-align: middle-center;
+}
+
+.key-button:hover,
+.key-button:active,
+.key-button.listening {
+    border-color: rgb(201, 162, 75);
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.key-button.listening {
+    color: rgb(236, 230, 216);
+}
+
+.keys-reset {
+    margin-top: 10px;
+}
+
+/* The FPS counter (style.css #fps), over the night and the menus. */
+.fps {
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    padding: 3px 8px;
+    font-size: 12px;
+    color: rgb(236, 230, 216);
+    background-color: rgba(10, 9, 12, 0.6);
+    border-radius: 2px;
 }

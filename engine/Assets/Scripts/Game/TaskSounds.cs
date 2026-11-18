@@ -97,7 +97,16 @@ namespace Haunted.Game
                 flat.spatialBlend = 0;
                 flat.volume = Out;
             }
-            if (sound) flat.PlayOneShot(BothEars(Clip(kind, pitch)));
+            if (sound) flat.PlayOneShot(BothEars(Clip(kind, pitch)), Scare(kind));
+        }
+
+        /// <summary>
+        /// The jump scares (the hunt sting, a slammed door) go through audio.ts's scare bus: the Options
+        /// slider sets their loudness (GDD 23). Every other sound plays at its own level.
+        /// </summary>
+        static float Scare(string kind)
+        {
+            return kind == "sting" || kind == "slam" ? Options.ScareVolume / 100f : 1;
         }
 
         /// <summary>
@@ -161,7 +170,7 @@ namespace Haunted.Game
         /// <summary>A sound from a point (world space), lifted by up metres, with inverse rolloff from refM.</summary>
         public static void PlayAt(string kind, Vector3 floor, float refM, float up)
         {
-            PlayClipAt(Clip(kind, -1), floor + Vector3.up * up, refM, 1, 1, 1, 0);
+            PlayClipAt(Clip(kind, -1), floor + Vector3.up * up, refM, 1, Scare(kind), 1, 0);
         }
 
         /// <summary>

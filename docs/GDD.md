@@ -985,3 +985,5 @@ The owner approved `docs/plans/mystery-pilot.md` with the suggested answers. Wha
 |---|---|---|
 | Start screen foot line | "No accounts. The ghost hears your real microphone, so keep your voice down." The browser's says "No accounts, no downloads." | The Unity version is a download |
 | Loading bar | None: the Unity version has the hotel on disk, so there is nothing to load before the menus | The browser's bar counts the hotel's download |
+| Ticked checkboxes (Options) | Brass with a dark tick. Chrome draws its own blue (#0075ff), as the browser's style sheet gives these checkboxes no accent colour | Brass is the menus' accent, as the browser's sliders already are |
+| Quality note | Never adds "Texture detail changes the next time you open the game." | Unity changes texture detail at once |

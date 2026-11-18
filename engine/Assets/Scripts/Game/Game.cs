@@ -266,8 +266,12 @@ namespace Haunted.Game
             // Test aid: the picture shows only the bloom (HauntedPost), to see what glows.
             // "-bloomOnly 2": everything counts as bright, to check the glow reaches the picture.
             if (Array.IndexOf(args, "-bloomOnly") >= 0) Shader.SetGlobalFloat("_HauntedBloomOnly", arg("-bloomOnly") == "2" ? 2 : 1);
-            // Graphics quality (HauntedQuality): "-quality low" or High; the menus come in step E.
-            HauntedQuality.Apply(HauntedQuality.Parse(arg("-quality")));
+            // Graphics quality (HauntedQuality): the Options choice, or what Auto chose; a test's
+            // "-quality low" or "-quality high" overrides it for that run and keeps Auto from testing.
+            qualityForced = arg("-quality") != null;
+            HauntedQuality.Apply(qualityForced ? HauntedQuality.Parse(arg("-quality")) : Options.QualityLevel);
+            Options.ApplyVolume();
+            Options.Changed += ApplyOptions;
             // Test aid: the picture shows only the ambient occlusion (HauntedAO).
             // Test aid: the lamps out, as in the ghost's Blackout.
             forceBlackout = Array.IndexOf(args, "-blackout") >= 0;
@@ -382,6 +386,7 @@ namespace Haunted.Game
                 yield return Click("Continue");
                 Check("warning answered", !menus.WarningShown);
             }
+            yield return OptionsInput(mouse, window, Click, Type, PressEnter, Check);
             yield return Click("Join a room");
             Check("join screen", menus.Current == "join");
             yield return Type("qqzzw");
@@ -411,6 +416,86 @@ namespace Haunted.Game
         }
 
         /// <summary>
+        /// -menuInput's Options pass (step E2): a slider dragged, a box ticked, the sensitivity typed,
+        /// Low then High chosen, a key refused and one rebound, the keys reset. What the player had is put back.
+        /// </summary>
+        System.Collections.IEnumerator OptionsInput(UnityEngine.InputSystem.Mouse mouse, IntPtr window,
+            Func<string, int, System.Collections.IEnumerator> click, Func<string, System.Collections.IEnumerator> type,
+            Func<System.Collections.IEnumerator> enter, Action<string, bool> check)
+        {
+            int volume = Options.Volume;
+            bool photo = Options.Photosensitive;
+            double sensitivity = Options.Sensitivity;
+            string quality = Options.Quality;
+            void Key(int vk, int scan)
+            {
+                PostMessage(window, 0x0100, (IntPtr)vk, (IntPtr)(0x00000001 | scan << 16));
+                PostMessage(window, 0x0101, (IntPtr)vk, unchecked((IntPtr)(int)(0xC0000001 | (uint)scan << 16)));
+            }
+            void Move(Vector2 p, bool down)
+            {
+                var state = new UnityEngine.InputSystem.LowLevel.MouseState { position = p };
+                if (down) state = state.WithButton(UnityEngine.InputSystem.LowLevel.MouseButton.Left, true);
+                UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, state);
+            }
+            yield return click("Options", -1);
+            check("options screen", menus.Current == "options");
+            // Pressed at 30 %, dragged to 50 %, let go: the slider follows the held button.
+            menus.RangePoint(0, 0.3f);
+            yield return new WaitForSecondsRealtime(0.3f);
+            Move(menus.RangePoint(0, 0.3f), false);
+            yield return new WaitForSecondsRealtime(0.15f);
+            Move(menus.RangePoint(0, 0.3f), true);
+            yield return new WaitForSecondsRealtime(0.2f);
+            check("volume pressed at 30%: " + Options.Volume, Options.Volume == 30);
+            Move(menus.RangePoint(0, 0.5f), true);
+            yield return new WaitForSecondsRealtime(0.2f);
+            Move(menus.RangePoint(0, 0.5f), false);
+            yield return new WaitForSecondsRealtime(0.3f);
+            check("volume dragged to 50%: " + Options.Volume + ", heard at " + AudioListener.volume, Options.Volume == 50 && Mathf.Approximately(AudioListener.volume, 0.5f));
+            yield return click("Photosensitivity mode", -1);
+            check("photosensitivity toggled", Options.Photosensitive != photo);
+            yield return click("Photosensitivity mode", -1);
+            check("photosensitivity back", Options.Photosensitive == photo);
+            yield return click("the sensitivity box", 0);
+            // Clear the box (Backspace and Delete as key messages), then type.
+            for (int i = 0; i < 8; i++)
+            {
+                Key(0x08, 0x0E);
+                Key(0x2E, 0x153);
+                yield return new WaitForSecondsRealtime(0.05f);
+            }
+            yield return type("3.18");
+            yield return enter();
+            check("sensitivity typed: " + Options.Sensitivity, Math.Abs(Options.Sensitivity - 3.18) < 1e-9);
+            yield return click(Options.Quality == "auto" ? "Auto" : Options.Quality == "high" ? "High" : "Low", -1);
+            yield return click("Low", -1);
+            check("quality Low: " + Options.Quality + ", drawing " + HauntedQuality.Current, Options.Quality == "low" && HauntedQuality.Current == HauntedQuality.Level.Low);
+            yield return click("Low", -1);
+            yield return click("High", -1);
+            check("quality High: drawing " + HauntedQuality.Current, Options.Quality == "high" && HauntedQuality.Current == HauntedQuality.Level.High);
+            // Rebinding: use (E) waits for a key; L is a debug key and is refused; F is taken.
+            yield return click("E", -1);
+            check("listening for a key", menus.Listening);
+            Key(0x4C, 0x26);
+            yield return new WaitForSecondsRealtime(0.4f);
+            check("L refused, still listening", menus.Listening && Options.Keys.Code("use") == "KeyE" && menus.ScreenPoint("Not that key") != null);
+            Key(0x46, 0x21);
+            yield return new WaitForSecondsRealtime(0.4f);
+            check("use bound to F: " + Options.Keys.Code("use") + ", hint \"" + Options.Keys.Hint("Hold E  Hide") + "\"", !menus.Listening && Options.Keys.Code("use") == "KeyF" && Options.Keys.Hint("Hold E  Hide") == "Hold F  Hide");
+            yield return click("Reset all keys", -1);
+            check("keys reset", Options.Keys.Code("use") == "KeyE" && menus.ScreenPoint("F") == null);
+            // Put back what this player had.
+            Options.Volume = volume;
+            Options.Photosensitive = photo;
+            Options.Sensitivity = sensitivity;
+            Options.Quality = quality;
+            Options.Notify();
+            yield return click("\u2190  BACK", -1);
+            check("back to start from options", menus.Current == "start");
+        }
+
+        /// <summary>
         /// -menuShots DIR: each menu screen in turn, saved as DIR/unity-NAME.png, then quits. For step
         /// E's comparison with the browser (delete PlayerPrefs' photoWarningSeen to see the warning).
         /// </summary>
@@ -426,10 +511,13 @@ namespace Haunted.Game
                 yield return null;
                 menus.HideWarning();
             }
-            foreach (var screen in new[] { "start", "create", "join" })
+            foreach (var screen in new[] { "start", "create", "join", "options", "options-end" })
             {
-                if (screen == "start") menus.Reset("start"); else menus.Go(screen);
+                if (screen == "start") menus.Reset("start");
+                else if (screen == "options-end") menus.ScrollToEnd();
+                else { menus.Reset("start"); menus.Go(screen); }
                 yield return new WaitForSecondsRealtime(1.2f);
+                if (screen == "options") Debug.Log(menus.KerningLog());
                 ScreenCapture.CaptureScreenshot(Path.Combine(dir, "unity-" + screen + ".png"));
                 File.WriteAllText(Path.Combine(dir, "unity-" + screen + ".json"), menus.Dump());
                 yield return null;
@@ -473,6 +561,7 @@ namespace Haunted.Game
             if (menuCamera != null) { Destroy(menuCamera.gameObject); menuCamera = null; }
             var move = GameData.LoadMovement(config);
             me = new LocalPlayer(hotel, move, config);
+            ApplyOptions();
             held = new HeldTorch(me.Camera.transform);
             if (script == "walk") me.Script = WalkScript;
             room.OnStateChange += (state, first) => OnState(state);
@@ -558,6 +647,8 @@ namespace Haunted.Game
                         : !string.IsNullOrEmpty(p.relic) ? MoveMode.Carry
                         : MoveMode.Normal;
                     if (!me.Ready) { me.Yaw = p.yaw; me.Pitch = p.pitch; }
+                    if (p.health == "downed" && healthWas == "alive") me.Shake(DownedShakeSec, DownedShakeRad);
+                    healthWas = p.health;
                     me.Reconcile(p.x, p.z, p.stamina, p.regenWait, p.crouching, p.lastSeq);
                     if (p.flashlightOn != flashlightWas) Debug.Log("Flashlight " + (p.flashlightOn ? "on" : "off"));
                     flashlightWas = p.flashlightOn;
@@ -616,12 +707,14 @@ namespace Haunted.Game
         {
             double now = Time.realtimeSinceStartupAsDouble;
             if (menus != null) menus.Tick();
+            CountFrames(Time.unscaledDeltaTime);
             stations.Update(Time.timeAsDouble);
             UpdateBlackout(Time.deltaTime);
             doors.Update(Time.deltaTime);
             if (room != null && me != null)
             {
                 HandleKeys();
+                MeasureForAuto(Time.unscaledDeltaTime);
                 me.Update(Time.deltaTime, now, input => room.Send("input", new Dictionary<string, object>
                 {
                     { "seq", input.Seq }, { "forward", input.Forward }, { "right", input.Right },
@@ -721,47 +814,136 @@ namespace Haunted.Game
                 if (taskState == "open") LeaveTask();
                 CloseWheel(false);
             }
-            hud.ShowTasks = k.tabKey.isPressed;
-            // The power wheel (GDD 14.2, input.ts): R opens it, letting go uses the power the mouse points at.
-            if (k.rKey.wasPressedThisFrame && Cursor.lockState == CursorLockMode.Locked) OpenWheel();
-            if (k.rKey.wasReleasedThisFrame && wheelOpen && wheelTestKind == null) CloseWheel(true);
+            // The player's keys (Options.Keys, keys.ts); the mouse button and Esc stay fixed.
+            hud.ShowTasks = KeyInput.Held("status");
+            // The power wheel (GDD 14.2, input.ts): its key opens it, letting go uses the power the mouse points at.
+            if (KeyInput.Pressed("powers") && Cursor.lockState == CursorLockMode.Locked && !hands.Active) OpenWheel();
+            if (KeyInput.Released("powers") && wheelOpen && wheelTestKind == null) CloseWheel(true);
             var mine = night.Me;
             if (Cursor.lockState != CursorLockMode.Locked) return;
-            // The browser's default keys (client/src/keys.ts): 1 flashlight (or a click), 2 raises the
-            // Spirit Camera (then a click takes the photo), 3 pours salt, G drops the relic.
+            // The flashlight's key (or a click), the camera's raises the Spirit Camera (then a click
+            // takes the photo), salt pours a line, drop lets go of the relic.
             bool click = mouse != null && mouse.leftButton.wasPressedThisFrame && !lockedThisFrame;
             if (hands.Active)
             {
-                // Working (client/src/input.ts): the button grabs, E or a step stops, 1 still works the flashlight.
+                // Working (client/src/input.ts): the button grabs, use or a step stops, the flashlight still works.
                 if (click) { hands.Press(true); me.HandDown = true; }
                 if (mouse != null && mouse.leftButton.wasReleasedThisFrame && me.HandDown) { hands.Press(false); me.HandDown = false; }
-                if (k.digit1Key.wasPressedThisFrame) room.Send("flashlight");
-                bool stop = k.eKey.wasPressedThisFrame || k.wKey.wasPressedThisFrame || k.aKey.wasPressedThisFrame || k.sKey.wasPressedThisFrame || k.dKey.wasPressedThisFrame;
+                if (KeyInput.Pressed("flashlight")) room.Send("flashlight");
+                bool stop = KeyInput.Pressed("use") || KeyInput.Pressed("forward") || KeyInput.Pressed("back") || KeyInput.Pressed("left") || KeyInput.Pressed("right");
                 if (stop && taskState == "open") LeaveTask();
-                if (k.eKey.wasReleasedThisFrame) room.Send("use", new Dictionary<string, object> { { "down", false } });
+                if (KeyInput.Released("use")) room.Send("use", new Dictionary<string, object> { { "down", false } });
                 return;
             }
-            if (k.digit2Key.wasPressedThisFrame) hud.CameraRaised = !hud.CameraRaised && mine != null && mine.cameraShots > 0;
+            // game.ts onFloorKey: a Wisp floats to the floor above or below (GDD 17).
+            bool wisp = mine != null && mine.health == "dead" && string.IsNullOrEmpty(room.State.meeting);
+            if (wisp && KeyInput.Pressed("floatUp")) room.Send("wispFloor", new Dictionary<string, object> { { "dir", 1 } });
+            if (wisp && KeyInput.Pressed("crouch")) room.Send("wispFloor", new Dictionary<string, object> { { "dir", -1 } });
+            if (KeyInput.Pressed("camera")) hud.CameraRaised = !hud.CameraRaised && mine != null && mine.cameraShots > 0;
             if (click && hud.CameraRaised)
             {
                 if (mine != null && mine.cameraShots > 0) room.Send("photo");
                 hud.CameraRaised = false;
             }
-            else if (click || k.digit1Key.wasPressedThisFrame) room.Send("flashlight");
-            if (k.digit3Key.wasPressedThisFrame) room.Send("pourSalt");
-            if (k.gKey.wasPressedThisFrame && mine != null && !string.IsNullOrEmpty(mine.relic)) room.Send("dropRelic");
-            if (k.eKey.wasPressedThisFrame) room.Send("use", new Dictionary<string, object> { { "down", true } });
-            if (k.eKey.wasReleasedThisFrame) room.Send("use", new Dictionary<string, object> { { "down", false } });
+            else if (click || KeyInput.Pressed("flashlight")) room.Send("flashlight");
+            if (KeyInput.Pressed("salt")) room.Send("pourSalt");
+            if (KeyInput.Pressed("drop") && mine != null && !string.IsNullOrEmpty(mine.relic)) room.Send("dropRelic");
+            if (KeyInput.Pressed("use")) room.Send("use", new Dictionary<string, object> { { "down", true } });
+            if (KeyInput.Released("use")) room.Send("use", new Dictionary<string, object> { { "down", false } });
         }
 
         bool lockedThisFrame;
+
+        // Screen shake (game.ts, GDD 23): a short jolt when a hunt starts, a harder one when you are knocked down.
+        const float HuntShakeSec = 0.6f, HuntShakeRad = 0.012f, DownedShakeSec = 0.8f, DownedShakeRad = 0.03f;
+        /// <summary>Your health at the last update, to shake the view when you are knocked down.</summary>
+        string healthWas = "";
+        /// <summary>A test chose the quality ("-quality"): Options and Auto leave it alone.</summary>
+        bool qualityForced;
+
+        // game.ts: Auto lets the hotel settle, then counts frames; at this rate or better it keeps High.
+        const double AutoSettleSec = 2, AutoMeasureSec = 5, AutoHighFps = 55;
+        // game.ts FPS_COUNTER_SEC: the counter's average is over this long.
+        const double FpsCounterSec = 0.5;
+        double autoSec, fpsSec;
+        int autoFrames, fpsFrames;
+        bool fpsShown;
+        /// <summary>Test aid "-showFps": the counter for this run, without changing the player's choice.</summary>
+        static readonly bool fpsTest = Array.IndexOf(Environment.GetCommandLineArgs(), "-showFps") >= 0;
+        Unity.Profiling.ProfilerRecorder drawCalls, triangles;
+
+        /// <summary>
+        /// Auto quality (game.ts measureFrame): the first time you are in the hotel, a few seconds'
+        /// frame rate chooses High or Low for this computer, remembered from then on.
+        /// </summary>
+        void MeasureForAuto(double dt)
+        {
+            if (qualityForced || Options.Quality != "auto" || Options.AutoQuality != null || !me.Ready) return;
+            autoSec += dt;
+            if (autoSec > AutoSettleSec) autoFrames++;
+            if (autoSec < AutoSettleSec + AutoMeasureSec) return;
+            double rate = autoFrames / AutoMeasureSec;
+            Options.AutoQuality = rate >= AutoHighFps ? "high" : "low";
+            Debug.Log("Auto quality: " + rate.ToString("0.#", CultureInfo.InvariantCulture) + " frames a second, so " + Options.AutoQuality);
+            autoSec = 0;
+            autoFrames = 0;
+            HauntedQuality.Apply(Options.QualityLevel);
+        }
+
+        /// <summary>The FPS counter (Options): frames a second, draw calls and triangles, twice a second.</summary>
+        void CountFrames(double dt)
+        {
+            if (menus == null)
+            {
+                // A test that went straight into a room has no menus: the counter needs their panel.
+                if (!(Options.ShowFps || fpsTest)) return;
+                menus = new Menus(config) { Visible = false };
+            }
+            if ((Options.ShowFps || fpsTest) != fpsShown)
+            {
+                fpsShown = Options.ShowFps || fpsTest;
+                fpsSec = 0;
+                fpsFrames = 0;
+                if (fpsShown && !drawCalls.Valid)
+                {
+                    drawCalls = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "Draw Calls Count");
+                    triangles = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "Triangles Count");
+                }
+                menus.Fps = fpsShown ? "" : null;
+            }
+            if (!fpsShown) return;
+            fpsSec += dt;
+            fpsFrames++;
+            if (fpsSec < FpsCounterSec) return;
+            string text = Math.Round(fpsFrames / fpsSec) + " FPS";
+            if (drawCalls.Valid) text += " · " + drawCalls.LastValue + " draws";
+            if (triangles.Valid) text += " · " + Math.Round(triangles.LastValue / 1000.0) + "k triangles";
+            menus.Fps = text;
+            fpsSec = 0;
+            fpsFrames = 0;
+        }
+
+        /// <summary>The Options screen changed something (or you just arrived): the night takes it up.</summary>
+        void ApplyOptions()
+        {
+            if (!qualityForced && HauntedQuality.Current != Options.QualityLevel) HauntedQuality.Apply(Options.QualityLevel);
+            // Choosing Auto again starts its count afresh (game.ts setQuality).
+            if (Options.Quality != "auto") { autoSec = 0; autoFrames = 0; }
+            if (me == null) return;
+            me.Sensitivity = Options.Sensitivity;
+            me.HorizontalFovDeg = Options.Fov;
+        }
 
         /// <summary>The ghost, hunts, sounds from the house and the powers' effects (step C4).</summary>
         void ListenForGhost()
         {
             me.WheelMove = (dx, dy) => wheelMouse += new Vector2((float)dx, (float)dy);
             night.GhostMoved += m => haunting.Push(m, Time.realtimeSinceStartupAsDouble);
-            night.Hunted += phase => haunting.Hunt(phase, Time.realtimeSinceStartupAsDouble);
+            night.Hunted += phase =>
+            {
+                haunting.Hunt(phase, Time.realtimeSinceStartupAsDouble);
+                if (phase == "start") me.Shake(HuntShakeSec, HuntShakeRad);
+            };
             night.EyesGlow += id => others.GlowEyes(id, Time.realtimeSinceStartupAsDouble + Json.Num(Json.Obj(Json.Obj(config, "powers"), "summon"), "eyeGlowSec"));
             night.SoundAt += (kind, x, z) =>
             {
@@ -1031,7 +1213,8 @@ namespace Haunted.Game
             items.Update(now, whisper, whisper.HasValue ? 1 - best / Json.Num(relics, "whisperM") : 0);
             whisperAt = whisper;
             whisperM = best;
-            hud.ScreenFlashUntil = items.ScreenFlashUntil;
+            hud.ScreenFlashAt = items.ScreenFlashAt;
+            hud.ScreenFlashGentle = items.ScreenFlashGentle;
             var mine = night.Me;
             if (mine == null || mine.cameraShots <= 0 || mine.health != "alive") hud.CameraRaised = false;
         }
