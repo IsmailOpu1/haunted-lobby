@@ -352,8 +352,8 @@ Left for D2:
 3. **What did not fix it:**
    - Freeing everyone's bodies, labels and torches in `OnApplicationQuit`.
    - Freeing them a few frames earlier (cancelling the first quit in `Application.wantsToQuit`), with the room's updates stopped so they stayed gone.
-   - No particular character, and not the D3D12 pipeline cache (`%TEMP%\Haunted Lobby\Haunted Lobby\dx12_pso_cache_lib.bin`): the same cache file gave a crash and a clean quit. `-force-d3d12-single-pso-disk-cache` gave one clean quit, the same switch in `boot.config` a crash.
-4. **Next:** a call stack from one of the dumps with symbols (WinDbg or cdb, with Microsoft's and Unity's symbol servers). It is not installed on this PC. Until then, judge a fix only against a control of the same build that still crashes (it is not every time), and with the art in the build.
+   - No particular character. Which pipeline cache file was there (`%TEMP%\Haunted Lobby\Haunted Lobby\dx12_pso_cache_lib.bin`) did not decide it either: the same file gave a crash and a clean quit. `-force-d3d12-single-pso-disk-cache` gave one clean quit, the same switch in `boot.config` a crash (it is not read from there).
+4. **The way to judge a fix** (it does not crash every time): against a control from the same build and the same cache files that still crashes, with the art in the build. The stack, in the next section, showed the cause.
 5. **Tidy-ups on the way** (neither is the fix):
    - `TextPainter` restored the wrong active texture (`Releasing render texture that is set to be RenderTexture.active!` in every log).
    - Quitting with `-quitAt` left the room twice.
@@ -366,7 +366,7 @@ Left for D2:
 2. **Why, unverified.** D3D12 reads memory that is no longer there. The likeliest explanation is that the library still points into the file Unity loaded at the start and has since freed. The library is saved when new pipelines were made in the run (others' bodies lit by torches), and a crash then depends on what has become of that memory. Nothing in the game decides this.
 3. **The fix** (`Game.OnApplicationQuit`). On D3D12 the game ends its own process (exit code 0) once its own quit work is done: voice off, the room left, `-recordSound`'s file saved. Unity's device teardown never runs.
    - **Every quit leaves the room and waits for it** (`Application.wantsToQuit`, up to 2 s), so the server sees a player go, not lose their connection. That includes closing the window.
-   - **The cost:** pipelines made in a run are no longer saved for the next launch. The NVIDIA driver keeps its own shader cache.
+   - **The cost:** pipelines made in a run are no longer saved for the next launch, so they are built again each time (the driver's own shader cache may soften this; not measured). The alternative is a launcher that starts the game with `-force-d3d12-single-pso-disk-cache` (Unity's single-file cache, which does not crash); the owner's call.
    - **`-unityShutdown`** leaves the teardown to Unity, to show the crash.
    - **Unity's own switch** `-force-d3d12-single-pso-disk-cache` avoids the library too, but only on the command line. `boot.config` does not pass switches (`force-d3d11=1` there was ignored too).
 4. **The test.** The cache folder as it was when the game crashed was put back before every run (the C4 bots, quit 20 s into the night).
