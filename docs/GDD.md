@@ -978,3 +978,10 @@ The owner approved `docs/plans/mystery-pilot.md` with the suggested answers. Wha
 | Character downloads (2026-11-14) | A character is downloaded only once someone in your night has been dealt it (6 to 11 MB each, the 9 animations 0.6 MB); until it arrives the player shows as the plain shadow body. Textures stay UASTC at 2048 px (hair 1024) | Keeps the hotel's loading time as it was; quality kept (Texture quality above) |
 | Unrecognised players (2026-11-14) | A model is darkened toward the shadow colour until recognised (22.2) and shows its own colours once recognised; the name floats above the head | 22.2 with real models instead of a coloured capsule |
 | Recorded sounds (2026-11-14) | CC0 recordings from Freesound picked by Claude and downloaded by the owner (no Sonniss bundles): a room tone, a distant rumble and wind as quiet loops, and five creaks heard now and then | Owner's choice; Freesound's real recordings over an AI-made pack |
+
+### 26.16 The Unity version's menus (Phase 9c port, 2026-11-18)
+
+| Rule | Value | Why |
+|---|---|---|
+| Start screen foot line | "No accounts. The ghost hears your real microphone, so keep your voice down." The browser's says "No accounts, no downloads." | The Unity version is a download |
+| Loading bar | None: the Unity version has the hotel on disk, so there is nothing to load before the menus | The browser's bar counts the hotel's download |

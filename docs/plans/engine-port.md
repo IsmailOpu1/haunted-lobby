@@ -400,3 +400,46 @@ The done-when test for step D: every room matches or beats the browser's look, r
    - With the fix: 5 of 5 quit cleanly (exit code 0, no Application Error, no dump).
    - Also clean with the fix: a full 60 s night to the end screen, and the window closed during a night (the room left, code 4000).
 5. **Found on the way:** a worktree has no `engine/Assets/Hotel` (not in git). A build there draws no rooms or people, and quits cleanly for that reason. Copy the folder in before testing.
+
+### Step E: the plan (2026-11-18)
+
+The menus of PRD Phase 7 (Start, Create, Join, Options, Mic check, Room, Room settings) in the Unity version, with the browser's wording, look and font pair, every option taking effect, and the speed test. Built with Unity's UI Toolkit, whose style sheets (USS) follow `client/src/style.css` nearly rule for rule; the menus keep a constant pixel size, as the browser's do. Every existing test flag (`-create`, `-join`, `-name`, `-startWith`, `-roomShots` ...) still skips the menus.
+
+| Part | What | Done when |
+|---|---|---|
+| E1 | The font pair (Instrument Serif and Manrope, static weights 400/500/600/700, made from the browser's files with fontTools, with their licence); UI Toolkit set up; Start, Create and Join | Start, Create and Join match the browser at 1280×720 (wording exact; places, sizes and colours measured), and typing a name or code joins a room |
+| E2 | Options: sound, jump-scare volume, screen shake, photosensitivity, mouse sensitivity (the browser's Counter-Strike scale), field of view, quality (replacing `-quality low`), FPS counter, key rebinding (keys.ts), kept between runs | Each option changes the night as it does in the browser; keys.ts's tests pass in C# |
+| E3 | Room and Room settings: players, Ready and Start, the host's settings (Basic, Advanced, presets, the settings code, from `SETTING_OPTIONS` exported by `tools/engine-export.ts`), kick, photos, room log, Leave, walking round the hotel with the menu at the side, Esc | A host changes settings, bots and a browser player see them, the host kicks one |
+| E4 | Mic check, as main.ts and voice.ts (tested only with the local voice server or `-voiceTone`; no cloud minutes) | Ready needs the mic check, as in the browser |
+| E5 | The night's HUD, the end screen, the meeting and the name labels in the font pair and the browser's look (left plain since step C) | Each matches the browser's, screen by screen |
+| E6 | The speed test (speedTest.ts) and Phase 7's done-when: 8 players start, finish, rematch and change settings without restarting anything | The speed test runs and gives its result; the 8-player story passes with a Unity host |
+
+Things that are browser-only are decided as they come up and recorded in GDD 26.
+
+### Step E1: fonts, Start, Create and Join (2026-11-18)
+
+- **Fonts.** `tools/engine-fonts.py` (fontTools) cuts static Manrope 400/500/600/700 and Instrument Serif Regular and Italic from the browser's font files, Latin and Latin-Ext merged, into `engine/Assets/UI/Fonts/` with their OFL licences.
+- **UI Toolkit.** `Menus.cs` builds the screens in code from `index.html`'s structure, styled by `Menus.uss`, which follows `client/src/style.css` rule for rule. What USS lacks is done in C#:
+  - `gap`: Regap puts the gap between the shown parts only, as CSS does. It runs from the menus' Tick, because a panel's scheduler drops work queued before the elements join it. The first-launch warning showed this: its screen had no gaps.
+  - `line-height`: a rich-text tag spaces the lines after the first. Half the leading goes above and below, as the browser centres a line in its box (Manrope's ascent plus descent is 1.366 of its size).
+  - `text-transform`: done in C#.
+  - Letter spacing: Unity's unit is a hundredth of an em, so the USS value is the browser's px ÷ font px × 100.
+- **Light text drawn as in Chrome.** Unity blends UI in linear light, which makes light text on the dark menus heavier and the film grain brighter than in the browser.
+  - The menus draw into a texture in gamma space (`PanelSettings.forceGammaRendering`).
+  - A URP feature, `HauntedUi`, lays that texture over the finished picture in sRGB, as a browser lays a page over its canvas.
+  - The panel's screen-to-panel function is the identity: the texture is the window's size, and UI Toolkit hands it positions already measured from the top.
+- **Against the browser at 1280×720** (headless Chrome over CDP; each element's box, font, size and colour dumped from both):
+  - Start, Create and Join match within 1 px in place and size. Text widths match within 1 px, the Back button within 4 px (Chrome counts the trailing letter space).
+  - Colours, the grain and the backdrop (#050507) match.
+  - Placeholders are dim, as in the browser.
+  - The first-launch warning overflows 720 lines in both. Unity shows its thin scrollbar, as Chrome does on Windows.
+- **Wording** is the browser's except the start screen's foot line (GDD 26.16).
+- **Input test** (`-menuInput`): the menus driven as a player drives them.
+  - Mouse: queued Input System mouse events.
+  - Typing: the window's own key and character messages, which is how keyboard text reaches UI Toolkit (queued Input System keyboard events never do).
+  - It answers the warning (scrolled to, below the fold), opens Join and types a code (upper-cased), clicks into the name field and types a name, then presses Enter. It gets the browser's "No room has that code" error, goes Back, opens Create (the name kept) and creates a room on the local server. The menus hide in the room.
+  - All 15 checks pass from a fresh start.
+- **Test aids:**
+  - `-menuShots DIR`: each screen as `unity-NAME.png` plus a JSON dump of every element's box.
+  - `-menuInput`.
+- Comparison sheet: `docs/plans/step-e/e1-menus.jpg` (browser, Unity, differences ×4; Start, Create, Join, the warning).

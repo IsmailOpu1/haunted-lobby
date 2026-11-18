@@ -107,8 +107,30 @@ namespace Haunted.Editor
                 Debug.Log("Input System set as the input handler (takes effect when the editor next starts)");
             }
 
+            MakePanel();
             AssetDatabase.SaveAssets();
             Debug.Log("Haunted setup done: URP, material, scene, player settings");
+        }
+
+        const string PanelPath = "Assets/UI/Resources/UI/Panel.asset";
+
+        /// <summary>
+        /// The menus' panel (step E, Menus.cs): Unity's default theme under Menus.uss, at one pixel a
+        /// pixel whatever the window's size, as the browser's menus are.
+        /// </summary>
+        static void MakePanel()
+        {
+            var panel = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.PanelSettings>(PanelPath);
+            if (panel == null)
+            {
+                panel = ScriptableObject.CreateInstance<UnityEngine.UIElements.PanelSettings>();
+                AssetDatabase.CreateAsset(panel, PanelPath);
+            }
+            panel.themeStyleSheet = AssetDatabase.LoadAssetAtPath<UnityEngine.UIElements.ThemeStyleSheet>("Assets/UI/Resources/UI/Theme.tss");
+            panel.scaleMode = UnityEngine.UIElements.PanelScaleMode.ConstantPixelSize;
+            panel.scale = 1;
+            panel.sortingOrder = 100;
+            EditorUtility.SetDirty(panel);
         }
 
         /// <summary>
@@ -162,6 +184,17 @@ namespace Haunted.Editor
             }
             post.shader = shader;
             EditorUtility.SetDirty(post);
+            // The menus over the finished picture, blended as a browser blends (HauntedUi, step E).
+            var ui = renderer.rendererFeatures.Find(f => f is Haunted.Game.HauntedUi) as Haunted.Game.HauntedUi;
+            if (ui == null)
+            {
+                ui = ScriptableObject.CreateInstance<Haunted.Game.HauntedUi>();
+                ui.name = "Haunted menus";
+                AssetDatabase.AddObjectToAsset(ui, renderer);
+                renderer.rendererFeatures.Add(ui);
+            }
+            ui.shader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Shaders/HauntedUi.shader");
+            EditorUtility.SetDirty(ui);
             // The rooms' glass (HauntedGlass) reads what is behind it from HauntedTransmission's
             // pictures; drawn before the bloom, as three draws transmission inside the scene.
             if (!renderer.rendererFeatures.Exists(f => f is Haunted.Game.HauntedTransmission))

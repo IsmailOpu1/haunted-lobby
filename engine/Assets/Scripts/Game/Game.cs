@@ -90,6 +90,9 @@ namespace Haunted.Game
         BeamAdaptation beam;
         RoomTour tour;
 
+        Menus menus;
+        Camera menuCamera;
+
         string serverUrl = "ws://localhost:2567";
         string playerName = "Unity";
         string joinCode = "";
@@ -306,11 +309,142 @@ namespace Haunted.Game
             string script = arg("-script");
             if (Array.IndexOf(args, "-create") >= 0) Connect(null, script);
             else if (arg("-join") != null) Connect(arg("-join"), script);
+            else ShowMenus(arg("-menuShots"));
+        }
+
+        /// <summary>The menus (step E) when no test option says what to do: Start, Create, Join.</summary>
+        void ShowMenus(string shotsDir)
+        {
+            menuCamera = new GameObject("Menu camera").AddComponent<Camera>();
+            menuCamera.clearFlags = CameraClearFlags.SolidColor;
+            // The page behind the browser's menus (style.css body, #050507).
+            menuCamera.backgroundColor = new Color32(5, 5, 7, 255);
+            menuCamera.cullingMask = 0;
+            menus = new Menus(config);
+            menus.Create = name => { playerName = name; Connect(null, null); };
+            menus.Join = (code, name) => { playerName = name; Connect(code, null); };
+            if (shotsDir != null) StartCoroutine(MenuShots(shotsDir));
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-menuInput") >= 0) StartCoroutine(MenuInput());
+        }
+
+        /// <summary>
+        /// -menuInput: the menus driven by queued Input System events (a mouse and the keyboard, as a
+        /// player's input arrives): the warning answered, a made-up code joined (an error), back,
+        /// a room created by name. Logs each check as "Menu input:" and quits.
+        /// </summary>
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        static extern bool PostMessage(IntPtr window, uint message, IntPtr w, IntPtr l);
+
+        System.Collections.IEnumerator MenuInput()
+        {
+            var mouse = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Mouse>("Test mouse");
+            // A mouse of its own: the window runs unfocused under test, and the Input System parks
+            // the real one while it is.
+            int failed = 0;
+            menus.LogPointers();
+            void Check(string what, bool ok) { if (!ok) failed++; Debug.Log("Menu input: " + (ok ? "ok   " : "FAIL ") + what); }
+            System.Collections.IEnumerator Click(string text, int field = -1)
+            {
+                var p = field >= 0 ? menus.FieldPoint(field) : menus.ScreenPoint(text);
+                // Again once a scroll to it has been laid out.
+                yield return new WaitForSecondsRealtime(0.2f);
+                if (field < 0) p = menus.ScreenPoint(text);
+                Check("found \"" + text + "\"", p != null);
+                if (p == null) yield break;
+                UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, new UnityEngine.InputSystem.LowLevel.MouseState { position = p.Value });
+                yield return new WaitForSecondsRealtime(0.15f);
+                UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, new UnityEngine.InputSystem.LowLevel.MouseState { position = p.Value }.WithButton(UnityEngine.InputSystem.LowLevel.MouseButton.Left, true));
+                yield return new WaitForSecondsRealtime(0.1f);
+                UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, new UnityEngine.InputSystem.LowLevel.MouseState { position = p.Value });
+                yield return new WaitForSecondsRealtime(0.6f);
+            }
+            // Typing reaches UI Toolkit as the window's own key messages, so the test posts those.
+            var window = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle;
+            System.Collections.IEnumerator Type(string text)
+            {
+                foreach (char c in text) { PostMessage(window, 0x0102, (IntPtr)c, (IntPtr)1); yield return new WaitForSecondsRealtime(0.05f); }
+                yield return new WaitForSecondsRealtime(0.3f);
+            }
+            System.Collections.IEnumerator PressEnter()
+            {
+                PostMessage(window, 0x0100, (IntPtr)0x0D, (IntPtr)0x001C0001);
+                yield return new WaitForSecondsRealtime(0.05f);
+                PostMessage(window, 0x0101, (IntPtr)0x0D, unchecked((IntPtr)(int)0xC01C0001));
+                yield return new WaitForSecondsRealtime(0.4f);
+            }
+
+            yield return new WaitForSecondsRealtime(1.5f);
+            // The panel takes up a new mouse with its first event; this one only wakes it.
+            UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, new UnityEngine.InputSystem.LowLevel.MouseState { position = new Vector2(1, 1) });
+            yield return new WaitForSecondsRealtime(0.3f);
+            if (menus.WarningShown)
+            {
+                yield return Click("Continue");
+                Check("warning answered", !menus.WarningShown);
+            }
+            yield return Click("Join a room");
+            Check("join screen", menus.Current == "join");
+            yield return Type("qqzzw");
+            Check("code typed and upper-cased: " + string.Join("|", menus.FieldValues()), menus.FieldValues()[0] == "QQZZW");
+            string saved = menus.FieldValues()[1];
+            yield return Click("the name field", 1);
+            yield return Type(saved == "" ? "Tester" : "");
+            string name = saved == "" ? "Tester" : saved;
+            Check("name typed: " + string.Join("|", menus.FieldValues()), menus.FieldValues()[1] == name);
+            yield return PressEnter();
+            float until = Time.realtimeSinceStartup + 10;
+            while (menus.ShownError == "" && Time.realtimeSinceStartup < until) yield return null;
+            Check("no such room: \"" + menus.ShownError + "\"", menus.ShownError != "" && room == null);
+            yield return Click("←  BACK");
+            Check("back to start", menus.Current == "start");
+            yield return Click("Create a room");
+            Check("create screen, name kept: " + string.Join("|", menus.FieldValues()), menus.Current == "create");
+            if (menus.FieldValues()[0] == "") yield return Type(name);
+            yield return Click("Create room");
+            until = Time.realtimeSinceStartup + 15;
+            while (room == null && Time.realtimeSinceStartup < until) yield return null;
+            Check("room created as " + playerName + (room != null ? " (" + room.RoomId + ")" : ""), room != null && playerName == name);
+            Check("menus hidden in the room", menus == null || !menus.Visible);
+            yield return new WaitForSecondsRealtime(2);
+            Debug.Log("Menu input: " + (failed == 0 ? "all passed" : failed + " failed"));
+            Application.Quit();
+        }
+
+        /// <summary>
+        /// -menuShots DIR: each menu screen in turn, saved as DIR/unity-NAME.png, then quits. For step
+        /// E's comparison with the browser (delete PlayerPrefs' photoWarningSeen to see the warning).
+        /// </summary>
+        System.Collections.IEnumerator MenuShots(string dir)
+        {
+            Directory.CreateDirectory(dir);
+            if (menus.WarningShown)
+            {
+                yield return new WaitForSecondsRealtime(1.2f);
+                ScreenCapture.CaptureScreenshot(Path.Combine(dir, "unity-warning.png"));
+                File.WriteAllText(Path.Combine(dir, "unity-warning.json"), menus.Dump());
+                yield return null;
+                yield return null;
+                menus.HideWarning();
+            }
+            foreach (var screen in new[] { "start", "create", "join" })
+            {
+                if (screen == "start") menus.Reset("start"); else menus.Go(screen);
+                yield return new WaitForSecondsRealtime(1.2f);
+                ScreenCapture.CaptureScreenshot(Path.Combine(dir, "unity-" + screen + ".png"));
+                File.WriteAllText(Path.Combine(dir, "unity-" + screen + ".json"), menus.Dump());
+                yield return null;
+                yield return null;
+            }
+            // The last picture is written a moment after it is asked for.
+            yield return new WaitForSecondsRealtime(1);
+            Debug.Log("Menu shots saved to " + dir);
+            Application.Quit();
         }
 
         async void Connect(string code, string script)
         {
             busy = true;
+            if (menus != null) menus.SetBusy(true);
             status = code == null ? "Creating a room..." : "Joining " + code + "...";
             try
             {
@@ -326,6 +460,7 @@ namespace Haunted.Game
                 status = "Could not join: " + e.Message;
                 Debug.LogError(status);
                 busy = false;
+                if (menus != null) { status = ""; menus.SetBusy(false); menus.ShowError(menus.JoinErrorText(e.Message)); }
             }
         }
 
@@ -333,6 +468,9 @@ namespace Haunted.Game
         {
             status = "";
             busy = false;
+            // Until the room screen (step E3), the menus step aside once you are in.
+            if (menus != null) { menus.SetBusy(false); menus.Visible = false; }
+            if (menuCamera != null) { Destroy(menuCamera.gameObject); menuCamera = null; }
             var move = GameData.LoadMovement(config);
             me = new LocalPlayer(hotel, move, config);
             held = new HeldTorch(me.Camera.transform);
@@ -477,6 +615,7 @@ namespace Haunted.Game
         void Update()
         {
             double now = Time.realtimeSinceStartupAsDouble;
+            if (menus != null) menus.Tick();
             stations.Update(Time.timeAsDouble);
             UpdateBlackout(Time.deltaTime);
             doors.Update(Time.deltaTime);
@@ -1015,6 +1154,7 @@ namespace Haunted.Game
         {
             if (tour != null) return;
             var style = new GUIStyle(GUI.skin.label) { fontSize = 18 };
+            if (room == null && menus != null) return;
             if (room == null)
             {
                 GUILayout.BeginArea(new Rect(40, 40, 420, 400), GUI.skin.box);
