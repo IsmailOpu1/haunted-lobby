@@ -64,17 +64,20 @@ namespace Haunted.Game
         /// <summary>HouseSounds places a creak at (cos a, sin a) on the ground: the angle that points along dir.</summary>
         static float Angle(Vector3 dir) { return Mathf.Atan2(dir.z, dir.x); }
 
+        /// <summary>-recordSound: the whole run saved, on quitting (Game.OnApplicationQuit).</summary>
+        public void SaveRecording()
+        {
+            if (!recordOnly || recorder == null) return;
+            Directory.CreateDirectory(dir);
+            recorder.Save(Path.Combine(dir, "night-sound.wav"));
+        }
+
         public void Frame(double now, Transform ears, HouseSounds house)
         {
             if (recordOnly)
             {
                 if (recorder != null) return;
                 recorder = ears.gameObject.AddComponent<SoundRecorder>();
-                Application.quitting += () =>
-                {
-                    Directory.CreateDirectory(dir);
-                    recorder.Save(Path.Combine(dir, "night-sound.wav"));
-                };
                 Debug.Log("Recording sound from " + now.ToString("0.0", CultureInfo.InvariantCulture));
                 return;
             }
