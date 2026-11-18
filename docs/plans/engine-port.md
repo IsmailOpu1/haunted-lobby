@@ -341,3 +341,19 @@ Left for D2:
    - The hunt's silence, sting and heavy steps played, with "Heavy footsteps" behind you and "A door slams" with its arrow (`step-d/d4-door-slam-cue.png`).
 9. **Found, not from D4:** the Windows build crashes (segmentation fault) as it quits after a night with bots. The D3 build does the same. A plain quit from the lobby is clean.
 10. **Test aids kept:** `-soundTest DIR` (the list above, written to `unity-sound.wav` and `.txt`, then quits), `-recordSound DIR` (the whole run, `night-sound.wav`).
+
+### Step D: the crash on quitting, looked into, not fixed (2026-11-18)
+
+1. **What it is.** The Windows build crashes as it quits after a night with others in it: an access violation in `D3D12Core.dll` (Event Viewer, Application Error 1000), after the Input System has shut down. Windows writes a dump to `%LOCALAPPDATA%\CrashDumps` each time; Unity's own crash handler writes nothing. It does not happen every time: 11 of 19 nights with the hotel's art crashed (the C4 bots, quitting at 20 or 60 s).
+2. **What it needs**, each tried in the same build:
+   - **D3D12.** With `-force-d3d11` it quit cleanly; with `-force-gfx-direct` (no render thread) it still crashed.
+   - **Others' character bodies.** A build without the hotel's art (in a fresh worktree, `engine/Assets/Hotel` is not in git) never crashed in five nights, with the hunt, the red eyes and the end screen all happening. Alone in a night it quit cleanly.
+   - It is not the ending: quitting mid-night crashed too.
+3. **What did not fix it:**
+   - Freeing everyone's bodies, labels and torches in `OnApplicationQuit`.
+   - Freeing them a few frames earlier (cancelling the first quit in `Application.wantsToQuit`), with the room's updates stopped so they stayed gone.
+   - No particular character, and not the D3D12 pipeline cache (`%TEMP%\Haunted Lobby\Haunted Lobby\dx12_pso_cache_lib.bin`): the same cache file gave a crash and a clean quit. `-force-d3d12-single-pso-disk-cache` gave one clean quit, the same switch in `boot.config` a crash.
+4. **Next:** a call stack from one of the dumps with symbols (WinDbg or cdb, with Microsoft's and Unity's symbol servers). It is not installed on this PC. Until then, judge a fix only against a control of the same build that still crashes (it is not every time), and with the art in the build.
+5. **Tidy-ups on the way** (neither is the fix):
+   - `TextPainter` restored the wrong active texture (`Releasing render texture that is set to be RenderTexture.active!` in every log).
+   - Quitting with `-quitAt` left the room twice.

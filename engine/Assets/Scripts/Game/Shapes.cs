@@ -397,8 +397,9 @@ namespace Haunted.Game
             // The font's glyphs live on the GPU: copy them back once to read.
             var source = font.material.mainTexture;
             var rt = RenderTexture.GetTemporary(source.width, source.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-            Graphics.Blit(source, rt);
+            // Before the blit, which leaves rt active: restoring that would release the active texture.
             var was = RenderTexture.active;
+            Graphics.Blit(source, rt);
             RenderTexture.active = rt;
             atlas = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false, true);
             atlas.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0);

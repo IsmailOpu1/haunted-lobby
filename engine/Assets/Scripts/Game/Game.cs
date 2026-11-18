@@ -97,7 +97,7 @@ namespace Haunted.Game
         string codeFile, shotPath;
         double shotAt = -1, quitAt = -1, teleportAt = -1, rematchAfter = -1;
         float teleportX, teleportZ;
-        bool shotTaken, autoReady;
+        bool shotTaken, autoReady, left;
         int startWith;
         double nightSince = -1, endSince = -1;
         readonly List<KeyValuePair<double, string[]>> nightSends = new List<KeyValuePair<double, string[]>>();
@@ -998,6 +998,7 @@ namespace Haunted.Game
         async void Quit()
         {
             quitAt = -1;
+            left = true;
             try { if (room != null) await room.Leave(); } catch (Exception) { }
             Application.Quit();
         }
@@ -1031,7 +1032,8 @@ namespace Haunted.Game
         void OnApplicationQuit()
         {
             if (voice != null) voice.Disconnect();
-            if (room != null) room.Leave();
+            // Once only: Quit() has already left and waited for it.
+            if (room != null && !left) { left = true; room.Leave(); }
         }
     }
 }
