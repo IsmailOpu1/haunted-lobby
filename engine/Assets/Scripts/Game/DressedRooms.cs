@@ -271,6 +271,8 @@ namespace Haunted.Game
             probe.size = Vector3.one * ProbeBoxM;
             probe.clearFlags = ReflectionProbeClearFlags.SolidColor;
             probe.backgroundColor = Color.black;
+            // The rooms alone: never your hand, if you stand there as they are taken.
+            probe.cullingMask = HauntedHeld.WorldMask;
             probes.Add(probe);
             return probe;
         }

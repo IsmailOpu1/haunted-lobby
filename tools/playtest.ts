@@ -12,6 +12,9 @@
 //                                          Summons the ghost on the Unity player and slams a door; the third
 //                                          dies; in the meeting the dead bot pushes the Ouija planchette and the
 //                                          others vote the possessed out. PLAYERS=3 is needed.
+//   npx tsx tools/playtest.ts d3 CODE      with a Unity player (engine step D3, people): four bots in front of it, one
+//                                          standing, one walking side to side, one crouching then creeping, one
+//                                          knocked down who crawls and bleeds out. PLAYERS=4 is needed.
 //   add a room code to join a room a browser player made, e.g. ... win-asleep ABCDE
 //   PLAYERS=8 plays with more bots (2 to 8; default 2). For lag, run tools/lagProxy.ts and point
 //   ENDPOINT at it (ws://localhost:2568).
@@ -252,6 +255,7 @@ async function main() {
   const bots = [a, b, ...more];
   if (mode === "c4") return c4(bots);
   if (mode === "c4u") return c4u(bots);
+  if (mode === "d3") return d3(bots);
   // In their own room the bots skip the host's countdown and the intro (in a joined room, the host starts).
   // MYSTERY=0 plays without "Who was the ghost?" (GDD 26.13); otherwise the bots solve it.
   if (!joinCode && process.env.MYSTERY === "0") a.room.send("debug", { mystery: false });
@@ -400,6 +404,67 @@ async function c4(bots: Bot[]) {
  * Step C4, the Unity player's side: it is the possessed (-possessed) and uses its powers on the bots
  * standing in front of it, then dies and sees Tanvir's Wisp and pushes the Ouija planchette.
  */
+/**
+ * Step D3: the people as Unity draws them. The bots line up in front of the Unity player and each
+ * shows clips of its own: Rafi stands (idle), Mim walks side to side (walk, now and then run), Tanvir
+ * crouches then creeps (crouch-idle, crouch-walk), Nadia is knocked down, crawls, and bleeds out
+ * (knocked-down, crawl, downed-idle, dying).
+ */
+async function d3(bots: Bot[]) {
+  const [rafi, mim, tanvir, nadia] = bots as [Bot, Bot, Bot, Bot];
+  if (!nadia) throw new Error("d3 needs PLAYERS=4");
+  await until(() => rafi.state.stage === "night", 120, "night start (the Unity host starts it)");
+  rafi.room.send("debug", { toggleGhost: true });
+  const t0 = Date.now();
+  const now = () => (Date.now() - t0) / 1000;
+  const at = (sec: number) => until(() => now() >= sec, sec + 5, `${sec} s`);
+  const unity = () => [...rafi.state.players.entries()].find(([, p]: [string, any]) => p.name === "Unity") as [string, any];
+  const inFront = (dist: number, side: number) => {
+    const [, u] = unity();
+    const fx = -Math.sin(u.yaw), fz = -Math.cos(u.yaw);
+    return standNear({ x: u.x + fx * dist - fz * side, z: u.z + fz * dist + fx * side }, 2);
+  };
+  const facing = (bot: Bot) => {
+    const [, u] = unity();
+    return Math.atan2(-(u.x - bot.me.x), -(u.z - bot.me.z));
+  };
+  await at(4);
+  await rafi.teleport(inFront(4, 0));
+  await mim.teleport(inFront(3.5, 1.3));
+  await tanvir.teleport(inFront(3.5, -1.3));
+  // In front of Rafi and a little to the side, where her body lies in the light once she is down.
+  await nadia.teleport(inFront(3.2, 0.6));
+  log("room", "bots stand in front of the Unity player");
+  const yaws = new Map(bots.map((b) => [b, facing(b)]));
+  let downed = false;
+  while (now() < 60) {
+    const t = now();
+    for (const bot of bots) {
+      let forward = 0, right = 0, run = false, crouch = false;
+      if (bot === mim) {
+        right = Math.floor(t / 2) % 2 === 0 ? 1 : -1;
+        run = t > 20 && t < 26;
+      }
+      if (bot === tanvir) {
+        crouch = true;
+        if (t > 12) right = Math.floor(t / 2) % 2 === 0 ? 1 : -1;
+      }
+      // Downed, Nadia crawls toward the Unity player for a while, then lies still.
+      if (bot === nadia && downed && t > 14 && t < 22) forward = Math.floor(t / 3) % 2 === 0 ? 1 : -1;
+      bot.room.send("input", { seq: ++bot.seq, forward, right, run, crouch, yaw: yaws.get(bot)!, pitch: 0 });
+    }
+    if (!downed && t > 9) {
+      downed = true;
+      nadia.room.send("debug", { down: true });
+      log("Nadia", "knocked down");
+    }
+    await sleep(1 / config.net.tickRate);
+  }
+  log("room", `Nadia is ${nadia.me.health}`);
+  for (const bot of bots) await bot.room.leave();
+  process.exit(0);
+}
+
 async function c4u(bots: Bot[]) {
   const [rafi, mim, tanvir] = bots as [Bot, Bot, Bot];
   await until(() => rafi.state.stage === "night", 120, "night start (the Unity host starts it)");

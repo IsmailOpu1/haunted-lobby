@@ -70,6 +70,8 @@ namespace Haunted.Game
             // Night: black past the fog, as the browser (game.ts scene.background); no daytime sky over open rooms.
             Camera.clearFlags = CameraClearFlags.SolidColor;
             Camera.backgroundColor = Color.black;
+            // Not the held torch's studio; the torch itself is drawn by HauntedHeld.
+            Camera.cullingMask = HauntedHeld.WorldMask | HauntedHeld.HeldMask;
             cam.AddComponent<AudioListener>();
             // The held torch, as the browser's: from the lens, low and to the right in front of the
             // eyes, aimed at where you look BeamAimM ahead.
@@ -78,6 +80,16 @@ namespace Haunted.Game
         }
 
         public bool FlashlightOn { set { flashlight.enabled = value; } }
+
+        /// <summary>Where the beam starts now, in the camera's space (the held torch's lens, HeldTorch), still aimed BeamAimM ahead.</summary>
+        public Vector3 BeamFrom
+        {
+            set
+            {
+                flashlight.transform.localPosition = value;
+                flashlight.transform.localRotation = Quaternion.LookRotation(Vector3.forward * BeamAimM - value);
+            }
+        }
 
         /// <summary>The flashlight's brightness, 0 to 1: it flickers and dies near the ghost (GDD 8.1).</summary>
         public float Brightness { set { flashlight.intensity = Torch.Intensity * value; } }

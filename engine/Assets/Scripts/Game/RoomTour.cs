@@ -72,6 +72,7 @@ namespace Haunted.Game
             while (Ready != null && !Ready()) yield return null;
             Directory.CreateDirectory(Dir);
             var camera = new GameObject("Tour view").AddComponent<Camera>();
+            camera.cullingMask = HauntedHeld.WorldMask;
             camera.nearClipPlane = 0.05f;
             camera.farClipPlane = 60;
             camera.clearFlags = CameraClearFlags.SolidColor;

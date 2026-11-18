@@ -37,6 +37,7 @@ namespace Haunted.Game
         object config;
         WorldData world;
         Hotel hotel;
+        HeldTorch held;
         LocalPlayer me;
         RemotePlayers others;
         Voice voice;
@@ -140,7 +141,12 @@ namespace Haunted.Game
             // The same fill on lightmapped surfaces, as three adds it (the patched URP's SampleLightmap).
             Shader.SetGlobalVector("_HauntedFillSky", sky * fill);
             Shader.SetGlobalVector("_HauntedFillGround", ground * fill);
+            fillSky = sky * fill;
+            fillGround = ground * fill;
         }
+
+        /// <summary>The fill SetFill last set (the held torch's own little scene takes it too).</summary>
+        static Color fillSky, fillGround;
 
         /// <summary>
         /// game.ts on the blackout: the lamps fade out (DressedRooms) and the fill drops at once to
@@ -244,6 +250,17 @@ namespace Haunted.Game
             forceBlackout = Array.IndexOf(args, "-blackout") >= 0;
             HauntedAO.ShowOnly = Array.IndexOf(args, "-aoOnly") >= 0;
             HauntedAO.Off = Array.IndexOf(args, "-noAO") >= 0;
+            // Test aid: the torch in this character's hand alone, looking straight ahead (as the
+            // browser's held scene, to compare the two).
+            heldTest = arg("-heldTest");
+            // Test aid: "-cast Rafi=nurse,Mim=detective": draw these players as these characters (to
+            // set Unity's picture beside a browser night that was dealt otherwise). The server's deal stands.
+            if (arg("-cast") != null)
+                foreach (var pair in arg("-cast").Split(','))
+                {
+                    var bits = pair.Split('=');
+                    if (bits.Length == 2) cast[bits[0]] = bits[1];
+                }
             if (arg("-bloomScale") != null) HauntedPost.BloomScale = float.Parse(arg("-bloomScale"), System.Globalization.CultureInfo.InvariantCulture);
             if (arg("-bloomThreshold") != null) HauntedPost.ThresholdNow = float.Parse(arg("-bloomThreshold"), System.Globalization.CultureInfo.InvariantCulture);
             Shader.SetGlobalFloat("_HauntedHdrOut", Array.IndexOf(args, "-hdrOut") >= 0 ? 1 : 0);
@@ -295,6 +312,7 @@ namespace Haunted.Game
             busy = false;
             var move = GameData.LoadMovement(config);
             me = new LocalPlayer(hotel, move, config);
+            held = new HeldTorch(me.Camera.transform);
             if (script == "walk") me.Script = WalkScript;
             room.OnStateChange += (state, first) => OnState(state);
             room.OnLeave += code => { status = "Left the room (" + code + ")"; Debug.Log(status); };
@@ -386,8 +404,16 @@ namespace Haunted.Game
                     continue;
                 }
                 ids.Add(kv.Key);
-                bool visible = p.connected && string.IsNullOrEmpty(p.hidingSpot) && p.health != "dead";
-                others.Push(kv.Key, p.name, now, p.x, p.z, p.yaw, p.pitch, p.crouching, p.flashlightOn, visible);
+                // remotePlayers.ts: the dead lie where they fell until the body is gone; a hider is out of sight.
+                bool dead = p.health == "dead";
+                bool visible = p.connected && string.IsNullOrEmpty(p.hidingSpot) && !(dead && p.bodyGone);
+                double x = dead ? p.bodyX : p.x, z = dead ? p.bodyZ : p.z;
+                others.Push(kv.Key, now, x, z, p.yaw, p.pitch, p.crouching && !dead, new RemotePlayers.Latest
+                {
+                    Name = p.name ?? "", Health = p.health ?? "alive", Character = Cast(p.name, p.character) ?? "",
+                    Colour = Characters.ColourOf(Cast(p.name, p.character)), FlashlightOn = p.flashlightOn && p.health == "alive",
+                    Visible = visible, X = x, Z = z,
+                });
             }
             others.Keep(ids);
             night.OnState();
@@ -442,10 +468,18 @@ namespace Haunted.Game
                 if (night.End != null && hands.Active) StopHands();
                 var feet = me.Camera.transform.position - Vector3.up * (float)Json.Num(Json.Obj(config, "movement"), "eyeHeightM");
                 if (beam == null) beam = new BeamAdaptation(dressed?.Root);
-                me.Brightness = haunting.Update(now, Time.deltaTime, feet, me.Camera) * beam.Update(Time.deltaTime, me.Camera);
+                float flicker = haunting.Update(now, Time.deltaTime, feet, me.Camera);
+                me.Brightness = flicker * beam.Update(Time.deltaTime, me.Camera);
+                // game.ts: the torch in your hand, not while working a task, holding up the camera, or as a Wisp.
+                var mine = night.Me;
+                if (mine != null) held.Wear(heldTest ?? Cast(mine.name, mine.character));
+                held.Fill(fillSky, fillGround);
+                me.BeamFrom = held.Update(Time.deltaTime, me.Camera.transform.position, me.Yaw, me.Pitch,
+                    (mine == null || mine.health != "dead") && !hands.Active && !hud.CameraRaised, flashlightWas, flicker, dressed != null ? dressed.Power : 1);
                 if (night.End != null || (night.Me != null && night.Me.health != "alive")) CloseWheel(false);
                 if (bot != null) bot.Frame();
                 UpdateHands(Time.deltaTime);
+                others.Reveal(Recognises);
                 others.Update(now, me.Camera);
                 hud.Prompt = night.PromptAt(me.State.X, me.State.Z);
                 UpdateItems(now);
@@ -464,6 +498,43 @@ namespace Haunted.Game
                 }
                 RunTestSchedule(now);
             }
+        }
+
+        void LateUpdate()
+        {
+            if (others != null) others.LateUpdate();
+            if (heldTest != null && me != null)
+            {
+                me.Camera.transform.rotation = Quaternion.identity;
+                me.Camera.cullingMask = HauntedHeld.HeldMask;
+                me.Camera.clearFlags = CameraClearFlags.SolidColor;
+                me.Camera.backgroundColor = Color.black;
+            }
+        }
+        /// <summary>-heldTest: whose hand to show alone (a test aid).</summary>
+        string heldTest;
+        /// <summary>-cast: characters drawn in place of the dealt ones, by player name (a test aid).</summary>
+        readonly Dictionary<string, string> cast = new Dictionary<string, string>();
+        string Cast(string name, string character) => name != null && cast.TryGetValue(name, out var c) ? c : character;
+
+        /// <summary>Whether you can tell who another player is right now (GDD 22.2; game.ts recognises).</summary>
+        bool Recognises(string id)
+        {
+            var other = others.StateOf(id);
+            if (other == null || me == null || room?.State == null) return false;
+            var f = Json.Obj(config, "flashlight");
+            double darkVisionM = Json.Num(f, "darkVisionM"), nameRevealM = Json.Num(f, "nameRevealM");
+            double halfRad = Json.Num(f, "coneHalfAngleDeg") * Math.PI / 180;
+            double myX = me.State.X, myZ = me.State.Z;
+            // Measured in the drawn world, so a floor above is further than its plan says (levels.ts worldDistance).
+            float distM = Vector3.Distance(Coords.Place(world, myX, myZ), Coords.Place(world, other.X, other.Z));
+            bool meeting = !string.IsNullOrEmpty(room.State.meeting);
+            if (meeting || distM <= darkVisionM) return true;
+            if (!flashlightWas || distM > nameRevealM) return false;
+            double toward = Math.Atan2(-(other.X - myX), -(other.Z - myZ));
+            double d = toward - me.Yaw;
+            if (Math.Abs(Math.Atan2(Math.Sin(d), Math.Cos(d))) > halfRad) return false;
+            return hotel.Collision.LineOfSight(myX, myZ, other.X, other.Z, Json.Num(Json.Obj(config, "movement"), "eyeHeightM"));
         }
 
         void HandleKeys()

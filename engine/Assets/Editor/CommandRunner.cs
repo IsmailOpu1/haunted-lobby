@@ -44,6 +44,9 @@ namespace Haunted.Editor
                     case "ImportHotel":
                         HotelImport.Import();
                         break;
+                    case "ImportCharacters":
+                        CharacterImport.Import();
+                        break;
                     case "Refresh":
                         AssetDatabase.Refresh();
                         break;

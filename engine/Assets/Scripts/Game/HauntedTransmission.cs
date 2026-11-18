@@ -18,7 +18,8 @@ namespace Haunted.Game
     {
         static readonly int OpaqueId = Shader.PropertyToID("_HauntedTransmissionOpaque");
         static readonly int BehindId = Shader.PropertyToID("_HauntedTransmission");
-        static readonly ShaderTagId BackTag = new ShaderTagId("HauntedGlassBack");
+        /// <summary>Made on first use: Unity won't make shader tags while it loads the renderer's assets.</summary>
+        static ShaderTagId BackTag => new ShaderTagId("HauntedGlassBack");
 
         Pass pass;
         BlackPass black;

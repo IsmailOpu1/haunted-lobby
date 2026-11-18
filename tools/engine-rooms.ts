@@ -8,12 +8,15 @@
 //                                              plus each build's reflection spots from its dressing
 //   engine/Assets/Hotel/Models/<name>.gltf/.bin the doors and the stations' own models (step D2),
 //                                              and door-styles.json, each door's style by map
+//   engine/Assets/Hotel/Characters/<name>.gltf the people (step D3): characters, low/ copies,
+//                                              anims, and the held torch in each hand
 //   engine/Assets/Hotel/texture-roles.json     which textures are normal maps or data (not colour)
 // Unity then compresses the textures for the PC itself. The folder is made by this tool and never
-// committed (engine/.gitignore). Run: npx tsx tools/engine-rooms.ts [room file name ... | --models]
+// committed (engine/.gitignore). Run: npx tsx tools/engine-rooms.ts [room file name ... | --models | --characters]
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
 import { type Document, NodeIO, Primitive } from "@gltf-transform/core";
 import { ALL_EXTENSIONS, type EmissiveStrength, KHRMaterialsEmissiveStrength, KHRTextureBasisu, type Transmission } from "@gltf-transform/extensions";
@@ -48,6 +51,12 @@ async function main() {
   await MeshoptDecoder.ready;
   const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ "meshopt.decoder": MeshoptDecoder });
   const manifest = JSON.parse(readFileSync(join(ASSETS, "rooms/rooms.json"), "utf8")) as Record<string, { glb: string; lightmap: string }>;
+  // --characters: only the people (step D3).
+  if (process.argv[2] === "--characters") {
+    await characters(io);
+    await writeRoles(io);
+    return;
+  }
   // --models: only the models that are not rooms (quick, after a door or station rebuild).
   const modelsOnly = process.argv[2] === "--models";
   const only = modelsOnly ? [] : process.argv.slice(2);
@@ -93,6 +102,29 @@ const MODELS: [string, string][] = [
 ];
 
 /**
+ * The people (step D3), made ready the same way into Characters/: the eight characters
+ * (client/src/characterModels.ts), their Low copies (low/), the shared animations (anims), and
+ * the torch held in each one's hand (heldFlashlight.ts: held/held_<character>, and held_torch
+ * before one is dealt). Their textures are inside the files; each is written once to Textures/,
+ * named by its content, so a texture the Low copy shares is not saved twice.
+ */
+async function characters(io: NodeIO) {
+  const dir = join(OUT, "Characters");
+  mkdirSync(join(dir, "low"), { recursive: true });
+  mkdirSync(join(OUT, "Textures"), { recursive: true });
+  const people = readdirSync(join(ASSETS, "characters")).filter((f) => f.endsWith(".glb")).map((f) => basename(f, ".glb"));
+  const files: [string, string][] = [
+    ...people.map((p): [string, string] => [`assets/characters/${p}.glb`, p]),
+    ...readdirSync(join(ASSETS, "characters/low")).filter((f) => f.endsWith(".glb")).map((f): [string, string] => [`assets/characters/low/${f}`, `low/${basename(f, ".glb")}`]),
+    ...readdirSync(join(ASSETS, "held")).filter((f) => f.endsWith(".glb")).map((f): [string, string] => [`assets/held/${f}`, basename(f, ".glb")]),
+  ];
+  for (const [from, name] of files) {
+    const count = await convert(io, join(PUBLIC, from), dir, name);
+    console.log(`${name}: ${count} textures`);
+  }
+}
+
+/**
  * Writes one browser glTF as a plain one for glTFast: meshes unpacked, textures as the shared PNGs
  * in Textures/, emissive strength folded in. Returns how many textures it uses.
  */
@@ -101,10 +133,21 @@ async function convert(io: NodeIO, from: string, dir: string, name: string, ligh
   await doc.transform(dequantize());
   if (lighter) await addLighter(doc);
   const textures = doc.getRoot().listTextures();
-  const files = textures.map((t) => basename(t.getURI(), ".ktx2"));
-  await inPairs([...new Set(files)], (file) => unpack(join(ASSETS, "textures", `${file}.ktx2`), join(OUT, "Textures", `${file}.png`)));
+  // A texture inside the file (the characters) is named by its content and unpacked from there.
+  const files = textures.map((t) => (t.getURI() ? basename(t.getURI(), ".ktx2") : `c_${createHash("sha1").update(t.getImage()!).digest("hex").slice(0, 16)}`));
   textures.forEach((t, i) => {
-    t.setMimeType("image/png").setURI(`../Textures/${files[i]}.png`);
+    const ktx2 = join(OUT, "Textures", `${files[i]}.ktx2`);
+    if (!t.getURI() && !existsSync(join(OUT, "Textures", `${files[i]}.png`))) writeFileSync(ktx2, t.getImage()!);
+  });
+  await inPairs([...new Set(files)], async (file) => {
+    const inside = join(OUT, "Textures", `${file}.ktx2`);
+    await unpack(existsSync(inside) ? inside : join(ASSETS, "textures", `${file}.ktx2`), join(OUT, "Textures", `${file}.png`));
+    if (existsSync(inside)) unlinkSync(inside);
+  });
+  // The way from this file to Textures/ (Characters/low/ is a step deeper than Rooms/).
+  const toTextures = relative(dirname(join(dir, name)), join(OUT, "Textures")).replace(/\\/g, "/");
+  textures.forEach((t, i) => {
+    t.setMimeType("image/png").setURI(`${toTextures}/${files[i]}.png`);
     t.setImage(readFileSync(join(OUT, "Textures", `${files[i]}.png`)));
   });
   // glTFast ignores KHR_materials_emissive_strength, so bulbs and flames would glow 6 times too
@@ -119,7 +162,7 @@ async function convert(io: NodeIO, from: string, dir: string, name: string, ligh
   for (const ext of doc.getRoot().listExtensionsUsed()) {
     if (ext.extensionName === KHRTextureBasisu.EXTENSION_NAME || ext.extensionName === "EXT_meshopt_compression" || ext.extensionName === "KHR_mesh_quantization") ext.dispose();
   }
-  for (const buffer of doc.getRoot().listBuffers()) buffer.setURI(`${name}.bin`);
+  for (const buffer of doc.getRoot().listBuffers()) buffer.setURI(`${basename(name)}.bin`);
   await io.write(join(dir, `${name}.gltf`), doc);
   return textures.length;
 }
@@ -193,7 +236,7 @@ function lighterTriangles(prim: Primitive): Uint32Array | null {
 async function writeRoles(io: NodeIO) {
   const normals = new Set<string>();
   const data = new Set<string>();
-  const converted = ["Rooms", "Models"].flatMap((dir) => readdirSync(join(OUT, dir)).filter((f) => f.endsWith(".gltf")).map((f) => join(OUT, dir, f)));
+  const converted = ["Rooms", "Models", "Characters", "Characters/low"].filter((dir) => existsSync(join(OUT, dir))).flatMap((dir) => readdirSync(join(OUT, dir)).filter((f) => f.endsWith(".gltf")).map((f) => join(OUT, dir, f)));
   for (const file of converted) {
     const doc = await io.read(file);
     for (const m of doc.getRoot().listMaterials()) {

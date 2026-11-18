@@ -282,3 +282,24 @@ The bloom itself was right (with no threshold the two glow alike). What fed it w
 
 Left for D2:
 - The Restaurant bar by torchlight is +6.4 (the bottles' central glint glows a little wider than the browser's), and a few torch-lit walls +2 to +3.6. Small; to look at again in D5 with every room on Low and High.
+
+### Step D3: people (2026-11-18)
+
+1. **Bringing them across.** `npx tsx tools/engine-rooms.ts --characters` writes the eight characters, their Low copies, the shared animations and the torch in each hand (`held_<character>`, `held_torch` before one is dealt) to `engine/Assets/Hotel/Characters` (textures inside the files are saved once each, named by content). `Haunted/Import characters` (CommandRunner `ImportCharacters`, `CharacterImport.cs`) makes the clips Unity's Animation plays and lists everything in `CharacterArt.asset`.
+2. **Bodies** (`RemotePlayers.cs`, as remotePlayers.ts and characterModels.ts): each player's character, scaled to `config.body.heightM`, the hips' movement scaled to its legs, clips chosen as `chooseClip` does (idle, walk, run, crouch, creep, knocked down, crawl, downed, dying) and blended over 0.25 s; the Low copy on Low quality. Lit only by the torches and the night fill (no room reflection, no shadows). A nameless shadow until you can tell who it is (GDD 22.2), using the sim's new `World.LineOfSight` (physics.ts lineOfSight).
+3. **The torch in your hand** (`HeldTorch.cs`, `HauntedHeld.cs`, as heldFlashlight.ts and post.ts): your character's hand, drawn in its own pass after the world and before the bloom, through the browser's 75° held camera, against a depth of its own. Lit by its own bounce light (rendering layer 1, "Held torch"), the night fill, and the soft studio three makes from RoomEnvironment, rebuilt at a thirtieth of its size far below the hotel. The studio's picture shines in the metal through a tiny probe just in front of the eye, and is read back once into spherical harmonics for the hand and sleeve's diffuse light. The lens glows with the beam.
+4. **Names** over heads: the browser's size, hidden by what is nearer (`Haunted/Label`; Unity's own text shader drew them through walls). The browser's font (Manrope) and its soft shadow come with the menus' font pair in step E.
+5. **Things found on the way** (each cost a wrong picture):
+   - URP drops a light's rendering layer if the project hasn't named it (`ProjectSetup.NameRenderingLayers`).
+   - In Forward, Unity uses only the reflection probes in view; a probe far below the hotel never reached the torch.
+   - Unity takes a reflection probe's intensity, and an Unlit `_BaseColor`, as sRGB in a linear project: 0.25 came out 0.25^2.2 (the metal at a fifth of the browser's), and the studio's panels at 100 came out 100^2.2.
+   - `SphericalHarmonicsL2` coefficients carry the basis constants (the shader adds c0 + c1 y + ...).
+   - glTFast's glowing (`_EMISSIVE`) shader variant is in the build only if a material asset uses it (`held_lens.mat`).
+   - three puts `scene.environmentIntensity` in place of a material's own `envMapIntensity` whenever the scene's environment lights it, so the browser's hand takes the whole studio, not the quarter heldFlashlight.ts asks for.
+   - heldFlashlight.ts tints a skin material once for every mesh wearing it, and three's meshes share one material per glTF material: the nurse's hand and coat are tinted twice. Unity gives each piece its own copy, so it applies the tint as often as the browser does.
+   - three draws a see-through two-sided material in two passes, back faces and then front faces; URP draws it once, so the detective (BLEND skin and hair) showed the inside of his head. `Characters.BackThenFront` draws each such part twice in that order (a mesh copy with the part listed twice).
+6. **Result**, with `tools/playtest.ts d3` (four bots in front of you: standing, walking and running, crouching and creeping, knocked down then crawling) against the same night in the browser:
+   - The held torch, on its own, in linear light before the bloom (head, body, grip, hand, sleeve): 0.097/0.052/0.017/0.018/0.046 against the browser's 0.097/0.053/0.017/0.016/0.042. In the finished picture, within 2 levels (head +3.7).
+   - The bodies, within 1 to 6 levels, as the wall behind them (−3).
+   - Poses and timing match, as does Low (with its Low copies) against High.
+7. **Test aids kept:** `-heldTest <character>` (the hand alone, straight ahead, as the browser's held scene) and `-cast Rafi=detective,...` (draw players as these characters, to set beside a browser night that was dealt otherwise).

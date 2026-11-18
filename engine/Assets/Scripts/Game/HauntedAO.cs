@@ -213,7 +213,7 @@ namespace Haunted.Game
                 var drawing = RenderingUtils.CreateDrawingSettings(Tags, rendering, cameraData, lights, SortingCriteria.CommonOpaque);
                 drawing.overrideMaterial = normals;
                 drawing.overrideMaterialPassIndex = NormalsPass;
-                var list = graph.CreateRendererList(new RendererListParams(rendering.cullResults, drawing, new FilteringSettings(RenderQueueRange.all)));
+                var list = graph.CreateRendererList(new RendererListParams(rendering.cullResults, drawing, new FilteringSettings(RenderQueueRange.all, HauntedHeld.WorldMask)));
                 using (var builder = graph.AddRasterRenderPass<NormalsData>("AO normals", out var data))
                 {
                     data.scene = list;

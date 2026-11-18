@@ -27,6 +27,7 @@ namespace Haunted.Editor
         public static void Setup()
         {
             Directory.CreateDirectory(SettingsDir);
+            NameRenderingLayers();
             Directory.CreateDirectory(Path.GetDirectoryName(MaterialPath));
             Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
 
@@ -71,6 +72,8 @@ namespace Haunted.Editor
             MakeMaterial("Clear", "Universal Render Pipeline/Lit", true, m => { m.SetFloat("_Smoothness", 0.8f); m.EnableKeyword("_EMISSION"); m.SetColor("_EmissionColor", KeepEmission); m.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None; });
             MakeMaterial("Unlit", "Universal Render Pipeline/Unlit", false, m => { });
             MakeMaterial("UnlitClear", "Universal Render Pipeline/Unlit", true, m => { });
+            // The names over players' heads, hidden by what is nearer (Assets/Shaders/HauntedLabel).
+            MakeMaterial("Label", "Haunted/Label", false, m => { });
 
             // The one scene: an object that runs the game. Everything else is built from data at run time.
             if (!File.Exists(ScenePath))
@@ -178,6 +181,19 @@ namespace Haunted.Editor
                 renderer.rendererFeatures.Add(ao);
             }
             ao.shader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Shaders/HauntedAO.shader");
+            // The torch in your hand, drawn over the world after the ambient occlusion (HauntedHeld):
+            // URP's own drawing leaves its layer out, and the studio its metal reflects is never drawn.
+            if (!renderer.rendererFeatures.Exists(f => f is Haunted.Game.HauntedHeld))
+            {
+                var held = ScriptableObject.CreateInstance<Haunted.Game.HauntedHeld>();
+                held.name = "Haunted held torch";
+                AssetDatabase.AddObjectToAsset(held, renderer);
+                renderer.rendererFeatures.Add(held);
+            }
+            // Not the hand (HauntedHeld draws it); the studio it reflects is left to the cameras'
+            // own masks, as its probe must see it.
+            renderer.opaqueLayerMask = ~Haunted.Game.HauntedHeld.HeldMask;
+            renderer.transparentLayerMask = ~Haunted.Game.HauntedHeld.HeldMask;
             // Low quality's 1K textures: the group HotelImport puts every texture over 1024 pixels in.
             // HauntedQuality sets how many sizes it skips at run time.
             if (!TextureMipmapLimitGroups.HasGroup(Haunted.Game.HauntedQuality.LargeTextures))
@@ -191,6 +207,9 @@ namespace Haunted.Editor
             // Its copy of the opaque world at full size, as three's transmission target.
             var pipeline = new SerializedObject(AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>(PipelinePath));
             pipeline.FindProperty("m_OpaqueDownsampling").intValue = (int)Downsampling.None;
+            // Rendering layers on lights: the held torch is lit by its own bounce light alone, as the
+            // browser's held scene (HeldTorch), never by the hotel's.
+            pipeline.FindProperty("m_SupportsLightLayers").boolValue = true;
             pipeline.ApplyModifiedProperties();
             EditorUtility.SetDirty(renderer);
             AssetDatabase.SaveAssets();
@@ -207,6 +226,17 @@ namespace Haunted.Editor
         }
 
         [MenuItem("Haunted/Build for Windows")]
+        /// <summary>Names the held torch's rendering layer (URP gives a light no layer the project hasn't named).</summary>
+        static void NameRenderingLayers()
+        {
+            var tags = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset")[0]);
+            var layers = tags.FindProperty("m_RenderingLayers");
+            int i = Haunted.Game.HauntedHeld.HeldRenderingLayer;
+            while (layers.arraySize <= i) layers.InsertArrayElementAtIndex(layers.arraySize);
+            layers.GetArrayElementAtIndex(i).stringValue = Haunted.Game.HauntedHeld.HeldRenderingLayerName;
+            tags.ApplyModifiedPropertiesWithoutUndo();
+        }
+
         public static void BuildWindows()
         {
             Setup();
