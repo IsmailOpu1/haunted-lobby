@@ -375,7 +375,11 @@ half ComputeFogIntensity(half fogFactor)
     #if defined(FOG_LINEAR_KEYWORD_DECLARED)
     if (FOG_LINEAR)
     {
-        return fogFactor;
+        // Haunted Lobby: three.js's Fog is smoothstep(near, far, depth), not a straight line. fogFactor
+        // is Unity's straight-line share of the colour kept, 1 - t, so keep 1 - smoothstep's t*t*(3 - 2t).
+        // Done here, per pixel, as three does; the depth itself interpolates exactly.
+        half t = half(1.0) - saturate(fogFactor);
+        return half(1.0) - t * t * (half(3.0) - half(2.0) * t);
     }
     #endif
 
@@ -442,7 +446,11 @@ float ComputeFogIntensity(float fogFactor)
     #if defined(FOG_LINEAR_KEYWORD_DECLARED)
     if (FOG_LINEAR)
     {
-        return fogFactor;
+        // Haunted Lobby: three.js's Fog is smoothstep(near, far, depth), not a straight line. fogFactor
+        // is Unity's straight-line share of the colour kept, 1 - t, so keep 1 - smoothstep's t*t*(3 - 2t).
+        // Done here, per pixel, as three does; the depth itself interpolates exactly.
+        float t = float(1.0) - saturate(fogFactor);
+        return float(1.0) - t * t * (float(3.0) - float(2.0) * t);
     }
     #endif
 

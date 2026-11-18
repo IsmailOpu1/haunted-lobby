@@ -341,3 +341,29 @@ Left for D2:
    - The hunt's silence, sting and heavy steps played, with "Heavy footsteps" behind you and "A door slams" with its arrow (`step-d/d4-door-slam-cue.png`).
 9. **Found, not from D4:** the Windows build crashes (segmentation fault) as it quits after a night with bots. The D3 build does the same. A plain quit from the lobby is clean.
 10. **Test aids kept:** `-soundTest DIR` (the list above, written to `unity-sound.wav` and `.txt`, then quits), `-recordSound DIR` (the whole run, `night-sound.wav`).
+
+### Step D5: every room against the browser (2026-11-18)
+
+The done-when test for step D: every room matches or beats the browser's look, room by room, on Low and High.
+
+1. **How it was checked.**
+   - Both versions toured the same 27 places (rooms, halls, outside) from the same spots at four headings, and the task and relic close-ups. Each set ran with and without the torch, on High and on Low: 864 views in each version.
+   - The browser's views come from game.ts's `roomTour`, driven from the console at 1280×720. The pane runs hidden here, so its size and animation frames are set from the console, and the tour turns the torch on and off itself.
+   - Unity's come from `-roomShots DIR [-torch] [-closeUps] [-quality low] [-noAO]`.
+   - Each pair is compared by mean difference per view and per pixel. A view fails if its mean is off by more than 2 levels or a large part of it differs by more than 6. The browser's own repeat shots differ by about 0.5 a pixel.
+2. **Fixed by measuring:**
+   - **three's fog is a curve** (URP patch 9). three's `Fog` keeps `1 - smoothstep(1, 18, depth)` of each colour; Unity's linear fog is a straight line, and counts from the camera's near plane. At 3 to 8 m Unity's rooms were too dark and the bulbs inside lanterns went dull. The patch uses three's curve per pixel, and `Game.SetUpLight` moves the fog's start and end back by the near plane (0.05 m, now `Game.CameraNearM` for both cameras). Storage's lantern: 2.587 against the browser's 2.589.
+   - **Shine takes from the diffuse** (URP patch 10). three 0.186 multiplies the torch's diffuse light by `1 - F` (Schlick of 0.04 at the half-angle), so a surface lit edge-on is darker than plain Lambert. Unity added the shine on top of the full diffuse. Torch-lit walls were 2 to 4 levels too bright. Materials without shine (three's Lambert, the grey box, glow) keep the full diffuse, as in three. three's matching cut to the indirect light is left out: with the torch off every room already matches.
+3. **Result** (mean difference from the browser, out of 255):
+
+   | Set | Rooms | Rooms by torch | Close-ups | Close-ups by torch |
+   |---|---|---|---|---|
+   | High | 0.25 | 0.31 | 0.22 | 0.29 |
+   | Low | 0.25 | 0.34 | 0.22 | 0.28 |
+
+   Four of the 864 views fail: the Restaurant bar by torch on High and Low, and the mirror close-up by torch on High and Low. The sheets show every room, browser on the left and Unity on the right, brightened 2.5× to see into the dark (`step-d/d5-high-rooms-1.jpg` and `-2`, `d5-high-rooms-torch-1.jpg` and `-2`, `d5-low-rooms-1.jpg` and `-2`).
+4. **Blackout** is black in both, except the torch and the ritual candles.
+5. **Left, both small:**
+   - **The Restaurant bar by torch** (+7.8 High, +9.4 Low). The light before bloom matches to within 2% on the lit surfaces. Above the glow threshold the total light matches within 3.5% (14,488 against 15,006). Unity's bottle glints are spread over about twice the pixels (459 against 239 over 8), so they glow wider. This is how the glass's highlights land on the curved bottles, not a level error.
+   - **The mirror close-up by torch** (−4.6): the mirror's fogged-glass glow, left from D2.
+6. **Test aid added:** `-hdrRange X` sets the range `-hdrOut` writes (4 by default), for measuring glints far over 4.

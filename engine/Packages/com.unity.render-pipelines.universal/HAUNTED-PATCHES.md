@@ -31,3 +31,11 @@ package here the same way and make these changes again.
 8. **The night fill on lightmapped surfaces** (three.js's hemisphere light).
    - three adds game.ts's faint hemisphere fill (sky b8c0d0 over ground 202020) to every surface, lightmapped or not. URP gives lightmapped surfaces no ambient light, so with the torch off the dressed rooms' dark corners were 7 to 14% darker.
    - `ShaderLibrary/GlobalIllumination.hlsl` `SampleLightmap` adds `lerp(_HauntedFillGround, _HauntedFillSky, 0.5 n.y + 0.5)` to the lightmap, as three's `getHemisphereLightIrradiance`. The game sets both globals with the Trilight ambient (`Game.SetFill`), already divided by pi, and drops them in a blackout.
+9. **three.js's fog curve** (`fog_fragment`).
+   - three's linear `Fog` keeps `1 - smoothstep(near, far, depth)` of the colour, not Unity's straight line: at 2 m it keeps 99% where Unity kept 94%, at 5 m 86% against 76%.
+   - `ShaderLibrary/ShaderVariablesFunctions.hlsl` `ComputeFogIntensity` (both versions) turns Unity's straight-line factor into three's smoothstep, per pixel, as three does; the depth it starts from interpolates exactly.
+   - URP counts fog depth from the near plane, three from the eye, so `Game.SetUpLight` brings the fog's start and end 0.05 m (the camera's near plane) closer.
+10. **three.js's direct diffuse** (`RE_Direct_Physical`, glTF's fresnel_mix).
+   - three (0.186) takes off the direct diffuse what the shine reflects: `(1 - F)`, Schlick from the dielectric 0.04 to 1 at the half vector. With the torch beside the eye that is 4%, which before bloom made torch-lit surfaces 2 to 4% brighter in Unity and the glow round a close spot wider.
+   - `ShaderLibrary/BRDF.hlsl` `HauntedDirectDiffuse`, used by `DirectBRDF` and `Lighting.hlsl` `LightingPhysicallyBased` when shine is on. Without shine (three's Lambert: GreyBox, Glow) the diffuse is whole, as three's Lambert.
+   - three's like term on indirect light (the lightmaps) is left out: with the torch off the rooms already match.

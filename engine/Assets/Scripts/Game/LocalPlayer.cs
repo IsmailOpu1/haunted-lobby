@@ -65,7 +65,7 @@ namespace Haunted.Game
 
             var cam = new GameObject("Player view");
             Camera = cam.AddComponent<Camera>();
-            Camera.nearClipPlane = 0.05f;
+            Camera.nearClipPlane = Game.CameraNearM;
             Camera.farClipPlane = 60;
             // Night: black past the fog, as the browser (game.ts scene.background); no daytime sky over open rooms.
             Camera.clearFlags = CameraClearFlags.SolidColor;

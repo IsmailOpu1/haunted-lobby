@@ -138,10 +138,11 @@ Shader "Hidden/Haunted/Post"
                 // Test aid (Game's -bloomOnly): the glow by itself, plain.
                 if (_HauntedBloomOnly > 0.5) return float4(saturate(bloom), 1);
                 // Test aid (Game's -hdrOut): the picture's luminance before bloom and tone mapping, written
-                // exactly into an 8-bit PNG: red is floor(L / 4 * 255), green the fraction left over.
+                // exactly into an 8-bit PNG: red is floor(L / range * 255), green the fraction left over.
+                // _HauntedHdrOut is the range (4, or -hdrRange's).
                 if (_HauntedHdrOut > 0.5)
                 {
-                    float v = min(dot(c, Luma) / 4 * 255, 254.999);
+                    float v = min(dot(c, Luma) / _HauntedHdrOut * 255, 254.999);
                     return float4(SRGBToLinear(float3(floor(v) / 255, frac(v), 0)), 1);
                 }
                 c = Agx(c + bloom);

@@ -54,6 +54,9 @@ namespace Haunted.Game
         // game.ts BELL_CUE_SEC, SLAM_CUE_SEC and CUE_FLOOR_DIFF_M: how long the bell's and a slammed
         // door's subtitles stay up, and how far above or below you a sound is on another floor.
         const double BellCueSec = 4, SlamCueSec = 3;
+        /// <summary>game.ts's black fog, from 1 to 18 m, and the camera's near plane (both cameras' 0.05 m).</summary>
+        const float FogNearM = 1, FogFarM = 18;
+        public const float CameraNearM = 0.05f;
         const float CueFloorDiffM = 1.5f;
         Vector3 bellCueAt, slamCueAt;
         double bellCueUntil = -1, slamCueUntil = -1;
@@ -184,8 +187,10 @@ namespace Haunted.Game
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.Linear;
             RenderSettings.fogColor = Color.black;
-            RenderSettings.fogStartDistance = 1;
-            RenderSettings.fogEndDistance = 18;
+            // URP measures fog depth from the near plane (0.05 m, as the browser's camera), three from the
+            // eye: start and end come that much closer. The curve is three's smoothstep (URP patch 9).
+            RenderSettings.fogStartDistance = FogNearM - CameraNearM;
+            RenderSettings.fogEndDistance = FogFarM - CameraNearM;
             if (dressed != null)
             {
                 // The dressed hotel is lit by its baked lightmaps, the torch and the browser's faint fill
@@ -276,7 +281,8 @@ namespace Haunted.Game
                 }
             if (arg("-bloomScale") != null) HauntedPost.BloomScale = float.Parse(arg("-bloomScale"), System.Globalization.CultureInfo.InvariantCulture);
             if (arg("-bloomThreshold") != null) HauntedPost.ThresholdNow = float.Parse(arg("-bloomThreshold"), System.Globalization.CultureInfo.InvariantCulture);
-            Shader.SetGlobalFloat("_HauntedHdrOut", Array.IndexOf(args, "-hdrOut") >= 0 ? 1 : 0);
+            // -hdrOut: the light before bloom, up to 4 (or -hdrRange X) in the picture (HauntedPost).
+            Shader.SetGlobalFloat("_HauntedHdrOut", Array.IndexOf(args, "-hdrOut") < 0 ? 0 : arg("-hdrRange") != null ? float.Parse(arg("-hdrRange"), System.Globalization.CultureInfo.InvariantCulture) : 4);
             if (arg("-exposure") != null) HauntedPost.ExposureScale = float.Parse(arg("-exposure"), System.Globalization.CultureInfo.InvariantCulture);
             if (arg("-soundTest") != null) soundTest = new SoundTest(arg("-soundTest"));
             if (arg("-recordSound") != null) soundTest = new SoundTest(arg("-recordSound"), true);

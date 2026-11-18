@@ -266,10 +266,22 @@ half3 HauntedDirectSpecular(BRDFData brdfData, half3 normalWS, half3 lightDirect
     return half3(f * (visibility * distribution * PI));
 }
 
+// Haunted Lobby: three.js's direct diffuse (RE_Direct_Physical, "glTF fresnel_mix"): the light the shine
+// reflects (Schlick from the dielectric 0.04 to 1, at the half vector) never reaches the diffuse
+// layer. With the torch beside the eye that is 4% of it.
+half3 HauntedDirectDiffuse(BRDFData brdfData, half3 lightDirectionWS, half3 viewDirectionWS)
+{
+    float3 h = SafeNormalize(float3(lightDirectionWS) + float3(viewDirectionWS));
+    float dotVH = saturate(dot(float3(viewDirectionWS), h));
+    float fresnel = exp2((-5.55473 * dotVH - 6.98316) * dotVH);
+    float f = kDielectricSpec.r * (1.0 - fresnel) + fresnel;
+    return brdfData.diffuse * half(1.0 - f);
+}
+
 half3 DirectBRDF(BRDFData brdfData, half3 normalWS, half3 lightDirectionWS, half3 viewDirectionWS)
 {
 #ifndef _SPECULARHIGHLIGHTS_OFF
-    return brdfData.diffuse + HauntedDirectSpecular(brdfData, normalWS, lightDirectionWS, viewDirectionWS);
+    return HauntedDirectDiffuse(brdfData, lightDirectionWS, viewDirectionWS) + HauntedDirectSpecular(brdfData, normalWS, lightDirectionWS, viewDirectionWS);
 #else
     return brdfData.diffuse;
 #endif

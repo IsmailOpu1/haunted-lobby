@@ -57,6 +57,9 @@ half3 LightingPhysicallyBased(BRDFData brdfData, BRDFData brdfDataClearCoat,
 #ifndef _SPECULARHIGHLIGHTS_OFF
     [branch] if (!specularHighlightsOff)
     {
+        // Haunted Lobby: three's direct diffuse, less what the shine reflects (HauntedDirectDiffuse,
+        // BRDF.hlsl). Without shine (three's Lambert, our GreyBox and Glow) nothing is taken off.
+        brdf = HauntedDirectDiffuse(brdfData, lightDirectionWS, viewDirectionWS);
         // Haunted Lobby: three's shine (HauntedDirectSpecular, BRDF.hlsl).
         brdf += HauntedDirectSpecular(brdfData, normalWS, lightDirectionWS, viewDirectionWS);
 
