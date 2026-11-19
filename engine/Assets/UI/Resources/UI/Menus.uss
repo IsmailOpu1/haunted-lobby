@@ -1,0 +1,1223 @@
+/* The menus (step E), as client/src/style.css draws them: one font pair, Instrument Serif for
+   titles and Manrope for everything else, the browser's colours and sizes in pixels.
+   USS has no gap, line-height or text-transform, and its letter-spacing is in hundredths of an em
+   (the browser's 0.18em is 18px here): Menus.cs spaces a column's children, sets
+   line heights with rich text, and writes upper-case words in upper case. */
+
+.screen {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    flex-direction: row;
+    align-items: center;
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-Regular.ttf");
+    color: rgb(236, 230, 216);
+}
+
+.screen.outside {
+    background-color: rgb(5, 5, 7);
+}
+
+.grain {
+    background-repeat: repeat repeat;
+    background-size: 160px 160px;
+}
+
+.screen-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.screen-body {
+    width: 480px;
+    max-height: 100%;
+    flex-shrink: 1;
+}
+
+.screen-body.wide {
+    width: 1140px;
+}
+
+/* A thin bar in the line colour (scrollbar-width: thin; scrollbar-color: var(--line) transparent). */
+.screen-body .unity-scroller--vertical {
+    width: 10px;
+    min-width: 10px;
+    border-width: 0;
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.screen-body .unity-scroller__low-button,
+.screen-body .unity-scroller__high-button {
+    display: none;
+}
+
+.screen-body .unity-scroller--vertical .unity-base-slider__tracker {
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+}
+
+.screen-body .unity-scroller--vertical .unity-base-slider__dragger {
+    left: 2px;
+    width: 6px;
+    background-color: rgba(236, 230, 216, 0.12);
+    border-width: 0;
+    border-radius: 3px;
+}
+
+.screen-body .unity-scroller--vertical .unity-base-slider__drag-container {
+    margin: 0;
+}
+
+/* Type */
+Label {
+    padding: 0;
+    margin: 0;
+    white-space: normal;
+    -unity-text-align: upper-left;
+}
+
+.sans-500 { -unity-font-definition: url("/Assets/UI/Fonts/Manrope-Medium.ttf"); }
+.sans-600 { -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf"); }
+.sans-700 { -unity-font-definition: url("/Assets/UI/Fonts/Manrope-Bold.ttf"); }
+.serif { -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Regular.ttf"); }
+.serif-italic { -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Italic.ttf"); }
+
+.eyebrow {
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    font-size: 11px;
+    letter-spacing: 18px;
+    color: rgb(143, 137, 123);
+}
+
+.wordmark {
+    margin-bottom: 18px;
+}
+
+.wordmark-line {
+    -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Regular.ttf");
+    font-size: 116px;
+    height: 102.08px;
+    letter-spacing: -2px;
+    white-space: nowrap;
+    overflow: visible;
+    -unity-text-align: middle-left;
+}
+
+.wordmark-line.em {
+    -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Italic.ttf");
+    padding-left: 48.72px;
+    color: rgb(201, 162, 75);
+}
+
+.screen-title {
+    -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Regular.ttf");
+    margin-top: -4px;
+    font-size: 48px;
+    letter-spacing: -1px;
+    color: rgb(236, 230, 216);
+}
+
+.lead {
+    /* 40ch: Manrope's 0 at 15 px is 9 px wide. */
+    max-width: 360px;
+    font-size: 15px;
+    color: rgb(143, 137, 123);
+}
+
+.muted-line {
+    font-size: 13.5px;
+    color: rgb(143, 137, 123);
+}
+
+.hint {
+    font-size: 12.5px;
+    color: rgb(143, 137, 123);
+}
+
+.error {
+    font-size: 13px;
+    color: rgb(196, 82, 63);
+}
+
+/* The start menu: numbered lines, no boxes. */
+.menu-list {
+    border-top-width: 1px;
+    border-top-color: rgba(236, 230, 216, 0.12);
+}
+
+.menu-item {
+    margin: 0;
+    padding-left: 0;
+    padding-right: 0;
+    border-top-width: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-radius: 0;
+    background-color: rgba(0, 0, 0, 0);
+    flex-direction: row;
+    align-items: flex-start;
+    padding-top: 18px;
+    padding-bottom: 18px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(236, 230, 216, 0.12);
+}
+
+.menu-num {
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    width: 44px;
+    height: 17px;
+    margin-top: 14px;
+    font-size: 12px;
+    color: rgb(143, 137, 123);
+    -unity-text-align: middle-left;
+    transition-property: color;
+    transition-duration: 0.2s;
+}
+
+.menu-text {
+    flex-grow: 1;
+    flex-shrink: 1;
+    transition-property: translate;
+    transition-duration: 0.25s;
+    transition-timing-function: ease-out-cubic;
+}
+
+.menu-text-strong {
+    -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Regular.ttf");
+    font-size: 27px;
+    height: 35px;
+    margin-bottom: 4px;
+    -unity-text-align: middle-left;
+    transition-property: color;
+    transition-duration: 0.2s;
+}
+
+.menu-text-small {
+    font-size: 13px;
+    height: 18px;
+    color: rgb(143, 137, 123);
+    -unity-text-align: middle-left;
+}
+
+.menu-item:hover .menu-text,
+.menu-item:focus .menu-text {
+    translate: 8px 0;
+}
+
+.menu-item:hover .menu-num,
+.menu-item:hover .menu-text-strong,
+.menu-item:focus .menu-text-strong {
+    color: rgb(201, 162, 75);
+}
+
+.start-foot {
+    margin-top: 8px;
+    font-size: 12.5px;
+    color: rgb(143, 137, 123);
+}
+
+/* A newer version on itch.io (step F), in the menus' brass. */
+.update-line {
+    color: rgb(201, 162, 75);
+}
+
+/* Fields: a line to write on. */
+.field-name {
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    font-size: 11px;
+    height: 15px;
+    margin-bottom: 6px;
+    letter-spacing: 16px;
+    color: rgb(143, 137, 123);
+    -unity-text-align: middle-left;
+}
+
+.line-input {
+    margin: 0;
+    padding: 0;
+    height: 50px;
+}
+
+.line-input > .unity-base-text-field__input {
+    margin: 0;
+    padding: 8px 0 10px 0;
+    -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Regular.ttf");
+    font-size: 24px;
+    color: rgb(236, 230, 216);
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-bottom-width: 1px;
+    border-radius: 0;
+    border-color: rgba(236, 230, 216, 0.12);
+    --unity-cursor-color: rgb(236, 230, 216);
+    --unity-selection-color: rgba(201, 162, 75, 0.35);
+    transition-property: border-color;
+    transition-duration: 0.2s;
+}
+
+.line-input:focus > .unity-base-text-field__input,
+.line-input > .unity-base-text-field__input:focus {
+    border-color: rgb(201, 162, 75);
+}
+
+.line-input > .unity-base-text-field__input--placeholder,
+.line-input > .unity-base-text-field__input--placeholder > .unity-text-element {
+    color: rgba(236, 230, 216, 0.22);
+}
+
+.line-input.code {
+    height: 68px;
+}
+
+.line-input.code > .unity-base-text-field__input {
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-Regular.ttf");
+    font-size: 36px;
+    letter-spacing: 11.11px;
+}
+
+/* Buttons: none keeps the theme's grey hover and press. */
+.menu-item:hover, .menu-item:active, .back:hover, .back:active, .quiet:active {
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.primary:active {
+    background-color: rgb(220, 183, 99);
+}
+
+/* Buttons */
+Button {
+    margin: 0;
+    white-space: nowrap;
+}
+
+.primary {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    height: 49px;
+    padding: 0 18px;
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    font-size: 15px;
+    letter-spacing: 1px;
+    color: rgb(21, 17, 10);
+    background-color: rgb(201, 162, 75);
+    border-width: 0;
+    border-radius: 2px;
+    -unity-text-align: middle-left;
+    transition-property: background-color;
+    transition-duration: 0.18s;
+}
+
+.primary:hover {
+    background-color: rgb(220, 183, 99);
+}
+
+.primary:disabled {
+    opacity: 0.45;
+    background-color: rgb(201, 162, 75);
+}
+
+.primary-arrow {
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-Regular.ttf");
+    font-size: 15px;
+    color: rgb(21, 17, 10);
+    transition-property: translate;
+    transition-duration: 0.2s;
+}
+
+.primary:hover .primary-arrow {
+    translate: 4px 0;
+}
+
+.primary:disabled .primary-arrow {
+    translate: 0 0;
+}
+
+.quiet {
+    /* Chrome's line at 13.5 px is 18 px (Unity's first line is near 20): 11 + 18 + 11 and the border. */
+    height: 42px;
+    padding: 11px 14px;
+    font-size: 13.5px;
+    color: rgb(236, 230, 216);
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 1px;
+    border-radius: 2px;
+    border-color: rgba(236, 230, 216, 0.12);
+    -unity-text-align: middle-left;
+    transition-property: color, border-color, background-color;
+    transition-duration: 0.18s;
+}
+
+.quiet:hover {
+    color: rgb(201, 162, 75);
+    border-color: rgb(201, 162, 75);
+}
+
+.quiet.small {
+    /* 8 + 17 + 8 and the border. */
+    height: 35px;
+    padding: 8px 10px;
+    font-size: 12.5px;
+    -unity-text-align: middle-center;
+}
+
+.back {
+    align-self: flex-start;
+    height: 23px;
+    padding: 4px 0;
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    font-size: 11.5px;
+    letter-spacing: 16px;
+    color: rgb(143, 137, 123);
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    -unity-text-align: middle-left;
+    transition-property: color;
+    transition-duration: 0.18s;
+}
+
+.back:hover {
+    color: rgb(236, 230, 216);
+}
+
+/* The warning on first launch (GDD 23). */
+.photo-warning {
+    margin-top: 18px;
+    padding: 14px 16px;
+    border-width: 1px;
+    border-radius: 2px;
+    border-color: rgb(201, 162, 75);
+    background-color: rgba(0, 0, 0, 0.35);
+}
+
+.photo-warning-title {
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    font-size: 11.5px;
+    letter-spacing: 8px;
+    margin-bottom: 10px;
+    color: rgb(201, 162, 75);
+}
+
+.photo-warning-text {
+    font-size: 13px;
+    margin-bottom: 10px;
+    color: rgb(236, 230, 216);
+}
+
+.photo-warning-buttons {
+    flex-direction: row;
+}
+
+.photo-warning-buttons > Button {
+    margin-right: 8px;
+}
+
+/* Each screen's parts rise in, one after another (Menus.cs sets the delays). */
+.rise {
+    transition-property: opacity, translate;
+    transition-duration: 0.42s;
+    transition-timing-function: ease-out-cubic;
+}
+
+.rise.before {
+    opacity: 0;
+    translate: 0 8px;
+}
+
+/* Options (step E2): groups, sliders, checkboxes, the quality list and the keys. */
+.group {
+    padding: 16px 0;
+    border-top-width: 1px;
+    border-top-color: rgba(236, 230, 216, 0.12);
+}
+
+.group-title {
+    font-size: 11px;
+    height: 15px;
+    letter-spacing: 16px;
+    color: rgb(143, 137, 123);
+    -unity-text-align: middle-left;
+}
+
+.field-head {
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.range-name,
+.output {
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    font-size: 11px;
+    height: 15px;
+    letter-spacing: 16px;
+    color: rgb(143, 137, 123);
+    -unity-text-align: middle-left;
+}
+
+.output {
+    color: rgb(201, 162, 75);
+}
+
+/* Chrome's range input with accent-color brass: an 8 px track, a 16 px thumb, 2 px margins. */
+.range {
+    width: 100%;
+    height: 18px;
+    margin: 2px 2px 0 2px;
+}
+
+/* The range's 2 px bottom margin, kept on its field (a last child's bottom margin here is lost). */
+.range-field {
+    padding-bottom: 2px;
+}
+
+.range-track,
+.range-fill {
+    position: absolute;
+    left: 0;
+    top: 5px;
+    height: 8px;
+    border-width: 1px;
+    border-radius: 4px;
+}
+
+.range-track {
+    right: 0;
+    border-color: rgb(133, 133, 133);
+    background-color: rgb(59, 59, 59);
+}
+
+.range-fill {
+    border-color: rgb(201, 162, 75);
+    background-color: rgb(201, 162, 75);
+}
+
+.range-thumb {
+    position: absolute;
+    top: 1px;
+    width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    background-color: rgb(201, 162, 75);
+}
+
+.number-box {
+    margin: 0;
+    padding: 0;
+    width: 71.5px;
+    height: 21px;
+}
+
+.number-box > .unity-base-text-field__input {
+    margin: 0;
+    padding: 0 0 2px 0;
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    font-size: 13px;
+    letter-spacing: 4px;
+    -unity-text-align: upper-right;
+    color: rgb(236, 230, 216);
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-bottom-width: 1px;
+    border-radius: 0;
+    border-color: rgba(236, 230, 216, 0.12);
+    --unity-cursor-color: rgb(236, 230, 216);
+    --unity-selection-color: rgba(201, 162, 75, 0.35);
+    transition-property: border-color;
+    transition-duration: 0.2s;
+}
+
+.number-box:focus > .unity-base-text-field__input,
+.number-box > .unity-base-text-field__input:focus {
+    border-color: rgb(201, 162, 75);
+}
+
+.setting {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 9px 0;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(236, 230, 216, 0.06);
+}
+
+.setting-name {
+    font-size: 14px;
+    height: 19px;
+    color: rgb(236, 230, 216);
+    -unity-text-align: middle-left;
+}
+
+/* Chrome's checkbox: white, a grey line, round corners; checked in brass (GDD 26.16). */
+.check {
+    width: 13px;
+    height: 13px;
+    margin: 3px 3px 3px 4px;
+    border-width: 1px;
+    border-radius: 2px;
+    border-color: rgb(118, 118, 118);
+    background-color: rgb(255, 255, 255);
+}
+
+.check.on {
+    border-color: rgb(201, 162, 75);
+    background-color: rgb(201, 162, 75);
+}
+
+.select {
+    min-width: 112px;
+    height: 32px;
+    padding: 6px 28px 6px 10px;
+    border-width: 1px;
+    border-radius: 2px;
+    border-color: rgba(236, 230, 216, 0.12);
+    background-color: rgba(0, 0, 0, 0);
+    transition-property: border-color;
+    transition-duration: 0.18s;
+}
+
+.select:hover,
+.select:focus,
+.select:active {
+    border-color: rgb(201, 162, 75);
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.select-text {
+    font-size: 13px;
+    height: 18px;
+    color: rgb(236, 230, 216);
+    -unity-text-align: middle-left;
+}
+
+.select-chevron {
+    position: absolute;
+    right: 10px;
+    top: 12px;
+    width: 10px;
+    height: 6px;
+}
+
+/* The list a select opens, in the options' own colours (style.css .setting option). */
+.select-list {
+    position: absolute;
+    padding: 2px 0;
+    border-width: 1px;
+    border-color: rgba(236, 230, 216, 0.12);
+    background-color: rgb(20, 18, 23);
+}
+
+.select-option {
+    height: 26px;
+    padding: 0 10px;
+    font-size: 13px;
+    color: rgb(236, 230, 216);
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-radius: 0;
+    -unity-text-align: middle-left;
+}
+
+.select-option:hover,
+.select-option:active {
+    color: rgb(201, 162, 75);
+    background-color: rgba(201, 162, 75, 0.08);
+}
+
+.select-option.chosen {
+    background-color: rgba(201, 162, 75, 0.16);
+}
+
+.controls {
+    font-size: 13px;
+}
+
+.key-row {
+    flex-direction: row;
+    align-items: flex-start;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(236, 230, 216, 0.06);
+}
+
+.key-cell {
+    width: 38%;
+    flex-shrink: 0;
+    padding-right: 10px;
+}
+
+.key-fixed {
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    margin: 6px 0;
+    font-size: 11.5px;
+    color: rgb(201, 162, 75);
+}
+
+.key-what {
+    flex-grow: 1;
+    flex-shrink: 1;
+    margin: 6px 0;
+    font-size: 13px;
+    color: rgb(236, 230, 216);
+}
+
+.key-button {
+    align-self: flex-start;
+    min-width: 64px;
+    height: 26.7px;
+    margin: 6px 0;
+    padding: 4px 10px;
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    font-size: 11.5px;
+    color: rgb(201, 162, 75);
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 1px;
+    border-radius: 2px;
+    border-color: rgba(236, 230, 216, 0.12);
+    -unity-text-align: middle-center;
+}
+
+.key-button:hover,
+.key-button:active,
+.key-button.listening {
+    border-color: rgb(201, 162, 75);
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.key-button.listening {
+    color: rgb(236, 230, 216);
+}
+
+.keys-reset {
+    margin-top: 10px;
+}
+
+/* The FPS counter (style.css #fps), over the night and the menus. */
+.fps {
+    position: absolute;
+    top: 10px;
+    left: 12px;
+    padding: 3px 8px;
+    font-size: 12px;
+    color: rgb(236, 230, 216);
+    background-color: rgba(10, 9, 12, 0.6);
+    border-radius: 2px;
+}
+
+/* The room page (step E3): the code and room menu on top, players on the left, you and the
+   settings on the right (style.css .room-head, .room-grid). Gaps between buttons are set in code. */
+.eyebrow-row {
+    flex-direction: row;
+    align-items: center;
+}
+
+.chip {
+    margin-left: 8px;
+    padding: 2px 8px;
+    height: 19.66px;
+    font-size: 10px;
+    letter-spacing: 12px;
+    color: rgb(236, 230, 216);
+    border-width: 1px;
+    border-radius: 10px;
+    border-color: rgba(236, 230, 216, 0.12);
+    -unity-text-align: middle-left;
+}
+
+.chip.starting {
+    color: rgb(196, 82, 63);
+    border-color: rgb(196, 82, 63);
+}
+
+.chip.night {
+    color: rgb(201, 162, 75);
+    border-color: rgb(201, 162, 75);
+}
+
+.room-head {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding-bottom: 24px;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(236, 230, 216, 0.12);
+}
+
+.room-code {
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-Bold.ttf");
+    margin: 10px 0 18px 0;
+    font-size: 84px;
+    height: 79.8px;
+    letter-spacing: 20px;
+    white-space: nowrap;
+    overflow: visible;
+    color: rgb(236, 230, 216);
+    -unity-text-align: middle-left;
+}
+
+.share-buttons,
+.room-tools {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.quiet.go {
+    color: rgb(21, 17, 10);
+    background-color: rgb(201, 162, 75);
+    border-color: rgb(201, 162, 75);
+}
+
+.quiet.go:hover {
+    color: rgb(21, 17, 10);
+    background-color: rgb(220, 183, 99);
+}
+
+.quiet.danger:hover {
+    color: rgb(196, 82, 63);
+    border-color: rgb(196, 82, 63);
+}
+
+.room-grid {
+    flex-direction: row;
+    align-items: flex-start;
+}
+
+.players-group {
+    flex-grow: 1.15;
+    flex-shrink: 1;
+    flex-basis: 0;
+    min-width: 0;
+    margin-right: 56px;
+}
+
+.room-side {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
+    min-width: 0;
+}
+
+/* #start-box */
+.start-box {
+    margin: 10px 0 4px 0;
+}
+
+.group.first,
+.players-group {
+    border-top-width: 0;
+}
+
+.group-head {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+.count,
+.code-chip {
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    font-size: 11px;
+    height: 15px;
+    letter-spacing: 8px;
+    color: rgb(201, 162, 75);
+    -unity-text-align: middle-left;
+}
+
+.summary-line {
+    -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Regular.ttf");
+    font-size: 26px;
+    color: rgb(236, 230, 216);
+}
+
+.player {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 11px 0;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(236, 230, 216, 0.06);
+}
+
+.player.last {
+    border-bottom-width: 0;
+}
+
+.player.away {
+    opacity: 0.55;
+}
+
+.avatar-cell {
+    width: 36px;
+    flex-shrink: 0;
+}
+
+.avatar {
+    width: 36px;
+    height: 36px;
+    border-width: 1px;
+    border-radius: 18px;
+    border-color: rgba(236, 230, 216, 0.12);
+    background-color: rgb(29, 27, 32);
+    justify-content: center;
+    align-items: center;
+}
+
+.avatar.coloured {
+    border-color: rgba(0, 0, 0, 0);
+}
+
+.avatar-letter {
+    -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Regular.ttf");
+    font-size: 19px;
+    color: rgb(236, 230, 216);
+    -unity-text-align: middle-center;
+}
+
+.avatar.coloured .avatar-letter {
+    color: rgb(18, 15, 11);
+}
+
+.who {
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.player-name {
+    font-size: 16px;
+    height: 21.86px;
+    margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: rgb(236, 230, 216);
+    -unity-text-align: middle-left;
+}
+
+.tags {
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.tag {
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    height: 16.98px;
+    padding: 1px 5px;
+    font-size: 9.5px;
+    letter-spacing: 10px;
+    color: rgb(143, 137, 123);
+    border-width: 1px;
+    border-radius: 2px;
+    border-color: rgba(236, 230, 216, 0.12);
+    -unity-text-align: middle-left;
+}
+
+.tag.warn {
+    color: rgb(226, 163, 92);
+    border-color: rgba(226, 163, 92, 0.45);
+}
+
+.tag.char {
+    color: rgb(236, 230, 216);
+}
+
+.ready-mark-box {
+    flex-direction: row;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.ready-dot {
+    width: 6px;
+    height: 6px;
+    margin-right: 6px;
+    overflow: visible;
+}
+
+.ready-mark {
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    font-size: 10.5px;
+    height: 14.34px;
+    letter-spacing: 10px;
+    color: rgb(143, 137, 123);
+    -unity-text-align: middle-left;
+}
+
+.ready-mark.on {
+    color: rgb(147, 207, 136);
+}
+
+.row-actions {
+    flex-direction: row;
+    flex-shrink: 0;
+}
+
+.row-btn {
+    height: 25.71px;
+    padding: 4px 8px;
+    font-size: 11.5px;
+    color: rgb(143, 137, 123);
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 1px;
+    border-radius: 2px;
+    border-color: rgba(236, 230, 216, 0.12);
+    -unity-text-align: middle-center;
+    transition-property: color, border-color;
+    transition-duration: 0.18s;
+}
+
+.row-btn:hover,
+.row-btn:active {
+    color: rgb(236, 230, 216);
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.row-btn.kick:hover,
+.row-btn.kick.armed {
+    color: rgb(196, 82, 63);
+    border-color: rgb(196, 82, 63);
+}
+
+/* Ready pressed: green, with a thin green ring inside (an inset shadow), and no arrow. */
+.ready.is-ready,
+.ready.is-ready:hover,
+.ready.is-ready:active {
+    padding: 0 17px;
+    background-color: rgba(147, 207, 136, 0.08);
+    border-width: 1px;
+    border-color: rgba(147, 207, 136, 0.5);
+}
+
+.ready.is-ready .primary-text {
+    color: rgb(147, 207, 136);
+}
+
+.ready.is-ready .primary-arrow {
+    display: none;
+}
+
+.log-head {
+    flex-direction: row;
+    justify-content: space-between;
+    height: 15px;
+    margin: 0;
+    padding: 0;
+    border-width: 0;
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.log-head:hover,
+.log-head:active {
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.log {
+    max-height: 160px;
+}
+
+.log-line {
+    font-size: 12.5px;
+    color: rgb(143, 137, 123);
+}
+
+.look-hint {
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    padding: 10px 12px;
+    font-size: 11.5px;
+    color: rgb(236, 230, 216);
+    /* The dashes are drawn in C# (DashedBorder) over this clear 1 px border, which gives the box CSS's size. */
+    border-width: 1px;
+    border-color: rgba(0, 0, 0, 0);
+    border-radius: 2px;
+}
+
+.photo-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 12px;
+}
+
+.photo {
+    margin: 0 5px 10px 5px;
+    padding: 6px 6px 4px 6px;
+    background-color: rgb(233, 225, 208);
+    border-radius: 2px;
+}
+
+.photo-print {
+    width: 280px;
+    height: 180px;
+}
+
+.photo-caption {
+    padding-top: 4px;
+    font-size: 12px;
+    color: rgb(42, 36, 28);
+    -unity-text-align: upper-center;
+}
+
+/* Room settings: a preset switch, then Basic and Advanced tabs (style.css .segmented, .tabs). */
+.eyebrow-chip {
+    margin-left: 4px;
+}
+
+.segmented {
+    max-width: 560px;
+    flex-direction: row;
+    padding: 3px;
+    border-width: 1px;
+    border-radius: 3px;
+    border-color: rgba(236, 230, 216, 0.12);
+}
+
+.seg {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: 0;
+    height: 33.76px;
+    padding: 8px 4px;
+    font-size: 13px;
+    color: rgb(143, 137, 123);
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-radius: 2px;
+    -unity-text-align: middle-center;
+}
+
+.seg:hover,
+.seg:active {
+    color: rgb(236, 230, 216);
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.seg:disabled {
+    opacity: 0.45;
+    color: rgb(143, 137, 123);
+}
+
+.seg.on,
+.seg.on:hover,
+.seg.on:disabled {
+    color: rgb(10, 9, 12);
+    background-color: rgb(236, 230, 216);
+    opacity: 1;
+}
+
+.seg.custom {
+    font-size: 12px;
+    opacity: 0.4;
+}
+
+.seg.custom.on {
+    color: rgb(10, 9, 12);
+    background-color: rgb(201, 162, 75);
+    opacity: 1;
+}
+
+.tabs {
+    flex-direction: row;
+    border-bottom-width: 1px;
+    border-bottom-color: rgba(236, 230, 216, 0.12);
+}
+
+.tab {
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    height: 37.71px;
+    margin-bottom: -1px;
+    padding: 10px 0;
+    font-size: 11.5px;
+    letter-spacing: 16px;
+    color: rgb(143, 137, 123);
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-bottom-width: 2px;
+    border-color: rgba(0, 0, 0, 0);
+    border-radius: 0;
+    -unity-text-align: middle-left;
+}
+
+.tab:hover,
+.tab:active {
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.tab.on {
+    color: rgb(236, 230, 216);
+    border-bottom-color: rgb(201, 162, 75);
+}
+
+.settings-grid.basic {
+    max-width: 560px;
+}
+
+.settings-grid.advanced {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: stretch;
+}
+
+.set-title {
+    margin: 4px 0 2px 0;
+    height: 14.34px;
+    font-size: 10.5px;
+    letter-spacing: 16px;
+    color: rgb(201, 162, 75);
+    -unity-text-align: middle-left;
+}
+
+/* A setting only the host may change: its value at the right, no box (style.css select:disabled). */
+.select:disabled {
+    padding-right: 10px;
+    border-color: rgba(0, 0, 0, 0);
+    opacity: 0.85;
+}
+
+.select:disabled .select-chevron {
+    display: none;
+}
+
+.select:disabled .select-text {
+    flex-grow: 1;
+    -unity-text-align: middle-right;
+}
+
+/* Step E4: the mic check (style.css .mic-line, #mic-meter, #mic-fill, #mic-status.error, .look-hint.warn). */
+.mic-line {
+    padding: 16px 18px;
+    -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Italic.ttf");
+    font-size: 21px;
+    color: rgb(236, 230, 216);
+    background-color: rgba(236, 230, 216, 0.03);
+    border-left-width: 2px;
+    border-left-color: rgb(201, 162, 75);
+    white-space: normal;
+}
+
+.mic-meter {
+    height: 6px;
+    background-color: rgba(236, 230, 216, 0.12);
+    border-radius: 3px;
+}
+
+.mic-fill {
+    width: 0;
+    height: 100%;
+    border-top-left-radius: 3px;
+    border-bottom-left-radius: 3px;
+    background-color: rgb(201, 162, 75);
+    transition-property: width;
+    transition-duration: 0.08s;
+    transition-timing-function: linear;
+}
+
+.muted-line.error {
+    color: rgb(196, 82, 63);
+}
+
+.look-hint.warn {
+    color: rgb(201, 162, 75);
+}

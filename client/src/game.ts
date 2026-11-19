@@ -50,7 +50,7 @@ import { RelicsView } from "./relicsView.ts";
 import { MysteryView } from "./mysteryView.ts";
 import { RemotePlayers } from "./remotePlayers.ts";
 import { CharacterModels } from "./characterModels.ts";
-import { loadClockParts, loadCradleParts, loadTrunkParts, StationsView, type DressedClockParts, type DressedCradleParts, type DressedTrunkParts } from "./stations.ts";
+import { facingYaw, loadClockParts, loadCradleParts, loadTrunkParts, StationsView, type DressedClockParts, type DressedCradleParts, type DressedTrunkParts } from "./stations.ts";
 import { VoiceChat } from "./voice.ts";
 import type { TaskSoundKind } from "./hands/sounds.ts";
 import { buildWorld, type DoorView, type RitualCircleView } from "./world.ts";
@@ -66,6 +66,37 @@ import { dressings } from "@haunted/maps";
 const DARK_AMBIENT = 0.04;
 /** The beam aims at the point this far ahead of your eye, so it lines up with the crosshair. */
 const BEAM_AIM_M = 8;
+/** The room tour's up-down view angle, the same as the Unity version's RoomTour.VerticalFovDeg. */
+const TOUR_FOV_DEG = 60;
+/** The close-up tour's views, the same as the Unity version's (RoomTour.cs CloseUpViews). */
+const CLOSE_STATION_M = 1.6;
+const CLOSE_STATION_PITCH = -0.35;
+const CLOSE_DOOR_M = 2.0;
+
+/**
+ * Development only: the close-ups of the picture test (roomTour with closeUps), in sim x, z: each
+ * task station, relic search place and salt jar from in front (it faces away from its wall,
+ * facingYaw), looking a little down; each door from both sides, level. Named
+ * close-<kind>-<id>, doors -a (the + side) and -b.
+ */
+function closeUpViews(map: MapData): { name: string; x: number; z: number; yaw: number; pitch: number }[] {
+  const views: { name: string; x: number; z: number; yaw: number; pitch: number }[] = [];
+  const front = (name: string, p: { x: number; z: number }) => {
+    const yaw = facingYaw(map, p);
+    views.push({ name, x: p.x + Math.sin(yaw) * CLOSE_STATION_M, z: p.z + Math.cos(yaw) * CLOSE_STATION_M, yaw, pitch: CLOSE_STATION_PITCH });
+  };
+  for (const t of map.tasks) front(`close-task-${t.id}`, t);
+  for (const spot of map.relicSpots) for (const p of searchPlaces(spot)) front(`close-search-${p.id}`, p);
+  for (const jar of map.saltJars) front(`close-salt-${jar.id}`, jar);
+  for (const d of map.doors) {
+    // A door across x is passed along z, and the other way round.
+    const dx = d.axis === "x" ? 0 : CLOSE_DOOR_M;
+    const dz = d.axis === "x" ? CLOSE_DOOR_M : 0;
+    views.push({ name: `close-door-${d.id}-a`, x: d.x + dx, z: d.z + dz, yaw: Math.atan2(dx, dz), pitch: 0 });
+    views.push({ name: `close-door-${d.id}-b`, x: d.x - dx, z: d.z - dz, yaw: Math.atan2(-dx, -dz), pitch: 0 });
+  }
+  return views;
+}
 /** Auto quality: once you are in the hotel, let it settle, watch this long, then choose. */
 const AUTO_SETTLE_SEC = 2;
 const AUTO_MEASURE_SEC = 5;
@@ -326,6 +357,8 @@ export class Game {
   /** Auto quality's measurement: seconds watched and frames drawn (null once it has chosen). */
   private autoQuality: { seconds: number; frames: number } | null = null;
   private fps = { shown: false, seconds: 0, frames: 0 };
+  /** True while the room-by-room picture test runs (roomTour): no held torch in the pictures. */
+  private touring = false;
   /** The quality drawn now, and the speed test while one runs (speedTest). */
   private level: QualityLevel = "high";
   private speed: SpeedTest | null = null;
@@ -801,7 +834,8 @@ export class Game {
     const { innerWidth: w, innerHeight: h } = window;
     this.post.setSize(w, h);
     this.camera.aspect = w / h;
-    this.camera.fov = this.viewFov();
+    // The room tour keeps its own view angle even if the window changes size mid-way.
+    this.camera.fov = this.touring ? TOUR_FOV_DEG : this.viewFov();
     this.camera.updateProjectionMatrix();
     this.heldCamera.aspect = w / h;
     this.heldCamera.updateProjectionMatrix();
@@ -1023,12 +1057,14 @@ export class Game {
     const cam = this.camera.position;
     const ghostDistance = this.ghost.distanceTo({ x: cam.x, y: cam.y - this.eyeHeight, z: cam.z });
     const brightness = this.flicker.update(dt, ghostDistance);
-    this.flashlight.light.intensity = this.flashlightIntensity * brightness * this.beamAdapt.update(dt, this.camera);
+    const beam = this.beamAdapt.update(dt, this.camera);
+    // The room tour's pictures are taken by the torch at full strength (roomTour).
+    this.flashlight.light.intensity = this.touring ? this.flashlightIntensity : this.flashlightIntensity * brightness * beam;
     this.held.update(
       dt,
       this.camera,
       {
-        visible: this.me?.health !== "dead" && !this.hands.active && !this.cameraRaised,
+        visible: this.me?.health !== "dead" && !this.hands.active && !this.cameraRaised && !this.touring,
         on: this.flashlight.light.visible,
         brightness,
         ambient: this.ambient.intensity,
@@ -1094,6 +1130,64 @@ export class Game {
       this.flashlight.light.visible = was.torch;
       this.applyQuality(was.level);
       this.autoQuality = was.auto;
+    }
+  }
+
+  /**
+   * Development only: the room-by-room picture test of step D (docs/plans/engine-port.md). The
+   * camera stands in the middle of each room at eye height with the torch off (or, with torch, on
+   * at full strength) and takes a picture looking each of four ways (yaw 0, 90, 180, 270 degrees),
+   * framed like the Unity version's RoomTour (60 degree up-down view); save gets each as
+   * "<room>-<yaw>.png".
+   */
+  async roomTour(save: (name: string, png: Blob) => Promise<void>, only?: string, torch = false, closeUps = false) {
+    const camera = this.camera;
+    const was = { position: camera.position.clone(), rotation: camera.rotation.clone(), fov: camera.fov, torch: this.flashlight.light.visible, intensity: this.flashlight.light.intensity };
+    this.flashlight.light.visible = torch;
+    this.flashlight.light.intensity = this.flashlightIntensity;
+    this.touring = true;
+    // The next frame's update hides the held torch.
+    await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+    camera.fov = TOUR_FOV_DEG;
+    camera.updateProjectionMatrix();
+    try {
+      if (closeUps) {
+        for (const v of closeUpViews(this.map)) {
+          if (only && !v.name.toLowerCase().includes(only.toLowerCase())) continue;
+          const at = this.place(v);
+          camera.position.set(at.x, at.y + this.eyeHeight, at.z);
+          camera.rotation.set(v.pitch, v.yaw, 0, "YXZ");
+          camera.updateMatrixWorld();
+          this.view.setFromProjectionMatrix(this.viewMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+          this.dressed.showFloorsNear(camera.position.x, camera.position.y - this.eyeHeight, camera.position.z, { view: this.view, eye: camera.position });
+          this.post.render(performance.now() / 1000);
+          const png = await new Promise<Blob | null>((done) => this.renderer.domElement.toBlob(done, "image/png"));
+          if (png) await save(`${v.name}.png`, png);
+        }
+        return;
+      }
+      for (const r of this.map.rooms) {
+        if (only && !r.name.toLowerCase().includes(only.toLowerCase())) continue;
+        const at = this.place({ x: (r.minX + r.maxX) / 2, z: (r.minZ + r.maxZ) / 2 });
+        for (const yaw of [0, 90, 180, 270]) {
+          camera.position.set(at.x, at.y + this.eyeHeight, at.z);
+          camera.rotation.set(0, (yaw * Math.PI) / 180, 0, "YXZ");
+          camera.updateMatrixWorld();
+          this.view.setFromProjectionMatrix(this.viewMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+          this.dressed.showFloorsNear(camera.position.x, camera.position.y - this.eyeHeight, camera.position.z, { view: this.view, eye: camera.position });
+          this.post.render(performance.now() / 1000);
+          const png = await new Promise<Blob | null>((done) => this.renderer.domElement.toBlob(done, "image/png"));
+          if (png) await save(`${r.name}-${yaw}.png`, png);
+        }
+      }
+    } finally {
+      camera.position.copy(was.position);
+      camera.rotation.copy(was.rotation);
+      camera.fov = was.fov;
+      camera.updateProjectionMatrix();
+      this.flashlight.light.visible = was.torch;
+      this.flashlight.light.intensity = was.intensity;
+      this.touring = false;
     }
   }
 
@@ -1547,7 +1641,7 @@ export class Game {
       this.room?.send("taskDone", { stationId: this.openStation });
     }
     const fov = this.viewFov();
-    if (Math.abs(this.camera.fov - fov) > 0.05) {
+    if (!this.touring && Math.abs(this.camera.fov - fov) > 0.05) {
       this.camera.fov += (fov - this.camera.fov) * Math.min(1, FOV_LERP_PER_SEC * dt);
       this.camera.updateProjectionMatrix();
     }

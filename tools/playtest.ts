@@ -8,11 +8,20 @@
 //   npx tsx tools/playtest.ts win-late     as win, but the ritual starts in the Restless part, ghost already roaming
 //   npx tsx tools/playtest.ts lose-dawn    the night runs out
 //   npx tsx tools/playtest.ts lose-dead    every player dies
+//   npx tsx tools/playtest.ts c4 CODE      with a Unity player (engine step C4): the first bot is possessed and
+//                                          Summons the ghost on the Unity player and slams a door; the third
+//                                          dies; in the meeting the dead bot pushes the Ouija planchette and the
+//                                          others vote the possessed out. PLAYERS=3 is needed.
+//   npx tsx tools/playtest.ts d3 CODE      with a Unity player (engine step D3, people): four bots in front of it, one
+//                                          standing, one walking side to side, one crouching then creeping, one
+//                                          knocked down who crawls and bleeds out. PLAYERS=4 is needed.
+//   npx tsx tools/playtest.ts e3 CODE      with a Unity host (engine step E3, the room): the bots press Ready and
+//                                          report each settings change they see and the host's kick
 //   add a room code to join a room a browser player made, e.g. ... win-asleep ABCDE
 //   PLAYERS=8 plays with more bots (2 to 8; default 2). For lag, run tools/lagProxy.ts and point
 //   ENDPOINT at it (ws://localhost:2568).
 import { Client, type Room } from "@colyseus/sdk";
-import { altarStands, config, furnitureBox, hidingSpotBox, ROOM_NAME, roomAt, type ServerMessages } from "@haunted/shared";
+import { altarStands, config, furnitureBox, hidingSpotBox, ROOM_NAME, roomAt, settingsCode, type ServerMessages } from "@haunted/shared";
 import { marrowHotelGreybox as map } from "@haunted/maps";
 
 type Point = { x: number; z: number };
@@ -239,11 +248,17 @@ async function main() {
   const a = new Bot(names[0]!);
   const b = new Bot(names[1]!);
   await a.connect(joinCode);
+  // c4: the first bot asks to be possessed before the others join (the Unity host starts once all are in).
+  if (mode === "c4" || process.env.POSSESSED_BOT === "1") a.room.send("debug", { possessed: true });
   await b.connect(joinCode ?? a.room.roomId);
   const more = names.slice(2, count).map((n) => new Bot(n));
   for (const bot of more) await bot.connect(joinCode ?? a.room.roomId);
   log("room", `code ${a.room.roomId}; mode ${mode}; ${a.state.players.size} players, ${a.state.tasksTotal} tasks`);
   const bots = [a, b, ...more];
+  if (mode === "c4") return c4(bots);
+  if (mode === "c4u") return c4u(bots);
+  if (mode === "d3") return d3(bots);
+  if (mode === "e3") return e3(bots);
   // In their own room the bots skip the host's countdown and the intro (in a joined room, the host starts).
   // MYSTERY=0 plays without "Who was the ghost?" (GDD 26.13); otherwise the bots solve it.
   if (!joinCode && process.env.MYSTERY === "0") a.room.send("debug", { mystery: false });
@@ -276,7 +291,8 @@ async function main() {
   if (mode === "lose-dawn") {
     a.room.send("debug", { nightTime: a.state.nightLength - 2 });
   } else if (mode === "lose-dead") {
-    for (const bot of bots) {
+    // DIE=N: only the first N bots die (leaves the possessed outnumbering the rest).
+    for (const bot of bots.slice(0, Number(process.env.DIE ?? bots.length))) {
       bot.room.send("debug", { down: true });
       bot.room.send("debug", { bleedLeft: 0.5 });
     }
@@ -324,6 +340,199 @@ async function main() {
   await sleep(1);
   log("END", `after the end: clock ${a.state.nightTime === frozen.t ? "stopped" : "STILL RUNNING"}, players ${a.me.z === frozen.z ? "frozen" : "STILL MOVING"}`);
   if (!joinCode) for (const bot of bots) await bot.room.leave();
+  process.exit(0);
+}
+
+/** The engine port's step C4 test, against a Unity player in the room (see the top of this file). */
+async function c4(bots: Bot[]) {
+  const [rafi, mim, tanvir] = bots as [Bot, Bot, Bot];
+  for (const bot of bots) bot.room.onMessage("powerRefused", (m: ServerMessages["powerRefused"]) => log(bot.name, `power ${m.kind} refused: ${m.reason}`));
+  rafi.room.onMessage("role", (m: ServerMessages["role"]) => log("Rafi", `role ${m.role}`));
+  await until(() => rafi.state.stage === "night", 120, "night start (the Unity host starts it)");
+  const t0 = Date.now();
+  const at = (sec: number) => until(() => Date.now() - t0 >= sec * 1000, sec + 5, `${sec} s`);
+  const unity = () => [...rafi.state.players.entries()].find(([, p]: [string, any]) => p.name === "Unity") as [string, any];
+  // In front of the Unity player, where its flashlight shines (facing yaw looks along -sin, -cos).
+  const inFront = (dist: number, side: number) => {
+    const [, u] = unity();
+    const fx = -Math.sin(u.yaw), fz = -Math.cos(u.yaw);
+    return standNear({ x: u.x + fx * dist - fz * side, z: u.z + fz * dist + fx * side }, 2);
+  };
+  await at(6);
+  await rafi.teleport(inFront(4, 0));
+  await mim.teleport(inFront(3.5, 1.2));
+  await tanvir.teleport(inFront(3.5, -1.2));
+  // Turn to face the Unity player, so it sees the possessed's eyes glow.
+  for (const bot of [rafi, mim, tanvir]) {
+    const [, u] = unity();
+    const yaw = Math.atan2(-(u.x - bot.me.x), -(u.z - bot.me.z));
+    bot.room.send("input", { seq: ++bot.seq, forward: 0, right: 0, run: false, crouch: false, yaw, pitch: 0 });
+  }
+  log("room", "bots stand in front of the Unity player");
+  // Powers unlock later in the night: jump ahead, then Summon the ghost on the Unity player.
+  rafi.room.send("debug", { nightTime: 200 });
+  await at(10);
+  rafi.room.send("power", { kind: "summon", target: unity()[0] });
+  log("Rafi", "Summon on Unity");
+  await at(16);
+  const door = map.doors.filter((d) => d.id !== map.relicDoor).sort((p, q) => Math.hypot(p.x - unity()[1].x, p.z - unity()[1].z) - Math.hypot(q.x - unity()[1].x, q.z - unity()[1].z))[0]!;
+  rafi.room.send("power", { kind: "slamDoor", target: door.id });
+  log("Rafi", `Slam Door on ${door.id}`);
+  await at(20);
+  tanvir.room.send("debug", { down: true });
+  tanvir.room.send("debug", { bleedLeft: 0.5 });
+  await until(() => tanvir.me.health === "dead", 10, "Tanvir dead");
+  log("Tanvir", "dead");
+  // The Unity player calls the meeting (-debugAtNight). Evidence: the dead push the planchette.
+  await until(() => !!rafi.state.meeting, 60, "meeting");
+  log("room", `meeting called by ${rafi.state.meetingCaller}`);
+  await sleep(3);
+  tanvir.room.send("ouija", { target: unity()[0] });
+  log("Tanvir", "Ouija: Unity");
+  await until(() => rafi.state.meeting === "vote", 120, "vote step");
+  await sleep(2);
+  rafi.room.send("vote", { target: "skip" });
+  mim.room.send("vote", { target: rafi.room.sessionId });
+  log("room", "Rafi skips, Mim votes Rafi");
+  await until(() => rafi.state.meeting === "result" || !rafi.state.meeting, 120, "result");
+  log("room", `result step; Rafi is ${rafi.me?.health ?? "gone"}`);
+  await until(() => !rafi.state.meeting || bots.every((b) => !!b.end), 60, "meeting over");
+  await sleep(5);
+  log("room", rafi.end ? `ended: ${rafi.end.winner} (${rafi.end.reason})` : "night goes on");
+  for (const bot of bots) await bot.room.leave();
+  process.exit(0);
+}
+
+/**
+ * Step C4, the Unity player's side: it is the possessed (-possessed) and uses its powers on the bots
+ * standing in front of it, then dies and sees Tanvir's Wisp and pushes the Ouija planchette.
+ */
+/**
+ * Step E3: the room as a Unity host runs it. The bots press Ready and report each change of the
+ * room's settings they see (the settings code and the setting that changed), and the host's kick
+ * (the reason they are given and how the room closes). Ends once all are gone, or after 5 minutes.
+ */
+async function e3(bots: Bot[]) {
+  let gone = 0;
+  for (const bot of bots) {
+    bot.room.send("ready", { ready: true });
+    let last = bot.state.settings as string;
+    log(bot.name, `ready; settings ${settingsCode(JSON.parse(last))}`);
+    const timer = setInterval(() => {
+      const now = bot.state.settings as string;
+      if (now === last) return;
+      const was = JSON.parse(last), is = JSON.parse(now);
+      const changed = Object.keys(is).filter((k) => JSON.stringify(is[k]) !== JSON.stringify(was[k]));
+      log(bot.name, `sees settings ${settingsCode(is)}: ${changed.map((k) => `${k} ${JSON.stringify(was[k])} -> ${JSON.stringify(is[k])}`).join(", ")}`);
+      last = now;
+    }, 100);
+    bot.room.onMessage("kicked", (m: { reason: string }) => log(bot.name, `kicked: "${m.reason}"`));
+    bot.room.onLeave((code) => {
+      clearInterval(timer);
+      gone++;
+      log(bot.name, `left the room (${code})`);
+    });
+  }
+  await until(() => gone === bots.length, 300, "every bot gone").catch((e) => log("room", String(e)));
+  process.exit(0);
+}
+
+/**
+ * Step D3: the people as Unity draws them. The bots line up in front of the Unity player and each
+ * shows clips of its own: Rafi stands (idle), Mim walks side to side (walk, now and then run), Tanvir
+ * crouches then creeps (crouch-idle, crouch-walk), Nadia is knocked down, crawls, and bleeds out
+ * (knocked-down, crawl, downed-idle, dying).
+ */
+async function d3(bots: Bot[]) {
+  const [rafi, mim, tanvir, nadia] = bots as [Bot, Bot, Bot, Bot];
+  if (!nadia) throw new Error("d3 needs PLAYERS=4");
+  await until(() => rafi.state.stage === "night", 120, "night start (the Unity host starts it)");
+  rafi.room.send("debug", { toggleGhost: true });
+  const t0 = Date.now();
+  const now = () => (Date.now() - t0) / 1000;
+  const at = (sec: number) => until(() => now() >= sec, sec + 5, `${sec} s`);
+  const unity = () => [...rafi.state.players.entries()].find(([, p]: [string, any]) => p.name === "Unity") as [string, any];
+  const inFront = (dist: number, side: number) => {
+    const [, u] = unity();
+    const fx = -Math.sin(u.yaw), fz = -Math.cos(u.yaw);
+    return standNear({ x: u.x + fx * dist - fz * side, z: u.z + fz * dist + fx * side }, 2);
+  };
+  const facing = (bot: Bot) => {
+    const [, u] = unity();
+    return Math.atan2(-(u.x - bot.me.x), -(u.z - bot.me.z));
+  };
+  await at(4);
+  await rafi.teleport(inFront(4, 0));
+  await mim.teleport(inFront(3.5, 1.3));
+  await tanvir.teleport(inFront(3.5, -1.3));
+  // In front of Rafi and a little to the side, where her body lies in the light once she is down.
+  await nadia.teleport(inFront(3.2, 0.6));
+  log("room", "bots stand in front of the Unity player");
+  const yaws = new Map(bots.map((b) => [b, facing(b)]));
+  let downed = false;
+  while (now() < 60) {
+    const t = now();
+    for (const bot of bots) {
+      let forward = 0, right = 0, run = false, crouch = false;
+      if (bot === mim) {
+        right = Math.floor(t / 2) % 2 === 0 ? 1 : -1;
+        run = t > 20 && t < 26;
+      }
+      if (bot === tanvir) {
+        crouch = true;
+        if (t > 12) right = Math.floor(t / 2) % 2 === 0 ? 1 : -1;
+      }
+      // Downed, Nadia crawls toward the Unity player for a while, then lies still.
+      if (bot === nadia && downed && t > 14 && t < 22) forward = Math.floor(t / 3) % 2 === 0 ? 1 : -1;
+      bot.room.send("input", { seq: ++bot.seq, forward, right, run, crouch, yaw: yaws.get(bot)!, pitch: 0 });
+    }
+    if (!downed && t > 9) {
+      downed = true;
+      nadia.room.send("debug", { down: true });
+      log("Nadia", "knocked down");
+    }
+    await sleep(1 / config.net.tickRate);
+  }
+  log("room", `Nadia is ${nadia.me.health}`);
+  for (const bot of bots) await bot.room.leave();
+  process.exit(0);
+}
+
+async function c4u(bots: Bot[]) {
+  const [rafi, mim, tanvir] = bots as [Bot, Bot, Bot];
+  await until(() => rafi.state.stage === "night", 120, "night start (the Unity host starts it)");
+  const t0 = Date.now();
+  const at = (sec: number) => until(() => Date.now() - t0 >= sec * 1000, sec + 5, `${sec} s`);
+  const unity = () => [...rafi.state.players.entries()].find(([, p]: [string, any]) => p.name === "Unity") as [string, any];
+  const inFront = (dist: number, side: number) => {
+    const [, u] = unity();
+    const fx = -Math.sin(u.yaw), fz = -Math.cos(u.yaw);
+    return standNear({ x: u.x + fx * dist - fz * side, z: u.z + fz * dist + fx * side }, 2);
+  };
+  await at(6);
+  await mim.teleport(inFront(4, 0));
+  await rafi.teleport(inFront(3.5, 1.4));
+  await tanvir.teleport(inFront(3.5, -1.4));
+  for (const bot of bots) {
+    const [, u] = unity();
+    bot.room.send("input", { seq: ++bot.seq, forward: 0, right: 0, run: false, crouch: false, yaw: Math.atan2(-(u.x - bot.me.x), -(u.z - bot.me.z)), pitch: 0 });
+  }
+  log("room", "bots stand in front of the Unity player");
+  await at(24);
+  tanvir.room.send("debug", { down: true });
+  tanvir.room.send("debug", { bleedLeft: 0.5 });
+  await until(() => tanvir.me.health === "dead", 10, "Tanvir dead");
+  log("Tanvir", "dead");
+  await until(() => !!rafi.state.meeting, 60, "meeting");
+  log("room", `meeting called by ${rafi.state.meetingCaller}`);
+  await until(() => rafi.state.meeting === "vote", 120, "vote step");
+  await sleep(1);
+  rafi.room.send("vote", { target: "skip" });
+  mim.room.send("vote", { target: "skip" });
+  await until(() => !rafi.state.meeting || bots.every((b) => !!b.end), 120, "meeting over");
+  await sleep(4);
+  log("room", rafi.end ? `ended: ${rafi.end.winner} (${rafi.end.reason})` : "night goes on");
+  for (const bot of bots) await bot.room.leave();
   process.exit(0);
 }
 

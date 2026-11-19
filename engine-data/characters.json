@@ -1,0 +1,50 @@
+[
+  {
+    "id": "priest",
+    "name": "The Priest",
+    "look": "Dark suit, purple stole, gold cross",
+    "colour": "#d8d2c0"
+  },
+  {
+    "id": "journalist",
+    "name": "The Journalist",
+    "look": "Striped jumper, satchel, notebook",
+    "colour": "#8fa7c9"
+  },
+  {
+    "id": "nurse",
+    "name": "The Nurse",
+    "look": "Nurse's cap, doctor's bag",
+    "colour": "#e06b6b"
+  },
+  {
+    "id": "student",
+    "name": "The Student",
+    "look": "Red T-shirt, backpack",
+    "colour": "#6bb5e0"
+  },
+  {
+    "id": "detective",
+    "name": "The Detective",
+    "look": "Fedora, magnifying glass",
+    "colour": "#c9a45a"
+  },
+  {
+    "id": "photographer",
+    "name": "The Photographer",
+    "look": "Big old box camera on the chest",
+    "colour": "#a07ad6"
+  },
+  {
+    "id": "mechanic",
+    "name": "The Mechanic",
+    "look": "Hard hat, hi-vis vest, toolbox",
+    "colour": "#e0913f"
+  },
+  {
+    "id": "caretaker",
+    "name": "The Caretaker",
+    "look": "Work apron, lantern",
+    "colour": "#7fc47a"
+  }
+]

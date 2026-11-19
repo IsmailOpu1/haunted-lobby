@@ -15,9 +15,10 @@ namespace Haunted.Game
     {
         // The browser version's view (client/src/input.ts and game.ts).
         const double DegPerCountPerSensitivity = 0.022;
-        public double Sensitivity = 2.5;
+        public double Sensitivity = Options.DefaultSensitivity;
         const double MaxPitch = Mathf.PI / 2 - 0.05;
-        const float HorizontalFovDeg = 90;
+        /// <summary>Field of view, side to side, in degrees (Options).</summary>
+        public float HorizontalFovDeg = Options.DefaultFov;
         const float MaxVerticalFovDeg = 75;
         const float CorrectionFadePerSec = 20;
         const float SnapDistanceM = 2;
@@ -42,6 +43,15 @@ namespace Haunted.Game
         public MoveMode Mode = MoveMode.Normal;
         /// <summary>Scripted input for unattended tests (-script); null when a person plays.</summary>
         public System.Func<double, MoveInput> Script;
+        /// <summary>Working with your hands (GDD 26.5): you stand still and the view narrows toward the work.</summary>
+        public bool Working;
+        /// <summary>While working with the button held, the mouse moves your hands (pixels, right and down positive) instead of the view.</summary>
+        public bool HandDown;
+        public System.Action<double, double> HandMove;
+        // game.ts: how much the view narrows while you work, and how fast it gets there.
+        const float WorkZoom = 0.77f;
+        const float FovLerpPerSec = 6;
+        bool fovSet;
 
         public LocalPlayer(Hotel hotel, MovementConfig move, object config)
         {
@@ -56,24 +66,47 @@ namespace Haunted.Game
 
             var cam = new GameObject("Player view");
             Camera = cam.AddComponent<Camera>();
-            Camera.nearClipPlane = 0.05f;
+            Camera.nearClipPlane = Game.CameraNearM;
             Camera.farClipPlane = 60;
+            // Night: black past the fog, as the browser (game.ts scene.background); no daytime sky over open rooms.
+            Camera.clearFlags = CameraClearFlags.SolidColor;
+            Camera.backgroundColor = Color.black;
+            // Not the held torch's studio; the torch itself is drawn by HauntedHeld.
+            Camera.cullingMask = HauntedHeld.WorldMask | HauntedHeld.HeldMask;
             cam.AddComponent<AudioListener>();
-            // The held torch: a soft spot from just below the eyes (the browser's flashlight.ts look comes in step D).
-            var torch = new GameObject("Torch");
-            torch.transform.SetParent(cam.transform, false);
-            torch.transform.localPosition = new Vector3(0.15f, -0.25f, 0);
-            flashlight = torch.AddComponent<Light>();
-            flashlight.type = LightType.Spot;
-            flashlight.spotAngle = 52;
-            flashlight.innerSpotAngle = 30;
-            flashlight.range = 12;
-            flashlight.intensity = 6;
-            flashlight.shadows = LightShadows.Soft;
-            flashlight.enabled = false;
+            // The held torch, as the browser's: from the lens, low and to the right in front of the
+            // eyes, aimed at where you look BeamAimM ahead.
+            var f = Json.Obj(config, "flashlight");
+            flashlight = Torch.Make(cam.transform, TorchAt, Vector3.forward * BeamAimM, Json.Num(f, "coneM"), Json.Num(f, "coneHalfAngleDeg"));
         }
 
         public bool FlashlightOn { set { flashlight.enabled = value; } }
+
+        /// <summary>Where the beam starts now, in the camera's space (the held torch's lens, HeldTorch), still aimed BeamAimM ahead.</summary>
+        public Vector3 BeamFrom
+        {
+            set
+            {
+                flashlight.transform.localPosition = value;
+                flashlight.transform.localRotation = Quaternion.LookRotation(Vector3.forward * BeamAimM - value);
+            }
+        }
+
+        /// <summary>The flashlight's brightness, 0 to 1: it flickers and dies near the ghost (GDD 8.1).</summary>
+        public float Brightness { set { flashlight.intensity = Torch.Intensity * value; } }
+
+        /// <summary>
+        /// Where the beam starts: the held torch's lens at rest, in camera space (Unity's z forward), as
+        /// the browser measures it (heldFlashlight.ts: HOLD plus the model's lens, read off the live
+        /// light: 0.18, -0.225, -0.539 in three's space). It aims BeamAimM ahead of the eyes (game.ts).
+        /// </summary>
+        public static readonly Vector3 TorchAt = new Vector3(0.18f, -0.225f, 0.539f);
+        public const float BeamAimM = 8;
+
+        /// <summary>The possessed's power wheel is open: the mouse picks a power instead of turning your head.</summary>
+        public bool WheelOpen;
+        /// <summary>The mouse while the wheel is open, in pixels, screen y growing downward.</summary>
+        public System.Action<double, double> WheelMove;
 
         /// <summary>The server's word on where you are, after your last input it applied.</summary>
         public void Reconcile(double x, double z, double stamina, double regenWait, bool crouching, uint lastSeq)
@@ -106,6 +139,16 @@ namespace Haunted.Game
             var mouse = Mouse.current;
             if (mouse == null || Cursor.lockState != CursorLockMode.Locked) return;
             Vector2 d = mouse.delta.ReadValue();
+            if (WheelOpen)
+            {
+                if (WheelMove != null) WheelMove(d.x, -d.y);
+                return;
+            }
+            if (Working && HandDown)
+            {
+                if (HandMove != null) HandMove(d.x, -d.y);
+                return;
+            }
             double turn = Sensitivity * DegPerCountPerSensitivity * Mathf.Deg2Rad;
             Yaw -= d.x * turn;
             // Input System's y grows upward; the browser's movementY grows downward.
@@ -118,11 +161,14 @@ namespace Haunted.Game
             if (Script != null) return Script(time);
             var k = Keyboard.current;
             var input = new MoveInput { Yaw = Yaw, Pitch = Pitch };
-            if (k == null) return input;
-            input.Forward = (k.wKey.isPressed ? 1 : 0) - (k.sKey.isPressed ? 1 : 0);
-            input.Right = (k.dKey.isPressed ? 1 : 0) - (k.aKey.isPressed ? 1 : 0);
-            input.Run = k.leftShiftKey.isPressed;
-            input.Crouch = k.leftCtrlKey.isPressed || k.cKey.isPressed;
+            // As input.ts movement(): only while you look around (the mouse held), so typing on the
+            // room page moves nobody.
+            if (k == null || Working || Cursor.lockState != CursorLockMode.Locked) return input;
+            // The bound keys (Options, keys.ts), as input.ts movement().
+            input.Forward = (KeyInput.Held("forward") ? 1 : 0) - (KeyInput.Held("back") ? 1 : 0);
+            input.Right = (KeyInput.Held("right") ? 1 : 0) - (KeyInput.Held("left") ? 1 : 0);
+            input.Run = KeyInput.Held("run");
+            input.Crouch = KeyInput.Held("crouch");
             return input;
         }
 
@@ -150,6 +196,17 @@ namespace Haunted.Game
             UpdateCamera(dt);
         }
 
+        float shakeLeft, shakeSec, shakeRad;
+
+        /// <summary>Shakes the view for a moment (game.ts shakeView), scaled by Options' screen shake.</summary>
+        public void Shake(float seconds, float strengthRad)
+        {
+            if (Options.Shake <= 0) return;
+            shakeSec = seconds;
+            shakeLeft = seconds;
+            shakeRad = strengthRad * Options.Shake / 100f;
+        }
+
         void UpdateCamera(float dt)
         {
             float alpha = (float)(accumulator / simDt);
@@ -161,9 +218,21 @@ namespace Haunted.Game
             eyeNow = Mathf.MoveTowards(eyeNow, wantEye, 4 * dt);
             Camera.transform.position = Vector3.Lerp(a, b, alpha) + correction + Vector3.up * eyeNow;
             Camera.transform.rotation = Coords.Look(Yaw, Pitch);
+            if (shakeLeft > 0)
+            {
+                // game.ts: the view trembles for a moment, fading out (scaled by the Options slider).
+                shakeLeft = Mathf.Max(0, shakeLeft - dt);
+                float t = Time.realtimeSinceStartup;
+                float fade = shakeLeft / shakeSec * shakeRad;
+                // three's rotation.x is pitch (up is +), .y yaw (left is +), .z roll; Coords.Look turns the same way.
+                Camera.transform.rotation = Coords.Look(Yaw + Mathf.Sin(t * 39 + 1.3f) * fade, Pitch + Mathf.Sin(t * 47) * fade)
+                    * Quaternion.AngleAxis(Mathf.Sin(t * 31 + 2.1f) * fade * 0.5f * Mathf.Rad2Deg, Vector3.forward);
+            }
             float aspect = Camera.aspect;
             float upDown = 2 * Mathf.Atan(Mathf.Tan(HorizontalFovDeg * Mathf.Deg2Rad / 2) / aspect) * Mathf.Rad2Deg;
-            Camera.fieldOfView = Mathf.Min(MaxVerticalFovDeg, upDown);
+            float fov = Mathf.Min(MaxVerticalFovDeg, upDown) * (Working ? WorkZoom : 1);
+            if (!fovSet) { Camera.fieldOfView = fov; fovSet = true; }
+            else if (Mathf.Abs(Camera.fieldOfView - fov) > 0.05f) Camera.fieldOfView += (fov - Camera.fieldOfView) * Mathf.Min(1, FovLerpPerSec * dt);
         }
     }
 }
