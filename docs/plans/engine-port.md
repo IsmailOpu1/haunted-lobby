@@ -528,3 +528,19 @@ Done ahead of E4–E6 at the owner's word ("Do what you prefer, as recommended")
 - E4's mic check is in. `release.json` is at 0.9.1. BuildRelease plus the script give `engine/Build/Release/HauntedLobby-0.9.1-windows.zip` (1,444 MB; on E: now). Its files match 0.9.0's apart from the game code; tar's compression of the big data file came out lower this time.
 - Checked: the release build itself runs the debug-server mic and room test, and 67 checks pass.
 - Upload it as in Step F: `butler push "engine/Build/Release/Haunted Lobby" <you>/<game>:windows --userversion 0.9.1`, or the zip on the itch.io page.
+
+### Step E5, first part: the night's HUD (2026-11-19)
+
+- **Where:** `Game/NightScreens.cs` and `UI/Night.uss` draw the night in the menus' panel, so the font pair and the browser's colours come through as on the menus. A layer under the menu screens holds the HUD; one over them holds the countdown, the role reveal and the photo flash (style.css's `#intro` z-index). `Hud.DrawUi` decides each frame what shows, as main.ts and game.ts do. A test run without menus keeps Hud's plain drawing; `-nightUi` gives such a run the new screens.
+- **Ported from index.html and style.css, in the browser's places and sizes:**
+  - the night bar (with its dark-blue-to-orange fill, the part marks, the part's colour, and the time to dawn), the Tasks bar, and the ritual bar (with its red while draining);
+  - your task list top left, always shown (the possessed's starts with "Fake tasks: pretend to do them"); the items line (Salt, Camera and Bell, with bold counts); the relic you carry;
+  - the room name as you walk in (serif, its floor under it, 3 s, fading);
+  - the prompt, the held action's bar, the stamina bar (new in Unity: shown while not full), the work hint, the banner, the sound cues, the viewfinder, the crosshair, and the Esc hint while walking from the room page;
+  - down (the red vignette), a Wisp (a line at the top), hidden (the wardrobe's slats over a vignette);
+  - Tab's relic panel; the possessed's power chips and the wheel (the browser's 300 px disc, sectors at 33%);
+  - the countdown and role reveal (serif, 76 px, brass or red), and the mic-lost notice (the server's `micLost` is now heard).
+- **Against the browser at 1280×720,** with the same night (Unity hosts with `-create -startWith 2 -nightUi`; headless Chrome joins it, scratchpad `cdp-night.mjs`): the bars, counts, task list and items line sit within 2 px of the browser's. Two fixes came from it:
+  - the browser collapses the task list's 2 px margins (20 px between lines, not 22);
+  - a label drops a space at its end, so the items line's spaces start the next label.
+- **Not yet:** the end screen and the meeting (still plain), the name labels, and the Tab panel's floor plan.

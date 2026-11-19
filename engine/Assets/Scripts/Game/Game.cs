@@ -30,6 +30,7 @@ namespace Haunted.Game
     ///   -sendAtNight 12 pourSalt '{}'   12 s into the night, send this message as if a key were pressed (may repeat)
     ///   -shotAtNight 14 path   save a screenshot 14 s into the night (may repeat)
     ///   -rematchAfter 10   as host, press Rematch 10 s after the end screen
+    ///   -nightUi           with -create or -join: the night's screens in the menus' panel, as with the menus (step E5)
     /// </summary>
     public class Game : MonoBehaviour
     {
@@ -319,6 +320,8 @@ namespace Haunted.Game
                 return;
             }
             string script = arg("-script");
+            // -nightUi: a test that goes straight into a room still draws the night in the menus' panel (step E5).
+            if (Array.IndexOf(args, "-nightUi") >= 0 && (Array.IndexOf(args, "-create") >= 0 || arg("-join") != null)) menus = new Menus(config) { Visible = false };
             if (Array.IndexOf(args, "-create") >= 0) Connect(null, script);
             else if (arg("-join") != null) Connect(arg("-join"), script);
             else ShowMenus(arg("-menuShots"));
@@ -795,6 +798,12 @@ namespace Haunted.Game
             hud = new Hud(night, () => room.State, () => room.SessionId, (type, msg) => { if (msg == null) room.Send(type); else room.Send(type, msg); }, config);
             meetingScreen = new MeetingScreen(night, config, (type, msg) => room.Send(type, msg));
             hud.Meeting = meetingScreen;
+            // Step E5: the night's screens in the menus' panel (a run without menus keeps Hud's plain ones).
+            hud.Ui = menus;
+            hud.World = world;
+            hud.Here = () => me != null ? new Vector2((float)me.State.X, (float)me.State.Z) : (Vector2?)null;
+            hud.StaminaLeft = () => me != null && move.StaminaSec > 0 ? me.State.Stamina / move.StaminaSec : 1;
+            if (menus != null) { menus.ForgetRoom(); menus.ShowNight(true); }
             EnterRoomPage();
             ListenForGhost();
             StartVoice();
@@ -1671,7 +1680,7 @@ namespace Haunted.Game
         /// </summary>
         void LeaveRoomPage(string reason)
         {
-            if (menus != null) menus.MicInRoom(false);
+            if (menus != null) { menus.MicInRoom(false); menus.ShowNight(false); menus.ForgetRoom(); }
             room = null;
             client = null;
             if (voice != null) { voice.Disconnect(); voice = null; }

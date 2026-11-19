@@ -49,6 +49,7 @@ namespace Haunted.Game
             doc.panelSettings = panel;
             root = doc.rootVisualElement;
             root.styleSheets.Add(Resources.Load<StyleSheet>("UI/Menus"));
+            root.styleSheets.Add(Resources.Load<StyleSheet>("UI/Night"));
             root.pickingMode = PickingMode.Ignore;
 
             // Every character in every font drawn once, before any screen (KerningFix): glyphs join a
@@ -74,6 +75,7 @@ namespace Haunted.Game
             BuildRoom();
             BuildSettings();
             BuildMic();
+            BuildNight();
             string name = PlayerPrefs.GetString("playerName", "");
             createName.value = joinName.value = name;
             Reset("start");
@@ -172,7 +174,7 @@ namespace Haunted.Game
         /// <summary>The panel is laid over the picture while a screen or the counter is up.</summary>
         void ShowPanel()
         {
-            bool any = visible || fps != null && fps.style.display == DisplayStyle.Flex;
+            bool any = visible || nightOn || fps != null && fps.style.display == DisplayStyle.Flex;
             HauntedUi.Texture = any ? panel.targetTexture : null;
         }
 

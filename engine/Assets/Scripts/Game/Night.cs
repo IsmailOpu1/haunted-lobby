@@ -110,6 +110,8 @@ namespace Haunted.Game
         public double RefusalUntil;
         public string Banner;
         public double BannerUntil;
+        /// <summary>The server has not heard your mic for a while (micLost).</summary>
+        public bool MicLost;
         public string HuntPhase = "";
         public int Hunts;
         /// <summary>The photos that developed as the last meeting began: its evidence.</summary>
@@ -309,9 +311,12 @@ namespace Haunted.Game
                 Result = r;
                 Debug.Log("Meeting result: " + (r.Removed ?? "nobody") + " (" + (r.Role ?? "role hidden") + ")");
             });
-            // Voice is not tested here (step B covers it); heard so the SDK does not warn.
-            foreach (var type in new[] { "micLost" })
-                room.OnMessage<object>(type, m => { });
+            // The server stopped hearing your mic (protocol.ts micLost): a notice under the bars.
+            room.OnMessage<Dictionary<string, object>>("micLost", m =>
+            {
+                object lost;
+                MicLost = m != null && m.TryGetValue("lost", out lost) && lost is bool && (bool)lost;
+            });
         }
 
         public static readonly Dictionary<string, string> PowerNames = new Dictionary<string, string>

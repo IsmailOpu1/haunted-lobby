@@ -52,6 +52,15 @@ namespace Haunted.Game
         /// <summary>The possessed's power wheel is open (hold R), and the power the mouse points at.</summary>
         public bool WheelOpen;
         public string WheelSelected;
+        /// <summary>Step E5: the menus' panel the night is drawn in; null in a run without menus (drawn plainly then).</summary>
+        public Menus Ui;
+        /// <summary>The hotel's rooms and floors, for the room name as you walk in.</summary>
+        public Sim.WorldData World;
+        /// <summary>Where you are (x, z), and your stamina left as a share (1 when full).</summary>
+        public Func<Vector2?> Here;
+        public Func<double> StaminaLeft;
+        int uiFrame = -1;
+        static readonly List<Night.TaskEntry> NoTasks = new List<Night.TaskEntry>();
 
         public Hud(Night night, Func<GameState> state, Func<string> sessionId, Action<string, object> send, object config)
         {
@@ -78,7 +87,7 @@ namespace Haunted.Game
         static Texture2D cueArrow;
 
         /// <summary>The cue's arrow (main.ts's SVG polygon 0,-1.6 1.1,1.2 0,0.5 -1.1,1.2 in a 4 x 4 box), pointing up, smoothed.</summary>
-        static Texture2D CueArrow()
+        public static Texture2D CueArrow()
         {
             if (cueArrow != null) return cueArrow;
             const int Size = 64, Samples = 4;
@@ -159,6 +168,15 @@ namespace Haunted.Game
             if (s == null) return;
             Styles();
             double now = Time.realtimeSinceStartupAsDouble;
+            if (Ui != null)
+            {
+                // OnGUI runs for every event; the panel is set once a frame.
+                if (uiFrame != Time.frameCount) { uiFrame = Time.frameCount; DrawUi(s, now); }
+                if (night.End != null) { DrawEnd(s); return; }
+                if (s.stage == "waiting" && !RoomPage) DrawLobby(s, roomCode, now);
+                if (s.stage == "night" && !PageUp && !string.IsNullOrEmpty(s.meeting) && Meeting != null) Meeting.Draw(s, sessionId());
+                return;
+            }
             if (night.End != null) { DrawEnd(s); return; }
             switch (s.stage)
             {
@@ -235,6 +253,109 @@ namespace Haunted.Game
             GUILayout.Space(8);
             foreach (var line in night.Log) GUILayout.Label(line, small);
             GUILayout.EndArea();
+        }
+
+        /// <summary>
+        /// Step E5: the night's screens in the menus' panel, each shown when main.ts shows it. While
+        /// the room page is up they stay out of sight (style.css body.in-room:not(.looking)); the
+        /// countdown, the role reveal and the flash stay on top of it.
+        /// </summary>
+        void DrawUi(GameState s, double now)
+        {
+            Player me;
+            s.players.TryGetValue(sessionId(), out me);
+            bool meeting = !string.IsNullOrEmpty(s.meeting);
+            bool on = s.stage == "night" && !PageUp && night.End == null;
+            var keys = Options.Keys;
+
+            string part;
+            Night.PartNames.TryGetValue(s.part ?? "", out part);
+            Ui.SetNight(on, s.part, part ?? s.part, s.nightLength > 0 ? s.nightTime / s.nightLength : 0, night.ClockText(), night.PartMarks());
+            Ui.SetTeamTasks(on ? s.tasksDone : 0, on ? s.tasksTotal : 0);
+            double progress = 0;
+            var ritual = on ? night.RitualText(out progress) : null;
+            Ui.SetRitual(ritual, progress, s.ritualStarted && s.circleCount < s.circleNeeded && progress < 100);
+            Ui.SetTasks(on ? night.Tasks : NoTasks, night.Role == "possessed");
+            Ui.SetItems(on && me != null, me != null ? me.salt : 0, keys.Name("salt"), me != null ? me.cameraShots : 0, keys.Name("camera"), me != null ? me.bellUses : 0);
+            Relic relic = null;
+            if (on && me != null && !string.IsNullOrEmpty(me.relic)) s.relics.TryGetValue(me.relic, out relic);
+            Ui.SetCarrying(relic != null ? keys.Hint("Carrying " + relic.name + " (G to drop)") : null);
+
+            // The room you walk into (game.ts: roomAt and levelOf where you stand).
+            var here = Here != null ? Here() : null;
+            if (on && here.HasValue && World != null)
+            {
+                string roomName = null;
+                foreach (var r in World.Rooms)
+                    if (here.Value.x >= r.MinX && here.Value.x <= r.MaxX && here.Value.y >= r.MinZ && here.Value.y <= r.MaxZ) { roomName = r.Name; break; }
+                Ui.SetRoom(roomName, Sim.Levels.LevelOf(World, here.Value.x, here.Value.y).Name);
+            }
+            else Ui.SetRoom(null, null);
+
+            Ui.SetCameraRaised(on && CameraRaised, keys.Name("camera"));
+            Ui.SetSoundCues(SoundCues, on && !meeting);
+            Ui.SetLooking(on && !meeting && Cursor.lockState == CursorLockMode.Locked, RoomPage);
+
+            // The held action's progress, how to work with your hands, or what E would do.
+            string action = null;
+            if (on && me != null && !string.IsNullOrEmpty(me.action)) Night.ActionLabels.TryGetValue(me.action, out action);
+            Ui.SetAction(action, me != null ? me.actionProgress : 0);
+            Ui.SetWorkHint(on && action == null ? WorkHint : null);
+            Ui.SetPrompt(on && !meeting && action == null && string.IsNullOrEmpty(WorkHint) && !string.IsNullOrEmpty(Prompt) ? keys.Hint(Prompt) : null);
+            Ui.SetStamina(on && me != null && me.health == "alive" && StaminaLeft != null ? StaminaLeft() : 1);
+
+            // Down, a Wisp, or hidden (main.ts setStatus).
+            string kind = "alive", title = "", text = "";
+            if (on && me != null)
+            {
+                if (me.health == "downed") { kind = "downed"; title = "You are down"; text = "A friend must hold E on you within " + Math.Ceiling(me.bleedLeft) + " s. You can crawl."; }
+                else if (me.health == "dead")
+                {
+                    kind = "dead";
+                    title = "You are a Wisp";
+                    bool tasks = (bool)Sim.Json.Obj(config, "wisps")["canDoTasks"];
+                    text = "Fly with W A S D, through walls. Space and C float up and down a floor." + (tasks ? " You can still do your tasks." : "") + " Only other Wisps can hear you.";
+                }
+                else if (!string.IsNullOrEmpty(me.hidingSpot))
+                {
+                    kind = "hidden";
+                    text = me.holdingBreath ? "Holding your breath"
+                        : me.breathCooldown > 0 ? "Catching your breath (" + Math.Ceiling(me.breathCooldown) + " s)"
+                        : keys.Hint("Hidden. Hold Shift to hold your breath, hold E to step out.");
+                }
+            }
+            Ui.SetStatus(kind, title, text);
+
+            // Hold Tab: the relics (main.ts setRelics).
+            var relics = new List<KeyValuePair<string, string>>();
+            if (on && ShowTasks) foreach (var kv in s.relics) relics.Add(new KeyValuePair<string, string>(kv.Value.name, Night.RelicStatusText(kv.Value)));
+            Ui.SetStatusPanel(on && ShowTasks && !meeting, relics);
+
+            // The possessed's powers (GDD 14.2): the chips, and the wheel while R is held.
+            bool powers = on && !meeting && night.Role == "possessed" && night.Powers != null && me != null && me.health == "alive";
+            Ui.SetPowers(powers ? night.Powers : null, night.CurseLeft);
+            Ui.SetWheel(powers && WheelOpen, night.Powers, WheelSelected);
+
+            Ui.SetBanner(night.Banner != null && now < night.BannerUntil ? keys.Hint(night.Banner) : null);
+            Ui.SetMicLost(on && night.MicLost);
+
+            // The countdown and the role reveal (main.ts showIntro).
+            if (s.stage == "countdown") Ui.SetIntro(Math.Max(1, Math.Ceiling(s.stageLeft)).ToString(), "The night begins", "", false);
+            else if (s.stage == "intro" && night.Role != null)
+            {
+                string character = me != null ? Characters.NameOf(me.character) : null;
+                if (night.Role == "possessed")
+                {
+                    string partners = night.Partners.Count > 0 ? "Also possessed: " + string.Join(", ", night.Partners) + ". " : "";
+                    // Only the possessed know who the ghost was (GDD 26.13): lie about the clues.
+                    string ghost = night.GhostWas != null ? "The ghost was " + night.GhostWas + ". Lead the team to the wrong relic. " : "";
+                    Ui.SetIntro("YOU ARE POSSESSED", "Stop the ritual. Do not get caught.", (character != null ? "You are " + character + ". " : "") + partners + ghost + keys.Hint("Hold R") + " for your powers.", true);
+                }
+                else Ui.SetIntro("INVESTIGATOR", "Do your tasks, find the relics, finish the ritual before dawn.", character != null ? "Tonight you are " + character + "." : "", false);
+            }
+            else Ui.SetIntro(null, null, null, false);
+
+            Ui.SetFlash(ScreenFlash(now - ScreenFlashAt, ScreenFlashGentle));
         }
 
         void DrawCentre(string head, string text, string extra, Color headColor)
