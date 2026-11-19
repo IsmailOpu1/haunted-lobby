@@ -522,3 +522,9 @@ Done ahead of E4–E6 at the owner's word ("Do what you prefer, as recommended")
   - One run lost its clicks while the window was unfocused (the log says so); the rerun passed.
 - **Storage:** at the owner's word ("Use the E drive for storage; avoid the C drive"), `engine/Build` and `engine/Library` are now junctions to `E:\HauntedLobby\Build` and `E:\HauntedLobby\Library`. Test output goes to `E:\HauntedLobby\test`.
 - Not yet: the "mic lost" notice during the night (the server's `micLost`), which is with the night's screens in E5.
+
+### Release 0.9.1 (2026-11-19)
+
+- E4's mic check is in. `release.json` is at 0.9.1. BuildRelease plus the script give `engine/Build/Release/HauntedLobby-0.9.1-windows.zip` (1,444 MB; on E: now). Its files match 0.9.0's apart from the game code; tar's compression of the big data file came out lower this time.
+- Checked: the release build itself runs the debug-server mic and room test, and 67 checks pass.
+- Upload it as in Step F: `butler push "engine/Build/Release/Haunted Lobby" <you>/<game>:windows --userversion 0.9.1`, or the zip on the itch.io page.
