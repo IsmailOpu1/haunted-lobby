@@ -987,3 +987,5 @@ The owner approved `docs/plans/mystery-pilot.md` with the suggested answers. Wha
 | Loading bar | None: the Unity version has the hotel on disk, so there is nothing to load before the menus | The browser's bar counts the hotel's download |
 | Ticked checkboxes (Options) | Brass with a dark tick. Chrome draws its own blue (#0075ff), as the browser's style sheet gives these checkboxes no accent colour | Brass is the menus' accent, as the browser's sliders already are |
 | Quality note | Never adds "Texture detail changes the next time you open the game." | Unity changes texture detail at once |
+| Room share buttons | "Copy code" only, no "Copy invite link" | An invite link opens the browser version; a friend with the download joins by code |
+| Kerning next to a space | None, in the Unity version's fonts (tools/engine-fonts.py) | Chrome shapes word by word and never applies these pairs; Unity applied them many times too big and swallowed the space ("NOT READY") |

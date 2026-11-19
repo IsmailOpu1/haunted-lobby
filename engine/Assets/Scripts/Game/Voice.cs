@@ -205,6 +205,9 @@ namespace Haunted.Game
             }
         }
 
+        /// <summary>Whether you have muted this player (the room page's Mute / Unmute).</summary>
+        public bool IsMuted(string id) => muted.Contains(id);
+
         /// <summary>Mute or unmute one player, only for you. Returns whether they are now muted.</summary>
         public bool ToggleMute(string id)
         {

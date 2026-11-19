@@ -150,6 +150,9 @@ namespace Haunted.Game
             Fill(new Rect(r.x, r.y, r.width * Mathf.Clamp01((float)fraction), r.height), fill);
         }
 
+        /// <summary>The menus' room page is in use (not a test run without menus), and whether it is open now.</summary>
+        public bool RoomPage, PageUp;
+
         public void Draw(string roomCode)
         {
             var s = state();
@@ -159,10 +162,13 @@ namespace Haunted.Game
             if (night.End != null) { DrawEnd(s); return; }
             switch (s.stage)
             {
-                case "waiting": DrawLobby(s, roomCode, now); break;
+                // With the room page (step E3) the lobby is there; this plain one is for test runs without menus.
+                case "waiting": if (!RoomPage) DrawLobby(s, roomCode, now); break;
                 case "countdown": DrawCentre(Math.Max(1, Math.Ceiling(s.stageLeft)).ToString(), "The night begins", "", Color.white); break;
                 case "intro": DrawIntro(s); break;
-                case "night": DrawNight(s, now); break;
+                // While the room page is open the game's own text stays out of sight behind it (style.css
+                // body.in-room:not(.looking) ... visibility: hidden); the countdown and reveal stay on top.
+                case "night": if (!PageUp) DrawNight(s, now); break;
             }
             float flash = ScreenFlash(now - ScreenFlashAt, ScreenFlashGentle);
             if (flash > 0) Fill(new Rect(0, 0, Screen.width, Screen.height), new Color(1, 1, 1, flash));

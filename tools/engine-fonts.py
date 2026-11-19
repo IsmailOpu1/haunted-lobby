@@ -32,6 +32,49 @@ def as_ttf(font: TTFont) -> bytes:
     return buf.getvalue()
 
 
+SPACES = (0x20, 0xA0, 0x2002, 0x2003, 0x2009, 0x200A, 0x202F)
+
+
+def unkern_spaces(font: TTFont) -> int:
+    """Takes the space out of the font's kerning (step E3).
+
+    Chrome shapes text word by word, so a kerning pair with a space (Manrope has T and Y before
+    one, -60 and -80 of 2000) is never applied there. Unity applies it many times too big: after
+    T or Y in letter-spaced capitals the whole space went ("NOT READY" drew as "NOTREADY").
+    Returns how many pair values were cleared.
+    """
+    if "GPOS" not in font:
+        return 0
+    cmap = font.getBestCmap()
+    spaces = {cmap[c] for c in SPACES if c in cmap}
+    cleared = 0
+    for lookup in font["GPOS"].table.LookupList.Lookup:
+        for sub in lookup.SubTable:
+            st = sub.ExtSubTable if lookup.LookupType == 9 else sub
+            if getattr(st, "LookupType", lookup.LookupType) != 2:
+                continue
+            if st.Format == 1:
+                for first, pairs in zip(st.Coverage.glyphs, st.PairSet):
+                    for rec in pairs.PairValueRecord:
+                        if (first in spaces or rec.SecondGlyph in spaces) and rec.Value1 is not None and getattr(rec.Value1, "XAdvance", 0):
+                            rec.Value1.XAdvance = 0
+                            cleared += 1
+            else:
+                firsts = {st.ClassDef1.classDefs.get(g, 0) for g in spaces if g in st.Coverage.glyphs}
+                seconds = {st.ClassDef2.classDefs.get(g, 0) for g in spaces}
+                for c1, row in enumerate(st.Class1Record):
+                    for c2, rec in enumerate(row.Class2Record):
+                        if (c1 in firsts or c2 in seconds) and rec.Value1 is not None and getattr(rec.Value1, "XAdvance", 0):
+                            # A class may hold more than spaces: only clear it when it is spaces alone.
+                            members1 = {g for g, c in st.ClassDef1.classDefs.items() if c == c1} if c1 in firsts else spaces
+                            members2 = {g for g, c in st.ClassDef2.classDefs.items() if c == c2} if c2 in seconds else spaces
+                            if not (members1 <= spaces or members2 <= spaces):
+                                raise SystemExit(f"a kerning class mixes spaces with other glyphs: {sorted(members1 | members2)[:8]}")
+                            rec.Value1.XAdvance = 0
+                            cleared += 1
+    return cleared
+
+
 def join(pieces: list[bytes], name: str, style: str, path: str) -> None:
     """Joins one font's alphabet pieces into one TTF named `name` `style`."""
     tmp = []
@@ -52,6 +95,7 @@ def join(pieces: list[bytes], name: str, style: str, path: str) -> None:
     names.setName(style, 2, 3, 1, 0x409)
     names.setName(full, 4, 3, 1, 0x409)
     names.setName(full.replace(" ", "-"), 6, 3, 1, 0x409)
+    print(f"{full}: {unkern_spaces(font)} kerning values with a space cleared")
     font.save(path)
 
 

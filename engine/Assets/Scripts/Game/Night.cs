@@ -91,6 +91,20 @@ namespace Haunted.Game
         public readonly List<TaskEntry> Tasks = new List<TaskEntry>();
         public List<RelicNear> RelicsNear = new List<RelicNear>();
         public readonly List<string> Log = new List<string>();
+        /// <summary>
+        /// The room page's log (main.ts addLogLine), every line since you joined: "You joined the
+        /// room" first, as your own join message can come before anything listens.
+        /// </summary>
+        public readonly List<string> RoomLog = new List<string> { "You joined the room" };
+        /// <summary>The room page's two hints (lobbyView.ts readyHint, main.ts startHint) and when the start one came.</summary>
+        public string LobbyRefusal = "", StartRefusal;
+        public double StartRefusalAt = double.NegativeInfinity;
+        /// <summary>Why the host removed you ("kicked"), or null.</summary>
+        public string KickedReason;
+        /// <summary>Every photo that developed this night, for the room page's "Developed photos" (main.ts addPhotos).</summary>
+        public readonly List<Photo> Developed = new List<Photo>();
+        /// <summary>Your name as you joined, to skip the server's echo of your own join.</summary>
+        public string MyName;
         public MatchEnd End;
         public string Refusal;
         public double RefusalUntil;
@@ -159,7 +173,13 @@ namespace Haunted.Game
 
         void Listen()
         {
-            room.OnMessage<Dictionary<string, object>>("system", m => AddLog(Str(m, "text")));
+            room.OnMessage<Dictionary<string, object>>("system", m =>
+            {
+                AddLog(Str(m, "text"));
+                // main.ts: your own join, when the log has only "You joined the room", is not said twice.
+                if (m.ContainsKey("kind") && Str(m, "kind") == "join" && m.ContainsKey("name") && Str(m, "name") == (MyName ?? "").Trim() && RoomLog.Count <= 1) return;
+                RoomLog.Add(Str(m, "text"));
+            });
             room.OnMessage<Dictionary<string, object>>("roster", m => { });
             room.OnMessage<Dictionary<string, object>>("role", m =>
             {
@@ -214,9 +234,14 @@ namespace Haunted.Game
                 Debug.Log("Hunt " + HuntPhase);
                 if (Hunted != null) Hunted(HuntPhase);
             });
-            room.OnMessage<Dictionary<string, object>>("startRefused", m => Refuse(Str(m, "reason")));
-            room.OnMessage<Dictionary<string, object>>("lobbyRefused", m => Refuse(Str(m, "reason")));
-            room.OnMessage<Dictionary<string, object>>("kicked", m => { AddLog(Str(m, "reason")); });
+            room.OnMessage<Dictionary<string, object>>("startRefused", m =>
+            {
+                Refuse(Str(m, "reason"));
+                StartRefusal = Str(m, "reason");
+                StartRefusalAt = Now;
+            });
+            room.OnMessage<Dictionary<string, object>>("lobbyRefused", m => { Refuse(Str(m, "reason")); LobbyRefusal = Str(m, "reason"); });
+            room.OnMessage<Dictionary<string, object>>("kicked", m => { AddLog(Str(m, "reason")); KickedReason = Str(m, "reason"); });
             room.OnMessage<Dictionary<string, object>>("meetingRefused", m => ShowBanner(Str(m, "reason"), 3));
             room.OnMessage<Dictionary<string, object>>("offering", m =>
             {
@@ -248,6 +273,7 @@ namespace Haunted.Game
             room.OnMessage<Dictionary<string, object>>("photosDeveloped", m =>
             {
                 NewPhotos = Photos(m);
+                Developed.AddRange(NewPhotos);
                 Debug.Log("Photos developed: " + NewPhotos.Count);
             });
             room.OnMessage<Dictionary<string, object>>("powers", m =>

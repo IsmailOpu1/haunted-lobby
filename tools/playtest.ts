@@ -15,11 +15,13 @@
 //   npx tsx tools/playtest.ts d3 CODE      with a Unity player (engine step D3, people): four bots in front of it, one
 //                                          standing, one walking side to side, one crouching then creeping, one
 //                                          knocked down who crawls and bleeds out. PLAYERS=4 is needed.
+//   npx tsx tools/playtest.ts e3 CODE      with a Unity host (engine step E3, the room): the bots press Ready and
+//                                          report each settings change they see and the host's kick
 //   add a room code to join a room a browser player made, e.g. ... win-asleep ABCDE
 //   PLAYERS=8 plays with more bots (2 to 8; default 2). For lag, run tools/lagProxy.ts and point
 //   ENDPOINT at it (ws://localhost:2568).
 import { Client, type Room } from "@colyseus/sdk";
-import { altarStands, config, furnitureBox, hidingSpotBox, ROOM_NAME, roomAt, type ServerMessages } from "@haunted/shared";
+import { altarStands, config, furnitureBox, hidingSpotBox, ROOM_NAME, roomAt, settingsCode, type ServerMessages } from "@haunted/shared";
 import { marrowHotelGreybox as map } from "@haunted/maps";
 
 type Point = { x: number; z: number };
@@ -256,6 +258,7 @@ async function main() {
   if (mode === "c4") return c4(bots);
   if (mode === "c4u") return c4u(bots);
   if (mode === "d3") return d3(bots);
+  if (mode === "e3") return e3(bots);
   // In their own room the bots skip the host's countdown and the intro (in a joined room, the host starts).
   // MYSTERY=0 plays without "Who was the ghost?" (GDD 26.13); otherwise the bots solve it.
   if (!joinCode && process.env.MYSTERY === "0") a.room.send("debug", { mystery: false });
@@ -404,6 +407,36 @@ async function c4(bots: Bot[]) {
  * Step C4, the Unity player's side: it is the possessed (-possessed) and uses its powers on the bots
  * standing in front of it, then dies and sees Tanvir's Wisp and pushes the Ouija planchette.
  */
+/**
+ * Step E3: the room as a Unity host runs it. The bots press Ready and report each change of the
+ * room's settings they see (the settings code and the setting that changed), and the host's kick
+ * (the reason they are given and how the room closes). Ends once all are gone, or after 5 minutes.
+ */
+async function e3(bots: Bot[]) {
+  let gone = 0;
+  for (const bot of bots) {
+    bot.room.send("ready", { ready: true });
+    let last = bot.state.settings as string;
+    log(bot.name, `ready; settings ${settingsCode(JSON.parse(last))}`);
+    const timer = setInterval(() => {
+      const now = bot.state.settings as string;
+      if (now === last) return;
+      const was = JSON.parse(last), is = JSON.parse(now);
+      const changed = Object.keys(is).filter((k) => JSON.stringify(is[k]) !== JSON.stringify(was[k]));
+      log(bot.name, `sees settings ${settingsCode(is)}: ${changed.map((k) => `${k} ${JSON.stringify(was[k])} -> ${JSON.stringify(is[k])}`).join(", ")}`);
+      last = now;
+    }, 100);
+    bot.room.onMessage("kicked", (m: { reason: string }) => log(bot.name, `kicked: "${m.reason}"`));
+    bot.room.onLeave((code) => {
+      clearInterval(timer);
+      gone++;
+      log(bot.name, `left the room (${code})`);
+    });
+  }
+  await until(() => gone === bots.length, 300, "every bot gone").catch((e) => log("room", String(e)));
+  process.exit(0);
+}
+
 /**
  * Step D3: the people as Unity draws them. The bots line up in front of the Unity player and each
  * shows clips of its own: Rafi stands (idle), Mim walks side to side (walk, now and then run), Tanvir

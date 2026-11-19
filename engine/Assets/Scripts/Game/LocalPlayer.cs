@@ -161,7 +161,9 @@ namespace Haunted.Game
             if (Script != null) return Script(time);
             var k = Keyboard.current;
             var input = new MoveInput { Yaw = Yaw, Pitch = Pitch };
-            if (k == null || Working) return input;
+            // As input.ts movement(): only while you look around (the mouse held), so typing on the
+            // room page moves nobody.
+            if (k == null || Working || Cursor.lockState != CursorLockMode.Locked) return input;
             // The bound keys (Options, keys.ts), as input.ts movement().
             input.Forward = (KeyInput.Held("forward") ? 1 : 0) - (KeyInput.Held("back") ? 1 : 0);
             input.Right = (KeyInput.Held("right") ? 1 : 0) - (KeyInput.Held("left") ? 1 : 0);

@@ -92,6 +92,13 @@ namespace Haunted.Game
 
         Menus menus;
         Camera menuCamera;
+        /// <summary>
+        /// Came in through the menus, so the room page (step E3) is home in the room; test runs that
+        /// join from the command line keep the plain HUD lobby. Whether the page is open now, and how
+        /// the room let us go (a close code to act on in Update, as the room page does main.ts onLeave).
+        /// </summary>
+        bool roomPage, pageUp;
+        int? leftWith;
 
         string serverUrl = "ws://localhost:2567";
         string playerName = "Unity";
@@ -316,14 +323,19 @@ namespace Haunted.Game
             else ShowMenus(arg("-menuShots"));
         }
 
-        /// <summary>The menus (step E) when no test option says what to do: Start, Create, Join.</summary>
-        void ShowMenus(string shotsDir)
+        /// <summary>Before a room: black behind the menus (style.css body, #050507), no hotel.</summary>
+        void MakeMenuCamera()
         {
             menuCamera = new GameObject("Menu camera").AddComponent<Camera>();
             menuCamera.clearFlags = CameraClearFlags.SolidColor;
-            // The page behind the browser's menus (style.css body, #050507).
             menuCamera.backgroundColor = new Color32(5, 5, 7, 255);
             menuCamera.cullingMask = 0;
+        }
+
+        /// <summary>The menus (step E) when no test option says what to do: Start, Create, Join.</summary>
+        void ShowMenus(string shotsDir)
+        {
+            MakeMenuCamera();
             menus = new Menus(config);
             menus.Create = name => { playerName = name; Connect(null, null); };
             menus.Join = (code, name) => { playerName = name; Connect(code, null); };
@@ -343,7 +355,11 @@ namespace Haunted.Game
         {
             var mouse = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Mouse>("Test mouse");
             // A mouse of its own: the window runs unfocused under test, and the Input System parks
-            // the real one while it is.
+            // the real one while it is. The real ones are switched off too: a window opening under
+            // the desk's cursor makes that mouse the current one, and its place would take the clicks.
+            foreach (var device in UnityEngine.InputSystem.InputSystem.devices.ToArray())
+                if (device is UnityEngine.InputSystem.Mouse && device != mouse) UnityEngine.InputSystem.InputSystem.DisableDevice(device);
+            mouse.MakeCurrent();
             int failed = 0;
             menus.LogPointers();
             void Check(string what, bool ok) { if (!ok) failed++; Debug.Log("Menu input: " + (ok ? "ok   " : "FAIL ") + what); }
@@ -355,10 +371,15 @@ namespace Haunted.Game
                 if (field < 0) p = menus.ScreenPoint(text);
                 Check("found \"" + text + "\"", p != null);
                 if (p == null) yield break;
+                Debug.Log("Menu input: click state focused " + Application.isFocused + ", test mouse enabled " + mouse.enabled + ", current " + (UnityEngine.InputSystem.Mouse.current == mouse) + ", frame " + Time.frameCount + ", dt " + Time.unscaledDeltaTime.ToString("0.000"));
                 UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, new UnityEngine.InputSystem.LowLevel.MouseState { position = p.Value });
                 yield return new WaitForSecondsRealtime(0.15f);
+                // Frames as well as time between the press and the release: on a slow frame both
+                // would land in one update and UI Toolkit would see no press.
+                int frame = Time.frameCount;
                 UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, new UnityEngine.InputSystem.LowLevel.MouseState { position = p.Value }.WithButton(UnityEngine.InputSystem.LowLevel.MouseButton.Left, true));
                 yield return new WaitForSecondsRealtime(0.1f);
+                while (Time.frameCount < frame + 3) yield return null;
                 UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, new UnityEngine.InputSystem.LowLevel.MouseState { position = p.Value });
                 yield return new WaitForSecondsRealtime(0.6f);
             }
@@ -387,6 +408,14 @@ namespace Haunted.Game
                 Check("warning answered", !menus.WarningShown);
             }
             yield return OptionsInput(mouse, window, Click, Type, PressEnter, Check);
+            string joinCode = TestArg("-roomJoin");
+            if (joinCode != null)
+            {
+                yield return RoomJoinInput(joinCode, Click, Type, PressEnter, Check);
+                Debug.Log("Menu input: " + (failed == 0 ? "all passed" : failed + " failed"));
+                Application.Quit();
+                yield break;
+            }
             yield return Click("Join a room");
             Check("join screen", menus.Current == "join");
             yield return Type("qqzzw");
@@ -409,10 +438,168 @@ namespace Haunted.Game
             until = Time.realtimeSinceStartup + 15;
             while (room == null && Time.realtimeSinceStartup < until) yield return null;
             Check("room created as " + playerName + (room != null ? " (" + room.RoomId + ")" : ""), room != null && playerName == name);
-            Check("menus hidden in the room", menus == null || !menus.Visible);
-            yield return new WaitForSecondsRealtime(2);
+            yield return RoomHostInput(mouse, name, Click, Check);
             Debug.Log("Menu input: " + (failed == 0 ? "all passed" : failed + " failed"));
             Application.Quit();
+        }
+
+        static string TestArg(string key)
+        {
+            var args = Environment.GetCommandLineArgs();
+            int i = Array.IndexOf(args, key);
+            return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
+        }
+
+        System.Collections.IEnumerator ClickAt(UnityEngine.InputSystem.Mouse mouse, Vector2 p)
+        {
+            UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, new UnityEngine.InputSystem.LowLevel.MouseState { position = p });
+            yield return new WaitForSecondsRealtime(0.15f);
+            UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, new UnityEngine.InputSystem.LowLevel.MouseState { position = p }.WithButton(UnityEngine.InputSystem.LowLevel.MouseButton.Left, true));
+            yield return new WaitForSecondsRealtime(0.1f);
+            UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, new UnityEngine.InputSystem.LowLevel.MouseState { position = p });
+            yield return new WaitForSecondsRealtime(0.6f);
+        }
+
+        /// <summary>-pageShots DIR: the screen as it is now, saved as DIR/unity-NAME.png and .json (its layout) for the browser comparison.</summary>
+        System.Collections.IEnumerator RoomShot(string name)
+        {
+            string dir = TestArg("-pageShots");
+            if (dir == null) yield break;
+            Directory.CreateDirectory(dir);
+            yield return new WaitForSecondsRealtime(0.6f);
+            ScreenCapture.CaptureScreenshot(Path.Combine(dir, "unity-" + name + ".png"));
+            File.WriteAllText(Path.Combine(dir, "unity-" + name + ".json"), menus.Dump());
+            yield return new WaitForSecondsRealtime(0.4f);
+        }
+
+        static System.Collections.IEnumerator Until(Func<bool> done, float sec)
+        {
+            float end = Time.realtimeSinceStartup + sec;
+            while (!done() && Time.realtimeSinceStartup < end) yield return null;
+        }
+
+        /// <summary>
+        /// -menuInput's room pass as host (step E3): the room page with its players (-roomPlayers N:
+        /// wait for that many, e.g. tools/playtest.ts e3 bots and a browser player, given the code by
+        /// -codeFile), the Hardcore preset, the match length changed by hand, back to the room, the
+        /// first other player removed (Remove, then Sure?), a walk into the hotel and Esc back, Leave
+        /// (twice), and a new room made after it.
+        /// </summary>
+        System.Collections.IEnumerator RoomHostInput(UnityEngine.InputSystem.Mouse mouse, string name,
+            Func<string, int, System.Collections.IEnumerator> click, Action<string, bool> check)
+        {
+            yield return Until(() => menus.Current == "room" && room?.State?.players != null, 5);
+            check("room page shown: code " + room?.RoomId, menus.Visible && menus.Current == "room");
+            yield return new WaitForSecondsRealtime(1);
+            check("you in the list: " + string.Join(" / ", menus.PlayerRows()), menus.PlayerRows().Any(r => r.Contains(name)));
+            int want = int.Parse(TestArg("-roomPlayers") ?? "1", CultureInfo.InvariantCulture);
+            yield return Until(() => room.State.players.Count >= want, 180);
+            // The others press Ready as they come in.
+            yield return new WaitForSecondsRealtime(3);
+            check(want + " in the room: " + string.Join(" / ", menus.PlayerRows()), menus.PlayerRows().Length >= want);
+            yield return RoomShot("room-host");
+            yield return click("Change settings", -1);
+            check("settings screen", menus.Current == "settings");
+            yield return RoomShot("settings-host");
+            yield return click("ADVANCED", -1);
+            yield return RoomShot("settings-advanced");
+            yield return click("BASIC", -1);
+            yield return click("Hardcore", -1);
+            yield return Until(() => room.State.settingsCode.StartsWith("HRD"), 5);
+            yield return new WaitForSecondsRealtime(0.3f);
+            check("Hardcore: shown " + menus.SettingsShown + ", server " + room.State.settingsCode,
+                room.State.settingsCode.StartsWith("HRD") && menus.SettingsShown.StartsWith(room.State.settingsCode));
+            yield return new WaitForSecondsRealtime(2);
+            yield return click("10 min", -1);
+            yield return click("20 min", -1);
+            yield return Until(() => room.State.settingsCode.StartsWith("CUS-20"), 5);
+            yield return new WaitForSecondsRealtime(0.3f);
+            check("match length 20 by hand: shown " + menus.SettingsShown + ", server " + room.State.settingsCode,
+                room.State.settingsCode.StartsWith("CUS-20") && menus.SettingsShown.StartsWith(room.State.settingsCode));
+            yield return new WaitForSecondsRealtime(2);
+            yield return click("←  ROOM", -1);
+            check("back to the room, summary " + menus.SettingsShown, menus.Current == "room" && menus.SettingsShown.Contains("Custom · 20 min"));
+            if (want > 1)
+            {
+                int before = room.State.players.Count;
+                var rows = menus.PlayerRows();
+                var p = menus.KickPoint(0);
+                check("a Remove button", p != null);
+                if (p != null)
+                {
+                    yield return ClickAt(mouse, p.Value);
+                    check("Remove asks \"Sure?\"", menus.ScreenPoint("Sure?") != null && room.State.players.Count == before);
+                    yield return ClickAt(mouse, menus.KickPoint(0) ?? p.Value);
+                    yield return Until(() => room.State.players.Count == before - 1, 10);
+                    yield return new WaitForSecondsRealtime(0.5f);
+                    check("removed one: " + string.Join(" / ", rows) + "  ->  " + string.Join(" / ", menus.PlayerRows()),
+                        room.State.players.Count == before - 1 && menus.PlayerRows().Length == before - 1);
+                }
+                yield return new WaitForSecondsRealtime(2);
+            }
+            // Into the hotel and back with Esc (a keyboard of the test's own, as the mouse).
+            yield return click("Walk around the hotel", -1);
+            yield return new WaitForSecondsRealtime(0.5f);
+            check("walking: mouse held, page away", Cursor.lockState == CursorLockMode.Locked && !menus.Visible && hud.PageUp == false);
+            var keys = UnityEngine.InputSystem.InputSystem.AddDevice<Keyboard>("Test keyboard");
+            UnityEngine.InputSystem.InputSystem.QueueStateEvent(keys, new UnityEngine.InputSystem.LowLevel.KeyboardState(UnityEngine.InputSystem.Key.Escape));
+            yield return new WaitForSecondsRealtime(0.1f);
+            UnityEngine.InputSystem.InputSystem.QueueStateEvent(keys, new UnityEngine.InputSystem.LowLevel.KeyboardState());
+            yield return new WaitForSecondsRealtime(0.5f);
+            check("Esc: the page is back", Cursor.lockState != CursorLockMode.Locked && menus.Visible && menus.Current == "room");
+            UnityEngine.InputSystem.InputSystem.RemoveDevice(keys);
+            yield return click("Leave room", -1);
+            check("Leave asks again", menus.ScreenPoint("Click again to leave") != null && room != null);
+            yield return RoomShot("room-leave");
+            yield return click("Click again to leave", -1);
+            check("left: the start screen, no room", room == null && menus.Visible && menus.Current == "start" && menuCamera != null);
+            yield return new WaitForSecondsRealtime(1);
+            yield return click("Create a room", -1);
+            yield return click("Create room", -1);
+            yield return Until(() => room != null && menus.Current == "room", 15);
+            yield return new WaitForSecondsRealtime(1);
+            check("a new room after leaving: " + room?.RoomId + ", " + string.Join(" / ", menus.PlayerRows()),
+                room != null && menus.Current == "room" && menus.PlayerRows().Length == 1);
+            yield return new WaitForSecondsRealtime(1);
+        }
+
+        /// <summary>
+        /// -menuInput -roomJoin CODE (step E3): joins a browser host's room through the Join screen,
+        /// logs each settings change it is shown, and waits (4 minutes at most) to be removed: back at
+        /// Start with the host's reason.
+        /// </summary>
+        System.Collections.IEnumerator RoomJoinInput(string code, Func<string, int, System.Collections.IEnumerator> click,
+            Func<string, System.Collections.IEnumerator> type, Func<System.Collections.IEnumerator> enter, Action<string, bool> check)
+        {
+            yield return click("Join a room", -1);
+            yield return type(code.ToLowerInvariant());
+            if (menus.FieldValues()[1] == "")
+            {
+                yield return click("the name field", 1);
+                yield return type("Unity");
+            }
+            yield return enter();
+            yield return Until(() => room != null && menus.Current == "room" && room.State?.players != null, 15);
+            yield return new WaitForSecondsRealtime(1.5f);
+            check("in the browser host's room " + code + ": " + string.Join(" / ", menus.PlayerRows()), room != null && menus.Current == "room");
+            check("a guest sees the settings, not changes them", menus.ScreenPoint("See all settings") != null && menus.ScreenPoint("Change settings") == null);
+            yield return RoomShot("room-guest");
+            yield return click("See all settings", -1);
+            yield return RoomShot("settings-guest");
+            yield return click("←  ROOM", -1);
+            string seen = menus.SettingsShown;
+            Debug.Log("Menu input: settings shown " + seen);
+            int changes = 0;
+            float end = Time.realtimeSinceStartup + 240;
+            while (room != null && Time.realtimeSinceStartup < end)
+            {
+                if (menus.SettingsShown != seen) { seen = menus.SettingsShown; changes++; Debug.Log("Menu input: settings shown " + seen); }
+                yield return null;
+            }
+            check(changes + " settings changes seen", changes > 0);
+            yield return new WaitForSecondsRealtime(0.5f);
+            check("removed: start screen saying \"" + menus.ShownError + "\"",
+                room == null && menus.Current == "start" && menus.ShownError == "The host removed you from the room.");
         }
 
         /// <summary>
@@ -556,23 +743,29 @@ namespace Haunted.Game
         {
             status = "";
             busy = false;
-            // Until the room screen (step E3), the menus step aside once you are in.
-            if (menus != null) { menus.SetBusy(false); menus.Visible = false; }
             if (menuCamera != null) { Destroy(menuCamera.gameObject); menuCamera = null; }
             var move = GameData.LoadMovement(config);
             me = new LocalPlayer(hotel, move, config);
             ApplyOptions();
             held = new HeldTorch(me.Camera.transform);
             if (script == "walk") me.Script = WalkScript;
-            room.OnStateChange += (state, first) => OnState(state);
-            room.OnLeave += code => { status = "Left the room (" + code + ")"; Debug.Log(status); };
+            var joined = room;
+            room.OnStateChange += (state, first) => { if (room == joined) OnState(state); };
+            room.OnLeave += code =>
+            {
+                Debug.Log("Left the room (" + code + ")");
+                if (room != joined) return;
+                status = "Left the room (" + code + ")";
+                if (roomPage) leftWith = code;
+            };
             room.OnError += (code, message) => Debug.LogError("Room error " + code + ": " + message);
-            night = new Night(room, map, config);
+            night = new Night(room, map, config) { MyName = playerName };
             night.Flashed += (by, x, z) => items.Flash(by == room.SessionId, x, z);
             ListenForTasks();
             hud = new Hud(night, () => room.State, () => room.SessionId, (type, msg) => { if (msg == null) room.Send(type); else room.Send(type, msg); }, config);
             meetingScreen = new MeetingScreen(night, config, (type, msg) => room.Send(type, msg));
             hud.Meeting = meetingScreen;
+            EnterRoomPage();
             ListenForGhost();
             StartVoice();
             room.Send("tasksRequest");
@@ -711,8 +904,18 @@ namespace Haunted.Game
             stations.Update(Time.timeAsDouble);
             UpdateBlackout(Time.deltaTime);
             doors.Update(Time.deltaTime);
+            if (leftWith.HasValue)
+            {
+                // main.ts onLeave: removed by the host, or the connection lost: back to Start, saying why.
+                int code = leftWith.Value;
+                leftWith = null;
+                string reason = night != null && night.KickedReason != null ? night.KickedReason
+                    : code != 4000 ? "Lost the connection to the room. If the server restarted, that night is lost." : null;
+                LeaveRoomPage(reason);
+            }
             if (room != null && me != null)
             {
+                if (roomPage) UpdateRoomPage();
                 HandleKeys();
                 MeasureForAuto(Time.unscaledDeltaTime);
                 me.Update(Time.deltaTime, now, input => room.Send("input", new Dictionary<string, object>
@@ -798,7 +1001,8 @@ namespace Haunted.Game
             var mouse = Mouse.current;
             lockedThisFrame = false;
             // The lobby and the end screen keep the mouse for their buttons.
-            bool menu = room.State == null || room.State.stage == "waiting" || night.End != null || !string.IsNullOrEmpty(room.State.meeting);
+            bool menu = room.State == null || night.End != null || !string.IsNullOrEmpty(room.State.meeting)
+                || (roomPage ? pageUp : room.State.stage == "waiting");
             if (menu && Cursor.lockState == CursorLockMode.Locked) { Cursor.lockState = CursorLockMode.None; Cursor.visible = true; }
             if (!menu && mouse != null && mouse.leftButton.wasPressedThisFrame && Cursor.lockState != CursorLockMode.Locked)
             {
@@ -1331,6 +1535,93 @@ namespace Haunted.Game
             left = true;
             try { if (room != null) await room.Leave(); } catch (Exception) { }
             Application.Quit();
+        }
+
+        /// <summary>
+        /// In the room (main.ts enterLobby): the room page is home, over the hotel. Its buttons send to
+        /// the room; Walk holds the mouse, Leave goes back to Start.
+        /// </summary>
+        void EnterRoomPage()
+        {
+            roomPage = menus != null && menus.Create != null;
+            if (!roomPage) return;
+            menus.SetBusy(false);
+            menus.InRoom = true;
+            menus.RoomCode = room.RoomId;
+            menus.Send = (type, body) => { if (room == null) return; if (body == null) room.Send(type); else room.Send(type, body); };
+            menus.Walk = () =>
+            {
+                Cursor.lockState = CursorLockMode.Locked;
+                Cursor.visible = false;
+                lockedThisFrame = true;
+            };
+            menus.Leave = LeaveRoom;
+            menus.IsMuted = id => voice != null && voice.IsMuted(id);
+            menus.ToggleMute = id => voice != null && voice.ToggleMute(id);
+            hud.RoomPage = true;
+            pageUp = true;
+            menus.Visible = true;
+        }
+
+        /// <summary>
+        /// Each frame: the page is open unless you are looking around (the mouse held), at a meeting,
+        /// on the end screen or at the role reveal (style.css body.looking, .meeting, .ended,
+        /// .revealing); it follows the room state either way.
+        /// </summary>
+        void UpdateRoomPage()
+        {
+            var s = room.State;
+            bool up = Cursor.lockState != CursorLockMode.Locked && night.End == null
+                && (s == null || (string.IsNullOrEmpty(s.meeting) && s.stage != "intro"));
+            if (up != pageUp || menus.Visible != up)
+            {
+                pageUp = up;
+                menus.Visible = up;
+            }
+            hud.PageUp = up;
+            menus.UpdateRoom(s, room.SessionId, night);
+        }
+
+        /// <summary>Leave room (a second click confirmed it): gone at once, the slot freed (no 60 s hold).</summary>
+        async void LeaveRoom()
+        {
+            var r = room;
+            LeaveRoomPage(null);
+            try { if (r != null) await r.Leave(true); } catch (Exception) { }
+        }
+
+        /// <summary>
+        /// Out of the room, back to Start (main.ts reloads its page): everything the room made goes,
+        /// the hotel waits behind black again, and the reason shows if there is one.
+        /// </summary>
+        void LeaveRoomPage(string reason)
+        {
+            room = null;
+            client = null;
+            if (voice != null) { voice.Disconnect(); voice = null; }
+            if (wheelOpen) { wheelOpen = false; wheelTestKind = null; }
+            if (hands.Active) StopHands();
+            taskState = "none";
+            openStation = null;
+            wasMeeting = false;
+            flashlightWas = false;
+            nightSince = endSince = -1;
+            haunting.Reset();
+            others.Keep(new HashSet<string>());
+            if (me != null) { Destroy(me.Camera.gameObject); me = null; }
+            held = null;
+            night = null;
+            hud = null;
+            meetingScreen = null;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+            MakeMenuCamera();
+            roomPage = pageUp = false;
+            menus.InRoom = false;
+            menus.Visible = true;
+            menus.SetBusy(false);
+            if (reason != null) menus.ShowError(reason);
+            Debug.Log("Back at the start" + (reason != null ? ": " + reason : ""));
         }
 
         void OnGUI()

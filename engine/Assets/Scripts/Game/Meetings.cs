@@ -201,7 +201,7 @@ namespace Haunted.Game
         }
 
         /// <summary>The night's clock time for a night time in seconds (shared clockTime: the night runs from midnight).</summary>
-        static string ClockTime(double nightTime)
+        public static string ClockTime(double nightTime)
         {
             int m = (int)Math.Floor(nightTime / 60), sec = (int)Math.Floor(nightTime % 60);
             return m + ":" + sec.ToString("00");

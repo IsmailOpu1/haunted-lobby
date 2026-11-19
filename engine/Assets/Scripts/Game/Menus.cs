@@ -12,7 +12,7 @@ namespace Haunted.Game
     /// UI Toolkit from Resources/UI/Menus.uss, which follows client/src/style.css; the wording is the
     /// browser's. Back goes one step back, as the browser's Back buttons and history do.
     /// </summary>
-    public class Menus
+    public partial class Menus
     {
         /// <summary>Asked to make a room (with the player's name) or join one (code, name).</summary>
         public Action<string> Create;
@@ -28,7 +28,7 @@ namespace Haunted.Game
         TextField createName, joinName, joinCode;
         VisualElement photoWarning;
 
-        static readonly string[] Upper ={ "eyebrow", "field-name", "back", "photo-warning-title", "group-title", "range-name" };
+        static readonly string[] Upper ={ "eyebrow", "field-name", "back", "photo-warning-title", "group-title", "range-name", "chip", "tag", "ready-mark", "tab", "set-title" };
 
         public Menus(object config)
         {
@@ -51,21 +51,57 @@ namespace Haunted.Game
             root.styleSheets.Add(Resources.Load<StyleSheet>("UI/Menus"));
             root.pickingMode = PickingMode.Ignore;
 
+            // Every character in every font drawn once, before any screen (KerningFix): glyphs join a
+            // font's atlas as they are drawn, so this is drawn, clipped to one pixel in the corner.
+            warmUp = new VisualElement { pickingMode = PickingMode.Ignore };
+            warmUp.style.position = Position.Absolute;
+            warmUp.style.width = 1;
+            warmUp.style.height = 1;
+            warmUp.style.overflow = Overflow.Hidden;
+            foreach (var font in new[] { "", "sans-500", "sans-600", "sans-700", "serif", "serif-italic" })
+            {
+                var all = new Label(KerningFix.Characters) { enableRichText = false };
+                if (font != "") all.AddToClassList(font);
+                warmUp.Add(all);
+            }
+            warmUp.RegisterCallback<GeometryChangedEvent>(_ => warmLaidOut = true);
+            root.Add(warmUp);
+
             BuildStart();
             BuildCreate();
             BuildJoin();
             BuildOptions();
+            BuildRoom();
+            BuildSettings();
             string name = PlayerPrefs.GetString("playerName", "");
             createName.value = joinName.value = name;
             Reset("start");
             Visible = true;
+            Debug.Log("Menus built at " + Time.realtimeSinceStartup.ToString("0.00") + " s");
         }
 
         readonly PanelSettings panel;
+        VisualElement warmUp;
+        bool warmLaidOut, warm, nudge;
+        int kerningCheck;
 
         /// <summary>Each frame: the menus' texture follows the window's size.</summary>
         public void Tick()
         {
+            // The fonts' new kerning records cleared every few frames (KerningFix). When some were,
+            // every text is drawn again: a 0.001 px word-spacing nudge, invisible, makes Unity
+            // regenerate it with the cleared records.
+            if (warmLaidOut && ++kerningCheck % 5 == 0)
+            {
+                int fixedNow = KerningFix.Run();
+                if (fixedNow > 0)
+                {
+                    nudge = !nudge;
+                    root.Query<TextElement>().ForEach(t => t.style.wordSpacing = nudge ? 0.001f : 0f);
+                    if (!warm) Debug.Log("Kerning: " + KerningFix.Records + " pairs, " + fixedNow + " flags cleared, at " + Time.realtimeSinceStartup.ToString("0.00") + " s");
+                }
+                if (!warm && kerningCheck >= 60) { warm = true; warmUp.RemoveFromHierarchy(); }
+            }
             var rt = panel.targetTexture;
             if (rt == null || rt.width != UnityEngine.Screen.width || rt.height != UnityEngine.Screen.height) Resize();
             // Gaps once the columns are laid out (a panel's scheduler skips what was built before
@@ -95,7 +131,7 @@ namespace Haunted.Game
             {
                 visible = value;
                 if (!value) StopListening();
-                if (!value && qualityList != null) qualityList.style.display = DisplayStyle.None;
+                if (!value && openList != null) openList.style.display = DisplayStyle.None;
                 foreach (var kv in screens) kv.Value.style.display = value && kv.Key == shown ? DisplayStyle.Flex : DisplayStyle.None;
                 ShowPanel();
             }
@@ -140,12 +176,12 @@ namespace Haunted.Game
             Show(name);
         }
 
-        /// <summary>One step back, to the start screen at the bottom.</summary>
+        /// <summary>One step back, to the home screen at the bottom (Start; the room once in one, screens.ts setRoot).</summary>
         public void Back()
         {
-            string to = history.Count > 0 ? history[history.Count - 1] : "start";
+            string to = history.Count > 0 ? history[history.Count - 1] : home;
             if (history.Count > 0) history.RemoveAt(history.Count - 1);
-            Show(to == "" ? "start" : to);
+            Show(to == "" ? home : to);
         }
 
         /// <summary>Shows a screen with no step to go back to.</summary>
@@ -178,9 +214,10 @@ namespace Haunted.Game
             if (!screens.ContainsKey(name)) name = "start";
             shown = name;
             StopListening();
-            if (qualityList != null) qualityList.style.display = DisplayStyle.None;
+            if (openList != null) openList.style.display = DisplayStyle.None;
             foreach (var kv in screens) kv.Value.style.display = visible && kv.Key == name ? DisplayStyle.Flex : DisplayStyle.None;
             if (name == "options") foreach (var view in optionViews) view();
+            if (name == "room" || name == "settings") RoomShown();
             var screen = screens[name];
             var body = screen.Q<ScrollView>(className: "screen-body");
             if (body != null) body.scrollOffset = Vector2.zero;
@@ -217,7 +254,8 @@ namespace Haunted.Game
             screen.AddToClassList("outside");
             var shade = new VisualElement { pickingMode = PickingMode.Ignore };
             shade.AddToClassList("screen-layer");
-            shade.style.backgroundImage = Shade;
+            shade.style.backgroundImage = ShadeFor(false);
+            shade.AddToClassList("shade");
             shade.style.backgroundSize = new BackgroundSize(Length.Percent(100), Length.Percent(100));
             screen.Add(shade);
             var grain = new VisualElement { pickingMode = PickingMode.Ignore };
@@ -281,6 +319,10 @@ namespace Haunted.Game
                 float first = label.MeasureTextSize("X", 0, VisualElement.MeasureMode.Undefined, 0, VisualElement.MeasureMode.Undefined).y;
                 float whole = label.MeasureTextSize(label.text, w, VisualElement.MeasureMode.Exactly, 0, VisualElement.MeasureMode.Undefined).y;
                 h = Mathf.Max(1, Mathf.RoundToInt((whole - first) / lineHeight) + 1) * lineHeight;
+                // A UI Toolkit height counts the padding and border (CSS's border-box), the
+                // browser's line boxes do not: the walk hint's 10 px padding went otherwise.
+                var s = label.resolvedStyle;
+                h += s.paddingTop + s.paddingBottom + s.borderTopWidth + s.borderBottomWidth;
             }
             if (label.style.height != h) label.style.height = h;
             var align = label.resolvedStyle.unityTextAlign;
@@ -428,9 +470,9 @@ namespace Haunted.Game
                 (v is Label l && Plain(l.text) == Plain(text) || v is Button b && Plain(b.text) == Plain(text));
             var e = screens[shown].Query<VisualElement>().Where(match).First();
             // The open quality list lies over the screen, outside it.
-            if (e == null && qualityList != null && qualityList.style.display == DisplayStyle.Flex)
+            if (e == null && openList != null && openList.style.display == DisplayStyle.Flex)
             {
-                var c2 = qualityList.Query<VisualElement>().Where(match).First()?.worldBound.center;
+                var c2 = openList.Query<VisualElement>().Where(match).First()?.worldBound.center;
                 return c2.HasValue ? new Vector2(c2.Value.x, UnityEngine.Screen.height - c2.Value.y) : (Vector2?)null;
             }
             if (e == null) return null;
@@ -461,6 +503,48 @@ namespace Haunted.Game
                 float Width(string t) => l.MeasureTextSize(t, 0, VisualElement.MeasureMode.Undefined, 0, VisualElement.MeasureMode.Undefined).x;
                 sb.Append(" " + pair + " " + Width(pair).ToString("0.00") + " vs " + (Width(pair.Substring(0, 1)) + Width(pair.Substring(1))).ToString("0.00"));
             }
+            // Spaces in capitals with letter-spacing (the eyebrow): "NOT READY" draws tight in Unity.
+            var eyebrow = screens[shown].Query<Label>(className: "eyebrow").First();
+            if (eyebrow != null)
+            {
+                float W(string t) => eyebrow.MeasureTextSize(t, 0, VisualElement.MeasureMode.Undefined, 0, VisualElement.MeasureMode.Undefined).x;
+                sb.Append(" | eyebrow");
+                foreach (var t in new[] { "T", "R", "M", " ", "TR", "T R", "M R", "MR", "T  R", "X" })
+                    sb.Append(" [" + t + "] " + W(t).ToString("0.00"));
+            }
+            // The kerning records Unity made from the fonts, and the flag that drops letter-spacing.
+            foreach (var fa in Resources.FindObjectsOfTypeAll<UnityEngine.TextCore.Text.FontAsset>())
+            {
+                var table = typeof(UnityEngine.TextCore.Text.FontAsset).GetProperty("fontFeatureTable", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)?.GetValue(fa);
+                var list = table?.GetType().GetProperty("glyphPairAdjustmentRecords", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)?.GetValue(table) as System.Collections.IList;
+                int flagged = 0;
+                string sample = "";
+                if (list != null)
+                    foreach (var r in list)
+                    {
+                        var rec = (UnityEngine.TextCore.LowLevel.GlyphPairAdjustmentRecord)r;
+                        if ((rec.featureLookupFlags & UnityEngine.TextCore.LowLevel.FontFeatureLookupFlags.IgnoreSpacingAdjustments) != 0) flagged++;
+                        if (sample.Length < 120) sample += " " + rec.firstAdjustmentRecord.glyphIndex + "/" + rec.secondAdjustmentRecord.glyphIndex + ":" + rec.firstAdjustmentRecord.glyphValueRecord.xAdvance + ":" + rec.featureLookupFlags;
+                    }
+                Debug.Log("Kerning: font asset " + fa.name + " records " + (list == null ? "?" : list.Count.ToString()) + ", ignoring spacing " + flagged + sample);
+            }
+            // The room code's letter-spacing (0.2em at 84 px): "BXMRD" drew as "BXM R D".
+            var code = new Label("BXMRD");
+            code.AddToClassList("room-code");
+            code.style.position = Position.Absolute;
+            code.style.left = 700;
+            code.style.top = 300;
+            screens[shown].Add(code);
+            code.schedule.Execute(() =>
+            {
+                float W(string t) => code.MeasureTextSize(t, 0, VisualElement.MeasureMode.Undefined, 0, VisualElement.MeasureMode.Undefined).x;
+                var line = new System.Text.StringBuilder("Kerning: room code");
+                foreach (var t in new[] { "B", "X", "M", "R", "D", "E", "N", "T", "BX", "XM", "MR", "RD", "EN", "NT", "TN", "BXMRD", "ENTNN", "HH", "H" })
+                    line.Append(" [" + t + "] " + W(t).ToString("0.00"));
+                Debug.Log(line.ToString());
+            }).ExecuteLater(100);
+            // Left drawn for the screenshot taken just after, then taken away.
+            code.schedule.Execute(() => code.RemoveFromHierarchy()).ExecuteLater(3000);
             sb.Append(" | line \"default). From Valorant, multiply yours by 3.18.\" " + l.MeasureTextSize("default). From Valorant, multiply yours by 3.18.", 0, VisualElement.MeasureMode.Undefined, 0, VisualElement.MeasureMode.Undefined).x.ToString("0.00"));
             return sb.ToString();
         }
@@ -514,7 +598,9 @@ namespace Haunted.Game
             bool first = true;
             screens[shown].Query<VisualElement>().ForEach(e =>
             {
-                bool box = e.ClassListContains("range") || e.ClassListContains("group") || e.ClassListContains("field") || e.ClassListContains("setting") || e.ClassListContains("key-row") || e.ClassListContains("check");
+                bool box = e.ClassListContains("range") || e.ClassListContains("group") || e.ClassListContains("field") || e.ClassListContains("setting") || e.ClassListContains("key-row") || e.ClassListContains("check")
+                    || e.ClassListContains("player") || e.ClassListContains("avatar") || e.ClassListContains("tag") || e.ClassListContains("segmented") || e.ClassListContains("seg")
+                    || e.ClassListContains("tabs") || e.ClassListContains("set-group") || e.ClassListContains("room-head") || e.ClassListContains("chip") || e.ClassListContains("look-hint");
                 if (!(e is Label || e is TextField || e is Button || box) || e.resolvedStyle.display == DisplayStyle.None) return;
                 var r = e.worldBound;
                 if (r.width <= 0 || r.height <= 0) return;
@@ -576,7 +662,7 @@ namespace Haunted.Game
         Button listeningButton;
         /// <summary>A key heard from the keyboard itself: the window's own key message for it is swallowed too.</summary>
         int heardFrame = -10;
-        VisualElement qualityList;
+        VisualElement openList;
 
         void BuildOptions()
         {
@@ -645,14 +731,14 @@ namespace Haunted.Game
             // A click anywhere but the open quality list closes it, as a select's list does.
             root.RegisterCallback<PointerDownEvent>(e =>
             {
-                if (qualityList == null || qualityList.style.display == DisplayStyle.None) return;
-                if (e.target is VisualElement t && (qualityList.Contains(t) || t.ClassListContains("select"))) return;
-                qualityList.style.display = DisplayStyle.None;
+                if (openList == null || openList.style.display == DisplayStyle.None) return;
+                if (e.target is VisualElement t && (openList.Contains(t) || t.ClassListContains("select"))) return;
+                openList.style.display = DisplayStyle.None;
             }, TrickleDown.TrickleDown);
             // Scrolling moves the box away from its list: the list closes, as a select's does.
             root.RegisterCallback<WheelEvent>(_ =>
             {
-                if (qualityList != null) qualityList.style.display = DisplayStyle.None;
+                if (openList != null) openList.style.display = DisplayStyle.None;
             }, TrickleDown.TrickleDown);
         }
 
@@ -911,7 +997,7 @@ namespace Haunted.Game
         }
 
         /// <summary>A setting's list to choose from, drawn as the browser's select: a box with a chevron, its list below.</summary>
-        void Select(VisualElement parent, string name, string[] values, string[] labels, Func<string> get, Action<string> set)
+        Button Select(VisualElement parent, string name, string[] values, string[] labels, Func<string> get, Action<string> set, List<Action> views = null, Action notify = null)
         {
             var row = Setting(parent, name);
             var button = new Button();
@@ -939,7 +1025,6 @@ namespace Haunted.Game
             var list = new VisualElement();
             list.AddToClassList("select-list");
             list.style.display = DisplayStyle.None;
-            qualityList = list;
             Action view = () =>
             {
                 int i = Array.IndexOf(values, get());
@@ -952,8 +1037,8 @@ namespace Haunted.Game
                 var option = new Button(() =>
                 {
                     list.style.display = DisplayStyle.None;
-                    if (v != get()) { set(v); Options.Notify(); }
-                    foreach (var f in optionViews) f();
+                    if (v != get()) { set(v); (notify ?? Options.Notify)(); }
+                    foreach (var f in views ?? optionViews) f();
                 }) { text = labels[i], userData = v };
                 option.AddToClassList("select-option");
                 list.Add(option);
@@ -961,6 +1046,8 @@ namespace Haunted.Game
             button.clicked += () =>
             {
                 if (list.style.display == DisplayStyle.Flex) { list.style.display = DisplayStyle.None; return; }
+                if (openList != null) openList.style.display = DisplayStyle.None;
+                openList = list;
                 // Laid over everything, just under the box, as wide as it.
                 var r = button.worldBound;
                 list.style.left = r.x;
@@ -972,8 +1059,9 @@ namespace Haunted.Game
                 list.BringToFront();
             };
             root.Add(list);
-            optionViews.Add(view);
+            (views ?? optionViews).Add(view);
             view();
+            return button;
         }
 
         void BuildJoin()
@@ -1065,18 +1153,19 @@ namespace Haunted.Game
 
         // ---- The backdrop (style.css .screen and .screen::before) ----
 
-        static Texture2D shade, grain;
+        static Texture2D shade, roomShade, grain;
 
         /// <summary>
         /// The screens' shade (style.css .screen): a dark gradient from the left (0.97 to 0.3 cover of
         /// #08070a) over a vignette (an ellipse at 75% 45%, clear to 30% then to 0.7 black at its
-        /// edge), as one colour and cover, in sRGB, for a 16:9 window.
+        /// edge), as one colour and cover, in sRGB, for a 16:9 window. In a room the gradient is
+        /// darker (body.in-room .screen), as the hotel is behind it.
         /// </summary>
-        static Texture2D Shade
+        static Texture2D ShadeFor(bool inRoom)
         {
-            get
             {
-                if (shade != null) return shade;
+                if (!inRoom && shade != null) return shade;
+                if (inRoom && roomShade != null) return roomShade;
                 const int W = 640, H = 360;
                 var px = new Color32[W * H];
                 float cx = 0.75f * W, cy = 0.45f * H;
@@ -1086,17 +1175,20 @@ namespace Haunted.Game
                     for (int x = 0; x < W; x++)
                     {
                         float u = (x + 0.5f) / W;
-                        float a1 = u < 0.34f ? Mathf.Lerp(0.97f, 0.9f, u / 0.34f) : u < 0.68f ? Mathf.Lerp(0.9f, 0.55f, (u - 0.34f) / 0.34f) : Mathf.Lerp(0.55f, 0.3f, (u - 0.68f) / 0.32f);
+                        // In a room: 0.98 to 0.94 at 55% to 0.84, over the hotel.
+                        float a1 = inRoom ? (u < 0.55f ? Mathf.Lerp(0.98f, 0.94f, u / 0.55f) : Mathf.Lerp(0.94f, 0.84f, (u - 0.55f) / 0.45f))
+                            : u < 0.34f ? Mathf.Lerp(0.97f, 0.9f, u / 0.34f) : u < 0.68f ? Mathf.Lerp(0.9f, 0.55f, (u - 0.34f) / 0.34f) : Mathf.Lerp(0.55f, 0.3f, (u - 0.68f) / 0.32f);
                         float dx = (x + 0.5f - cx) / rx, dy = (y + 0.5f - cy) / ry;
                         float t = Mathf.Sqrt(dx * dx + dy * dy);
                         float a2 = t <= 0.3f ? 0 : Mathf.Min(1, (t - 0.3f) / 0.7f) * 0.7f;
                         float a = a1 + a2 * (1 - a1), k = a > 0 ? a1 / a : 1;
                         px[(H - 1 - y) * W + x] = new Color32((byte)Mathf.RoundToInt(ink[0] * k), (byte)Mathf.RoundToInt(ink[1] * k), (byte)Mathf.RoundToInt(ink[2] * k), (byte)Mathf.RoundToInt(a * 255));
                     }
-                shade = new Texture2D(W, H, TextureFormat.RGBA32, false, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
-                shade.SetPixels32(px);
-                shade.Apply();
-                return shade;
+                var tex = new Texture2D(W, H, TextureFormat.RGBA32, false, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+                tex.SetPixels32(px);
+                tex.Apply();
+                if (inRoom) roomShade = tex; else shade = tex;
+                return tex;
             }
         }
 
