@@ -174,7 +174,6 @@ namespace Haunted.Game
                 if (uiFrame != Time.frameCount) { uiFrame = Time.frameCount; DrawUi(s, now); }
                 if (night.End != null) return;
                 if (s.stage == "waiting" && !RoomPage) DrawLobby(s, roomCode, now);
-                if (s.stage == "night" && !PageUp && !string.IsNullOrEmpty(s.meeting) && Meeting != null) Meeting.Draw(s, sessionId());
                 return;
             }
             if (night.End != null) { DrawEnd(s); return; }
@@ -357,6 +356,7 @@ namespace Haunted.Game
             }
             else Ui.SetIntro(null, null, null, false);
 
+            if (Meeting != null) Meeting.ShowUi(live && s.stage == "night" && meeting, s, sessionId(), Ui);
             Ui.SetEnd(night.End, night.EndPhotos, s.host == sessionId());
             Ui.SetFlash(ScreenFlash(now - ScreenFlashAt, ScreenFlashGentle));
         }

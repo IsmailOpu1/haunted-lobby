@@ -7,7 +7,7 @@ namespace Haunted.Game
     /// <summary>
     /// The meeting (GDD 16, client/src/main.ts setMeeting): who called it, the step and its time,
     /// the new photos, the Ouija board for the dead (GDD 17), the players with their Voted stamps
-    /// and Vote buttons, Skip, and the result. Drawn plainly; step E gives it the menus' look.
+    /// and Vote buttons, Skip, and the result. Drawn plainly in a run without menus; ShowUi puts it in the menus' panel (MeetingView.cs).
     /// </summary>
     public class MeetingScreen
     {
@@ -40,6 +40,42 @@ namespace Haunted.Game
         {
             ouijaPushed = false;
             night.NewMeeting();
+        }
+
+        /// <summary>
+        /// Step E5: the meeting in the menus' panel (main.ts setMeeting); on is false when it is not
+        /// shown (no meeting, the room page up, the night over).
+        /// </summary>
+        public void ShowUi(bool on, GameState s, string myId, Menus ui)
+        {
+            if (!on) { ui.SetMeeting(null, null, null, false, false, null, false, null, "", null); return; }
+            Player me;
+            s.players.TryGetValue(myId, out me);
+            string step = s.meeting;
+            bool canVote = step == "vote" && me != null && me.health != "dead" && !me.voted;
+            bool anyDead = false;
+            var seats = new List<Menus.MeetingSeat>();
+            foreach (var kv in s.players)
+            {
+                bool dead = kv.Value.health == "dead";
+                if (dead) anyDead = true;
+                seats.Add(new Menus.MeetingSeat { Id = kv.Key, Name = kv.Value.name, Dead = dead, Me = kv.Key == myId, Voted = kv.Value.voted });
+            }
+            bool ouija = step == "evidence" && (bool)Sim.Json.Obj(config, "wisps")["ouija"] && anyDead;
+            bool canOuija = ouija && me != null && me.health == "dead" && !ouijaPushed;
+            ui.MeetingVote = target => send("vote", new Dictionary<string, object> { { "target", target } });
+            ui.MeetingOuija = target =>
+            {
+                if (ouijaPushed) return;
+                ouijaPushed = true;
+                send("ouija", new Dictionary<string, object> { { "target", target } });
+            };
+            string stepText;
+            StepText.TryGetValue(step, out stepText);
+            string title = !string.IsNullOrEmpty(s.meetingBody) ? s.meetingCaller + " reported " + s.meetingBody + "'s body" : s.meetingCaller + " rang the bell";
+            // HTML folds main.ts's two spaces into one.
+            ui.SetMeeting(title, (stepText ?? "") + " " + Math.Ceiling(s.meetingLeft) + " s", night.NewPhotos, ouija, canOuija, seats, canVote,
+                night.OuijaTarget, night.OuijaLog, step == "result" ? night.Result : null);
         }
 
         public void Draw(GameState s, string myId)

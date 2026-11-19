@@ -176,10 +176,11 @@
     -unity-background-scale-mode: stretch-to-fill;
 }
 
-#overlay-title { font-size: 34px; letter-spacing: 2px; margin-bottom: 8px; }
+/* USS letter-spacing is in hundredths of an em (Menus.uss): CSS 2px at 34 px is 5.88px. */
+#overlay-title { font-size: 34px; letter-spacing: 5.88px; margin-bottom: 8px; }
 #overlay-text { font-size: 15px; white-space: normal; -unity-text-align: upper-center; }
 #overlay.dead { justify-content: flex-start; padding-top: 64px; color: rgb(191, 227, 255); }
-#overlay.dead #overlay-title { font-size: 20px; }
+#overlay.dead #overlay-title { font-size: 20px; letter-spacing: 10px; }
 #overlay.dead #overlay-text { color: rgb(230, 226, 216); }
 #overlay.hidden-in { justify-content: flex-end; padding-bottom: 90px; }
 
@@ -204,7 +205,7 @@
 #room-name-room {
     -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Regular.ttf");
     font-size: 30px;
-    letter-spacing: 0.6px;
+    letter-spacing: 2px;
     margin-bottom: 2px;
 }
 #room-name-floor { font-size: 13px; color: rgb(141, 136, 124); }
@@ -324,7 +325,7 @@
 #intro-title {
     -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Regular.ttf");
     font-size: 76px;
-    letter-spacing: 4px;
+    letter-spacing: 5.26px;
     color: rgb(201, 162, 75);
 }
 .night-layer #intro-title { margin-bottom: 14px; }
@@ -368,7 +369,7 @@
 #end-title {
     -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Regular.ttf");
     font-size: 34px;
-    letter-spacing: 1px;
+    letter-spacing: 2.94px;
     color: rgb(224, 178, 90);
     -unity-text-align: upper-center;
 }
@@ -405,6 +406,116 @@
 }
 #end-wait { font-size: 12px; color: rgb(141, 136, 124); -unity-text-align: upper-center; }
 .night-layer #end-wait { margin-top: 4px; white-space: normal; }
+
+/* The meeting (style.css #meeting ... #planchette). CSS margins that fold together are given once:
+   the result's 8 px top folds into the players' 12, and the log's 4 into the board's 6. */
+#meeting {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background-color: rgba(0, 0, 0, 0.55);
+}
+#meeting-box {
+    width: 560px;
+    max-width: 100%;
+    max-height: 100%;
+    flex-grow: 0;
+    flex-shrink: 1;
+    padding: 18px 22px;
+    background-color: rgba(12, 12, 16, 0.95);
+    border-radius: 6px;
+}
+#meeting-box .unity-scroll-view__content-viewport { flex-shrink: 1; }
+#meeting-title {
+    -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Regular.ttf");
+    font-size: 30px;
+    color: rgb(201, 162, 75);
+    -unity-text-align: upper-center;
+}
+.night-layer #meeting-title { margin-bottom: 4px; white-space: normal; }
+#meeting-step { color: rgb(141, 136, 124); -unity-text-align: upper-center; }
+.night-layer #meeting-step { margin-bottom: 12px; white-space: normal; }
+.meeting-photos .photo { margin: 0 5px 10px 5px; }
+#ouija-board {
+    padding: 14px 10px;
+    margin-bottom: 6px;
+}
+/* gap: 8px 14px, as half-gaps round each slot. */
+#ouija-names {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin: -4px -7px;
+}
+.ouija-slot {
+    margin: 4px 7px;
+    padding: 4px 8px;
+    -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Regular.ttf");
+    font-size: 15px;
+    letter-spacing: 6.67px;
+    color: rgb(29, 21, 12);
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-radius: 0;
+}
+.ouija-slot:hover:enabled { color: rgb(0, 0, 0); }
+.ouija-slot:disabled { opacity: 1; }
+#planchette {
+    position: absolute;
+    width: 50px;
+    height: 56px;
+    translate: -50% -50%;
+}
+#ouija-log { font-size: 12px; color: rgb(141, 136, 124); -unity-text-align: upper-center; }
+.night-layer #ouija-log { white-space: normal; }
+#meeting-players { margin-bottom: 12px; font-size: 14px; }
+.meeting-seat {
+    flex-direction: row;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom-width: 1px;
+    border-color: rgb(34, 34, 34);
+}
+.meeting-seat.dead { color: rgb(141, 136, 124); }
+.seat-gap { flex-grow: 1; }
+.night-layer .stamp {
+    margin-left: 10px;
+    padding: 1px 6px;
+    font-size: 11px;
+    color: rgb(201, 162, 75);
+    border-width: 1px;
+    border-color: rgb(201, 162, 75);
+    border-radius: 3px;
+}
+.meeting-button {
+    align-self: center;
+    margin: 0;
+    padding: 9px;
+    font-size: 16px;
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-Regular.ttf");
+    color: rgb(20, 18, 12);
+    background-color: rgb(201, 162, 75);
+    border-width: 0;
+    border-radius: 4px;
+}
+.meeting-button.small { margin-left: 10px; padding: 5px; font-size: 13px; }
+#meeting-verdict {
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-Bold.ttf");
+    font-size: 22px;
+    letter-spacing: 9.09px;
+    -unity-text-align: upper-center;
+}
+.night-layer #meeting-verdict { white-space: normal; }
+#meeting-verdict.possessed { color: rgb(196, 85, 74); }
+#meeting-counts { -unity-text-align: upper-center; }
+.night-layer #meeting-counts { margin: 16px 0; white-space: normal; }
+#meeting-votes { font-size: 13px; color: rgb(141, 136, 124); }
+.meeting-vote-line { -unity-text-align: upper-center; }
 
 #screen-flash {
     position: absolute;

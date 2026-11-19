@@ -529,7 +529,7 @@ Done ahead of E4–E6 at the owner's word ("Do what you prefer, as recommended")
 - Checked: the release build itself runs the debug-server mic and room test, and 67 checks pass.
 - Upload it as in Step F: `butler push "engine/Build/Release/Haunted Lobby" <you>/<game>:windows --userversion 0.9.1`, or the zip on the itch.io page.
 
-### Step E5, first part: the night's HUD (2026-11-19)
+### Step E5: the night's HUD, end screen and meeting (2026-11-19)
 
 - **Where:** `Game/NightScreens.cs` and `UI/Night.uss` draw the night in the menus' panel, so the font pair and the browser's colours come through as on the menus. A layer under the menu screens holds the HUD; one over them holds the countdown, the role reveal and the photo flash (style.css's `#intro` z-index). `Hud.DrawUi` decides each frame what shows, as main.ts and game.ts do. A test run without menus keeps Hud's plain drawing; `-nightUi` gives such a run the new screens.
 - **Ported from index.html and style.css, in the browser's places and sizes:**
@@ -544,4 +544,16 @@ Done ahead of E4–E6 at the owner's word ("Do what you prefer, as recommended")
   - the browser collapses the task list's 2 px margins (20 px between lines, not 22);
   - a label drops a space at its end, so the items line's spaces start the next label.
 - **The end screen** (`Game/EndScreen.cs`, index.html `#end-screen`, main.ts `showEndScreen`): the title in capitals (h2's text-transform, serif, brass or red), why and who the ghost was, the roles (14 px, as every list), awards, the timeline (160 px, scrolling), the photos (the room page's photo card), Rematch for the host and Leave, and the line under them. The bars, task list and items stay dimmed under it, as in the browser; the prompt, cues and the rest go. Against the browser's end screen in the same match: the same places and sizes, apart from the host's Rematch line (the browser shot was a guest's).
-- **Not yet:** the meeting (still plain), the name labels, and the Tab panel's floor plan.
+- **The meeting** (`Game/MeetingView.cs`, index.html `#meeting`, main.ts `setMeeting`, `ouijaMove` and `showMeetingResult`):
+  - what it shows: who called it (serif, brass), the step and its seconds, the new photos, the players (yours marked "(you)", the dead struck through, a Voted stamp), Vote and Skip vote, and the result (the verdict in red if possessed, the counts, who voted for whom);
+  - the Ouija board for the dead (GDD 17): drawn at its size with the browser's radial gradient and 40 × 24 px corners; the names underline on hover; the planchette (ring, hole and shadow drawn as in CSS) slides 1.2 s ease-in-out onto the name it was pushed to;
+  - layering: what index.html puts after `#meeting` (the items, the room name, the relic panel, the mic notice) is drawn over its dim, as in the browser;
+  - `MeetingScreen.ShowUi` gives it the state; the players and the board are rebuilt only when they change, so a click is not lost.
+- **Checked against the browser in the same meeting** (scratchpad `cdp-meet.mjs` takes its shots at the meeting's steps: evidence, the planchette moved, vote, result, end): the box, the board, the names, the planchette, the rows and the result are within 2 px. Three fixes came from it:
+  - the empty photo list keeps its 12 px margin;
+  - the board's padding rule had been given to a name;
+  - USS letter-spacing is in hundredths of an em (Menus.uss), so every letter-spacing in Night.uss is now converted: the end title (now as wide as the browser's), the room name, the overlay, the role reveal, the Ouija names and the verdict.
+- **Not yet:**
+  - the name labels;
+  - the Tab panel's floor plan;
+  - the end box keeps its 560 px where the browser's shrinks to its content (540 px in a short match).

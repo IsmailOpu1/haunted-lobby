@@ -100,6 +100,7 @@ namespace Haunted.Game
             var panel = Div(statusWrap, "", "status-panel");
             HudLine(panel, "hud-h3", null, "Relics");
             relicList = Div(panel, "", "relic-list");
+            BuildMeeting();
 
             intro = Div(topLayer, "", "intro");
             intro.style.backgroundImage = Radial(0.2f, new Color(0, 0, 0, 0.55f), 1f, new Color(0, 0, 0, 0.9f));
