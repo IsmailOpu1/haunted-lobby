@@ -118,6 +118,13 @@ namespace Haunted.Game
                 var processing = new AudioProcessingOptions { EchoCancellation = true, NoiseSuppression = false, AutoGainControl = false };
                 micSource = new MicrophoneSource(Microphone.devices[0], micObject, processing);
             }
+            // The mic meter (voice.ts micLevel): the loudness of what is sent, read as it is sent.
+            micSource.AudioRead += (data, channels, rate) =>
+            {
+                double sum = 0;
+                for (int i = 0; i < data.Length; i++) sum += data[i] * data[i];
+                micRms = data.Length > 0 ? (float)Math.Sqrt(sum / data.Length) : 0;
+            };
             micTrack = LocalAudioTrack.CreateAudioTrack("microphone", micSource, room);
             // A steady stream at a good speech bitrate: no gaps in quiet moments (no DTX).
             var options = new TrackPublishOptions
@@ -207,6 +214,20 @@ namespace Haunted.Game
 
         /// <summary>Whether you have muted this player (the room page's Mute / Unmute).</summary>
         public bool IsMuted(string id) => muted.Contains(id);
+
+        volatile float micRms;
+
+        /// <summary>
+        /// How loud your own microphone is, 0 to 1, as voice.ts micLevel: about -60..-10 dBFS onto
+        /// 0..1, so normal talking fills about half the meter.
+        /// </summary>
+        public float MicLevel()
+        {
+            if (Status != State.On) return 0;
+            float rms = micRms;
+            float db = rms > 0 ? 20 * Mathf.Log10(rms) : -100;
+            return Mathf.Clamp01((db + 60) / 50);
+        }
 
         /// <summary>Mute or unmute one player, only for you. Returns whether they are now muted.</summary>
         public bool ToggleMute(string id)

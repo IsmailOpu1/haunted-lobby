@@ -81,6 +81,24 @@
       "port": 2567
     },
     {
+      "name": "server-voice-strict",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "-w",
+        "server"
+      ],
+      "env": {
+        "PORT": "2577",
+        "LIVEKIT_IN_DEV": "1",
+        "LIVEKIT_URL": "ws://127.0.0.1:7880",
+        "LIVEKIT_API_KEY": "devkey",
+        "LIVEKIT_API_SECRET": "secret"
+      },
+      "port": 2577
+    },
+    {
       "name": "client-alt",
       "runtimeExecutable": "npm",
       "runtimeArgs": [

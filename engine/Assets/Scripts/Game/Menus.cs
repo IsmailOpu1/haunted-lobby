@@ -73,6 +73,7 @@ namespace Haunted.Game
             BuildOptions();
             BuildRoom();
             BuildSettings();
+            BuildMic();
             string name = PlayerPrefs.GetString("playerName", "");
             createName.value = joinName.value = name;
             Reset("start");
@@ -113,6 +114,7 @@ namespace Haunted.Game
             // Gaps once the columns are laid out (a panel's scheduler skips what was built before
             // it joined the panel).
             if (regapDue) { regapDue = false; RegapAll(); }
+            TickMic();
             PollKeys();
         }
 
@@ -703,7 +705,8 @@ namespace Haunted.Game
             qualityNote = Text(graphics, "muted-line", "", 20.25f);
             optionViews.Add(ShowQualityNote);
             Check(graphics, "Show FPS counter", () => Options.ShowFps, on => Options.ShowFps = on);
-            // The speed test comes in step E6, the microphone group in E4.
+            // The speed test comes in step E6.
+            BuildOptionsMic(col);
 
             var keys = Group(col, "Keys");
             Text(keys, "muted-line", "Click a key to change it, then press the new one. Esc cancels.", 20.25f);

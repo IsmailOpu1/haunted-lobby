@@ -1184,3 +1184,40 @@ Button {
     flex-grow: 1;
     -unity-text-align: middle-right;
 }
+
+/* Step E4: the mic check (style.css .mic-line, #mic-meter, #mic-fill, #mic-status.error, .look-hint.warn). */
+.mic-line {
+    padding: 16px 18px;
+    -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Italic.ttf");
+    font-size: 21px;
+    color: rgb(236, 230, 216);
+    background-color: rgba(236, 230, 216, 0.03);
+    border-left-width: 2px;
+    border-left-color: rgb(201, 162, 75);
+    white-space: normal;
+}
+
+.mic-meter {
+    height: 6px;
+    background-color: rgba(236, 230, 216, 0.12);
+    border-radius: 3px;
+}
+
+.mic-fill {
+    width: 0;
+    height: 100%;
+    border-top-left-radius: 3px;
+    border-bottom-left-radius: 3px;
+    background-color: rgb(201, 162, 75);
+    transition-property: width;
+    transition-duration: 0.08s;
+    transition-timing-function: linear;
+}
+
+.muted-line.error {
+    color: rgb(196, 82, 63);
+}
+
+.look-hint.warn {
+    color: rgb(201, 162, 75);
+}

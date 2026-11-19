@@ -505,3 +505,20 @@ Done ahead of E4–E6 at the owner's word ("Do what you prefer, as recommended")
   2. Upload, either the zip on the page's Upload button, or with itch.io's butler: `butler login`, then the `butler push` line the script prints. Butler sends only the changed parts next time, and `--userversion` is what the update check reads.
   3. Each new version: raise `version` in `release.json`, BuildRelease, the script, push.
 - **Not done:** an installer (the zip unpacks and runs; the itch app installs and updates it by itself). Code signing is not paid for, so Windows SmartScreen will warn on first run ("More info", then "Run anyway").
+
+### Step E4: the mic check (2026-11-19)
+
+- **The Mic check screen** (`Game/MicMenus.cs`, from index.html's `#screen-mic` and main.ts `setVoice`): the eyebrow, title and lead; the line to read in Instrument Serif italic with its brass rule; the level meter (your own microphone, read from LiveKit's `MicrophoneSource.AudioRead`); the status line; Start mic check; and Continue to the room or Do it later, a step back as the browser's `data-back` is.
+- **The states, as the browser's:** voice off (nothing needed), connecting, no microphone, could not connect (play on without voice), check needed, listening, done. A debug server (`micOptional`) says you may skip it. The screen opens by itself the first time a check is needed in a room, and again in each new room (the browser reloads its page on leaving).
+- **The room page** says "Do the mic check before you play." in brass, with brass dashes, until the check is done, as the browser's `.look-hint.warn` does. Options has the Microphone group (status, "Test your mic or check it again") whenever voice is on.
+- **Wiring** (`Game.cs`): the server's `voice` message (with `micOptional`), the voice connection's states and the `micCheck` answer drive the screen; Start mic check sends `micCheck`.
+- **Unity-only wording:** with no microphone, "Plug one in or allow microphone access in Windows, then restart the game." (the browser asks for the site's permission and a reload).
+- **Two Unity faults worked around:**
+  - A rounded clip (`overflow: hidden` with a radius) draws white in the menus' texture, so the meter does not clip; the fill rounds its own ends.
+  - A class change cannot add a pseudo-element arrow, so the done button is two buttons, one shown at a time: quiet, and primary with its arrow.
+- **Tests:** on the local LiveKit only, with no paid minutes (launch entries `livekit-local` plus `server-voice-local` for a debug server, or the new `server-voice-strict` on port 2577 for a real one), and `-voiceTone 220` as the microphone.
+  - Debug server: the screen opens by itself, the check passes on the tone, and the E3 host test runs after it with the two bots: 67 checks pass.
+  - Strict server: Do it later shows the warning on the room page, the check is reached again from Options, passes, and the hint goes back to the walking one: 71 checks pass.
+  - One run lost its clicks while the window was unfocused (the log says so); the rerun passed.
+- **Storage:** at the owner's word ("Use the E drive for storage; avoid the C drive"), `engine/Build` and `engine/Library` are now junctions to `E:\HauntedLobby\Build` and `E:\HauntedLobby\Library`. Test output goes to `E:\HauntedLobby\test`.
+- Not yet: the "mic lost" notice during the night (the server's `micLost`), which is with the night's screens in E5.

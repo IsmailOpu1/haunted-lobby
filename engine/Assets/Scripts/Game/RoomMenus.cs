@@ -381,7 +381,7 @@ namespace Haunted.Game
                 : isHost ? "You are the host. Start when everyone else is Ready (" + (int)Json.Num(players, "min") + " to " + (int)Json.Num(players, "max") + " players). Pressing Start counts as your Ready."
                 : "Do the mic check and press Ready. The host starts the night.";
             bool nightOn = s.stage == "night" || s.stage == "intro";
-            string look = nightOn ? "The night goes on while this page is open. Esc brings it back." : "Walk around the hotel while you wait. Esc brings this page back.";
+            string look = LookHintText(nightOn ? "The night goes on while this page is open. Esc brings it back." : "Walk around the hotel while you wait. Esc brings this page back.");
             string lobbyRefusal = night != null ? night.LobbyRefusal ?? "" : "";
             string hkey = (lobby ? start : "") + "|" + look + "|" + lobbyRefusal;
             if (hkey != hintKey)
@@ -389,6 +389,8 @@ namespace Haunted.Game
                 hintKey = hkey;
                 if (lobby) startHint.text = "<line-height=18.125px>" + start;
                 lookHint.text = "<line-height=17.25px>" + look;
+                lookHint.EnableInClassList("warn", micNeeded);
+                lookHint.MarkDirtyRepaint();
                 readyHint.text = lobbyRefusal;
                 readyHint.style.display = lobbyRefusal != "" ? DisplayStyle.Flex : DisplayStyle.None;
                 regapDue = true;
@@ -582,7 +584,8 @@ namespace Haunted.Game
                 float w = e.layout.width, h = e.layout.height;
                 if (float.IsNaN(w) || w <= 0) return;
                 var p = ctx.painter2D;
-                p.strokeColor = Line;
+                // .look-hint.warn: border-color rgba(201, 162, 75, 0.5).
+                p.strokeColor = e.ClassListContains("warn") ? new Color(201 / 255f, 162 / 255f, 75 / 255f, 0.5f) : Line;
                 p.lineWidth = 1;
                 void Dashes(Vector2 a, Vector2 b)
                 {

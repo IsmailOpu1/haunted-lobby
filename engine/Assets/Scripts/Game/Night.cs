@@ -310,7 +310,7 @@ namespace Haunted.Game
                 Debug.Log("Meeting result: " + (r.Removed ?? "nobody") + " (" + (r.Role ?? "role hidden") + ")");
             });
             // Voice is not tested here (step B covers it); heard so the SDK does not warn.
-            foreach (var type in new[] { "micCheck", "micLost" })
+            foreach (var type in new[] { "micLost" })
                 room.OnMessage<object>(type, m => { });
         }
 

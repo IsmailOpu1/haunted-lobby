@@ -490,7 +490,34 @@ namespace Haunted.Game
         System.Collections.IEnumerator RoomHostInput(UnityEngine.InputSystem.Mouse mouse, string name,
             Func<string, int, System.Collections.IEnumerator> click, Action<string, bool> check)
         {
-            yield return Until(() => menus.Current == "room" && room?.State?.players != null, 5);
+            yield return Until(() => (menus.Current == "room" || menus.Current == "mic") && room?.State?.players != null, 5);
+            // Step E4: with voice on, the mic check opens by itself; it is done with the test tone (-voiceTone).
+            yield return Until(() => menus.Current == "mic", voice != null ? 15 : 0);
+            if (menus.Current == "mic")
+            {
+                check("mic check opened by itself", true);
+                yield return RoomShot("mic");
+                if (!micOptional)
+                {
+                    // A real server: later is allowed, but the room page says what is missing, and the
+                    // check is found again under Options (main.ts showLookHint, #options-mic).
+                    yield return click("Do it later", -1);
+                    yield return new WaitForSecondsRealtime(0.5f);
+                    check("room says the mic check is missing", menus.Current == "room" && menus.ScreenPoint("Do the mic check before you play.") != null);
+                    yield return RoomShot("room-mic-needed");
+                    yield return click("Options", -1);
+                    yield return click("Test your mic or check it again", -1);
+                    check("mic check from Options", menus.Current == "mic");
+                }
+                yield return click("Start mic check", -1);
+                yield return Until(() => micChecked, 20);
+                yield return new WaitForSecondsRealtime(0.5f);
+                check("mic check done", micChecked && menus.ScreenPoint("Continue to the room") != null);
+                yield return RoomShot("mic-done");
+                yield return click("Continue to the room", -1);
+                if (menus.Current == "options") yield return click("←  BACK", -1);
+                check("look hint back to walking", menus.ScreenPoint("Walk around the hotel while you wait. Esc brings this page back.") != null);
+            }
             check("room page shown: code " + room?.RoomId, menus.Visible && menus.Current == "room");
             yield return new WaitForSecondsRealtime(1);
             check("you in the list: " + string.Join(" / ", menus.PlayerRows()), menus.PlayerRows().Any(r => r.Contains(name)));
@@ -558,10 +585,11 @@ namespace Haunted.Game
             yield return new WaitForSecondsRealtime(1);
             yield return click("Create a room", -1);
             yield return click("Create room", -1);
-            yield return Until(() => room != null && menus.Current == "room", 15);
-            yield return new WaitForSecondsRealtime(1);
-            check("a new room after leaving: " + room?.RoomId + ", " + string.Join(" / ", menus.PlayerRows()),
-                room != null && menus.Current == "room" && menus.PlayerRows().Length == 1);
+            // A new room asks for the mic check again (main.ts reloads the page on leaving).
+            yield return Until(() => room != null && (menus.Current == "room" || menus.Current == "mic"), 15);
+            yield return new WaitForSecondsRealtime(voice != null ? 4 : 1);
+            check("a new room after leaving: " + room?.RoomId + ", " + string.Join(" / ", menus.PlayerRows()) + ", on " + menus.Current,
+                room != null && (menus.Current == "room" || (voice != null && menus.Current == "mic")) && menus.PlayerRows().Length == 1);
             yield return new WaitForSecondsRealtime(1);
         }
 
@@ -782,6 +810,14 @@ namespace Haunted.Game
         /// Asks for the voice pass once the handlers are in place, as the browser does: the server
         /// answers with where and how to join LiveKit, or that voice is off on this server.
         /// </summary>
+        bool micOptional, micChecked;
+
+        void ShowVoice(Menus.MicState state, string error = null)
+        {
+            Debug.Log("Voice: " + state + (error != null ? " (" + error + ")" : ""));
+            if (menus != null && roomPage) menus.SetVoice(state, error, micOptional);
+        }
+
         void StartVoice()
         {
             voice = new Voice(this) { TestToneHz = voiceToneHz };
@@ -790,10 +826,46 @@ namespace Haunted.Game
             {
                 if (answered) return;
                 answered = true;
-                object url, token;
-                if (msg != null && msg.TryGetValue("url", out url) && msg.TryGetValue("token", out token)) voice.Connect((string)url, (string)token);
-                else Debug.Log("Voice is off on this server");
+                object url, token, optional;
+                if (msg != null && msg.TryGetValue("url", out url) && msg.TryGetValue("token", out token))
+                {
+                    micOptional = msg.TryGetValue("micOptional", out optional) && optional is bool && (bool)optional;
+                    voice.Connect((string)url, (string)token);
+                }
+                else
+                {
+                    Debug.Log("Voice is off on this server");
+                    ShowVoice(Menus.MicState.Off);
+                }
             });
+            // Step E4 (game.ts attach, main.ts setVoice): the mic check before Ready.
+            micChecked = false;
+            voice.StatusChanged += state =>
+            {
+                switch (state)
+                {
+                    case Voice.State.Connecting: ShowVoice(Menus.MicState.Connecting); break;
+                    case Voice.State.NoMic: ShowVoice(Menus.MicState.NoMic); break;
+                    case Voice.State.Failed: ShowVoice(Menus.MicState.Failed); break;
+                    case Voice.State.On: ShowVoice(micChecked ? Menus.MicState.Ready : Menus.MicState.NeedsCheck); break;
+                }
+            };
+            room.OnMessage<Dictionary<string, object>>("micCheck", msg =>
+            {
+                object ok, reason;
+                if (msg != null && msg.TryGetValue("ok", out ok) && ok is bool && (bool)ok)
+                {
+                    micChecked = true;
+                    ShowVoice(Menus.MicState.Ready);
+                }
+                else ShowVoice(Menus.MicState.NeedsCheck, msg != null && msg.TryGetValue("reason", out reason) ? reason as string : null);
+                Debug.Log("Mic check: " + (micChecked ? "done" : "not heard"));
+            });
+            if (menus != null)
+            {
+                menus.StartMicCheck = () => { room.Send("micCheck"); ShowVoice(Menus.MicState.Checking); };
+                menus.MicLevel = () => voice != null ? voice.MicLevel() : 0;
+            }
             room.OnMessage<Dictionary<string, object>>("voiceMix", msg =>
             {
                 var mix = new Dictionary<string, float[]>();
@@ -1550,6 +1622,7 @@ namespace Haunted.Game
             menus.SetBusy(false);
             menus.InRoom = true;
             menus.RoomCode = room.RoomId;
+            menus.MicInRoom(true);
             menus.Send = (type, body) => { if (room == null) return; if (body == null) room.Send(type); else room.Send(type, body); };
             menus.Walk = () =>
             {
@@ -1598,6 +1671,7 @@ namespace Haunted.Game
         /// </summary>
         void LeaveRoomPage(string reason)
         {
+            if (menus != null) menus.MicInRoom(false);
             room = null;
             client = null;
             if (voice != null) { voice.Disconnect(); voice = null; }
