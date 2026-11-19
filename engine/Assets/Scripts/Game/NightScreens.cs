@@ -106,6 +106,7 @@ namespace Haunted.Game
             introTitle = HudLine(intro, "", "intro-title");
             introText = HudLine(intro, "", "intro-text");
             introExtra = HudLine(intro, "", "intro-extra");
+            BuildEnd();
             screenFlash = Div(topLayer, "", "screen-flash");
 
             foreach (var e in new[] { overlay, nightRow, teamRow, ritualRow, taskList, items, carrying, viewfinder, crosshair, promptRow, actionCol, staminaRow, workRow, powersBar, powerWheel, escRow, bannerRow, micLostRow, statusWrap, intro })

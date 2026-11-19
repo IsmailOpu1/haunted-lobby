@@ -803,7 +803,13 @@ namespace Haunted.Game
             hud.World = world;
             hud.Here = () => me != null ? new Vector2((float)me.State.X, (float)me.State.Z) : (Vector2?)null;
             hud.StaminaLeft = () => me != null && move.StaminaSec > 0 ? me.State.Stamina / move.StaminaSec : 1;
-            if (menus != null) { menus.ForgetRoom(); menus.ShowNight(true); }
+            if (menus != null)
+            {
+                menus.ForgetRoom();
+                menus.ShowNight(true);
+                menus.EndRematch = () => { if (room != null) room.Send("rematch"); };
+                menus.EndLeave = LeaveRoom;
+            }
             EnterRoomPage();
             ListenForGhost();
             StartVoice();

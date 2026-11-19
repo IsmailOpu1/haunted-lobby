@@ -543,4 +543,5 @@ Done ahead of E4–E6 at the owner's word ("Do what you prefer, as recommended")
 - **Against the browser at 1280×720,** with the same night (Unity hosts with `-create -startWith 2 -nightUi`; headless Chrome joins it, scratchpad `cdp-night.mjs`): the bars, counts, task list and items line sit within 2 px of the browser's. Two fixes came from it:
   - the browser collapses the task list's 2 px margins (20 px between lines, not 22);
   - a label drops a space at its end, so the items line's spaces start the next label.
-- **Not yet:** the end screen and the meeting (still plain), the name labels, and the Tab panel's floor plan.
+- **The end screen** (`Game/EndScreen.cs`, index.html `#end-screen`, main.ts `showEndScreen`): the title in capitals (h2's text-transform, serif, brass or red), why and who the ghost was, the roles (14 px, as every list), awards, the timeline (160 px, scrolling), the photos (the room page's photo card), Rematch for the host and Leave, and the line under them. The bars, task list and items stay dimmed under it, as in the browser; the prompt, cues and the rest go. Against the browser's end screen in the same match: the same places and sizes, apart from the host's Rematch line (the browser shot was a guest's).
+- **Not yet:** the meeting (still plain), the name labels, and the Tab panel's floor plan.

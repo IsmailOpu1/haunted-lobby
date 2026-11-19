@@ -172,7 +172,7 @@ namespace Haunted.Game
             {
                 // OnGUI runs for every event; the panel is set once a frame.
                 if (uiFrame != Time.frameCount) { uiFrame = Time.frameCount; DrawUi(s, now); }
-                if (night.End != null) { DrawEnd(s); return; }
+                if (night.End != null) return;
                 if (s.stage == "waiting" && !RoomPage) DrawLobby(s, roomCode, now);
                 if (s.stage == "night" && !PageUp && !string.IsNullOrEmpty(s.meeting) && Meeting != null) Meeting.Draw(s, sessionId());
                 return;
@@ -265,7 +265,9 @@ namespace Haunted.Game
             Player me;
             s.players.TryGetValue(sessionId(), out me);
             bool meeting = !string.IsNullOrEmpty(s.meeting);
-            bool on = s.stage == "night" && !PageUp && night.End == null;
+            bool on = (s.stage == "night" || night.End != null) && !PageUp;
+            // At the end the bars, tasks and items stay under the end screen (style.css body.ended hides the rest).
+            bool live = on && night.End == null;
             var keys = Options.Keys;
 
             string part;
@@ -283,7 +285,7 @@ namespace Haunted.Game
 
             // The room you walk into (game.ts: roomAt and levelOf where you stand).
             var here = Here != null ? Here() : null;
-            if (on && here.HasValue && World != null)
+            if (live && here.HasValue && World != null)
             {
                 string roomName = null;
                 foreach (var r in World.Rooms)
@@ -292,21 +294,21 @@ namespace Haunted.Game
             }
             else Ui.SetRoom(null, null);
 
-            Ui.SetCameraRaised(on && CameraRaised, keys.Name("camera"));
-            Ui.SetSoundCues(SoundCues, on && !meeting);
-            Ui.SetLooking(on && !meeting && Cursor.lockState == CursorLockMode.Locked, RoomPage);
+            Ui.SetCameraRaised(live && CameraRaised, keys.Name("camera"));
+            Ui.SetSoundCues(SoundCues, live && !meeting);
+            Ui.SetLooking(live && !meeting && Cursor.lockState == CursorLockMode.Locked, RoomPage);
 
             // The held action's progress, how to work with your hands, or what E would do.
             string action = null;
-            if (on && me != null && !string.IsNullOrEmpty(me.action)) Night.ActionLabels.TryGetValue(me.action, out action);
+            if (live && me != null && !string.IsNullOrEmpty(me.action)) Night.ActionLabels.TryGetValue(me.action, out action);
             Ui.SetAction(action, me != null ? me.actionProgress : 0);
-            Ui.SetWorkHint(on && action == null ? WorkHint : null);
-            Ui.SetPrompt(on && !meeting && action == null && string.IsNullOrEmpty(WorkHint) && !string.IsNullOrEmpty(Prompt) ? keys.Hint(Prompt) : null);
-            Ui.SetStamina(on && me != null && me.health == "alive" && StaminaLeft != null ? StaminaLeft() : 1);
+            Ui.SetWorkHint(live && action == null ? WorkHint : null);
+            Ui.SetPrompt(live && !meeting && action == null && string.IsNullOrEmpty(WorkHint) && !string.IsNullOrEmpty(Prompt) ? keys.Hint(Prompt) : null);
+            Ui.SetStamina(live && me != null && me.health == "alive" && StaminaLeft != null ? StaminaLeft() : 1);
 
             // Down, a Wisp, or hidden (main.ts setStatus).
             string kind = "alive", title = "", text = "";
-            if (on && me != null)
+            if (live && me != null)
             {
                 if (me.health == "downed") { kind = "downed"; title = "You are down"; text = "A friend must hold E on you within " + Math.Ceiling(me.bleedLeft) + " s. You can crawl."; }
                 else if (me.health == "dead")
@@ -328,16 +330,16 @@ namespace Haunted.Game
 
             // Hold Tab: the relics (main.ts setRelics).
             var relics = new List<KeyValuePair<string, string>>();
-            if (on && ShowTasks) foreach (var kv in s.relics) relics.Add(new KeyValuePair<string, string>(kv.Value.name, Night.RelicStatusText(kv.Value)));
-            Ui.SetStatusPanel(on && ShowTasks && !meeting, relics);
+            if (live && ShowTasks) foreach (var kv in s.relics) relics.Add(new KeyValuePair<string, string>(kv.Value.name, Night.RelicStatusText(kv.Value)));
+            Ui.SetStatusPanel(live && ShowTasks && !meeting, relics);
 
             // The possessed's powers (GDD 14.2): the chips, and the wheel while R is held.
-            bool powers = on && !meeting && night.Role == "possessed" && night.Powers != null && me != null && me.health == "alive";
+            bool powers = live && !meeting && night.Role == "possessed" && night.Powers != null && me != null && me.health == "alive";
             Ui.SetPowers(powers ? night.Powers : null, night.CurseLeft);
             Ui.SetWheel(powers && WheelOpen, night.Powers, WheelSelected);
 
             Ui.SetBanner(night.Banner != null && now < night.BannerUntil ? keys.Hint(night.Banner) : null);
-            Ui.SetMicLost(on && night.MicLost);
+            Ui.SetMicLost(live && night.MicLost);
 
             // The countdown and the role reveal (main.ts showIntro).
             if (s.stage == "countdown") Ui.SetIntro(Math.Max(1, Math.Ceiling(s.stageLeft)).ToString(), "The night begins", "", false);
@@ -355,6 +357,7 @@ namespace Haunted.Game
             }
             else Ui.SetIntro(null, null, null, false);
 
+            Ui.SetEnd(night.End, night.EndPhotos, s.host == sessionId());
             Ui.SetFlash(ScreenFlash(now - ScreenFlashAt, ScreenFlashGentle));
         }
 
