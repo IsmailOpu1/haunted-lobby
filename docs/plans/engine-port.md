@@ -489,3 +489,19 @@ Things that are browser-only are decided as they come up and recorded in GDD 26.
 - **Test aids:** `-roomPlayers N`, `-roomJoin CODE`, `-pageShots DIR` (room-host, settings-host, settings-advanced, room-leave, room-guest, settings-guest), and playtest.ts's `e3` mode (bots that press Ready and log every settings change and kick). The test's clicks now wait 3 frames between press and release, and log the window's focus and the test mouse's state. Clicks went missing in a few runs made while three earlier test windows were still running and the desk was in use; with those closed, every run passed.
 - Comparison sheet: `docs/plans/step-e/e3-room.jpg` (browser, Unity, differences ×4; room and settings as host and as guest, and Advanced).
 - Not yet: Ready needs the mic check in the browser; that is E4.
+
+### Step F, first part: a downloadable build (2026-11-19)
+
+Done ahead of E4–E6 at the owner's word ("Do what you prefer, as recommended"), so a download exists before the week's usage runs out. The menus are E1–E3's; the night's own screens are still the plain ones until E5.
+
+- **`Data/release.json`**: this build's version (0.9.0), the live server (`wss://haunted-lobby-server.onrender.com`, the default now; test runs still pass `-server`), and the itch.io page (`itch`, as `user/game`; empty until the page exists).
+- **Update check** (`Game/Release.cs`): at launch, asks itch.io's public `api/1/x/wharf/latest?target=<itch>&channel_name=windows`, the version butler last pushed. If it is newer, the Start screen says so in brass under its foot line. With `itch` empty it asks nothing.
+- **Release build**: `-executeMethod Haunted.Editor.ProjectSetup.BuildRelease` writes `engine/Build/Release/Haunted Lobby/` with LZ4HC-compressed data (1.5 GB, from 2.2 GB) and without Burst's DoNotShip folder. `tools/engine-release.ps1` zips it (`HauntedLobby-0.9.0-windows.zip`, 1,259 MB) and prints the butler command.
+- **Checked:**
+  - The build creates a room on the live server with no flags (16 s from launch), and two bots join it there.
+  - The zip, unpacked into an empty folder, starts on the first-launch warning, as a new player's should.
+- **For the owner to do (Claude does not sign in for you):**
+  1. Make the game page on itch.io (Kind: Downloadable; Windows), and put `user/game` into `release.json`'s `itch`.
+  2. Upload, either the zip on the page's Upload button, or with itch.io's butler: `butler login`, then the `butler push` line the script prints. Butler sends only the changed parts next time, and `--userversion` is what the update check reads.
+  3. Each new version: raise `version` in `release.json`, BuildRelease, the script, push.
+- **Not done:** an installer (the zip unpacks and runs; the itch app installs and updates it by itself). Code signing is not paid for, so Windows SmartScreen will warn on first run ("More info", then "Run anyway").

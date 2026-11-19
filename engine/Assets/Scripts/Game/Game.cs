@@ -100,7 +100,8 @@ namespace Haunted.Game
         bool roomPage, pageUp;
         int? leftWith;
 
-        string serverUrl = "ws://localhost:2567";
+        // The live server (Data/release.json, set in Start: Unity loads nothing in a constructor); test runs pass -server.
+        string serverUrl;
         string playerName = "Unity";
         string joinCode = "";
         string status = "";
@@ -237,7 +238,7 @@ namespace Haunted.Game
                 int i = Array.IndexOf(args, key);
                 return i >= 0 && i + 1 < args.Length ? args[i + 1] : null;
             };
-            serverUrl = arg("-server") ?? serverUrl;
+            serverUrl = arg("-server") ?? Release.Server;
             playerName = arg("-name") ?? playerName;
             codeFile = arg("-codeFile");
             shotPath = arg("-shot");
@@ -337,6 +338,7 @@ namespace Haunted.Game
         {
             MakeMenuCamera();
             menus = new Menus(config);
+            StartCoroutine(Release.Check());
             menus.Create = name => { playerName = name; Connect(null, null); };
             menus.Join = (code, name) => { playerName = name; Connect(code, null); };
             if (shotsDir != null) StartCoroutine(MenuShots(shotsDir));

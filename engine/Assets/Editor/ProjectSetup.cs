@@ -270,15 +270,31 @@ namespace Haunted.Editor
             tags.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        public static void BuildWindows()
+        public const string ReleasePath = "Build/Release/Haunted Lobby/Haunted Lobby.exe";
+
+        /// <summary>
+        /// Step F: the build players download. Its data is LZ4HC-compressed (smaller to download,
+        /// unpacked as it loads), and Burst's debug folder, which Unity marks DoNotShip, is left out.
+        /// tools/engine-release.ps1 zips it for itch.io.
+        /// </summary>
+        public static void BuildRelease()
+        {
+            BuildWindows(ReleasePath, BuildOptions.CompressWithLz4HC);
+            foreach (var dir in System.IO.Directory.GetDirectories(System.IO.Path.GetDirectoryName(ReleasePath), "*_DoNotShip"))
+                System.IO.Directory.Delete(dir, true);
+        }
+
+        public static void BuildWindows() => BuildWindows(BuildPath, BuildOptions.None);
+
+        static void BuildWindows(string path, BuildOptions flags)
         {
             Setup();
             var options = new BuildPlayerOptions
             {
                 scenes = new[] { ScenePath },
-                locationPathName = BuildPath,
+                locationPathName = path,
                 target = BuildTarget.StandaloneWindows64,
-                options = BuildOptions.None,
+                options = flags,
             };
             var report = BuildPipeline.BuildPlayer(options);
             Debug.Log("Build " + report.summary.result + ": " + report.summary.totalSize / (1024 * 1024) + " MB, " + report.summary.totalErrors + " errors, " + report.summary.totalTime);

@@ -221,6 +221,11 @@ Label {
     color: rgb(143, 137, 123);
 }
 
+/* A newer version on itch.io (step F), in the menus' brass. */
+.update-line {
+    color: rgb(201, 162, 75);
+}
+
 /* Fields: a line to write on. */
 .field-name {
     -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");

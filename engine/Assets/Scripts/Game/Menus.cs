@@ -102,6 +102,12 @@ namespace Haunted.Game
                 }
                 if (!warm && kerningCheck >= 60) { warm = true; warmUp.RemoveFromHierarchy(); }
             }
+            if (updateLine.style.display == DisplayStyle.None && Release.Newer != null)
+            {
+                updateLine.text = "<line-height=18.75px>Version " + Release.Newer + " is out (you have " + Release.Version + "). Download it from itch.io.";
+                updateLine.style.display = DisplayStyle.Flex;
+                regapDue = true;
+            }
             var rt = panel.targetTexture;
             if (rt == null || rt.width != UnityEngine.Screen.width || rt.height != UnityEngine.Screen.height) Resize();
             // Gaps once the columns are laid out (a panel's scheduler skips what was built before
@@ -459,8 +465,13 @@ namespace Haunted.Game
             Error(col, "start");
             // The browser's line begins "No accounts, no downloads."; this version is a download.
             Text(col, "start-foot", "No accounts. The ghost hears your real microphone, so keep your voice down.", 18.75f);
+            // Step F: a newer version on itch.io (Release.Check), shown once the answer comes.
+            updateLine = Text(col, "start-foot update-line", "", 18.75f);
+            updateLine.style.display = DisplayStyle.None;
             Gap(col, 16);
         }
+
+        Label updateLine;
 
         /// <summary>Tests: the centre of the shown text or button, in screen pixels (y up), or null.</summary>
         public Vector2? ScreenPoint(string text)
