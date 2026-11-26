@@ -569,4 +569,4 @@ Done ahead of E4–E6 at the owner's word ("Do what you prefer, as recommended")
 - **The end box already shrinks to its content.** The 540 against 560 px seen earlier came from comparing a browser guest with a Unity host. The host's line under the buttons ("Rematch takes everyone back...") is longer, so the box reaches its 560 px cap in both.
   - In one 3-player match (a Unity host, a Unity guest and a Chrome guest), the guest's box is 529 px in Unity and 526 in Chrome. Chrome measures 560 for the host, as Unity draws it.
   - Each edge and every line inside is within 2 px. Unity measures the widest line 1 px wider and its box 3 px wider, so the box's right edge is the 2 px one.
-- **E5 is done** (2026-11-27). The pictures are in `E:\HauntedLobby	est\e5` (`run2`: labels and plan; `end1`: end screen; `canvas`: Chrome's label pictures). Next is E6: the speed test and the 8-player story.
+- **E5 is done** (2026-11-27). The pictures are in `E:\HauntedLobby\test\e5` (`run2`: labels and plan; `end1`: end screen; `canvas`: Chrome's label pictures). Next is E6: the speed test and the 8-player story.
