@@ -26,6 +26,8 @@ namespace Haunted.Game
     {
         /// <summary>Each room piece: frames let settle first (the view jumped there), then one full turn.</summary>
         const float SettleSec = 0.35f, TurnSec = 1.25f;
+        /// <summary>How often the bar is told how far it has got (its text and layout are work in the frames timed).</summary>
+        const float ProgressEverySec = 0.1f;
         /// <summary>A level is smooth here when it averages this many frames a second...</summary>
         public const double SmoothFps = 60;
         /// <summary>...and its slowest 1 % of frames still come this often (no visible stutter).</summary>
@@ -116,7 +118,7 @@ namespace Haunted.Game
             var rooms = new List<Room>();
             var levels = new[] { HauntedQuality.Level.High, HauntedQuality.Level.Low };
             int total = spots.Count * levels.Length, done = 0;
-            float liveSec = 0;
+            float liveSec = 0, toldAt = -1;
             int liveFrames = 0, liveFps = 0;
             foreach (var level in levels)
             {
@@ -133,7 +135,11 @@ namespace Haunted.Game
                         float aspect = Mathf.Max(0.1f, camera.aspect);
                         camera.fieldOfView = 2 * Mathf.Atan(Mathf.Tan(HorizontalFovDeg * Mathf.Deg2Rad / 2) / aspect) * Mathf.Rad2Deg;
                         camera.transform.rotation = Coords.Look(Mathf.Clamp01(t / TurnSec) * Mathf.PI * 2, 0);
-                        Progress?.Invoke(levelName + "  ·  " + spot.Key, (done + Mathf.Clamp01((t + SettleSec) / (TurnSec + SettleSec))) / total, liveFps);
+                        if (Time.realtimeSinceStartup - toldAt >= ProgressEverySec)
+                        {
+                            toldAt = Time.realtimeSinceStartup;
+                            Progress?.Invoke(levelName + "  ·  " + spot.Key, (done + Mathf.Clamp01((t + SettleSec) / (TurnSec + SettleSec))) / total, liveFps);
+                        }
                         yield return null;
                         float dt = Time.unscaledDeltaTime;
                         t += dt;

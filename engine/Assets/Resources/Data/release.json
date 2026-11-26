@@ -1,6 +1,6 @@
 {
   "note": "The release build's settings (step F). version: this build, as pushed to itch.io with butler --userversion. server: the live game server. itch: the itch.io page as user/game, for the update check (empty: no check).",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "server": "wss://haunted-lobby-server.onrender.com",
   "itch": "",
   "channel": "windows"

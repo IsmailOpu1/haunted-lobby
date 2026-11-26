@@ -406,9 +406,39 @@ namespace Haunted.Game
             SpeedTest.Result got = null;
             float started = Time.realtimeSinceStartup;
             StartSpeedTest(r => { got = r; over = true; });
-            bool shotTaken = false;
+            bool shotTaken = false, escTest = Array.IndexOf(Environment.GetCommandLineArgs(), "-speedEsc") >= 0;
+            string autoWas = Options.AutoQuality;
+            var levelWas = HauntedQuality.Current;
+            int vSyncWas = QualitySettings.vSyncCount;
             while (!over && Time.realtimeSinceStartup - started < LimitSec)
             {
+                // -speedEsc: Esc pressed 10 s in, as a player would; the test stops and nothing changes.
+                if (escTest && Time.realtimeSinceStartup - started > 10)
+                {
+                    escTest = false;
+                    var keys = UnityEngine.InputSystem.InputSystem.AddDevice<Keyboard>("Test keyboard");
+                    UnityEngine.InputSystem.InputSystem.QueueStateEvent(keys, new UnityEngine.InputSystem.LowLevel.KeyboardState(UnityEngine.InputSystem.Key.Escape));
+                    yield return new WaitForSecondsRealtime(0.1f);
+                    UnityEngine.InputSystem.InputSystem.QueueStateEvent(keys, new UnityEngine.InputSystem.LowLevel.KeyboardState());
+                    yield return Until(() => over, 5);
+                    yield return new WaitForSecondsRealtime(1);
+                    bool ok = over && got == null && menus.Visible && menus.Current == "options" && Options.AutoQuality == autoWas
+                        && HauntedQuality.Current == levelWas && QualitySettings.vSyncCount == vSyncWas
+                        && menus.ScreenPoint("Speed test stopped. Nothing was changed.") != null;
+                    Debug.Log("Speed test Esc: " + (ok ? "ok" : "FAIL") + " (stopped " + over + ", on " + menus.Current + ", auto " + Options.AutoQuality + " was " + autoWas
+                        + ", quality " + HauntedQuality.Current + " was " + levelWas + ", vsync " + QualitySettings.vSyncCount + " was " + vSyncWas + ")");
+                    UnityEngine.InputSystem.InputSystem.RemoveDevice(keys);
+                    if (shots != null)
+                    {
+                        System.IO.Directory.CreateDirectory(shots);
+                        yield return new WaitForEndOfFrame();
+                        var s = ScreenCapture.CaptureScreenshotAsTexture();
+                        System.IO.File.WriteAllBytes(System.IO.Path.Combine(shots, "speed-stopped.png"), s.EncodeToPNG());
+                        Destroy(s);
+                    }
+                    Application.Quit();
+                    yield break;
+                }
                 if (shots != null && !shotTaken && Time.realtimeSinceStartup - started > 25)
                 {
                     shotTaken = true;
@@ -583,6 +613,13 @@ namespace Haunted.Game
             yield return click("Create room", -1);
             yield return Until(() => room?.State?.players != null && menus.Current == "room", 20);
             check("room made: " + room?.RoomId, room != null && menus.Current == "room");
+            // The speed test from inside a room is refused with a line (the room page has Options).
+            yield return click("Options", -1);
+            yield return click("Run the speed test", -1);
+            yield return new WaitForSecondsRealtime(0.5f);
+            check("speed test refused in a room", menus.Current == "options" && menus.Visible && menus.ScreenPoint("Leave the room first: the test moves the view round the hotel.") != null);
+            yield return click("←  BACK", -1);
+            check("back to the room page", menus.Current == "room");
             yield return Until(() => room.State.players.Count >= 8, 180);
             check("8 players in: " + string.Join(" / ", menus.PlayerRows()), room.State.players.Count == 8);
             bool OthersReady() { int n = 0; foreach (var kv in room.State.players) if (kv.Key != room.SessionId && kv.Value.ready) n++; return n == 7; }

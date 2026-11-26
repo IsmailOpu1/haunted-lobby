@@ -593,4 +593,11 @@ The owner asked for a speed test of the Unity version's own, better than the bro
   - **35 checks pass (11 of them finding a button), none fail; no errors in the log.** The first run's failures were the test's own (it pressed a Ready the host doesn't have, and looked for the end screen's buttons only on the menu screens).
 - **Test aid changes:** `Menus.ScreenPoint` looks only at what is shown (the screen while the menus are up, else the end screen); `Menus.EndUp` and `NightBarUp` say what is up.
 - Pictures and logs: `E:\HauntedLobby\test\e6` (`speed1`, `speed2`, `speed3`: the bar and result; `story2`: the room, each night, each end, the rematch).
-- **E6 is done, and with it step E.** Next is step F's rest: a 0.9.2 release build for the friend test (the owner makes the itch.io page and uploads).
+- **Checked afterwards:** Esc partway stops the test with "Speed test stopped. Nothing was changed.", back on Options, with Auto's choice, the quality and vsync as they were (`-speedEsc`). The button inside a room is refused with "Leave the room first..." (now part of `-story8`). The bar is told ten times a second, not every frame. The old menu suite (Options pass, E3 host pass with `playtest.ts e3`) still passes: 63 checks.
+- **E6 is done, and with it step E.**
+
+### Release 0.9.2 (2026-11-27)
+
+- E5's night screens and E6's speed test are in. `release.json` is at 0.9.2. BuildRelease plus `tools/engine-release.ps1` give `engine/Build/Release/HauntedLobby-0.9.2-windows.zip` (1,444 MB, on E:).
+- Checked on the release build itself against a local debug server: the speed test (High 232 FPS, Low 427), Esc stopping it, the 8-player story (all checks pass) and the E3 menu suite (63 checks).
+- For the owner (Claude does not sign in for you): make the itch.io page (Downloadable, Windows), put `user/game` in `release.json`'s `itch`, and upload: the zip on the page, or `butler push "engine/Build/Release/Haunted Lobby" <you>/<game>:windows --userversion 0.9.2`. Then the friend test (step F's done-when): a friend downloads it, installs it and plays a match with no help.
