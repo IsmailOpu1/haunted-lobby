@@ -17,6 +17,8 @@
 //                                          knocked down who crawls and bleeds out. PLAYERS=4 is needed.
 //   npx tsx tools/playtest.ts e3 CODE      with a Unity host (engine step E3, the room): the bots press Ready and
 //                                          report each settings change they see and the host's kick
+//   npx tsx tools/playtest.ts e6 CODE      with a Unity host (engine step E6, Game.cs -story8): seven bots ready up in the lobby,
+//                                          each night ends by dawn after NIGHT_SEC (25), two nights with a rematch. PLAYERS=7.
 //   add a room code to join a room a browser player made, e.g. ... win-asleep ABCDE
 //   PLAYERS=8 plays with more bots (2 to 8; default 2). For lag, run tools/lagProxy.ts and point
 //   ENDPOINT at it (ws://localhost:2568).
@@ -259,6 +261,7 @@ async function main() {
   if (mode === "c4u") return c4u(bots);
   if (mode === "d3") return d3(bots);
   if (mode === "e3") return e3(bots);
+  if (mode === "e6") return e6(bots);
   // In their own room the bots skip the host's countdown and the intro (in a joined room, the host starts).
   // MYSTERY=0 plays without "Who was the ghost?" (GDD 26.13); otherwise the bots solve it.
   if (!joinCode && process.env.MYSTERY === "0") a.room.send("debug", { mystery: false });
@@ -434,6 +437,66 @@ async function e3(bots: Bot[]) {
     });
   }
   await until(() => gone === bots.length, 300, "every bot gone").catch((e) => log("room", String(e)));
+  process.exit(0);
+}
+
+/**
+ * Step E6: PRD Phase 7's done-when with a Unity host (Game.cs -story8). Seven bots join, press Ready
+ * whenever they are in the lobby, and report what they see: the settings, each night's start (their
+ * character), its end, and the way back to the lobby. NIGHT_SEC (default 25) into each night the
+ * first bot moves the clock to just before dawn (a debug server), so the night ends by itself.
+ * Ends after two nights, once the host has gone, or after 15 minutes.
+ */
+async function e6(bots: Bot[]) {
+  const nightSec = Number(process.env.NIGHT_SEC ?? 25);
+  let nights = 0;
+  let hostGone = false;
+  for (const bot of bots) {
+    let stage = "";
+    let last = bot.state.settings as string;
+    log(bot.name, `in; settings ${settingsCode(JSON.parse(last))}`);
+    const timer = setInterval(() => {
+      const s = bot.state;
+      if (s.settings !== last) {
+        log(bot.name, `sees settings ${settingsCode(JSON.parse(s.settings))}`);
+        last = s.settings;
+      }
+      if (s.stage !== stage) {
+        if (s.stage === "night") log(bot.name, `night starts: I am ${bot.me.character}, ${s.tasksTotal} tasks for the team, night ${s.nightLength} s`);
+        if (s.stage === "waiting" && stage) {
+          log(bot.name, `back in the lobby (rematch)`);
+          bot.end = null;
+        }
+        stage = s.stage;
+      }
+      if (s.stage === "waiting" && !bot.me.ready) bot.room.send("ready", { ready: true });
+    }, 200);
+    bot.room.onMessage("matchEnd", (m: ServerMessages["matchEnd"]) => log(bot.name, `night over: ${m.winner} (${m.reason})`));
+    bot.room.onLeave((code) => {
+      clearInterval(timer);
+      log(bot.name, `left the room (${code})`);
+    });
+  }
+  const a = bots[0]!;
+  const players = () => a.state.players.size as number;
+  const start = Date.now();
+  while (nights < 2 && Date.now() - start < 15 * 60 * 1000) {
+    await until(() => a.state.stage === "night", 600, "a night");
+    nights++;
+    log("room", `night ${nights} with ${players()} players; dawn in ${nightSec} s`);
+    await sleep(nightSec);
+    a.room.send("debug", { nightTime: a.state.nightLength - 2 });
+    await until(() => !!a.end, 30, "night end");
+    log("room", `night ${nights} over: ${a.end!.winner} (${a.end!.reason})`);
+    if (nights < 2) await until(() => a.state.stage === "waiting", 120, "rematch");
+  }
+  // The host leaves from the second end screen: the room goes on with the bots, one of them host.
+  await until(() => {
+    hostGone = ![...a.state.players.values()].some((p: any) => p.name === "Unity");
+    return hostGone;
+  }, 120, "the Unity host leaving").catch((e) => log("room", String(e)));
+  log("room", `done: ${nights} nights; Unity host ${hostGone ? "left" : "STILL IN"}; new host ${a.state.players.get(a.state.host)?.name}`);
+  for (const bot of bots) await bot.room.leave();
   process.exit(0);
 }
 

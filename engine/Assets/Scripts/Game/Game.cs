@@ -338,6 +338,104 @@ namespace Haunted.Game
             else ShowMenus(arg("-menuShots"));
         }
 
+        /// <summary>The speed test while it runs (SpeedTest), else null.</summary>
+        SpeedTest speedTest;
+
+        /// <summary>
+        /// Options' speed test (step E6): outside a room only, as the browser's (it moves the view
+        /// round the hotel). The menus hide while it runs and come back with its result; the verdict
+        /// becomes Auto quality's choice for this computer, and the result is saved as speed-test.txt.
+        /// done hears the result (null if stopped or refused).
+        /// </summary>
+        void StartSpeedTest(Action<SpeedTest.Result> done = null)
+        {
+            if (speedTest != null) return;
+            if (room != null)
+            {
+                menus.SpeedNote("Leave the room first: the test moves the view round the hotel.");
+                done?.Invoke(null);
+                return;
+            }
+            menus.Visible = false;
+            if (menuCamera != null) menuCamera.enabled = false;
+            speedTest = gameObject.AddComponent<SpeedTest>();
+            speedTest.World = world;
+            speedTest.EyeHeightM = (float)Json.Num(Json.Obj(config, "movement"), "eyeHeightM");
+            speedTest.Flashlight = Json.Obj(config, "flashlight");
+            speedTest.HorizontalFovDeg = Options.Fov;
+            speedTest.Ready = () => dressed == null || dressed.ReflectionsReady;
+            speedTest.Progress = (what, fraction, fps) => menus.SpeedProgress(what, fraction, fps);
+            speedTest.Finished = result =>
+            {
+                speedTest = null;
+                if (menuCamera != null) menuCamera.enabled = true;
+                string saved = null, note = null;
+                if (result != null)
+                {
+                    try
+                    {
+                        saved = System.IO.Path.Combine(Application.persistentDataPath, "speed-test.txt");
+                        System.IO.File.WriteAllText(saved, result.Text + "\n");
+                    }
+                    catch (Exception e) { Debug.LogWarning("Speed test: could not save the result: " + e.Message); saved = null; }
+                    string pick = result.Recommended == HauntedQuality.Level.High ? "high" : "low";
+                    string name = pick == "high" ? "High" : "Low";
+                    Options.AutoQuality = pick;
+                    note = Options.Quality == "auto" ? "Measured just now. Auto quality follows this result."
+                        : "Your Quality is set to " + (Options.Quality == "high" ? "High" : "Low") + "; Auto would use " + name + " here.";
+                    Debug.Log("Speed test result:\n" + result.Text);
+                }
+                menus.SpeedDone(result, saved, note);
+                menus.Visible = true;
+                done?.Invoke(result);
+            };
+        }
+
+        /// <summary>
+        /// Test aid "-speedTest FILE": from the Start screen, opens Options and runs the speed test
+        /// as its button does, writes the result to FILE and quits ("-speedShots DIR": a picture
+        /// partway through and one of the result). Gives up after 15 minutes.
+        /// </summary>
+        System.Collections.IEnumerator SpeedTestRun(string file, string shots)
+        {
+            const float LimitSec = 900;
+            yield return new WaitForSecondsRealtime(2);
+            if (menus.WarningShown) menus.HideWarning();
+            menus.Go("options");
+            bool over = false;
+            SpeedTest.Result got = null;
+            float started = Time.realtimeSinceStartup;
+            StartSpeedTest(r => { got = r; over = true; });
+            bool shotTaken = false;
+            while (!over && Time.realtimeSinceStartup - started < LimitSec)
+            {
+                if (shots != null && !shotTaken && Time.realtimeSinceStartup - started > 25)
+                {
+                    shotTaken = true;
+                    System.IO.Directory.CreateDirectory(shots);
+                    yield return new WaitForEndOfFrame();
+                    var shot = ScreenCapture.CaptureScreenshotAsTexture();
+                    System.IO.File.WriteAllBytes(System.IO.Path.Combine(shots, "speed-running.png"), shot.EncodeToPNG());
+                    Destroy(shot);
+                }
+                yield return null;
+            }
+            if (!over && speedTest != null) speedTest.Stop();
+            System.IO.File.WriteAllText(file, got != null ? got.Text + "\n" : "Speed test did not finish.\n");
+            Debug.Log("Speed test run: " + (got != null ? "done in " + (Time.realtimeSinceStartup - started).ToString("0", CultureInfo.InvariantCulture) + " s" : "FAILED"));
+            if (shots != null)
+            {
+                yield return new WaitForSecondsRealtime(1.5f);
+                menus.ScrollToSpeedResult();
+                yield return new WaitForSecondsRealtime(0.8f);
+                yield return new WaitForEndOfFrame();
+                var shot = ScreenCapture.CaptureScreenshotAsTexture();
+                System.IO.File.WriteAllBytes(System.IO.Path.Combine(shots, "speed-result.png"), shot.EncodeToPNG());
+                Destroy(shot);
+            }
+            Application.Quit();
+        }
+
         /// <summary>Before a room: black behind the menus (style.css body, #050507), no hotel.</summary>
         void MakeMenuCamera()
         {
@@ -355,6 +453,9 @@ namespace Haunted.Game
             StartCoroutine(Release.Check());
             menus.Create = name => { playerName = name; Connect(null, null); };
             menus.Join = (code, name) => { playerName = name; Connect(code, null); };
+            menus.SpeedTestStart = () => StartSpeedTest();
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-speedTest") is int st && st >= 0 && st + 1 < Environment.GetCommandLineArgs().Length)
+                StartCoroutine(SpeedTestRun(Environment.GetCommandLineArgs()[st + 1], Array.IndexOf(Environment.GetCommandLineArgs(), "-speedShots") is int sh && sh >= 0 ? Environment.GetCommandLineArgs()[sh + 1] : null));
             if (shotsDir != null) StartCoroutine(MenuShots(shotsDir));
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-menuInput") >= 0) StartCoroutine(MenuInput());
         }
@@ -423,6 +524,13 @@ namespace Haunted.Game
                 yield return Click("Continue");
                 Check("warning answered", !menus.WarningShown);
             }
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-story8") >= 0)
+            {
+                yield return Story8(Click, Type, Check);
+                Debug.Log("Menu input: " + (failed == 0 ? "all passed" : failed + " failed"));
+                Application.Quit();
+                yield break;
+            }
             yield return OptionsInput(mouse, window, Click, Type, PressEnter, Check);
             string joinCode = TestArg("-roomJoin");
             if (joinCode != null)
@@ -457,6 +565,84 @@ namespace Haunted.Game
             yield return RoomHostInput(mouse, name, Click, Check);
             Debug.Log("Menu input: " + (failed == 0 ? "all passed" : failed + " failed"));
             Application.Quit();
+        }
+
+        /// <summary>
+        /// -menuInput -story8 (step E6, PRD Phase 7's done-when with a Unity host): through the real
+        /// menus, makes a room, waits for 8 players (tools/playtest.ts e6 brings 7 bots, given the code
+        /// by -codeFile), and plays two nights without restarting anything: Ready and Start, the night,
+        /// its end screen, Rematch, a settings change (the Hardcore preset), Ready and Start again, the
+        /// second night (new characters, the tasks afresh, Hardcore's night length), its end screen,
+        /// and Leave. The bots end each night by dawn (a debug server's nightTime) and report what they see.
+        /// </summary>
+        System.Collections.IEnumerator Story8(Func<string, int, System.Collections.IEnumerator> click,
+            Func<string, System.Collections.IEnumerator> type, Action<string, bool> check)
+        {
+            yield return click("Create a room", -1);
+            if (menus.FieldValues()[0] == "") yield return type("Unity");
+            yield return click("Create room", -1);
+            yield return Until(() => room?.State?.players != null && menus.Current == "room", 20);
+            check("room made: " + room?.RoomId, room != null && menus.Current == "room");
+            yield return Until(() => room.State.players.Count >= 8, 180);
+            check("8 players in: " + string.Join(" / ", menus.PlayerRows()), room.State.players.Count == 8);
+            bool OthersReady() { int n = 0; foreach (var kv in room.State.players) if (kv.Key != room.SessionId && kv.Value.ready) n++; return n == 7; }
+            yield return Until(OthersReady, 60);
+            check("the 7 others ready", OthersReady());
+            yield return RoomShot("story-room-8");
+
+            string characterWas = null;
+            double lengthWas = 0;
+            for (int n = 1; n <= 2; n++)
+            {
+                string tag = "night " + n + ": ";
+                // The host has no Ready: Start counts as theirs.
+                check(tag + "Start offered to the host", menus.ScreenPoint("Start the night") != null);
+                yield return click("Start the night", -1);
+                yield return Until(() => room.State.stage == "night" && night.End == null, 90);
+                check(tag + "started (" + room.State.stage + ")", room.State.stage == "night" && night.End == null);
+                yield return new WaitForSecondsRealtime(2);
+                yield return RoomShot("story-started-" + n);
+                // The room page stays up over the night's start until you go back to it (as the browser's).
+                yield return click("Back to the night", -1);
+                yield return new WaitForSecondsRealtime(1.5f);
+                var mine = night.Me;
+                check(tag + "the HUD is up, the room page and end screen away", !menus.Visible && !menus.EndUp && menus.NightBarUp);
+                check(tag + "7 others drawn: " + others.Ids.Count(), others.Ids.Count() == 7);
+                check(tag + "tasks afresh: " + room.State.tasksDone + "/" + room.State.tasksTotal + ", mine " + night.Tasks.Count, room.State.tasksDone == 0 && room.State.tasksTotal > 0 && night.Tasks.Count > 0);
+                check(tag + "alive, as " + mine?.character + " (" + night.Role + ")", mine != null && mine.health == "alive" && !string.IsNullOrEmpty(mine.character));
+                if (n == 1) { characterWas = mine?.character; lengthWas = room.State.nightLength; }
+                else
+                {
+                    check(tag + "settings in effect: night " + lengthWas + " s -> " + room.State.nightLength + " s, code " + room.State.settingsCode,
+                        room.State.settingsCode.StartsWith("HRD") && room.State.nightLength != lengthWas);
+                    check(tag + "a new character: " + characterWas + " -> " + mine?.character, mine != null && mine.character != characterWas);
+                }
+                yield return RoomShot("story-night-" + n);
+                yield return Until(() => night.End != null, 240);
+                yield return new WaitForSecondsRealtime(2);
+                check(tag + "ended: " + night.End?.Winner + " (" + night.End?.Reason + "), end screen up", night.End != null && menus.EndUp && menus.Visible == false);
+                yield return RoomShot("story-end-" + n);
+                if (n == 2) break;
+
+                yield return click("Rematch", -1);
+                yield return Until(() => room.State.stage == "waiting" && menus.Current == "room" && menus.Visible, 20);
+                yield return new WaitForSecondsRealtime(1);
+                check("rematch: back in the room, 8 players", room.State.stage == "waiting" && menus.Current == "room" && room.State.players.Count == 8);
+                check("rematch: end screen and HUD gone, night cleared", !menus.EndUp && !menus.NightBarUp && night.End == null && night.Tasks.Count == 0);
+                yield return RoomShot("story-rematch");
+                yield return click("Change settings", -1);
+                yield return click("Hardcore", -1);
+                yield return Until(() => room.State.settingsCode.StartsWith("HRD"), 5);
+                yield return new WaitForSecondsRealtime(0.5f);
+                check("Hardcore chosen: shown " + menus.SettingsShown + ", server " + room.State.settingsCode,
+                    room.State.settingsCode.StartsWith("HRD") && menus.SettingsShown.StartsWith(room.State.settingsCode));
+                yield return click("←  ROOM", -1);
+                yield return Until(OthersReady, 60);
+                check("the 7 others ready again", OthersReady());
+            }
+            yield return click("Leave", -1);
+            yield return Until(() => room == null && menus.Current == "start", 10);
+            check("left from the end screen: the start screen", room == null && menus.Current == "start" && menus.Visible);
         }
 
         static string TestArg(string key)

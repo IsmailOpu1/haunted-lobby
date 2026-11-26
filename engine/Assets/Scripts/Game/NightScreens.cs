@@ -162,6 +162,9 @@ namespace Haunted.Game
             ShowPanel();
         }
 
+        /// <summary>Tests: whether the night's bar (part, time to dawn) is up.</summary>
+        public bool NightBarUp => nightRow != null && nightRow.style.display == DisplayStyle.Flex;
+
         /// <summary>main.ts setNight: the part, the bar from night to dawn with its marks, and the time left.</summary>
         public void SetNight(bool on, string part, string partName, double fraction, string left, List<double> marks)
         {

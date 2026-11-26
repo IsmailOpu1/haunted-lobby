@@ -570,3 +570,27 @@ Done ahead of E4–E6 at the owner's word ("Do what you prefer, as recommended")
   - In one 3-player match (a Unity host, a Unity guest and a Chrome guest), the guest's box is 529 px in Unity and 526 in Chrome. Chrome measures 560 for the host, as Unity draws it.
   - Each edge and every line inside is within 2 px. Unity measures the widest line 1 px wider and its box 3 px wider, so the box's right edge is the 2 px one.
 - **E5 is done** (2026-11-27). The pictures are in `E:\HauntedLobby\test\e5` (`run2`: labels and plan; `end1`: end screen; `canvas`: Chrome's label pictures). Next is E6: the speed test and the 8-player story.
+
+### Step E6: the speed test and the 8-player story (2026-11-27)
+
+The owner asked for a speed test of the Unity version's own, better than the browser's, rather than a copy (GDD 26.16).
+
+- **The speed test** (`Game/SpeedTest.cs`, `Game/MenusSpeed.cs`; Options, Graphics, "Run the speed test", outside a room only):
+  - **No frame cap.** vsync and the frame-rate cap are lifted while it runs and put back after, so it measures what the computer can do, not the screen's refresh. The browser's could never go above the screen.
+  - **Every room, turning round.** The view stands in the middle of every piece of every room (51) and turns a full circle in 1.25 s by torchlight, at High and then Low: about 2 min 45 s. The browser's held 8 still views picked by draw count.
+  - **Processor and graphics card timed apart** (Unity's frame timing; `enableFrameTimingStats` is on in the player settings). The verdict names the part that holds the game back, but only below 120 FPS and when one takes 25 % longer than the other.
+  - **Smooth** means at least 60 FPS on average and at least 45 FPS for the slowest 1 % of frames.
+  - **A verdict** ("High runs smoothly on this computer, with room to spare." / "Low runs smoothly...; High is too slow here." / "Even Low drops below 60 FPS..."). Auto quality then uses the recommended level on this computer (`autoQuality`). If Quality is set by hand, the note says what Auto would use.
+  - **While it runs,** the menus give way to the hotel, with a bar at the foot: SPEED TEST, the level and room, the frame rate now, a brass progress line, and "Esc stops the test".
+  - **The result** sits under the button: the verdict in serif, High and Low as two cards (FPS, 1 % low, card and processor ms, the slowest room; the recommended one in brass), Copy the result, and the path of `speed-test.txt` (saved in the game's data folder, so a friend can send the file). The text lists the computer (graphics card, processor, memory, picture size, refresh) and every room slowest first.
+  - **Test aid** `-speedTest FILE [-speedShots DIR]`: from Start, runs it as the button does, writes the text to FILE and quits (15-minute limit).
+  - **On the owner's PC** (RTX 4060, Ryzen 5 7500F, 1280 × 720): High 217 to 255 FPS on average, slowest 1 % 66 to 75; Low 420 to 427, slowest 1 % 100 to 103. Both smooth; the slowest High rooms are the Library, Cellar Passage and East Corridor (144 to 157 FPS).
+- **The 8-player story** (PRD Phase 7's done-when, with a Unity host), one server and one Unity window throughout:
+  - Unity: `-server ws://localhost:2567 -menuInput -story8 -codeFile F -pageShots DIR` (a `HAUNTED_DEBUG=1` server). Bots: `PLAYERS=7 npx tsx tools/playtest.ts e6 CODE` (they ready up in the lobby and, 25 s into each night, move the clock to dawn).
+  - Through the real menus: create the room, 8 players in, the 7 others ready, Start the night (the host has no Ready: Start counts as theirs), Back to the night, the HUD up, 7 others drawn, tasks 0/18. Dawn ends it, and the end screen comes up.
+  - Rematch: back in the room with 8, the end screen and HUD gone, the night cleared. Change settings, Hardcore: the bots all see HRD-10-PA. They ready up again.
+  - Second night: a new character (journalist to mechanic), 24 tasks, the night 600 s instead of 900, so the setting is in effect. Its end screen, then Leave: back at Start, and the bots' room carries on with a new host.
+  - **35 checks pass (11 of them finding a button), none fail; no errors in the log.** The first run's failures were the test's own (it pressed a Ready the host doesn't have, and looked for the end screen's buttons only on the menu screens).
+- **Test aid changes:** `Menus.ScreenPoint` looks only at what is shown (the screen while the menus are up, else the end screen); `Menus.EndUp` and `NightBarUp` say what is up.
+- Pictures and logs: `E:\HauntedLobby\test\e6` (`speed1`, `speed2`, `speed3`: the bar and result; `story2`: the room, each night, each end, the rematch).
+- **E6 is done, and with it step E.** Next is step F's rest: a 0.9.2 release build for the friend test (the owner makes the itch.io page and uploads).

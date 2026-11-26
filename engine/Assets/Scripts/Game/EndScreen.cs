@@ -14,6 +14,9 @@ namespace Haunted.Game
         /// <summary>Rematch (the host's) and Leave on the end screen.</summary>
         public Action EndRematch, EndLeave;
 
+        /// <summary>Tests: whether the end screen is up.</summary>
+        public bool EndUp => endScreen != null && endScreen.style.display == DisplayStyle.Flex;
+
         VisualElement endScreen, endRoles, endAwardsBox, endAwards, endTimelineBox, endTimeline, endPhotosBox, endPhotos;
         Label endTitle, endText, endWait;
         Button endRematch;

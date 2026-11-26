@@ -174,7 +174,7 @@ namespace Haunted.Game
         /// <summary>The panel is laid over the picture while a screen or the counter is up.</summary>
         void ShowPanel()
         {
-            bool any = visible || nightOn || fps != null && fps.style.display == DisplayStyle.Flex;
+            bool any = visible || nightOn || speedOn || fps != null && fps.style.display == DisplayStyle.Flex;
             HauntedUi.Texture = any ? panel.targetTexture : null;
         }
 
@@ -483,7 +483,9 @@ namespace Haunted.Game
             string Plain(string t) => System.Text.RegularExpressions.Regex.Replace(System.Text.RegularExpressions.Regex.Replace(t ?? "", "<[^>]+>", ""), @"\s+", " ").Trim();
             Func<VisualElement, bool> match = v => v.resolvedStyle.display != DisplayStyle.None &&
                 (v is Label l && Plain(l.text) == Plain(text) || v is Button b && Plain(b.text) == Plain(text));
-            var e = screens[shown].Query<VisualElement>().Where(match).First();
+            // Only what is shown: a screen while the menus are up, else the end screen (step E6).
+            var e = visible ? screens[shown].Query<VisualElement>().Where(match).First() : null;
+            if (e == null && EndUp) e = endScreen.Query<VisualElement>().Where(match).First();
             // The open quality list lies over the screen, outside it.
             if (e == null && openList != null && openList.style.display == DisplayStyle.Flex)
             {
@@ -492,7 +494,7 @@ namespace Haunted.Game
             }
             if (e == null) return null;
             // Below the fold (the warning at 720 lines): scrolled to, as a player would.
-            screens[shown].Q<ScrollView>(className: "screen-body")?.ScrollTo(e);
+            if (visible) screens[shown].Q<ScrollView>(className: "screen-body")?.ScrollTo(e);
             var c = e.worldBound.center;
             return new Vector2(c.x, UnityEngine.Screen.height - c.y);
         }
@@ -707,7 +709,7 @@ namespace Haunted.Game
             qualityNote = Text(graphics, "muted-line", "", 20.25f);
             optionViews.Add(ShowQualityNote);
             Check(graphics, "Show FPS counter", () => Options.ShowFps, on => Options.ShowFps = on);
-            // The speed test comes in step E6.
+            BuildOptionsSpeed(graphics);
             BuildOptionsMic(col);
 
             var keys = Group(col, "Keys");
