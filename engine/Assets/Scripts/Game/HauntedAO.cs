@@ -192,7 +192,8 @@ namespace Haunted.Game
                     m.SetFloat(FarId, far);
                 }
 
-                // The scene's normals and distances, every mesh drawn with the normals pass.
+                // The scene's normals and distances, every mesh drawn with the normals pass (not the
+                // names over heads: a see-through sprite is no surface to occlude).
                 var normalsDesc = new TextureDesc(w, h)
                 {
                     colorFormat = GraphicsFormat.R32G32B32A32_SFloat,
@@ -213,7 +214,7 @@ namespace Haunted.Game
                 var drawing = RenderingUtils.CreateDrawingSettings(Tags, rendering, cameraData, lights, SortingCriteria.CommonOpaque);
                 drawing.overrideMaterial = normals;
                 drawing.overrideMaterialPassIndex = NormalsPass;
-                var list = graph.CreateRendererList(new RendererListParams(rendering.cullResults, drawing, new FilteringSettings(RenderQueueRange.all, HauntedHeld.WorldMask)));
+                var list = graph.CreateRendererList(new RendererListParams(rendering.cullResults, drawing, new FilteringSettings(RenderQueueRange.all, HauntedHeld.WorldMask & ~(1 << HauntedHeld.LabelLayer))));
                 using (var builder = graph.AddRasterRenderPass<NormalsData>("AO normals", out var data))
                 {
                     data.scene = list;

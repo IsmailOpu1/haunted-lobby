@@ -19,7 +19,8 @@ namespace Haunted.Game
         Label carrying, promptText, actionLabel, bannerText, workHint, escHint, micLost;
         VisualElement workRow, escRow, crosshair, viewfinder, overlay, roomName, soundCues, statusWrap, relicList;
         Label overlayTitle, overlayText, viewfinderText, roomNameRoom, roomNameFloor;
-        VisualElement powersBar, powerWheel, intro, micLostRow, screenFlash;
+        VisualElement powersBar, powerWheel, intro, micLostRow, screenFlash, statusPanel;
+        FloorPlan floorPlan;
         Label introTitle, introText, introExtra;
         readonly List<string> nightMarksShown = new List<string>();
         string tasksKey, itemsKey, relicsKey, powersKey, wheelKey, cuesKey, statusKind;
@@ -97,9 +98,9 @@ namespace Haunted.Game
             micLost = HudLine(micLostRow, "", "mic-lost", "Your mic is off. Turn it back on. Until then the ghost hears you as if you were talking.");
 
             statusWrap = Div(nightLayer, "", "status-wrap");
-            var panel = Div(statusWrap, "", "status-panel");
-            HudLine(panel, "hud-h3", null, "Relics");
-            relicList = Div(panel, "", "relic-list");
+            statusPanel = Div(statusWrap, "", "status-panel");
+            HudLine(statusPanel, "hud-h3", null, "Relics");
+            relicList = Div(statusPanel, "", "relic-list");
             BuildMeeting();
 
             intro = Div(topLayer, "", "intro");
@@ -355,11 +356,29 @@ namespace Haunted.Game
             Set(overlayText, text);
         }
 
-        /// <summary>Hold Tab: every relic and how it is (main.ts setRelics). The floor plan is not drawn yet.</summary>
-        public void SetStatusPanel(bool open, List<KeyValuePair<string, string>> relics)
+        /// <summary>The hotel the Tab panel's floor plan draws (main.ts: new FloorPlan(defaultMap)), above the relics.</summary>
+        public void SetFloorPlan(Sim.WorldData world, List<double[]> walls)
         {
+            if (statusPanel == null || floorPlan != null || world == null) return;
+            floorPlan = new FloorPlan(world, walls);
+            statusPanel.Insert(0, floorPlan.Element);
+        }
+
+        /// <summary>
+        /// Hold Tab: the floor plan with your unfinished tasks' rooms and you (main.ts setTasks and
+        /// setPlanPosition, which moves the arrow only while the panel is open), and every relic and
+        /// how it is (main.ts setRelics).
+        /// </summary>
+        public void SetStatusPanel(bool open, List<KeyValuePair<string, string>> relics, IEnumerable<string> taskRooms, Vector2? here, double yaw)
+        {
+            if (floorPlan != null) floorPlan.SetTaskRooms(taskRooms);
             Show(statusWrap, open);
             if (!open) return;
+            if (floorPlan != null)
+            {
+                floorPlan.Fit(root.resolvedStyle.width);
+                if (here.HasValue) floorPlan.SetYou(here.Value.x, here.Value.y, yaw);
+            }
             var key = string.Join(";", relics.ConvertAll(r => r.Key + "|" + r.Value));
             if (key == relicsKey) return;
             relicsKey = key;

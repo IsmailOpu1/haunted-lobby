@@ -58,6 +58,8 @@ namespace Haunted.Game
         public Sim.WorldData World;
         /// <summary>Where you are (x, z), and your stamina left as a share (1 when full).</summary>
         public Func<Vector2?> Here;
+        /// <summary>Which way you look (yaw: 0 looks north, toward -z), for the floor plan's arrow.</summary>
+        public Func<double> Facing;
         public Func<double> StaminaLeft;
         int uiFrame = -1;
         static readonly List<Night.TaskEntry> NoTasks = new List<Night.TaskEntry>();
@@ -330,7 +332,9 @@ namespace Haunted.Game
             // Hold Tab: the relics (main.ts setRelics).
             var relics = new List<KeyValuePair<string, string>>();
             if (live && ShowTasks) foreach (var kv in s.relics) relics.Add(new KeyValuePair<string, string>(kv.Value.name, Night.RelicStatusText(kv.Value)));
-            Ui.SetStatusPanel(live && ShowTasks && !meeting, relics);
+            var taskRooms = new List<string>();
+            if (on) foreach (var t in night.Tasks) if (!t.Done) taskRooms.Add(t.Room);
+            Ui.SetStatusPanel(live && ShowTasks && !meeting, relics, taskRooms, here, Facing != null ? Facing() : 0);
 
             // The possessed's powers (GDD 14.2): the chips, and the wheel while R is held.
             bool powers = live && !meeting && night.Role == "possessed" && night.Powers != null && me != null && me.health == "alive";

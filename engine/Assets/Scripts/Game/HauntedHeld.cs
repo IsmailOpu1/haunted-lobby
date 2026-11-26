@@ -18,6 +18,11 @@ namespace Haunted.Game
         public const int HeldLayer = 31;
         /// <summary>The Unity layer of the little studio the torch's metal reflects (HeldTorch).</summary>
         public const int StudioLayer = 30;
+        /// <summary>
+        /// The Unity layer of the names over players' heads (RemotePlayers). Drawn with the world, but
+        /// left out of the occlusion's normals (HauntedAO): the name's quad would darken a box behind it.
+        /// </summary>
+        public const int LabelLayer = 29;
         /// <summary>game.ts HELD_FOV_DEG: the held camera's vertical angle.</summary>
         public const float HeldFovDeg = 75;
         /// <summary>game.ts: the held camera's near plane (m).</summary>

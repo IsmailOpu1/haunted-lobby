@@ -31,6 +31,7 @@ namespace Haunted.Game
     ///   -shotAtNight 14 path   save a screenshot 14 s into the night (may repeat)
     ///   -rematchAfter 10   as host, press Rematch 10 s after the end screen
     ///   -nightUi           with -create or -join: the night's screens in the menus' panel, as with the menus (step E5)
+    ///   -labelPng Rafi path   save the name label's picture for "Rafi" (may repeat)
     /// </summary>
     public class Game : MonoBehaviour
     {
@@ -121,6 +122,8 @@ namespace Haunted.Game
         string handsShots = ".";
         HandsBot bot;
         readonly List<KeyValuePair<double, string>> nightShots = new List<KeyValuePair<double, string>>();
+        /// <summary>Test aid (-sendAtNight SEC _tab {}): Tab held from then on, for the floor plan.</summary>
+        bool tabTest;
 
         void Awake()
         {
@@ -265,6 +268,14 @@ namespace Haunted.Game
                         : args[i + 1].Split(',').ToList();
                 if (args[i] == "-handsShots" && i + 1 < args.Length) handsShots = args[i + 1];
                 if (args[i] == "-shotAtEnd" && i + 1 < args.Length) endShot = args[i + 1];
+                // Test aid: save a name's label picture (NameLabel) to compare with the browser's canvas.
+                if (args[i] == "-labelPng")
+                {
+                    float widthM;
+                    var pic = NameLabel.Bake(args[i + 1], out widthM, true);
+                    System.IO.File.WriteAllBytes(args[i + 2], pic.EncodeToPNG());
+                    Debug.Log("Label " + args[i + 1] + ": " + pic.width + " x " + pic.height + " px, " + widthM.ToString("0.000", CultureInfo.InvariantCulture) + " m");
+                }
                 if (args[i] != "-debugAtNight" && args[i] != "-shotAtNight" && args[i] != "-sendAtNight") continue;
                 double at = double.Parse(args[i + 1], CultureInfo.InvariantCulture);
                 if (args[i] == "-debugAtNight") nightSends.Add(new KeyValuePair<double, string[]>(at, new[] { "debug", args[i + 2] }));
@@ -803,6 +814,8 @@ namespace Haunted.Game
             hud.World = world;
             hud.Here = () => me != null ? new Vector2((float)me.State.X, (float)me.State.Z) : (Vector2?)null;
             hud.StaminaLeft = () => me != null && move.StaminaSec > 0 ? me.State.Stamina / move.StaminaSec : 1;
+            hud.Facing = () => me != null ? me.Yaw : 0;
+            if (menus != null) menus.SetFloorPlan(world, map.Walls);
             if (menus != null)
             {
                 menus.ForgetRoom();
@@ -1108,7 +1121,7 @@ namespace Haunted.Game
                 CloseWheel(false);
             }
             // The player's keys (Options.Keys, keys.ts); the mouse button and Esc stay fixed.
-            hud.ShowTasks = KeyInput.Held("status");
+            hud.ShowTasks = KeyInput.Held("status") || tabTest;
             // The power wheel (GDD 14.2, input.ts): its key opens it, letting go uses the power the mouse points at.
             if (KeyInput.Pressed("powers") && Cursor.lockState == CursorLockMode.Locked && !hands.Active) OpenWheel();
             if (KeyInput.Released("powers") && wheelOpen && wheelTestKind == null) CloseWheel(true);
@@ -1576,6 +1589,7 @@ namespace Haunted.Game
                         // Look the other way (a Summoned ghost comes from behind).
                         me.Yaw += Math.PI;
                     }
+                    else if (nightSends[i].Value[0] == "_tab") tabTest = true;
                     else if (nightSends[i].Value[0] == "_vote" || nightSends[i].Value[0] == "_ouija")
                     {
                         // Votes for (or, dead, pushes the planchette to) a player by name.

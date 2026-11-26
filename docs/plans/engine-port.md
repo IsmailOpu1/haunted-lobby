@@ -529,7 +529,7 @@ Done ahead of E4–E6 at the owner's word ("Do what you prefer, as recommended")
 - Checked: the release build itself runs the debug-server mic and room test, and 67 checks pass.
 - Upload it as in Step F: `butler push "engine/Build/Release/Haunted Lobby" <you>/<game>:windows --userversion 0.9.1`, or the zip on the itch.io page.
 
-### Step E5: the night's HUD, end screen and meeting (2026-11-19)
+### Step E5: the night's HUD, end screen, meeting, name labels and floor plan (2026-11-19 to 2026-11-27)
 
 - **Where:** `Game/NightScreens.cs` and `UI/Night.uss` draw the night in the menus' panel, so the font pair and the browser's colours come through as on the menus. A layer under the menu screens holds the HUD; one over them holds the countdown, the role reveal and the photo flash (style.css's `#intro` z-index). `Hud.DrawUi` decides each frame what shows, as main.ts and game.ts do. A test run without menus keeps Hud's plain drawing; `-nightUi` gives such a run the new screens.
 - **Ported from index.html and style.css, in the browser's places and sizes:**
@@ -553,7 +553,20 @@ Done ahead of E4–E6 at the owner's word ("Do what you prefer, as recommended")
   - the empty photo list keeps its 12 px margin;
   - the board's padding rule had been given to a name;
   - USS letter-spacing is in hundredths of an em (Menus.uss), so every letter-spacing in Night.uss is now converted: the end title (now as wide as the browser's), the room name, the overlay, the role reveal, the Ouija names and the verdict.
-- **Not yet:**
-  - the name labels;
-  - the Tab panel's floor plan;
-  - the end box keeps its 560 px where the browser's shrinks to its content (540 px in a short match).
+- **The name labels** (`Game/NameLabel.cs`, remotePlayers.ts `drawLabel`): each name is baked into a picture as the browser's canvas paints it. That means Manrope SemiBold at 44 px in #f2ead8, a picture the text's width plus 44 px wide and 71 px high, and a black shadow at 0.9 blurred 8.8 px. The picture is shown 0.22 m high on a quad turned to the camera (`RemotePlayers.cs`, `Haunted/Label`: hidden by what is nearer, fogged, sRGB).
+  - Unity's font API does no kerning, so the text is laid out from `Resources/Data/label-shaping.json`, written by `tools/engine-label-shaping.py`. It holds the font's fractional advances, its kerning pairs and its ligatures' widths, as Chrome shapes `fillText`.
+  - The quad is on its own layer (`HauntedHeld.LabelLayer`), left out of the occlusion's normals, or it darkened a box on the wall behind the name.
+  - The test aid `-labelPng NAME path` saves a baked picture.
+- **Checked against the browser:**
+  - The pictures for Rafi and Nadia match Chrome's canvas to the pixel: the same size (127 and 164 × 71) and the same ink box.
+  - In game, Chrome's Nadia stood 1.8 m in front of Unity's Rafi and Chrome stayed open. Unity's "Nadia" is 36 px high from y 214, the same as the browser's "Rafi". Its width is 125 px, where the browser's scale gives 124.5. The centres are 1 px apart.
+- **The Tab panel's floor plan** (`Game/FloorPlan.cs`, `client/src/floorplan.ts`, style.css `#floor-plan`): every floor side by side in meters, as the SVG is, drawn at min(860 px, screen − 68 px).
+  - The rooms, task outlines, dashed stairs, walls and your arrow are drawn with Painter2D. The floor titles and room names are labels.
+  - A room name's dark edge (SVG `paint-order: stroke`) is a second label under it. Both use a distance-field Manrope with half an em of padding, because the panel's font has no room for an outline.
+  - UI Toolkit's outline sits half inside the letters, so the edge is 1.5 times SVG's stroke. The letters get a 0.07 m outline in their own colour, because the distance font draws them thinner than Chrome does. Both numbers were matched by eye at 1280 × 720.
+  - It is fed from `Hud` (your unfinished tasks' rooms, where you are and which way you face). The test aid `-sendAtNight SEC _tab {}` holds Tab.
+- **Checked against the browser** in the same night: the walls' mask lines up at zero offset, with the same extent (x 235–1044, y 165–445). The titles, names and rooms sit in the same places. Chrome draws text this small snapped to whole pixels, so its letters look a little uneven; Unity's are smoother.
+- **The end box already shrinks to its content.** The 540 against 560 px seen earlier came from comparing a browser guest with a Unity host. The host's line under the buttons ("Rematch takes everyone back...") is longer, so the box reaches its 560 px cap in both.
+  - In one 3-player match (a Unity host, a Unity guest and a Chrome guest), the guest's box is 529 px in Unity and 526 in Chrome. Chrome measures 560 for the host, as Unity draws it.
+  - Each edge and every line inside is within 2 px. Unity measures the widest line 1 px wider and its box 3 px wider, so the box's right edge is the 2 px one.
+- **E5 is done** (2026-11-27). The pictures are in `E:\HauntedLobby	est\e5` (`run2`: labels and plan; `end1`: end screen; `canvas`: Chrome's label pictures). Next is E6: the speed test and the 8-player story.

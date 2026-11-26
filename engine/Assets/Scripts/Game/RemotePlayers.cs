@@ -146,7 +146,11 @@ namespace Haunted.Game
             public GameObject Plain;
             public Material PlainMaterial;
             public Transform Head;
-            public TextMesh Label;
+            /// <summary>The name over the head: a quad turned to the camera, with its picture (NameLabel).</summary>
+            public GameObject Label;
+            public Material LabelMaterial;
+            public Texture2D LabelPicture;
+            public string LabelText;
             public Light Torch;
             public GameObject Lens;
             /// <summary>Red eyes that glow for a moment after they Summon (GDD 14.2).</summary>
@@ -250,7 +254,7 @@ namespace Haunted.Game
                 views[id] = v;
             }
             v.State = state;
-            if (v.Label.text != state.Name) v.Label.text = state.Name;
+            if (v.LabelText != state.Name) SetName(v, state.Name);
             v.Torch.enabled = state.FlashlightOn;
             v.Lens.SetActive(state.FlashlightOn);
             v.Root.SetActive(state.Visible);
@@ -270,6 +274,8 @@ namespace Haunted.Game
             if (!views.TryGetValue(id, out v)) return;
             v.Model?.Destroy();
             Object.Destroy(v.PlainMaterial);
+            Object.Destroy(v.LabelMaterial);
+            Object.Destroy(v.LabelPicture);
             Object.Destroy(v.Root);
             views.Remove(id);
         }
@@ -331,44 +337,34 @@ namespace Haunted.Game
             v.Lens.transform.localPosition = RemoteTorchAt;
             v.Lens.transform.localScale = Vector3.one * LensRadiusM * 2;
 
-            var label = new GameObject("Name");
-            label.transform.SetParent(v.Root.transform, false);
-            label.transform.localPosition = new Vector3(0, eyeHeight + LabelAboveHeadM, 0);
-            v.Label = label.AddComponent<TextMesh>();
-            // A TextMesh draws nothing until it has a font and a material showing that font's picture.
-            v.Label.font = LabelFont;
-            label.GetComponent<MeshRenderer>().sharedMaterial = LabelMaterial;
-            v.Label.anchor = TextAnchor.MiddleCenter;
-            v.Label.alignment = TextAlignment.Center;
-            // remotePlayers.ts draws its name 0.22 m high around 44 px text (a 70 px canvas): the
-            // letters measured 44 by 19 px in the browser's picture and 72 by 32 at 0.05 here. The
-            // browser's font (Manrope) and its soft shadow come with the menus' font pair (step E).
-            v.Label.characterSize = 0.03f;
-            v.Label.fontSize = 48;
-            v.Label.color = new Color(0.95f, 0.92f, 0.85f, 0);
-            label.SetActive(false);
+            v.Label = new GameObject("Name");
+            v.Label.transform.SetParent(v.Root.transform, false);
+            v.Label.transform.localPosition = new Vector3(0, eyeHeight + LabelAboveHeadM, 0);
+            v.Label.AddComponent<MeshFilter>().sharedMesh = NameLabel.Quad;
+            // Names are hidden by what is nearer and fogged, as the browser's sprites are (Haunted/Label).
+            v.LabelMaterial = new Material(Resources.Load<Material>("Materials/Label"));
+            var labelRenderer = v.Label.AddComponent<MeshRenderer>();
+            labelRenderer.sharedMaterial = v.LabelMaterial;
+            // A sprite casts no shadow in three; the quad would darken the wall behind it in the torch.
+            labelRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            labelRenderer.receiveShadows = false;
+            // Out of the occlusion's normals too (HauntedAO), or it would darken a box behind the name.
+            v.Label.layer = HauntedHeld.LabelLayer;
+            v.Label.SetActive(false);
             return v;
         }
 
-        static Font labelFont;
-        static Material labelMaterial;
-        static Font LabelFont => labelFont ??= Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-
-        /// <summary>
-        /// Names are hidden by what is nearer, as the browser's are (Haunted/Label); Unity's own
-        /// text material draws over everything. The font's picture is remade as it grows.
-        /// </summary>
-        static Material LabelMaterial
+        /// <summary>remotePlayers.ts drawLabel: a new picture for a new name, 0.22 m high.</summary>
+        static void SetName(View v, string name)
         {
-            get
-            {
-                if (labelMaterial != null) return labelMaterial;
-                var shared = Resources.Load<Material>("Materials/Label");
-                if (shared == null) return LabelFont.material;
-                labelMaterial = new Material(shared) { mainTexture = LabelFont.material.mainTexture };
-                Font.textureRebuilt += f => { if (f == labelFont && labelMaterial != null) labelMaterial.mainTexture = f.material.mainTexture; };
-                return labelMaterial;
-            }
+            v.LabelText = name;
+            Object.Destroy(v.LabelPicture);
+            v.LabelPicture = null;
+            if (string.IsNullOrEmpty(name)) return;
+            float widthM;
+            v.LabelPicture = NameLabel.Bake(name, out widthM);
+            v.LabelMaterial.mainTexture = v.LabelPicture;
+            v.Label.transform.localScale = new Vector3(widthM, NameLabel.HeightM, 1);
         }
 
         /// <summary>This player's eyes glow red for seconds (they just Summoned the ghost).</summary>
@@ -558,10 +554,8 @@ namespace Haunted.Game
             v.PlainMaterial.color = dead ? Shapes.Hex(DeadColour) : Color.Lerp(shadow.linear, own.linear, v.Reveal).gamma;
             // A model keeps its own colours when recognised and falls to a shadow when not (GDD 22.2).
             if (v.Model != null) v.Model.Tint(dead ? Shapes.Hex(DeadColour) : Color.Lerp(shadow.linear, Color.white, v.Reveal).gamma);
-            var c = v.Label.color;
-            c.a = v.Reveal;
-            v.Label.color = c;
-            v.Label.gameObject.SetActive(v.Reveal > 0.02f && !string.IsNullOrEmpty(v.State.Name));
+            v.LabelMaterial.SetFloat("_Opacity", v.Reveal);
+            v.Label.SetActive(v.Reveal > 0.02f && v.LabelPicture != null);
         }
     }
 }
