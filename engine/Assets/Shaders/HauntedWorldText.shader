@@ -27,6 +27,7 @@ Shader "Haunted/WorldText"
             #pragma fragment Frag
             #pragma multi_compile_fog
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Color.hlsl"
 
             TEXTURE2D(_MainTex);
             SAMPLER(sampler_MainTex);
