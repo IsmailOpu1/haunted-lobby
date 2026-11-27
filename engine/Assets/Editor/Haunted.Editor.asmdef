@@ -3,6 +3,7 @@
     "rootNamespace": "Haunted.Editor",
     "references": [
         "Haunted.Game",
+        "Haunted.Sim",
         "Unity.RenderPipelines.Universal.Runtime",
         "Unity.RenderPipelines.Core.Runtime"
     ],

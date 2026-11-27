@@ -31,9 +31,9 @@
       "cellar-stairs"
     ],
     "files": {
-      "rooms/main-hall.gltf": 754015,
-      "rooms/main-hall-lightmap.ktx2": 282898,
-      "rooms/main-hall.bin": 5684504,
+      "rooms/main-hall.gltf": 738349,
+      "rooms/main-hall-lightmap.ktx2": 292172,
+      "rooms/main-hall.bin": 5685612,
       "textures/e0a16b4a7908d4608e95.ktx2": 4800478,
       "textures-1k/e0a16b4a7908d4608e95.ktx2": 1181416,
       "textures/6e2b6089b80eebe29fce.ktx2": 4567290,
@@ -1496,9 +1496,9 @@
       "back-stairs"
     ],
     "files": {
-      "rooms/service-room.gltf": 877405,
-      "rooms/service-room-lightmap.ktx2": 623840,
-      "rooms/service-room.bin": 6347432,
+      "rooms/service-room.gltf": 848077,
+      "rooms/service-room-lightmap.ktx2": 616925,
+      "rooms/service-room.bin": 6349552,
       "textures/ff0114b41a675f429166.ktx2": 3442743,
       "textures-1k/ff0114b41a675f429166.ktx2": 263387,
       "textures/7f06a6b56c0ff4ca137e.ktx2": 4511250,
@@ -2037,9 +2037,9 @@
       "guest1-wardrobe-south"
     ],
     "files": {
-      "rooms/guest-room-1.gltf": 386470,
-      "rooms/guest-room-1-lightmap.ktx2": 1297802,
-      "rooms/guest-room-1.bin": 1922280,
+      "rooms/guest-room-1.gltf": 368237,
+      "rooms/guest-room-1-lightmap.ktx2": 1302114,
+      "rooms/guest-room-1.bin": 1922392,
       "textures/ff0114b41a675f429166.ktx2": 3442743,
       "textures-1k/ff0114b41a675f429166.ktx2": 263387,
       "textures/7f06a6b56c0ff4ca137e.ktx2": 4511250,
@@ -2763,9 +2763,9 @@
       "nursery-cupboard"
     ],
     "files": {
-      "rooms/nursery.gltf": 336112,
-      "rooms/nursery-lightmap.ktx2": 820622,
-      "rooms/nursery.bin": 3272220,
+      "rooms/nursery.gltf": 329145,
+      "rooms/nursery-lightmap.ktx2": 807580,
+      "rooms/nursery.bin": 3273088,
       "textures/ff0114b41a675f429166.ktx2": 3442743,
       "textures-1k/ff0114b41a675f429166.ktx2": 263387,
       "textures/7f06a6b56c0ff4ca137e.ktx2": 4511250,

@@ -140,7 +140,7 @@ Downloaded from mixamo.com (Adobe account, free) on 2026-11-13 and 2026-11-14 in
 | `brian.fbx` | Brian | The Detective (`detective.glb`) |
 | `kate.fbx` | Kate | The Photographer (`photographer.glb`) |
 | `pete.fbx` | Pete | The Mechanic (`mechanic.glb`) |
-| `megan.fbx` | Megan | The Caretaker (`caretaker.glb`) |
+| `megan.fbx` | Megan | The Caretaker (`caretaker.glb`); in the Unity version also the ghost's body (`engine/Assets/Resources/Ghost/ghost.glb` and `ghost-low.glb`, made by `tools/art/blender/build_ghost.py`: stretched and thinned, her skin turned corpse-grey; the shroud, hair, eye lights and their textures are made by the script itself) |
 | `anim-idle.fbx` | Breathing Idle | `idle` in `anims.glb` |
 | `anim-walk.fbx` | Male Standard Walk | `walk` |
 | `anim-run.fbx` | Running (forward, quickly) | `run` |
@@ -207,3 +207,5 @@ Most sounds are made in code (`client/src/audio.ts`). The ambience and the house
 | `creak-3.wav` | [Wood Creak Single V3](https://freesound.org/people/Rudmer_Rotteveel/sounds/502511/) | Rudmer_Rotteveel | The house creaking |
 | `creak-4.wav` | [creaking floor OWI](https://freesound.org/people/miekyj/sounds/326460/) | miekyj | The house creaking |
 | `creak-5.wav` | [Creaking in Room 6](https://freesound.org/people/Greg_Surr/sounds/590169/) | Greg_Surr | The house creaking |
+
+The Unity version uses the same files (copied by `tools/engine-rooms.ts`). For its 3D footsteps it also keeps `engine/Assets/Resources/Data/hrtf.bytes`: the response of the browser's own Web Audio HRTF panner from 1,368 directions, rendered in Chrome by `tools/engine-hrtf.js`. The data set behind that panner ships inside Chrome (in Chromium's sources); nothing was downloaded, and the file holds only what the browser itself plays.

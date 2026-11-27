@@ -1,0 +1,528 @@
+/* Step E5: the night's own screens (style.css #night ... #mic-lost), in the browser's places and
+   sizes (its HUD is in pixels too). A bar's fill rounds its own left end: a rounded clip draws
+   white in the menus' texture (see .mic-meter in Menus.uss). */
+.night-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-Regular.ttf");
+    font-size: 16px;
+    color: rgb(230, 226, 216);
+}
+
+/* Menus.uss's Label rule already clears margins and padding; the HUD's lines do not wrap. */
+.night-layer Label {
+    white-space: nowrap;
+}
+
+/* A row or column centred across the window (left: 50%; transform: translateX(-50%)). */
+.hud-row {
+    position: absolute;
+    left: 0;
+    right: 0;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+}
+
+.hud-col {
+    position: absolute;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: center;
+}
+
+.hud-small {
+    font-size: 13px;
+    color: rgb(141, 136, 124);
+}
+
+.hud-side {
+    min-width: 64px;
+    -unity-text-align: middle-right;
+    color: rgb(230, 226, 216);
+    margin-right: 8px;
+}
+
+.hud-count {
+    margin-left: 8px;
+}
+
+.hud-bar {
+    height: 6px;
+    width: 220px;
+    background-color: rgba(255, 255, 255, 0.12);
+    border-radius: 3px;
+}
+
+.hud-fill {
+    height: 100%;
+    width: 0;
+    border-top-left-radius: 3px;
+    border-bottom-left-radius: 3px;
+}
+
+#night-row { top: 14px; }
+#team-row { top: 34px; }
+#ritual-row { top: 56px; }
+
+#night-bar {
+    width: 260px;
+    height: 8px;
+}
+
+#night-fill {
+    -unity-background-scale-mode: stretch-to-fill;
+}
+
+#night-left {
+    min-width: 92px;
+}
+
+.night-mark {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    margin-left: -1px;
+    background-color: rgba(255, 255, 255, 0.55);
+}
+
+.part-calm { color: rgb(159, 180, 216); }
+.part-restless { color: rgb(224, 162, 74); }
+.part-furious { color: rgb(226, 82, 62); -unity-font-definition: url("/Assets/UI/Fonts/Manrope-Bold.ttf"); }
+
+#team-fill { background-color: rgb(111, 174, 106); transition-property: width; transition-duration: 0.4s; }
+#ritual-label { color: rgb(224, 178, 90); }
+#ritual-fill { background-color: rgb(224, 178, 90); transition-property: width; transition-duration: 0.2s; }
+#ritual-fill.draining { background-color: rgb(163, 58, 58); }
+
+#task-list {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    padding: 8px 12px;
+    font-size: 13px;
+    background-color: rgba(12, 12, 16, 0.6);
+    border-radius: 4px;
+}
+
+/* li { margin: 2px 0 }: the browser collapses the margins between items to 2 px; the last one's
+   bottom margin goes into the padding. */
+#task-list {
+    padding-bottom: 10px;
+}
+
+#task-list Label {
+    margin: 2px 0 0 0;
+}
+
+.task-done { color: rgb(141, 136, 124); }
+.role-note { color: rgb(196, 85, 74); }
+
+#items {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    flex-direction: row;
+    font-size: 13px;
+    color: rgb(141, 136, 124);
+}
+
+.items-count {
+    color: rgb(230, 226, 216);
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-Bold.ttf");
+}
+
+#carrying {
+    position: absolute;
+    bottom: 38px;
+    left: 16px;
+    font-size: 13px;
+    color: rgb(224, 178, 74);
+}
+
+.hud-panel {
+    background-color: rgba(12, 12, 16, 0.88);
+    border-radius: 4px;
+}
+
+#prompt-row { top: 58%; }
+#prompt { padding: 4px 10px; font-size: 14px; }
+
+#action-col { top: 64%; }
+#action-label { font-size: 13px; margin-bottom: 4px; }
+#action-bar { width: 180px; background-color: rgba(255, 255, 255, 0.15); }
+#action-fill { background-color: rgb(230, 226, 216); }
+
+#stamina-row { bottom: 56px; }
+#stamina-bar { width: 160px; background-color: rgba(255, 255, 255, 0.15); }
+#stamina-fill { background-color: rgb(201, 162, 75); }
+
+#banner-row { top: 30%; }
+#banner { padding: 10px 18px; font-size: 24px; border-radius: 6px; }
+
+#overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    align-items: center;
+    justify-content: center;
+    -unity-background-scale-mode: stretch-to-fill;
+}
+
+/* USS letter-spacing is in hundredths of an em (Menus.uss): CSS 2px at 34 px is 5.88px. */
+#overlay-title { font-size: 34px; letter-spacing: 5.88px; margin-bottom: 8px; }
+#overlay-text { font-size: 15px; white-space: normal; -unity-text-align: upper-center; }
+#overlay.dead { justify-content: flex-start; padding-top: 64px; color: rgb(191, 227, 255); }
+#overlay.dead #overlay-title { font-size: 20px; letter-spacing: 10px; }
+#overlay.dead #overlay-text { color: rgb(230, 226, 216); }
+#overlay.hidden-in { justify-content: flex-end; padding-bottom: 90px; }
+
+#crosshair {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 6px;
+    height: 6px;
+    margin-left: -3px;
+    margin-top: -3px;
+    border-radius: 3px;
+    background-color: rgba(255, 255, 255, 0.8);
+}
+
+#esc-row { bottom: 20px; }
+#esc-hint { padding: 6px 12px; font-size: 13px; }
+
+#room-name { top: 18%; opacity: 0; transition-property: opacity; transition-duration: 0.8s; }
+#room-name.on { opacity: 1; transition-duration: 0.2s; }
+#room-name Label { text-shadow: 0 1px 4px rgb(0, 0, 0); }
+#room-name-room {
+    -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Regular.ttf");
+    font-size: 30px;
+    letter-spacing: 2px;
+    margin-bottom: 2px;
+}
+#room-name-floor { font-size: 13px; color: rgb(141, 136, 124); }
+
+#sound-cues { bottom: 22%; }
+.cue {
+    flex-direction: row;
+    align-items: center;
+    padding: 4px 12px;
+    font-size: 15px;
+    margin-top: 6px;
+}
+.cue-arrow { width: 20px; height: 20px; margin-right: 8px; }
+
+#work-row { bottom: 12%; }
+#work-hint {
+    max-width: 560px;
+    padding: 6px 12px;
+    font-size: 14px;
+    -unity-text-align: upper-center;
+}
+.night-layer #work-hint { white-space: normal; }
+
+#viewfinder {
+    position: absolute;
+    left: 18%;
+    right: 18%;
+    top: 12%;
+    bottom: 12%;
+    border-width: 2px;
+    border-color: rgba(255, 255, 255, 0.55);
+    border-radius: 6px;
+    align-items: center;
+    justify-content: flex-end;
+}
+#viewfinder Label { margin-bottom: 10px; padding: 2px 8px; font-size: 13px; border-radius: 3px; }
+
+#status-wrap {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    align-items: center;
+    justify-content: center;
+}
+#status-panel {
+    min-width: 300px;
+    padding: 12px 18px;
+    background-color: rgba(12, 12, 16, 0.85);
+    border-radius: 6px;
+}
+.hud-h3 { font-size: 15px; -unity-font-definition: url("/Assets/UI/Fonts/Manrope-Bold.ttf"); margin-bottom: 8px; }
+.relic-row { flex-direction: row; justify-content: space-between; padding: 3px 0; font-size: 13px; }
+.relic-status { color: rgb(141, 136, 124); margin-left: 24px; }
+
+#powers-bar { bottom: 48px; flex-wrap: wrap; }
+.power {
+    padding: 3px 8px;
+    margin: 0 3px;
+    font-size: 13px;
+    background-color: rgba(12, 12, 16, 0.88);
+    border-width: 1px;
+    border-color: rgb(90, 42, 42);
+    border-radius: 4px;
+    color: rgb(224, 138, 126);
+}
+.night-layer .power { padding: 3px 8px; margin: 0 3px; }
+.power.off { color: rgb(141, 136, 124); border-color: rgb(51, 51, 51); }
+.power.curse { color: rgb(255, 90, 74); border-color: rgb(255, 90, 74); }
+
+#power-wheel {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 300px;
+    height: 300px;
+    margin-left: -150px;
+    margin-top: -150px;
+    -unity-background-scale-mode: stretch-to-fill;
+}
+.sector {
+    position: absolute;
+    width: 96px;
+    padding: 6px;
+    align-items: center;
+    font-size: 12px;
+    color: rgb(141, 136, 124);
+    border-radius: 6px;
+    translate: -50% -50%;
+}
+.sector-name { font-size: 15px; color: rgb(224, 138, 126); -unity-font-definition: url("/Assets/UI/Fonts/Manrope-Bold.ttf"); }
+.night-layer .sector-name { margin-bottom: 2px; }
+.sector.off .sector-name { color: rgb(141, 136, 124); }
+.sector.selected { background-color: rgba(196, 85, 74, 0.35); border-width: 1px; border-color: rgb(196, 85, 74); }
+.wheel-hint {
+    position: absolute;
+    left: 40px;
+    top: 308px;
+    width: 220px;
+    font-size: 11px;
+    -unity-text-align: upper-center;
+    color: rgb(141, 136, 124);
+}
+
+#intro {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    -unity-background-scale-mode: stretch-to-fill;
+}
+#intro-title {
+    -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Regular.ttf");
+    font-size: 76px;
+    letter-spacing: 5.26px;
+    color: rgb(201, 162, 75);
+}
+.night-layer #intro-title { margin-bottom: 14px; }
+#intro-title.possessed { color: rgb(196, 85, 74); }
+#intro-text { font-size: 22px; max-width: 640px; -unity-text-align: upper-center; }
+.night-layer #intro-text { white-space: normal; margin-bottom: 14px; }
+#intro-extra { font-size: 16px; color: rgb(141, 136, 124); -unity-text-align: upper-center; }
+.night-layer #intro-extra { white-space: normal; }
+
+#mic-lost-row { top: 82px; }
+#mic-lost {
+    padding: 8px 14px;
+    font-size: 14px;
+    color: rgb(255, 255, 255);
+    background-color: rgba(150, 30, 30, 0.9);
+    border-radius: 4px;
+}
+
+/* The end screen (style.css #end-screen .end-box, #end-title ... .timeline-time). */
+#end-screen {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(0, 0, 0, 0.7);
+}
+#end-box {
+    min-width: 320px;
+    max-width: 560px;
+    max-height: 688px;
+    flex-grow: 0;
+    flex-shrink: 1;
+    padding: 20px 26px;
+    background-color: rgba(12, 12, 16, 0.95);
+    border-radius: 6px;
+}
+#end-box .unity-scroll-view__content-viewport { flex-shrink: 1; }
+#end-title {
+    -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Regular.ttf");
+    font-size: 34px;
+    letter-spacing: 2.94px;
+    color: rgb(224, 178, 90);
+    -unity-text-align: upper-center;
+}
+.night-layer #end-title { margin-bottom: 6px; white-space: normal; }
+#end-title.possessed { color: rgb(196, 85, 74); }
+#end-text { color: rgb(141, 136, 124); -unity-text-align: upper-center; }
+.night-layer #end-text { margin-bottom: 16px; white-space: normal; }
+.end-h3 { font-size: 14px; -unity-font-definition: url("/Assets/UI/Fonts/Manrope-Bold.ttf"); -unity-text-align: upper-center; }
+.night-layer .end-h3 { margin-bottom: 6px; }
+/* style.css ul: 14 px. */
+#end-roles { margin-bottom: 18px; font-size: 14px; }
+.end-row { flex-direction: row; justify-content: space-between; padding: 3px 0; }
+.night-layer .end-role { margin-left: 24px; color: rgb(141, 136, 124); }
+.night-layer .end-role.possessed { color: rgb(196, 85, 74); }
+.end-list { margin: 4px 0 10px 0; font-size: 14px; }
+.award { flex-direction: row; flex-wrap: wrap; align-items: flex-end; margin: 3px 0; }
+.award-title { -unity-font-definition: url("/Assets/UI/Fonts/Manrope-Bold.ttf"); }
+.award-why { font-size: 12px; color: rgb(141, 136, 124); }
+#end-timeline { max-height: 160px; }
+.timeline-row { flex-direction: row; margin: 3px 0; }
+.timeline-time { width: 45px; flex-shrink: 0; color: rgb(201, 162, 75); }
+.night-layer .timeline-text { white-space: normal; flex-shrink: 1; }
+.end-photos .photo { margin: 0 5px 10px 5px; }
+#end-buttons { flex-direction: row; justify-content: center; }
+.end-button {
+    margin: 0 4px;
+    padding: 9px;
+    font-size: 16px;
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-Regular.ttf");
+    color: rgb(20, 18, 12);
+    background-color: rgb(201, 162, 75);
+    border-width: 0;
+    border-radius: 4px;
+}
+#end-wait { font-size: 12px; color: rgb(141, 136, 124); -unity-text-align: upper-center; }
+.night-layer #end-wait { margin-top: 4px; white-space: normal; }
+
+/* The meeting (style.css #meeting ... #planchette). CSS margins that fold together are given once:
+   the result's 8 px top folds into the players' 12, and the log's 4 into the board's 6. */
+#meeting {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background-color: rgba(0, 0, 0, 0.55);
+}
+#meeting-box {
+    width: 560px;
+    max-width: 100%;
+    max-height: 100%;
+    flex-grow: 0;
+    flex-shrink: 1;
+    padding: 18px 22px;
+    background-color: rgba(12, 12, 16, 0.95);
+    border-radius: 6px;
+}
+#meeting-box .unity-scroll-view__content-viewport { flex-shrink: 1; }
+#meeting-title {
+    -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Regular.ttf");
+    font-size: 30px;
+    color: rgb(201, 162, 75);
+    -unity-text-align: upper-center;
+}
+.night-layer #meeting-title { margin-bottom: 4px; white-space: normal; }
+#meeting-step { color: rgb(141, 136, 124); -unity-text-align: upper-center; }
+.night-layer #meeting-step { margin-bottom: 12px; white-space: normal; }
+.meeting-photos .photo { margin: 0 5px 10px 5px; }
+#ouija-board {
+    padding: 14px 10px;
+    margin-bottom: 6px;
+}
+/* gap: 8px 14px, as half-gaps round each slot. */
+#ouija-names {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin: -4px -7px;
+}
+.ouija-slot {
+    margin: 4px 7px;
+    padding: 4px 8px;
+    -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Regular.ttf");
+    font-size: 15px;
+    letter-spacing: 6.67px;
+    color: rgb(29, 21, 12);
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-radius: 0;
+}
+.ouija-slot:hover:enabled { color: rgb(0, 0, 0); }
+.ouija-slot:disabled { opacity: 1; }
+#planchette {
+    position: absolute;
+    width: 50px;
+    height: 56px;
+    translate: -50% -50%;
+}
+#ouija-log { font-size: 12px; color: rgb(141, 136, 124); -unity-text-align: upper-center; }
+.night-layer #ouija-log { white-space: normal; }
+#meeting-players { margin-bottom: 12px; font-size: 14px; }
+.meeting-seat {
+    flex-direction: row;
+    align-items: center;
+    padding: 4px 0;
+    border-bottom-width: 1px;
+    border-color: rgb(34, 34, 34);
+}
+.meeting-seat.dead { color: rgb(141, 136, 124); }
+.seat-gap { flex-grow: 1; }
+.night-layer .stamp {
+    margin-left: 10px;
+    padding: 1px 6px;
+    font-size: 11px;
+    color: rgb(201, 162, 75);
+    border-width: 1px;
+    border-color: rgb(201, 162, 75);
+    border-radius: 3px;
+}
+.meeting-button {
+    align-self: center;
+    margin: 0;
+    padding: 9px;
+    font-size: 16px;
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-Regular.ttf");
+    color: rgb(20, 18, 12);
+    background-color: rgb(201, 162, 75);
+    border-width: 0;
+    border-radius: 4px;
+}
+.meeting-button.small { margin-left: 10px; padding: 5px; font-size: 13px; }
+#meeting-verdict {
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-Bold.ttf");
+    font-size: 22px;
+    letter-spacing: 9.09px;
+    -unity-text-align: upper-center;
+}
+.night-layer #meeting-verdict { white-space: normal; }
+#meeting-verdict.possessed { color: rgb(196, 85, 74); }
+#meeting-counts { -unity-text-align: upper-center; }
+.night-layer #meeting-counts { margin: 16px 0; white-space: normal; }
+#meeting-votes { font-size: 13px; color: rgb(141, 136, 124); }
+.meeting-vote-line { -unity-text-align: upper-center; }
+
+#screen-flash {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgb(255, 255, 255);
+    opacity: 0;
+}

@@ -208,6 +208,38 @@ namespace Haunted.Sim
             else openDoors.Remove(id);
         }
 
+        /// <summary>
+        /// shared/src/sim/physics.ts lineOfSight: true if nothing solid (walls, closed doors,
+        /// furniture taller than heightM) stands between two points at that height. Floors block sight
+        /// between floors; player bodies never do.
+        /// </summary>
+        public bool LineOfSight(double fromX, double fromZ, double toX, double toZ, double heightM)
+        {
+            if (Levels.LevelOf(map, fromX, fromZ) != Levels.LevelOf(map, toX, toZ)) return false;
+            double dx = toX - fromX, dz = toZ - fromZ;
+            if (Math.Sqrt(dx * dx + dz * dz) < 1e-6) return true;
+            foreach (var b in boxes)
+            {
+                if (!Blocks(b) || b.HeightM <= heightM) continue;
+                // The segment against the box, one axis at a time (slabs).
+                double enter = 0, leave = 1;
+                if (!Slab(fromX, dx, b.X - b.SizeX / 2, b.X + b.SizeX / 2, ref enter, ref leave)) continue;
+                if (!Slab(fromZ, dz, b.Z - b.SizeZ / 2, b.Z + b.SizeZ / 2, ref enter, ref leave)) continue;
+                return false;
+            }
+            return true;
+        }
+
+        static bool Slab(double start, double d, double min, double max, ref double enter, ref double leave)
+        {
+            if (Math.Abs(d) < 1e-12) return start >= min && start <= max;
+            double a = (min - start) / d, b = (max - start) / d;
+            if (a > b) { double t = a; a = b; b = t; }
+            enter = Math.Max(enter, a);
+            leave = Math.Min(leave, b);
+            return enter <= leave;
+        }
+
         bool Blocks(SolidBox b)
         {
             return !(b.Kind == "door" && b.Id != null && openDoors.Contains(b.Id));
