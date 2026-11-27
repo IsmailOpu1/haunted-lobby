@@ -48,6 +48,9 @@ namespace Haunted.Game
         readonly Light aura;
         /// <summary>The ghost's latest known place (for the flicker and the heartbeat), or null when it is far or gone.</summary>
         public Vector3? Known;
+        /// <summary>Test aid (-sendAtNight _ghostAt): the ghost drawn here, facing TestYaw, whatever the server says; null for the server's.</summary>
+        public Vector3? TestAt;
+        public double TestYaw;
         /// <summary>The ghost is drawn and walking (it hunts).</summary>
         public bool Shown { get { return ghost.gameObject.activeSelf; } }
 
@@ -201,6 +204,15 @@ namespace Haunted.Game
 
         void DrawGhost(double now)
         {
+            if (TestAt.HasValue)
+            {
+                ghost.position = TestAt.Value;
+                ghost.rotation = Coords.Facing(TestYaw);
+                ghost.gameObject.SetActive(true);
+                Known = TestAt;
+                Shimmer(now);
+                return;
+            }
             if (snapshots.Count == 0) return;
             double renderTime = now - Json.Num(Json.Obj(config, "net"), "interpolationMs") / 1000;
             Snapshot a = snapshots[0], b = a;
@@ -217,6 +229,11 @@ namespace Haunted.Game
             double diff = Math.Atan2(Math.Sin(b.Yaw - a.Yaw), Math.Cos(b.Yaw - a.Yaw));
             ghost.rotation = Coords.Facing(a.Yaw + diff * t);
             ghost.gameObject.SetActive(b.Visible);
+            Shimmer(now);
+        }
+
+        void Shimmer(double now)
+        {
             // A slow shimmer, so it never looks quite solid.
             float shimmer = Mathf.Sin((float)now * ShimmerPerSec);
             var c = body.color;
