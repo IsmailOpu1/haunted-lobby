@@ -146,6 +146,7 @@ namespace Haunted.Game
         /// <summary>Tests: Options scrolled so the result shows.</summary>
         public void ScrollToSpeedResult()
         {
+            RevealTabOf(speedResult);
             var scroll = speedResult.GetFirstAncestorOfType<ScrollView>();
             if (scroll != null) scroll.ScrollTo(speedResult);
         }

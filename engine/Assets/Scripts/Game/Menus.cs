@@ -121,6 +121,7 @@ namespace Haunted.Game
             TickMic();
             PollKeys();
             TickTitle();
+            TickTabs();
         }
 
         void Resize()
@@ -284,7 +285,8 @@ namespace Haunted.Game
             var body = new ScrollView(ScrollViewMode.Vertical)
             {
                 horizontalScrollerVisibility = ScrollerVisibility.Hidden,
-                verticalScrollerVisibility = ScrollerVisibility.Auto,
+                // No scroll bar on any screen (owner, 2026-11-27): the wheel still scrolls a long one.
+                verticalScrollerVisibility = ScrollerVisibility.Hidden,
             };
             body.AddToClassList("screen-body");
             if (wide) body.AddToClassList("wide");
@@ -464,6 +466,7 @@ namespace Haunted.Game
                 return c2.HasValue ? new Vector2(c2.Value.x, UnityEngine.Screen.height - c2.Value.y) : (Vector2?)null;
             }
             if (e == null) return null;
+            RevealTabOf(e);
             // Below the fold (the warning at 720 lines): scrolled to, as a player would.
             if (visible) screens[shown].Q<ScrollView>(className: "screen-body")?.ScrollTo(e);
             var c = e.worldBound.center;
@@ -474,6 +477,7 @@ namespace Haunted.Game
         public Vector2 RangePoint(int i, float f)
         {
             var slider = screens[shown].Query<VisualElement>(className: "range").ToList()[i];
+            RevealTabOf(slider);
             screens[shown].Q<ScrollView>(className: "screen-body")?.ScrollTo(slider);
             var r = slider.worldBound;
             return new Vector2(r.x + 8 + f * (r.width - 16), UnityEngine.Screen.height - r.center.y);
@@ -616,10 +620,11 @@ namespace Haunted.Game
             BackButton(col);
             Text(col, "eyebrow", "01 · Host", 15);
             Text(col, "screen-title", "Create a room");
-            Text(col, "lead", "You get a 5-letter code and a link to send your friends. You choose the settings.", 23.25f);
-            createName = Field(col, "Your name", "e.g. Rafi", NameMax);
-            enterButtons.Add(Primary(col, "Create room", OnCreate));
-            Error(col, "create");
+            Text(col, "lead", "You get a 5-letter code to send your friends. You choose the settings.", 23.25f);
+            var panel = Panel(col);
+            createName = Field(panel, "Your name", "e.g. Rafi", NameMax);
+            enterButtons.Add(Primary(panel, "Create room", OnCreate));
+            Error(panel, "create");
             Gap(col, 16);
             OnEnter(createName, OnCreate);
         }
@@ -687,6 +692,9 @@ namespace Haunted.Game
                 Options.Keys.Reset();
                 DrawKeyRows();
             }, true).AddToClassList("keys-reset");
+            // As a game's options: one tab at a time (Sound, Comfort, Controls, Graphics, Microphone, Keys).
+            Tabs(col);
+            col.GetFirstAncestorOfType<ScrollView>().AddToClassList("options-body");
             Gap(col, 16);
 
             // Listening for a new key: the window's key messages (and a test's) come as KeyDownEvents.
@@ -895,7 +903,6 @@ namespace Haunted.Game
             slider.Add(thumb);
             field.Add(slider);
             parent.Add(field);
-            Gap(field, 6);
 
             double value = get();
             Action place = () =>
@@ -1047,11 +1054,12 @@ namespace Haunted.Game
             Text(col, "eyebrow", "02 · Join", 15);
             Text(col, "screen-title", "Join a room");
             Text(col, "lead", "Type the code your friend sent you.", 23.25f);
-            joinCode = Field(col, "Room code", "KQXRT", CodeLength, true);
+            var panel = Panel(col);
+            joinCode = Field(panel, "Room code", "KQXRT", CodeLength, true);
             joinCode.RegisterValueChangedCallback(e => { string up = (e.newValue ?? "").ToUpperInvariant(); if (up != e.newValue) joinCode.SetValueWithoutNotify(up); });
-            joinName = Field(col, "Your name", "e.g. Rafi", NameMax);
-            enterButtons.Add(Primary(col, "Join room", OnJoin));
-            Error(col, "join");
+            joinName = Field(panel, "Your name", "e.g. Rafi", NameMax);
+            enterButtons.Add(Primary(panel, "Join room", OnJoin));
+            Error(panel, "join");
             Gap(col, 16);
             OnEnter(joinCode, OnJoin);
             OnEnter(joinName, OnJoin);
@@ -1139,6 +1147,8 @@ namespace Haunted.Game
         /// </summary>
         static Texture2D ShadeFor(bool inRoom)
         {
+            // Before a room every screen has the title's centred shade over the corridor; its panels give the words their dark.
+            if (!inRoom) return TitleVignette;
             {
                 if (!inRoom && shade != null) return shade;
                 if (inRoom && roomShade != null) return roomShade;

@@ -1372,7 +1372,7 @@ Button {
     justify-content: center;
 }
 
-.title-body {
+.screen-body.title-body {
     width: 100%;
     max-width: 100%;
 }
@@ -1579,4 +1579,160 @@ Button {
 
 .room-tools {
     margin-top: 12px;
+}
+
+/* ---- A game's menus, not a web page (owner, 2026-11-27): dark glass panels over the hotel,
+   the title screen's headings, tabs in Options, wide rows, a brass Back. ---- */
+.screen-body {
+    width: 560px;
+}
+
+.screen-body.options-body {
+    width: 760px;
+}
+
+.unity-scroll-view__content-container > .screen-title {
+    font-size: 58px;
+    letter-spacing: -1px;
+    margin-bottom: 4px;
+    text-shadow: 0 3px 18px rgba(0, 0, 0, 0.95);
+}
+
+.unity-scroll-view__content-container > .eyebrow {
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.95);
+}
+
+.unity-scroll-view__content-container > .lead {
+    max-width: 480px;
+    color: rgb(196, 189, 174);
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.95);
+}
+
+.back {
+    height: 30px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    letter-spacing: 24px;
+    color: rgb(170, 163, 148);
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.95);
+}
+
+.back:hover, .back:focus {
+    color: rgb(226, 190, 104);
+}
+
+/* The glass: the panels every screen's parts sit in. */
+.group,
+.glass {
+    padding: 20px 28px;
+    margin-top: 12px;
+    border-width: 1px;
+    border-radius: 6px;
+    border-color: rgba(236, 230, 216, 0.09);
+    border-top-color: rgba(236, 230, 216, 0.16);
+    background-color: rgba(9, 8, 11, 0.74);
+}
+
+.group.first,
+.players-group {
+    border-top-width: 1px;
+}
+
+.group.tabbed > .group-title {
+    display: none;
+}
+
+.tab-hidden {
+    display: none;
+}
+
+/* Options' tabs: the title screen's choices, small. */
+.opt-tabs {
+    flex-direction: row;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.opt-tab {
+    height: 40px;
+    margin: 0 4px;
+    padding: 0 14px;
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    font-size: 13px;
+    letter-spacing: 22px;
+    color: rgb(150, 143, 128);
+    background-color: rgba(0, 0, 0, 0);
+    border-width: 0;
+    border-bottom-width: 2px;
+    border-radius: 0;
+    border-color: rgba(201, 162, 75, 0);
+    text-shadow: 0 1px 6px rgba(0, 0, 0, 0.95);
+    transition-property: color, border-color;
+    transition-duration: 0.2s;
+}
+
+.opt-tab:hover {
+    color: rgb(236, 230, 216);
+    background-color: rgba(0, 0, 0, 0);
+}
+
+.opt-tab.on {
+    color: rgb(226, 190, 104);
+    border-color: rgb(201, 162, 75);
+}
+
+/* Rows as a game's: the name on the left, the control on the right, lit when pointed at. */
+.range-field {
+    flex-direction: row;
+    align-items: center;
+    min-height: 46px;
+    padding: 6px 10px;
+    margin-left: -10px;
+    margin-right: -10px;
+    border-radius: 3px;
+}
+
+.range-field > .field-head {
+    width: 46%;
+    margin-right: 22px;
+    margin-bottom: 0;
+}
+
+.range-field > .range {
+    flex-grow: 1;
+}
+
+.range-name {
+    font-size: 12.5px;
+    height: 17px;
+    color: rgb(222, 215, 200);
+}
+
+.output {
+    font-size: 12.5px;
+    height: 17px;
+}
+
+.setting {
+    min-height: 46px;
+    padding: 6px 10px;
+    margin-left: -10px;
+    margin-right: -10px;
+    border-radius: 3px;
+    border-bottom-width: 0;
+}
+
+.range-field:hover,
+.setting:hover {
+    background-color: rgba(236, 230, 216, 0.045);
+}
+
+.glass .primary {
+    margin-top: 4px;
+}
+
+.mic-line {
+    -unity-text-align: middle-center;
+    border-left-width: 0;
 }

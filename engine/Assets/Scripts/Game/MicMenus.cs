@@ -30,15 +30,16 @@ namespace Haunted.Game
             Text(col, "eyebrow", "Before the night", 15);
             Text(col, "screen-title", "Mic check");
             Text(col, "lead", "The ghost hears your real voice. Read the line below at your normal speaking volume, so the game knows what normal sounds like for you. Later, whisper to stay hidden.", 23.25f);
-            micSentence = Text(col, "mic-line", "The old hotel is quiet tonight, but someone is still walking upstairs.", 29.4f);
-            var meter = Box(col, "mic-meter");
+            var panel = Panel(col);
+            micSentence = Text(panel, "mic-line", "The old hotel is quiet tonight, but someone is still walking upstairs.", 29.4f);
+            var meter = Box(panel, "mic-meter");
             micFill = Box(meter, "mic-fill");
-            micStatus = Text(col, "muted-line", "", 20.25f);
-            micCheckButton = Primary(col, "Start mic check", () => StartMicCheck?.Invoke());
+            micStatus = Text(panel, "muted-line", "", 20.25f);
+            micCheckButton = Primary(panel, "Start mic check", () => StartMicCheck?.Invoke());
             // One button in the browser (data-back: a step back) that turns primary (with its arrow) once you can play: two
             // here, one shown. The quiet one comes first so a test's click finds the one on show.
-            micDone = Quiet(col, "Continue to the room", Back);
-            micGo = Primary(col, "Continue to the room", Back);
+            micDone = Quiet(panel, "Continue to the room", Back);
+            micGo = Primary(panel, "Continue to the room", Back);
             micGo.style.display = DisplayStyle.None;
             Gap(col, 16);
         }
