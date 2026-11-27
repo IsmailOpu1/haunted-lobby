@@ -1759,3 +1759,48 @@ Button {
 .glass .primary-arrow {
     margin-left: 14px;
 }
+
+/* Checkboxes and buttons as a game's: dark boxes with a brass edge, not a browser's white ones. */
+.check {
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
+    border-color: rgba(201, 162, 75, 0.55);
+    background-color: rgba(0, 0, 0, 0.35);
+}
+
+.setting:hover .check {
+    border-color: rgb(201, 162, 75);
+}
+
+.group .quiet,
+.glass .quiet {
+    height: 44px;
+    -unity-font-definition: url("/Assets/UI/Fonts/Manrope-SemiBold.ttf");
+    font-size: 13px;
+    letter-spacing: 8px;
+    -unity-text-align: middle-center;
+    color: rgb(226, 190, 104);
+    border-color: rgba(201, 162, 75, 0.45);
+    background-color: rgba(201, 162, 75, 0.06);
+}
+
+.group .quiet:hover,
+.glass .quiet:hover {
+    border-color: rgb(201, 162, 75);
+    background-color: rgba(201, 162, 75, 0.14);
+}
+
+.group .quiet.small,
+.room-head .quiet {
+    height: 36px;
+    font-size: 12.5px;
+    letter-spacing: 4px;
+}
+
+.select {
+    height: 36px;
+    min-width: 140px;
+    border-color: rgba(201, 162, 75, 0.45);
+    background-color: rgba(0, 0, 0, 0.35);
+}
