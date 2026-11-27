@@ -24,6 +24,12 @@ namespace Haunted.Game
         static readonly Color FurnitureColor = new Color(0.36f, 0.28f, 0.2f);
         static readonly Color StairColor = new Color(0.45f, 0.4f, 0.36f);
         const float FloorThicknessM = 0.1f;
+        /// <summary>
+        /// world.ts SLAB_M: walls stop this far under the next floor, as the browser's do. A wall's top
+        /// at the floor above's level shows through that floor as a flickering line (the basement's
+        /// walls under the Ballroom, the ground floor's under the upper rooms).
+        /// </summary>
+        const double SlabM = 0.05;
 
         /// <summary>replaced: whether a model stands in this furniture's place (a task station), so its grey box is left out, as the browser leaves out boxes its models replace. Collision still has it.
         /// dressed: the dressed rooms (step D), whose floors, furniture, hiding spots and stairs are drawn by their builds (as client/src/world.ts leaves them out); null for the plain grey box.</summary>
@@ -51,7 +57,7 @@ namespace Haunted.Game
                 // Walls and doors stay grey boxes, as in the browser: the builds line the walls from inside.
                 if (dressed != null && s.Id != null && (s.Kind == "furniture" || s.Kind == "hide") && dressed.Drawn.Contains(s.Id)) continue;
                 Color color = s.Kind == "hide" ? HideColor : s.Kind == "furniture" ? FurnitureColor : WallColor;
-                var go = Box((s.Id ?? s.Kind), s.X, s.Z, s.SizeX, s.SizeZ, 0, s.HeightM, color);
+                var go = Box((s.Id ?? s.Kind), s.X, s.Z, s.SizeX, s.SizeZ, 0, s.Kind == "wall" ? s.HeightM - SlabM : s.HeightM, color);
                 go.transform.SetParent(root.transform, true);
             }
 
