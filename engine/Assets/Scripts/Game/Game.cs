@@ -512,7 +512,7 @@ namespace Haunted.Game
                 menus.Visible = true;
             }
             backdrop.SkipTo(19);
-            foreach (var screen in new[] { "play", "about", "create" })
+            foreach (var screen in new[] { "play", "about", "create", "join", "options" })
             {
                 menus.Reset("start");
                 menus.Go(screen);

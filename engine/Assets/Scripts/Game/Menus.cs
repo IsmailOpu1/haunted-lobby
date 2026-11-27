@@ -1144,13 +1144,14 @@ namespace Haunted.Game
                 if (inRoom && roomShade != null) return roomShade;
                 const int W = 640, H = 360;
                 var px = new Color32[W * H];
-                float cx = 0.75f * W, cy = 0.45f * H;
+                // Centred (owner, 2026-11-27: everything centred): darkest behind the middle column, lighter either side.
+                float cx = 0.5f * W, cy = 0.45f * H;
                 float rx = Mathf.Sqrt(2) * Mathf.Max(cx, W - cx), ry = Mathf.Sqrt(2) * Mathf.Max(cy, H - cy);
                 float[] ink = { 8, 7, 10 };
                 for (int y = 0; y < H; y++)
                     for (int x = 0; x < W; x++)
                     {
-                        float u = (x + 0.5f) / W;
+                        float u = Mathf.Abs((x + 0.5f) / W * 2 - 1);
                         // In a room: 0.98 to 0.94 at 55% to 0.84, over the hotel.
                         float a1 = inRoom ? (u < 0.55f ? Mathf.Lerp(0.98f, 0.94f, u / 0.55f) : Mathf.Lerp(0.94f, 0.84f, (u - 0.55f) / 0.45f))
                             : u < 0.34f ? Mathf.Lerp(0.97f, 0.9f, u / 0.34f) : u < 0.68f ? Mathf.Lerp(0.9f, 0.55f, (u - 0.34f) / 0.34f) : Mathf.Lerp(0.55f, 0.3f, (u - 0.68f) / 0.32f);

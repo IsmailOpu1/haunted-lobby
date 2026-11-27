@@ -1525,3 +1525,58 @@ Button {
 .screen.outside {
     background-color: rgba(0, 0, 0, 0);
 }
+
+/* ---- Everything centred (owner, 2026-11-27): each screen's column in the middle of the window,
+   its heading, words, Back and fields centred; the room page's code and buttons too. ---- */
+.screen {
+    justify-content: center;
+}
+
+.unity-scroll-view__content-container > .eyebrow,
+.unity-scroll-view__content-container > .screen-title,
+.unity-scroll-view__content-container > .lead,
+.unity-scroll-view__content-container > .muted-line,
+.unity-scroll-view__content-container > .hint,
+.unity-scroll-view__content-container > .error {
+    -unity-text-align: middle-center;
+}
+
+.unity-scroll-view__content-container > .lead {
+    align-self: center;
+}
+
+.unity-scroll-view__content-container > .back {
+    align-self: center;
+}
+
+.field-name {
+    -unity-text-align: middle-center;
+}
+
+.line-input > .unity-base-text-field__input {
+    -unity-text-align: middle-center;
+}
+
+.group > .group-title {
+    -unity-text-align: middle-center;
+}
+
+.room-head {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.room-id {
+    align-items: center;
+}
+
+.eyebrow-row,
+.share-buttons,
+.room-tools {
+    justify-content: center;
+}
+
+.room-tools {
+    margin-top: 12px;
+}
