@@ -17,7 +17,12 @@ namespace Haunted.Game
         // RemotePlayers.ClipSpeedMps: the speed each clip was made at, and the clip rate's limits.
         const float WalkClipMps = 1.6f, RunClipMps = 4.2f, RateMin = 0.5f, RateMax = 1.9f, MovingMps = 0.2f;
         // The hunch (degrees forward at each bone) and the head's hang to one side.
-        const float SpineHunchDeg = 9, ChestHunchDeg = 10, NeckHunchDeg = 14, HeadHangDeg = 22;
+        const float SpineHunchDeg = 9, ChestHunchDeg = 10, NeckHunchDeg = 6, HeadHangDeg = 22;
+        // The head lifts to look at you, up to this far (degrees), so its eye finds yours.
+        const float HeadLiftMaxDeg = 30;
+        // The eyes' light (linear, above the bloom's threshold, so it glows).
+        static readonly Color EyeLight = new Color(0.78f, 0.9f, 1f) * 7;
+        static readonly int EmissiveFactor = Shader.PropertyToID("emissiveFactor");
         // The head turns to you as far as this, picks a new aim this often, and turns this fast (degrees a second).
         const float HeadTurnMaxDeg = 80, AimMinSec = 0.5f, AimMaxSec = 1.5f, SnapDegPerSec = 1100, SmoothDegPerSec = 120;
         // Now and then a twitch of the head (degrees, seconds); never with Photosensitive.
@@ -55,6 +60,9 @@ namespace Haunted.Game
                     var d = body.Root.transform.InverseTransformPoint(r.bounds.center) - body.Root.transform.InverseTransformPoint(head.position);
                     d.y = 0;
                     if (d.sqrMagnitude > 1e-6f) front = d.normalized;
+                    // glTF keeps a glow to 1; the eyes burn brighter than that.
+                    foreach (var m in r.materials)
+                        if (m.HasProperty(EmissiveFactor)) m.SetVector(EmissiveFactor, EyeLight);
                 }
         }
 
@@ -134,7 +142,11 @@ namespace Haunted.Game
             }
             float roll = HeadHangDeg + (twitchLeft > 0 && !smooth ? twitchRoll : 0);
             var turned = Quaternion.AngleAxis(headYaw, Vector3.up) * face;
-            head.rotation = Quaternion.AngleAxis(roll, turned) * Quaternion.AngleAxis(headYaw, Vector3.up) * head.rotation;
+            // Up toward your eyes: the hunched neck and head come back by as much as it takes.
+            var up = lookAt - head.position;
+            float lift = Mathf.Clamp(Mathf.Atan2(up.y, new Vector2(up.x, up.z).magnitude) * Mathf.Rad2Deg + SpineHunchDeg + ChestHunchDeg + NeckHunchDeg, -HeadLiftMaxDeg, HeadLiftMaxDeg);
+            var side = Vector3.Cross(Vector3.up, turned).normalized;
+            head.rotation = Quaternion.AngleAxis(roll, turned) * Quaternion.AngleAxis(-lift, side) * Quaternion.AngleAxis(headYaw, Vector3.up) * head.rotation;
         }
 
         static void Bend(Transform bone, Vector3 axis, float deg)

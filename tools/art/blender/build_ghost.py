@@ -480,7 +480,7 @@ def skin(body, face, size, rng):
     col = col * (1 - 0.92 * d) + np.array([0.035, 0.025, 0.03]) * 0.92 * d
     skin_img = to_image("ghost_skin", col)
     nrm_img = to_image("ghost_skin_normal", image_array(normal, size), non_colour=True)
-    return material("Ghost_Skin", image=skin_img, rough=0.5, normal=nrm_img, emit_image=skin_img, strength=0.16)
+    return material("Ghost_Skin", image=skin_img, rough=0.5, normal=nrm_img, emit_image=skin_img, strength=0.1)
 
 
 def eyes(arm, face):
@@ -488,7 +488,7 @@ def eyes(arm, face):
     bm = bmesh.new()
     for e in face.eyes:
         at = e + Vector((0, -face.eye_r * 0.93, 0))
-        bmesh.ops.create_uvsphere(bm, u_segments=10, v_segments=6, radius=face.eye_r * 0.3,
+        bmesh.ops.create_uvsphere(bm, u_segments=10, v_segments=6, radius=face.eye_r * 0.36,
                                   matrix=Matrix.Translation(at))
     me = bpy.data.meshes.new("Ghost_Eyes")
     bm.to_mesh(me)
@@ -700,7 +700,7 @@ def bvh_of(objs):
     return BVHTree.FromPolygons(verts, polys)
 
 
-def hair(arm, body, cloth, face, count, segs, width, rng):
+def hair(arm, body, shroud_ob, face, count, segs, width, rng):
     """Long black hair, wet and clumped, hanging from the crown: over the face to the chest in front,
     down the back behind. Ribbons, a few hundred, drawn from both sides."""
     head = bvh_of([body])
@@ -929,9 +929,9 @@ def build(low):
     for p in body.data.polygons:
         if all(v in face.eyeball for v in p.vertices):
             p.material_index = 1
-    cloth_mat = material("Ghost_Shroud", image=linen(256 if low else 512, rng), rough=0.95,
-                         emit_image=None, emit=(0.30, 0.31, 0.33), strength=0.05)
-    cloth = shroud(arm, cloth_mat, 40 if low else 72, 22 if low else 45)
+    cloth = linen(256 if low else 512, rng)
+    cloth_mat = material("Ghost_Shroud", image=cloth, rough=0.95, emit_image=cloth, strength=0.22)
+    shroud_ob = shroud(arm, cloth_mat, 40 if low else 72, 22 if low else 45)
     skirt_cap(arm, cloth_mat)
     eyes(arm, face)
     hair(arm, body, cloth, face, 180 if low else 640, 14 if low else 26, 0.02 if low else 0.012, rng)
