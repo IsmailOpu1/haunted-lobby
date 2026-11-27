@@ -724,12 +724,15 @@ namespace Haunted.Game
             BuildOptionsMic(col);
 
             var keys = Group(col, "Keys");
+            // Wide, the keys in two columns: the whole list fits with Back under it, as a game's.
+            keys.AddToClassList("keys-group");
             Text(keys, "muted-line", "Click a key to change it, then press the new one. Esc cancels.", 20.25f);
             var table = new VisualElement();
             table.AddToClassList("controls");
             KeyRow(table, "Mouse", "Look");
             KeyRow(table, "Mouse button", "Flashlight on / off; with the camera raised, take the photo; at a task, your hand (point, hold to grab, move to work)");
             keyRows = new VisualElement();
+            keyRows.AddToClassList("key-rows");
             table.Add(keyRows);
             DrawKeyRows();
             KeyRow(table, "Esc", "Free the mouse and open the room menu");

@@ -1822,3 +1822,30 @@ Button {
     align-self: center;
     margin-top: 22px;
 }
+
+/* Keys: a wider panel with the bindable keys in two columns, so the tab fits with Back under it. */
+.screen-body.options-body {
+    width: 1100px;
+}
+
+.options-body .group.keys-group {
+    width: 1040px;
+}
+
+.key-rows {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+}
+
+.key-rows > .key-row {
+    width: 48%;
+}
+
+.key-rows .key-cell {
+    width: 26%;
+}
+
+.keys-group .controls > .key-row .key-cell {
+    width: 13%;
+}
