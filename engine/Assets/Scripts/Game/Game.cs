@@ -545,6 +545,10 @@ namespace Haunted.Game
             menus.Create = name => { playerName = name; Connect(null, null); };
             menus.Join = (code, name) => { playerName = name; Connect(code, null); };
             menus.SpeedTestStart = () => StartSpeedTest();
+            // Under test the window is often not in front (the desk is in use): the Input System would
+            // switch the test's own mouse and keyboard off with the focus, and their clicks and Esc go nowhere.
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-speedEsc") >= 0 || Array.IndexOf(Environment.GetCommandLineArgs(), "-menuInput") >= 0)
+                UnityEngine.InputSystem.InputSystem.settings.backgroundBehavior = UnityEngine.InputSystem.InputSettings.BackgroundBehavior.IgnoreFocus;
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-speedTest") is int st && st >= 0 && st + 1 < Environment.GetCommandLineArgs().Length)
                 StartCoroutine(SpeedTestRun(Environment.GetCommandLineArgs()[st + 1], Array.IndexOf(Environment.GetCommandLineArgs(), "-speedShots") is int sh && sh >= 0 ? Environment.GetCommandLineArgs()[sh + 1] : null));
             if (shotsDir != null) StartCoroutine(MenuShots(shotsDir));
@@ -718,7 +722,8 @@ namespace Haunted.Game
                 {
                     check(tag + "settings in effect: night " + lengthWas + " s -> " + room.State.nightLength + " s, code " + room.State.settingsCode,
                         room.State.settingsCode.StartsWith("HRD") && room.State.nightLength != lengthWas);
-                    check(tag + "a new character: " + characterWas + " -> " + mine?.character, mine != null && mine.character != characterWas);
+                    // Dealt afresh at random (HauntedRoom dealRoles), so the same one comes again one night in eight.
+                    check(tag + "a character dealt again: " + characterWas + " -> " + mine?.character, mine != null && !string.IsNullOrEmpty(mine.character));
                 }
                 yield return RoomShot("story-night-" + n);
                 yield return Until(() => night.End != null, 240);
