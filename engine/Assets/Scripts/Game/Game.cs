@@ -30,7 +30,7 @@ namespace Haunted.Game
     ///   -sendAtNight 12 pourSalt '{}'   12 s into the night, send this message as if a key were pressed (may repeat)
     ///   -sendAtNight 12 _face '{"yaw":1.57,"pitch":0}'   12 s into the night, look that way (radians)
     ///   -sendAtNight 12 _ghostAt '{"d":6}'   12 s into the night, draw the ghost 6 m ahead, facing you (d -1: the server's again);
-    ///                                        add "v":1.4 to have it walk to you at 1.4 m/s, "run":true to move as in a hunt
+    ///                                        add "v":1.4 to have it walk to you at 1.4 m/s, "run":true to move as in a hunt, "turn":1.2 to turn its body away (radians)
     ///   -shotAtNight 14 path   save a screenshot 14 s into the night (may repeat)
     ///   -rematchAfter 10   as host, press Rematch 10 s after the end screen
     ///   -nightUi           with -create or -join: the night's screens in the menus' panel, as with the menus (step E5)
@@ -1902,6 +1902,8 @@ namespace Haunted.Game
                         var at = me.State;
                         haunting.TestAt = d < 0 ? (Vector3?)null : Coords.Place(world, at.X - Math.Sin(me.Yaw) * d, at.Z - Math.Cos(me.Yaw) * d);
                         haunting.TestYaw = me.Yaw + Math.PI;
+                        // "turn": its body turned this far (radians) from facing you, so its head must turn.
+                        if (body is Dictionary<string, object> bt && bt.TryGetValue("turn", out var turn)) haunting.TestYaw += Convert.ToDouble(turn);
                         // "v": it comes toward you at this speed (m/s), stopping short; "run": as in a hunt.
                         var bd = body as Dictionary<string, object>;
                         object v, run;
