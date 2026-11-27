@@ -1157,7 +1157,8 @@ export const marrowHotelDressing: MapDressing = {
       rugs: [{ material: "dirty_carpet", x: -12.5, z: 9.4, sizeX: 3, sizeZ: 2.8 }],
       props: [
         // The bed against the south wall, a nightstand each side.
-        { model: "GothicBed_01", x: -12.5, z: GUEST1_SOUTH_FACE - 1.02, draws: "guest1-bed" },
+        // The model's headboard is at its -z end: turned so it stands against the wall, not its foot (owner, 2026-11-27).
+        { model: "GothicBed_01", x: -12.5, z: GUEST1_SOUTH_FACE - 1.02, turn: 180, draws: "guest1-bed" },
         { model: "ClassicNightstand_01", x: -13.57, z: GUEST1_SOUTH_FACE - 0.215, turn: 180, draws: "guest1-classic-nightstand-1" },
         { model: "ClassicNightstand_01", x: -11.43, z: GUEST1_SOUTH_FACE - 0.215, turn: 180, draws: "guest1-classic-nightstand-2" },
         { model: "vintage_oil_lamp", x: -11.43, z: GUEST1_SOUTH_FACE - 0.22, y: NIGHTSTAND_TOP },

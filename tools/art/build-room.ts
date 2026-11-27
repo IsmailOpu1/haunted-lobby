@@ -62,6 +62,9 @@ export function roomJob(map: MapData, room: string, also: string[] = []) {
   // stairwell walls the room sees get the room's own wall finish, like any other wall face.
   const T = map.wallThicknessM;
   const extraFaces: { room: string; x: number; z: number; length: number; axis: "x" | "z"; facing: number }[] = [];
+  const roomWalls = map.walls.map((w) => wallBox(w, T));
+  const boxes = [...roomWalls, ...stairWalls(map).map((w) => wallBox(w, T))];
+  const inWall = (x: number, z: number) => boxes.some((b) => Math.abs(x - b.x) < b.sizeX / 2 - 1e-3 && Math.abs(z - b.z) < b.sizeZ / 2 - 1e-3);
   const stairs = map.stairs.flatMap((s) => {
     const u = s.dir === "+x" ? { x: 1, z: 0 } : s.dir === "-x" ? { x: -1, z: 0 } : s.dir === "+z" ? { x: 0, z: 1 } : { x: 0, z: -1 };
     const side = { x: -u.z, z: u.x }; // levels.ts stairWalls: the flight's sideways direction
@@ -74,44 +77,59 @@ export function roomJob(map: MapData, room: string, also: string[] = []) {
     const out = open === 0 ? -0.3 : s.lengthM + 0.3;
     const mouth = at(out, 0);
     const runsAlongX = u.x !== 0;
-    if (!inside(mouth.x, mouth.z)) {
-      // The flight opens into another room, but its shaft's side wall may still be this room's
-      // wall (the cellar stairs behind the Reception): give that side the room's finish.
-      for (const sideSign of [-1, 1]) {
-        const beside = at(s.lengthM / 2, sideSign * (s.widthM / 2 + T / 2 + 0.3));
-        if (!inside(beside.x, beside.z)) continue;
-        const c = at(s.lengthM / 2, (sideSign * s.widthM) / 2);
-        const sign = (n: number) => (n > 0 ? 1 : -1);
-        extraFaces.push({ room, x: c.x + sx, z: c.z + sz, length: s.lengthM, axis: runsAlongX ? "x" : "z", facing: sign(runsAlongX ? sideSign * side.z : sideSign * side.x) });
-      }
-      return [];
-    }
     const sign = (n: number) => (n > 0 ? 1 : -1);
+    const mouthOpen = inside(mouth.x, mouth.z);
+    // Toward the room at the open end, along the flight.
+    const toMouth = open === 0 ? -1 : 1;
+    // A face's centre is the wall's centre line: build_room.py sets it T/2 (and the gap) out.
+    const reach = T / 2 + FACE_GAP_M;
     let hallSide = 0;
     for (const sideSign of [-1, 1]) {
+      // The shaft's side wall is this room's wall where the room lies beside it (the cellar stairs
+      // behind the Reception, when the flight opens into another room).
       const beside = at(s.lengthM / 2, sideSign * (s.widthM / 2 + T / 2 + 0.3));
       if (!inside(beside.x, beside.z)) continue;
       hallSide = sideSign;
-      const c = at(s.lengthM / 2, (sideSign * s.widthM) / 2);
-      extraFaces.push({ room, x: c.x + sx, z: c.z + sz, length: s.lengthM, axis: runsAlongX ? "x" : "z", facing: sign(runsAlongX ? sideSign * side.z : sideSign * side.x) });
+      // Where the flight opens into this room the wall's box runs on half a thickness past the
+      // mouth (owner's playtest, 2026-11-27: bare grey there): the face goes on to its edge.
+      const end = at(open + toMouth * (reach + 0.05), (sideSign * (s.widthM + T + 0.1)) / 2);
+      const longer = mouthOpen && inside(end.x, end.z) && !inWall(end.x, end.z) ? reach : 0;
+      const c = at(s.lengthM / 2 + (toMouth * longer) / 2, (sideSign * s.widthM) / 2);
+      extraFaces.push({ room, x: c.x + sx, z: c.z + sz, length: s.lengthM + longer, axis: runsAlongX ? "x" : "z", facing: sign(runsAlongX ? sideSign * side.z : sideSign * side.x) });
     }
-    // The closed end: under the top of a flight going up, or the floor's wall over a flight going down.
+    if (mouthOpen) {
+      // The side walls' ends at the mouth, a wall's thickness wide, face the room: their own finish
+      // (owner's playtest: a bare grey strip at the cellar stairs in the Main Hall).
+      for (const sideSign of [-1, 1]) {
+        // Just in front of the end, a little inside the flight's width (its own line can be the
+        // boundary between two parts of the room, inside neither).
+        const front = at(open + toMouth * (reach + 0.05), sideSign * (s.widthM / 2 - 0.05));
+        if (!inside(front.x, front.z) || inWall(front.x, front.z)) continue;
+        const c = at(open, (sideSign * s.widthM) / 2);
+        // Joined there to a room's wall (the Stairwell's, the Laundry's): that wall's face covers it.
+        if (roomWalls.some((b) => Math.abs(c.x - b.x) < b.sizeX / 2 - 1e-3 && Math.abs(c.z - b.z) < b.sizeZ / 2 - 1e-3)) continue;
+        extraFaces.push({ room, x: c.x + sx, z: c.z + sz, length: T + 2 * FACE_GAP_M, axis: runsAlongX ? "z" : "x", facing: sign(runsAlongX ? toMouth * u.x : toMouth * u.z) });
+      }
+    }
+    // The closed end: under the top of a flight going up, or the floor's wall over a flight going
+    // down, whichever room the flight opens into (the Nursery sees the grand stairs' end).
     const closed = open === 0 ? s.lengthM : 0;
     const beyond = at(closed === 0 ? -0.3 : s.lengthM + 0.3, 0);
     if (inside(beyond.x, beyond.z)) {
-      const line = closed === 0 ? 0 : s.lengthM - T / 2; // the wall over a flight is T thick, centred on its end
-      const c = at(line, (hallSide * T) / 2);
+      // The wall over the end is centred on it (levels.ts stairWalls), as every face's centre is
+      // its wall's centre line; at L - T/2 the face was buried inside the wall's box (owner's
+      // playtest, 2026-11-27: the bare grey ends of the shafts in the Main Hall and Service Room).
+      const c = at(closed, (hallSide * T) / 2);
       const outward = closed === 0 ? -1 : 1;
       extraFaces.push({ room, x: c.x + sx, z: c.z + sz, length: s.widthM, axis: runsAlongX ? "z" : "x", facing: sign(runsAlongX ? outward * u.x : outward * u.z) });
     }
+    if (!mouthOpen) return [];
     return [{ id: s.id, x: bottom.x, y: bottom.y, z: bottom.z, ux: u.x, uz: u.z, lengthM: s.lengthM, widthM: s.widthM, rise: top.y - bottom.y, open, hallSide }];
   });
   // Each wall's solid box runs half a thickness past its ends so corners close. Where a wall ends
   // out in the room (a partition stopping short, the corner of an opening between two parts of a
   // room) that last bit has no face of its own and the bare grey core shows: carry the face on
   // round it, up to the edge of the box.
-  const boxes = [...map.walls, ...stairWalls(map)].map((w) => wallBox(w, T));
-  const inWall = (x: number, z: number) => boxes.some((b) => Math.abs(x - b.x) < b.sizeX / 2 - 1e-3 && Math.abs(z - b.z) < b.sizeZ / 2 - 1e-3);
   const inRoom = (x: number, z: number) => parts.some((p) => x >= p.minX - 1e-3 && x <= p.maxX + 1e-3 && z >= p.minZ - 1e-3 && z <= p.maxZ + 1e-3);
   const nearDoor = (x: number, z: number) => map.doors.some((d) => Math.abs(x - d.x) < d.width / 2 + T && Math.abs(z - d.z) < d.width / 2 + T);
   const faces = wallFaces(map)
