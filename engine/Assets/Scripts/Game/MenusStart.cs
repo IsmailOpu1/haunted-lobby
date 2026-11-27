@@ -229,8 +229,7 @@ namespace Haunted.Game
                 var img = v.resolvedStyle.backgroundImage;
                 bool hasImg = img.texture != null || img.sprite != null || img.renderTexture != null || img.vectorImage != null;
                 if (c.a > 0.01f || hasImg)
-                    sb.Append(v.name + " [" + string.Join(" ", v.GetClasses()) + "] " + v.worldBound + " colour " + c + " image " + (img.texture != null ? img.texture.width + "x" + img.texture.height : hasImg ? "other" : "-") + " opacity " + v.resolvedStyle.opacity + "
-");
+                    sb.Append(v.name + " [" + string.Join(" ", v.GetClasses()) + "] " + v.worldBound + " colour " + c + " image " + (img.texture != null ? img.texture.width + "x" + img.texture.height : hasImg ? "other" : "-") + " opacity " + v.resolvedStyle.opacity).AppendLine();
             });
             return sb.ToString();
         }
