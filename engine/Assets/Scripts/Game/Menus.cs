@@ -69,6 +69,8 @@ namespace Haunted.Game
             root.Add(warmUp);
 
             BuildStart();
+            BuildPlay();
+            BuildAbout();
             BuildCreate();
             BuildJoin();
             BuildOptions();
@@ -118,6 +120,7 @@ namespace Haunted.Game
             if (regapDue) { regapDue = false; RegapAll(); }
             TickMic();
             PollKeys();
+            TickTitle();
         }
 
         void Resize()
@@ -140,6 +143,7 @@ namespace Haunted.Game
             set
             {
                 visible = value;
+                openedFrame = Time.frameCount;
                 if (!value) StopListening();
                 if (!value && openList != null) openList.style.display = DisplayStyle.None;
                 foreach (var kv in screens) kv.Value.style.display = value && kv.Key == shown ? DisplayStyle.Flex : DisplayStyle.None;
@@ -148,6 +152,8 @@ namespace Haunted.Game
         }
 
         bool visible;
+        /// <summary>The frame the menus or a screen last opened: a key that opened them is not taken again (TickTitle).</summary>
+        int openedFrame = -10;
         Label fps;
 
         /// <summary>
@@ -223,10 +229,12 @@ namespace Haunted.Game
         {
             if (!screens.ContainsKey(name)) name = "start";
             shown = name;
+            openedFrame = Time.frameCount;
             StopListening();
             if (openList != null) openList.style.display = DisplayStyle.None;
             foreach (var kv in screens) kv.Value.style.display = visible && kv.Key == name ? DisplayStyle.Flex : DisplayStyle.None;
             if (name == "options") foreach (var view in optionViews) view();
+            if (name == "about") AboutShown();
             if (name == "room" || name == "settings") RoomShown();
             var screen = screens[name];
             var body = screen.Q<ScrollView>(className: "screen-body");
@@ -438,43 +446,6 @@ namespace Haunted.Game
 
         // ---- The screens ----
 
-        void BuildStart()
-        {
-            Screen("start", out var col);
-            Text(col, "eyebrow", "A co-op horror night for 4 to 8 friends", 15);
-            var mark = new VisualElement();
-            mark.AddToClassList("wordmark");
-            Text(mark, "wordmark-line", "Haunted");
-            Text(mark, "wordmark-line em", "Lobby");
-            col.Add(mark);
-            var list = new VisualElement();
-            list.AddToClassList("menu-list");
-            MenuItem(list, "01", "Create a room", "Host a night and invite your friends", () => Go("create"));
-            MenuItem(list, "02", "Join a room", "Got a code or a link from a friend?", () => Go("join"));
-            MenuItem(list, "03", "Options", "Sound, keys and comfort", () => Go("options"));
-            col.Add(list);
-
-            photoWarning = new VisualElement();
-            photoWarning.AddToClassList("photo-warning");
-            Text(photoWarning, "photo-warning-title", "Photosensitivity warning", 17.25f);
-            Text(photoWarning, "photo-warning-text", "This game has flickering lights and bright camera flashes. If flashing lights affect you, turn on photosensitivity mode. You can change it any time in Options.", 19.5f);
-            var buttons = new VisualElement();
-            buttons.AddToClassList("photo-warning-buttons");
-            Quiet(buttons, "Turn it on", () => AnswerWarning(true), true);
-            Quiet(buttons, "Continue", () => AnswerWarning(false), true);
-            photoWarning.Add(buttons);
-            col.Add(photoWarning);
-            if (Options.PhotoWarningSeen) photoWarning.style.display = DisplayStyle.None;
-
-            Error(col, "start");
-            // The browser's line begins "No accounts, no downloads."; this version is a download.
-            Text(col, "start-foot", "No accounts. The ghost hears your real microphone, so keep your voice down.", 18.75f);
-            // Step F: a newer version on itch.io (Release.Check), shown once the answer comes.
-            updateLine = Text(col, "start-foot update-line", "", 18.75f);
-            updateLine.style.display = DisplayStyle.None;
-            Gap(col, 16);
-        }
-
         Label updateLine;
 
         /// <summary>Tests: the centre of the shown text or button, in screen pixels (y up), or null.</summary>
@@ -637,19 +608,6 @@ namespace Haunted.Game
             Options.PhotoWarningSeen = true;
             photoWarning.style.display = DisplayStyle.None;
             RegapAll();
-        }
-
-        static void MenuItem(VisualElement list, string num, string title, string sub, Action click)
-        {
-            var b = new Button(click);
-            b.AddToClassList("menu-item");
-            Text(b, "menu-num", num).pickingMode = PickingMode.Ignore;
-            var text = new VisualElement { pickingMode = PickingMode.Ignore };
-            text.AddToClassList("menu-text");
-            Text(text, "menu-text-strong", title).pickingMode = PickingMode.Ignore;
-            Text(text, "menu-text-small", sub).pickingMode = PickingMode.Ignore;
-            b.Add(text);
-            list.Add(b);
         }
 
         void BuildCreate()

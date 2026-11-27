@@ -357,7 +357,8 @@ namespace Haunted.Game
                 return;
             }
             menus.Visible = false;
-            if (menuCamera != null) menuCamera.enabled = false;
+            // The backdrop's torch and figure go too: the test times the hotel alone.
+            if (menuCamera != null) menuCamera.gameObject.SetActive(false);
             speedTest = gameObject.AddComponent<SpeedTest>();
             speedTest.World = world;
             speedTest.EyeHeightM = (float)Json.Num(Json.Obj(config, "movement"), "eyeHeightM");
@@ -368,7 +369,7 @@ namespace Haunted.Game
             speedTest.Finished = result =>
             {
                 speedTest = null;
-                if (menuCamera != null) menuCamera.enabled = true;
+                if (menuCamera != null) menuCamera.gameObject.SetActive(true);
                 string saved = null, note = null;
                 if (result != null)
                 {
@@ -466,13 +467,55 @@ namespace Haunted.Game
             Application.Quit();
         }
 
-        /// <summary>Before a room: black behind the menus (style.css body, #050507), no hotel.</summary>
+        /// <summary>
+        /// Before a room: the hotel behind the menus, a torch creeping down a corridor (TitleBackdrop;
+        /// owner, 2026-11-27: an animated horror background). The browser had black (#050507).
+        /// </summary>
         void MakeMenuCamera()
         {
             menuCamera = new GameObject("Menu camera").AddComponent<Camera>();
             menuCamera.clearFlags = CameraClearFlags.SolidColor;
             menuCamera.backgroundColor = new Color32(5, 5, 7, 255);
             menuCamera.cullingMask = 0;
+            var backdrop = menuCamera.gameObject.AddComponent<TitleBackdrop>();
+            backdrop.WobbleAllowed = () => Options.PhotoWarningSeen && !Options.Photosensitive;
+            backdrop.Begin(menuCamera, world, config, baseMaterial);
+        }
+
+        /// <summary>
+        /// -titleShots DIR (a test aid): the title screen over the backdrop at moments of its walk (the
+        /// empty corridor, the figure far, a dip, the figure near, gone), then Start game and About; quits.
+        /// </summary>
+        System.Collections.IEnumerator TitleShots(string dir)
+        {
+            Directory.CreateDirectory(dir);
+            if (menus.WarningShown)
+            {
+                yield return new WaitForSecondsRealtime(2);
+                ScreenCapture.CaptureScreenshot(Path.Combine(dir, "title-warning.png"));
+                yield return null;
+                menus.HideWarning();
+            }
+            var backdrop = menuCamera.GetComponent<TitleBackdrop>();
+            foreach (float at in new[] { 7f, 18f, 25.9f, 30f, 44f })
+            {
+                backdrop.SkipTo(at);
+                yield return new WaitForSecondsRealtime(0.6f);
+                ScreenCapture.CaptureScreenshot(Path.Combine(dir, "title-" + at.ToString("0.0", CultureInfo.InvariantCulture) + "s.png"));
+                yield return null;
+            }
+            backdrop.SkipTo(19);
+            foreach (var screen in new[] { "play", "about", "create" })
+            {
+                menus.Reset("start");
+                menus.Go(screen);
+                yield return new WaitForSecondsRealtime(1.2f);
+                ScreenCapture.CaptureScreenshot(Path.Combine(dir, "title-" + screen + ".png"));
+                yield return null;
+            }
+            yield return new WaitForSecondsRealtime(1);
+            Debug.Log("Title shots saved to " + dir);
+            Application.Quit();
         }
 
         /// <summary>The menus (step E) when no test option says what to do: Start, Create, Join.</summary>
@@ -487,6 +530,7 @@ namespace Haunted.Game
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-speedTest") is int st && st >= 0 && st + 1 < Environment.GetCommandLineArgs().Length)
                 StartCoroutine(SpeedTestRun(Environment.GetCommandLineArgs()[st + 1], Array.IndexOf(Environment.GetCommandLineArgs(), "-speedShots") is int sh && sh >= 0 ? Environment.GetCommandLineArgs()[sh + 1] : null));
             if (shotsDir != null) StartCoroutine(MenuShots(shotsDir));
+            if (TestArg("-titleShots") is string titleDir) StartCoroutine(TitleShots(titleDir));
             if (Array.IndexOf(Environment.GetCommandLineArgs(), "-menuInput") >= 0) StartCoroutine(MenuInput());
         }
 
@@ -570,7 +614,10 @@ namespace Haunted.Game
                 Application.Quit();
                 yield break;
             }
-            yield return Click("Join a room");
+            // The title screen (owner, 2026-11-27): Start game opens Create and Join.
+            yield return Click("START GAME");
+            Check("start game list", menus.Current == "play");
+            yield return Click("JOIN A ROOM");
             Check("join screen", menus.Current == "join");
             yield return Type("qqzzw");
             Check("code typed and upper-cased: " + string.Join("|", menus.FieldValues()), menus.FieldValues()[0] == "QQZZW");
@@ -584,8 +631,8 @@ namespace Haunted.Game
             while (menus.ShownError == "" && Time.realtimeSinceStartup < until) yield return null;
             Check("no such room: \"" + menus.ShownError + "\"", menus.ShownError != "" && room == null);
             yield return Click("←  BACK");
-            Check("back to start", menus.Current == "start");
-            yield return Click("Create a room");
+            Check("back to the start game list", menus.Current == "play");
+            yield return Click("CREATE A ROOM");
             Check("create screen, name kept: " + string.Join("|", menus.FieldValues()), menus.Current == "create");
             if (menus.FieldValues()[0] == "") yield return Type(name);
             yield return Click("Create room");
@@ -608,7 +655,8 @@ namespace Haunted.Game
         System.Collections.IEnumerator Story8(Func<string, int, System.Collections.IEnumerator> click,
             Func<string, System.Collections.IEnumerator> type, Action<string, bool> check)
         {
-            yield return click("Create a room", -1);
+            yield return click("START GAME", -1);
+            yield return click("CREATE A ROOM", -1);
             if (menus.FieldValues()[0] == "") yield return type("Unity");
             yield return click("Create room", -1);
             yield return Until(() => room?.State?.players != null && menus.Current == "room", 20);
@@ -820,7 +868,8 @@ namespace Haunted.Game
             yield return click("Click again to leave", -1);
             check("left: the start screen, no room", room == null && menus.Visible && menus.Current == "start" && menuCamera != null);
             yield return new WaitForSecondsRealtime(1);
-            yield return click("Create a room", -1);
+            yield return click("START GAME", -1);
+            yield return click("CREATE A ROOM", -1);
             yield return click("Create room", -1);
             // A new room asks for the mic check again (main.ts reloads the page on leaving).
             yield return Until(() => room != null && (menus.Current == "room" || menus.Current == "mic"), 15);
@@ -838,7 +887,8 @@ namespace Haunted.Game
         System.Collections.IEnumerator RoomJoinInput(string code, Func<string, int, System.Collections.IEnumerator> click,
             Func<string, System.Collections.IEnumerator> type, Func<System.Collections.IEnumerator> enter, Action<string, bool> check)
         {
-            yield return click("Join a room", -1);
+            yield return click("START GAME", -1);
+            yield return click("JOIN A ROOM", -1);
             yield return type(code.ToLowerInvariant());
             if (menus.FieldValues()[1] == "")
             {
@@ -892,7 +942,7 @@ namespace Haunted.Game
                 if (down) state = state.WithButton(UnityEngine.InputSystem.LowLevel.MouseButton.Left, true);
                 UnityEngine.InputSystem.InputSystem.QueueStateEvent(mouse, state);
             }
-            yield return click("Options", -1);
+            yield return click("OPTIONS", -1);
             check("options screen", menus.Current == "options");
             // Pressed at 30 %, dragged to 50 %, let go: the slider follows the held button.
             menus.RangePoint(0, 0.3f);
@@ -965,7 +1015,7 @@ namespace Haunted.Game
                 yield return null;
                 menus.HideWarning();
             }
-            foreach (var screen in new[] { "start", "create", "join", "options", "options-end" })
+            foreach (var screen in new[] { "start", "play", "about", "create", "join", "options", "options-end" })
             {
                 if (screen == "start") menus.Reset("start");
                 else if (screen == "options-end") menus.ScrollToEnd();
