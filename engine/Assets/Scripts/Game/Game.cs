@@ -496,6 +496,8 @@ namespace Haunted.Game
                 yield return null;
                 menus.HideWarning();
             }
+            Debug.Log("Title backgrounds:
+" + menus.BackgroundLog());
             var backdrop = menuCamera.GetComponent<TitleBackdrop>();
             foreach (float at in new[] { 7f, 18f, 25.9f, 30f, 44f })
             {

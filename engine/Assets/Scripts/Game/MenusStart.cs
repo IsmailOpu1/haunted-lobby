@@ -217,6 +217,24 @@ namespace Haunted.Game
                 Back();
         }
 
+        /// <summary>Tests: every element drawn with a background, from the root (to find what darkens the picture).</summary>
+        public string BackgroundLog()
+        {
+            var sb = new System.Text.StringBuilder();
+            root.Query<VisualElement>().ForEach(v =>
+            {
+                if (v.resolvedStyle.display == DisplayStyle.None) return;
+                for (var a = v.parent; a != null; a = a.parent) if (a.resolvedStyle.display == DisplayStyle.None) return;
+                var c = v.resolvedStyle.backgroundColor;
+                var img = v.resolvedStyle.backgroundImage;
+                bool hasImg = img.texture != null || img.sprite != null || img.renderTexture != null || img.vectorImage != null;
+                if (c.a > 0.01f || hasImg)
+                    sb.Append(v.name + " [" + string.Join(" ", v.GetClasses()) + "] " + v.worldBound + " colour " + c + " image " + (img.texture != null ? img.texture.width + "x" + img.texture.height : hasImg ? "other" : "-") + " opacity " + v.resolvedStyle.opacity + "
+");
+            });
+            return sb.ToString();
+        }
+
         /// <summary>Quit game: the window closes (in the editor, play stops).</summary>
         static void Quit()
         {
