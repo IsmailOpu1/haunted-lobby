@@ -217,6 +217,16 @@ namespace Haunted.Game
                 Back();
         }
 
+        /// <summary>Tests: the shown screen's shade and grain on or off.</summary>
+        public void ShadeShown(bool on)
+        {
+            foreach (var cls in new[] { "shade", "grain" })
+            {
+                var e = screens[shown].Q(className: cls);
+                if (e != null) e.style.display = on ? DisplayStyle.Flex : DisplayStyle.None;
+            }
+        }
+
         /// <summary>Tests: every element drawn with a background, from the root (to find what darkens the picture).</summary>
         public string BackgroundLog()
         {
