@@ -618,5 +618,6 @@ The owner asked for game-like menus: "start game, options, about, quit game", an
   - Lines on floors (the Ballroom's black T, white lines upstairs and in the courtyard): the engine's grey wall boxes reached the floor above and showed through it. They stop `SLAB_M` (5 cm) short, as the browser's do (world.ts).
   - Bare grey walls at the stair shafts (Main Hall, Service Room, Nursery): in `tools/art/build-room.ts` the shaft's end face lay on `L - T/2`, inside the wall's box; a room the flight does not open into (the Nursery) got no end face; the side walls' ends at the mouth had none. Rebuilt Main Hall, Service Room and Nursery.
   - Guest Room 1's Gothic bed stood with its foot against the wall (the model's headboard is at its -z end): turned 180. Rebuilt Guest Room 1.
+  - Numbers glowing on the walls upstairs: the roses' tags (3, 5, 4) seen back to front through the Guest Corridor's floor, as Unity's own text shader draws over everything. Words in the hotel use `Haunted/WorldText` now: hidden behind things, fogged, seen from the front only.
   - Test aids: `ProjectSetup.BuildTest -buildPath …` builds apart from the owner's copy; tests keep input on when their window is not in front.
 
