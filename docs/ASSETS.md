@@ -140,7 +140,7 @@ Downloaded from mixamo.com (Adobe account, free) on 2026-11-13 and 2026-11-14 in
 | `brian.fbx` | Brian | The Detective (`detective.glb`) |
 | `kate.fbx` | Kate | The Photographer (`photographer.glb`) |
 | `pete.fbx` | Pete | The Mechanic (`mechanic.glb`) |
-| `megan.fbx` | Megan | The Caretaker (`caretaker.glb`) |
+| `megan.fbx` | Megan | The Caretaker (`caretaker.glb`); in the Unity version also the ghost's body (`engine/Assets/Resources/Ghost/ghost.glb` and `ghost-low.glb`, made by `tools/art/blender/build_ghost.py`: stretched and thinned, her skin turned corpse-grey; the shroud, hair, eye lights and their textures are made by the script itself) |
 | `anim-idle.fbx` | Breathing Idle | `idle` in `anims.glb` |
 | `anim-walk.fbx` | Male Standard Walk | `walk` |
 | `anim-run.fbx` | Running (forward, quickly) | `run` |
