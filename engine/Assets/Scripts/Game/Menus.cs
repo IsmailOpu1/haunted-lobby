@@ -78,6 +78,8 @@ namespace Haunted.Game
             BuildSettings();
             BuildMic();
             BuildNight();
+            // Back at the foot of each screen, under everything built after it.
+            foreach (var b in backButtons) b.BringToFront();
             string name = PlayerPrefs.GetString("playerName", "");
             createName.value = joinName.value = name;
             Reset("start");
@@ -117,6 +119,7 @@ namespace Haunted.Game
             if (rt == null || rt.width != UnityEngine.Screen.width || rt.height != UnityEngine.Screen.height) Resize();
             // Gaps once the columns are laid out (a panel's scheduler skips what was built before
             // it joined the panel).
+            ReLead();
             if (regapDue) { regapDue = false; RegapAll(); }
             TickMic();
             PollKeys();
@@ -317,9 +320,32 @@ namespace Haunted.Game
             {
                 label.userData = lineHeight;
                 label.RegisterCallback<GeometryChangedEvent>(_ => Lead(label));
+                ledText[label] = label.text;
             }
             parent.Add(label);
             return label;
+        }
+
+        /// <summary>Each label with a line height and the text it was last measured with.</summary>
+        static readonly Dictionary<Label, string> ledText = new Dictionary<Label, string>();
+
+        /// <summary>
+        /// Each frame: a label whose text changed is measured again. Its height is set by hand, so new
+        /// text alone changes no geometry, and text set after the first layout (the room's settings,
+        /// empty when laid out) kept a height of nothing and spilt over its neighbours.
+        /// </summary>
+        static void ReLead()
+        {
+            List<Label> changed = null;
+            foreach (var kv in ledText)
+                if (kv.Value != kv.Key.text) (changed ??= new List<Label>()).Add(kv.Key);
+            if (changed == null) return;
+            foreach (var label in changed)
+            {
+                ledText[label] = label.text;
+                Lead(label);
+            }
+            regapDue = true;
         }
 
         /// <summary>
@@ -406,13 +432,33 @@ namespace Haunted.Game
             return b;
         }
 
+        /// <summary>
+        /// Back, as the title's own choices (owner, 2026-11-27: "it's supposed to be same as the rest of
+        /// the menu"): large letters at the foot of the screen that light up in brass with a rule each
+        /// side when pointed at. Made where the screen is built, moved to its foot once it is.
+        /// </summary>
         Button BackButton(VisualElement parent, string text = "Back")
         {
-            var b = new Button(Back) { text = "←  " + text.ToUpperInvariant() };
-            b.AddToClassList("back");
+            var b = new Button(Back);
+            b.AddToClassList("title-item");
+            b.AddToClassList("back-item");
+            foreach (var part in new[] { "title-rule", "title-item-text", "title-rule" })
+            {
+                var e = part == "title-item-text" ? new Label(text.ToUpperInvariant()) : new VisualElement();
+                e.pickingMode = PickingMode.Ignore;
+                e.AddToClassList(part);
+                b.Add(e);
+            }
+            b.RegisterCallback<PointerEnterEvent>(_ => b.AddToClassList("on"));
+            b.RegisterCallback<PointerLeaveEvent>(_ => b.RemoveFromClassList("on"));
+            b.RegisterCallback<FocusInEvent>(_ => b.AddToClassList("on"));
+            b.RegisterCallback<FocusOutEvent>(_ => b.RemoveFromClassList("on"));
             parent.Add(b);
+            backButtons.Add(b);
             return b;
         }
+
+        readonly List<Button> backButtons = new List<Button>();
 
         static Button Quiet(VisualElement parent, string text, Action click, bool small = false)
         {

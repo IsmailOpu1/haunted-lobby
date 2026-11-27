@@ -648,7 +648,7 @@ namespace Haunted.Game
             float until = Time.realtimeSinceStartup + 10;
             while (menus.ShownError == "" && Time.realtimeSinceStartup < until) yield return null;
             Check("no such room: \"" + menus.ShownError + "\"", menus.ShownError != "" && room == null);
-            yield return Click("←  BACK");
+            yield return Click("BACK");
             Check("back to the start game list", menus.Current == "play");
             yield return Click("CREATE A ROOM");
             Check("create screen, name kept: " + string.Join("|", menus.FieldValues()), menus.Current == "create");
@@ -684,7 +684,7 @@ namespace Haunted.Game
             yield return click("Run the speed test", -1);
             yield return new WaitForSecondsRealtime(0.5f);
             check("speed test refused in a room", menus.Current == "options" && menus.Visible && menus.ScreenPoint("Leave the room first: the test moves the view round the hotel.") != null);
-            yield return click("←  BACK", -1);
+            yield return click("BACK", -1);
             check("back to the room page", menus.Current == "room");
             yield return Until(() => room.State.players.Count >= 8, 180);
             check("8 players in: " + string.Join(" / ", menus.PlayerRows()), room.State.players.Count == 8);
@@ -739,7 +739,7 @@ namespace Haunted.Game
                 yield return new WaitForSecondsRealtime(0.5f);
                 check("Hardcore chosen: shown " + menus.SettingsShown + ", server " + room.State.settingsCode,
                     room.State.settingsCode.StartsWith("HRD") && menus.SettingsShown.StartsWith(room.State.settingsCode));
-                yield return click("←  ROOM", -1);
+                yield return click("BACK TO THE ROOM", -1);
                 yield return Until(OthersReady, 60);
                 check("the 7 others ready again", OthersReady());
             }
@@ -818,7 +818,7 @@ namespace Haunted.Game
                 check("mic check done", micChecked && menus.ScreenPoint("Continue to the room") != null);
                 yield return RoomShot("mic-done");
                 yield return click("Continue to the room", -1);
-                if (menus.Current == "options") yield return click("←  BACK", -1);
+                if (menus.Current == "options") yield return click("BACK", -1);
                 check("look hint back to walking", menus.ScreenPoint("Walk around the hotel while you wait. Esc brings this page back.") != null);
             }
             check("room page shown: code " + room?.RoomId, menus.Visible && menus.Current == "room");
@@ -849,7 +849,7 @@ namespace Haunted.Game
             check("match length 20 by hand: shown " + menus.SettingsShown + ", server " + room.State.settingsCode,
                 room.State.settingsCode.StartsWith("CUS-20") && menus.SettingsShown.StartsWith(room.State.settingsCode));
             yield return new WaitForSecondsRealtime(2);
-            yield return click("←  ROOM", -1);
+            yield return click("BACK TO THE ROOM", -1);
             check("back to the room, summary " + menus.SettingsShown, menus.Current == "room" && menus.SettingsShown.Contains("Custom · 20 min"));
             if (want > 1)
             {
@@ -921,7 +921,7 @@ namespace Haunted.Game
             yield return RoomShot("room-guest");
             yield return click("See all settings", -1);
             yield return RoomShot("settings-guest");
-            yield return click("←  ROOM", -1);
+            yield return click("BACK TO THE ROOM", -1);
             string seen = menus.SettingsShown;
             Debug.Log("Menu input: settings shown " + seen);
             int changes = 0;

@@ -189,7 +189,7 @@ namespace Haunted.Game
         void BuildSettings()
         {
             Screen("settings", out var col, true);
-            BackButton(col, "Room");
+            BackButton(col, "Back to the room");
             var eyebrow = Box(col, "eyebrow-row");
             Text(eyebrow, "eyebrow", "Room settings", 15);
             settingsCode2 = Text(eyebrow, "code-chip eyebrow-chip", "");

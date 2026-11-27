@@ -1815,3 +1815,10 @@ Button {
 .room-head .quiet:hover {
     border-color: rgb(201, 162, 75);
 }
+
+/* Back as the title's own choices, at the foot of each screen (owner, 2026-11-27: "same as the rest of the menu"). */
+.unity-scroll-view__content-container > .back-item,
+.back-item {
+    align-self: center;
+    margin-top: 22px;
+}
