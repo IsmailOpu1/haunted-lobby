@@ -41,6 +41,14 @@ namespace Haunted.Game
             var c = art != null ? art.Of(character) : null;
             var source = c == null ? null : low && c.low != null ? c.low : c.model;
             if (source == null) return null;
+            return FromModel(source, character + (low ? " (Low)" : ""), heightM);
+        }
+
+        /// <summary>A fresh body of any model on the players' skeleton (the ghost's too), with the shared clips; null without the clips.</summary>
+        public static CharacterBody FromModel(GameObject source, string label, float heightM)
+        {
+            var art = CharacterArt.Load();
+            if (art == null || source == null) return null;
             var copy = Object.Instantiate(source);
             Transform top = null, hips = null;
             foreach (var t in copy.GetComponentsInChildren<Transform>(true))
@@ -50,7 +58,7 @@ namespace Haunted.Game
             }
             // glTFast makes a lone glTF root node (the Armature, at 1/100 scale) the copy itself: put it
             // under a body of its own, named as the clips' paths ("Armature/mixamorig:Hips") expect.
-            var root = new GameObject("Body " + character + (low ? " (Low)" : ""));
+            var root = new GameObject("Body " + label);
             if (hips != null && hips.parent == copy.transform) copy.name = "Armature";
             copy.transform.SetParent(root.transform, false);
             // Measured standing, before it is placed: scaled to config.body.heightM.
@@ -83,7 +91,7 @@ namespace Haunted.Game
             }
             var shaders = new HashSet<string>();
             foreach (var r in root.GetComponentsInChildren<Renderer>(true)) foreach (var m in r.sharedMaterials) shaders.Add(m == null ? "none" : m.shader.name + (m.shader.isSupported ? "" : " (unsupported)"));
-            Debug.Log("Body " + character + (low ? " (Low)" : "") + ": " + root.GetComponentsInChildren<Renderer>(true).Length + " pieces, scale " + root.transform.localScale.x.ToString("0.000") + ", head top " + topY.ToString("0.00") + " m, legs " + legs.ToString("0.00") + ", " + art.clips.Count + " clips, shaders " + string.Join(", ", shaders));
+            Debug.Log("Body " + label + ": " + root.GetComponentsInChildren<Renderer>(true).Length + " pieces, scale " + root.transform.localScale.x.ToString("0.000") + ", head top " + topY.ToString("0.00") + " m, legs " + legs.ToString("0.00") + ", " + art.clips.Count + " clips, shaders " + string.Join(", ", shaders));
             return body;
         }
 

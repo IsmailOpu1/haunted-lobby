@@ -16,7 +16,7 @@ namespace Haunted.Game
     /// </summary>
     public class Haunting
     {
-        // ghostView.ts: a placeholder look until the art pass.
+        // ghostView.ts: the plain look, when the ghost's art (GhostBody) is missing; its aura and shimmer always.
         const float HeadRadiusM = 0.16f, AuraIntensity = 1.5f, AuraRangeM = 4, ShimmerPerSec = 6;
         const int MaxSnapshots = 30;
         // audio.ts: the heartbeat is heard within this distance of the ghost; the hunt pulse's level.
@@ -46,6 +46,9 @@ namespace Haunted.Game
         readonly Transform ghost;
         readonly Material body;
         readonly Light aura;
+        /// <summary>The ghost's own body (GhostBody), or null without its art (then plain shapes stand in).</summary>
+        GhostBody model;
+        readonly float ghostHeight;
         /// <summary>The ghost's latest known place (for the flicker and the heartbeat), or null when it is far or gone.</summary>
         public Vector3? Known;
         /// <summary>Test aid (-sendAtNight _ghostAt): the ghost drawn here, facing TestYaw, whatever the server says; null for the server's.</summary>
@@ -98,17 +101,27 @@ namespace Haunted.Game
             var g = Json.Obj(config, "ghost");
             double radius = Json.Num(g, "radiusM"), height = Json.Num(g, "heightM");
             ghost = Group(root, "Ghost");
-            body = Mat(Hex(0xc8d0dc), Look.Clear, 0.8f);
-            body.SetColor("_EmissionColor", Hex(0x4a5566));
-            Cylinder(ghost, 0, radius * 1.4, height * 0.85, body, 0, height * 0.85 / 2, 0, null, 12, true);
-            Sphere(ghost, HeadRadiusM, body, 0, height - HeadRadiusM, 0);
-            // Dark sockets with bright eyes, facing where it walks (three.js -z).
-            var socket = Mat(Color.black, Look.Unlit);
-            var eye = Mat(Hex(0xe8f4ff), Look.Unlit);
-            foreach (int side in new[] { -1, 1 })
+            ghostHeight = (float)height;
+            model = GhostBody.Make(ghostHeight, HauntedQuality.Current == HauntedQuality.Level.Low);
+            if (model != null)
             {
-                Sphere(ghost, 0.045, socket, side * 0.06, height - HeadRadiusM + 0.02, -HeadRadiusM + 0.03);
-                Sphere(ghost, 0.02, eye, side * 0.06, height - HeadRadiusM + 0.02, -HeadRadiusM - 0.005);
+                model.Root.SetParent(ghost, false);
+                body = null;
+            }
+            else
+            {
+                body = Mat(Hex(0xc8d0dc), Look.Clear, 0.8f);
+                body.SetColor("_EmissionColor", Hex(0x4a5566));
+                Cylinder(ghost, 0, radius * 1.4, height * 0.85, body, 0, height * 0.85 / 2, 0, null, 12, true);
+                Sphere(ghost, HeadRadiusM, body, 0, height - HeadRadiusM, 0);
+                // Dark sockets with bright eyes, facing where it walks (three.js -z).
+                var socket = Mat(Color.black, Look.Unlit);
+                var eye = Mat(Hex(0xe8f4ff), Look.Unlit);
+                foreach (int side in new[] { -1, 1 })
+                {
+                    Sphere(ghost, 0.045, socket, side * 0.06, height - HeadRadiusM + 0.02, -HeadRadiusM + 0.03);
+                    Sphere(ghost, 0.02, eye, side * 0.06, height - HeadRadiusM + 0.02, -HeadRadiusM - 0.005);
+                }
             }
             // A cold glow that lights the floor and walls around it.
             aura = Group(ghost, "Aura", 0, height * 0.6, 0).gameObject.AddComponent<Light>();
@@ -172,7 +185,7 @@ namespace Haunted.Game
                 later.RemoveAt(i);
                 a();
             }
-            DrawGhost(now);
+            DrawGhost(now, dt);
             double distance = Known.HasValue ? Vector3.Distance(Known.Value, feet) : double.PositiveInfinity;
             UpdateSounds(now, dt, distance);
             bool heard = Shown && Vector3.Distance(ghost.position, feet) <= GhostCueM;
@@ -202,7 +215,34 @@ namespace Haunted.Game
             return Flicker(dt, distance);
         }
 
-        void DrawGhost(double now)
+        void DrawGhost(double now, float dt)
+        {
+            bool low = HauntedQuality.Current == HauntedQuality.Level.Low;
+            if (model != null && model.Low != low)
+            {
+                var other = GhostBody.Make(ghostHeight, low);
+                if (other != null)
+                {
+                    model.Destroy();
+                    model = other;
+                    model.Root.SetParent(ghost, false);
+                }
+            }
+            DrawGhostAt(now);
+            if (model != null)
+            {
+                model.SetActive(ghost.gameObject.activeSelf);
+                if (ghost.gameObject.activeSelf) model.Update(dt, hunting, Options.Photosensitive);
+            }
+        }
+
+        /// <summary>After the animation has posed the ghost: its hunch, and its head turned to `lookAt` (your eyes).</summary>
+        public void LateUpdate(Vector3 lookAt, float dt)
+        {
+            if (model != null && Shown) model.AfterAnimation(lookAt, dt, Options.Photosensitive);
+        }
+
+        void DrawGhostAt(double now)
         {
             if (TestAt.HasValue)
             {
@@ -236,11 +276,12 @@ namespace Haunted.Game
         {
             // A slow shimmer, so it never looks quite solid.
             float shimmer = Mathf.Sin((float)now * ShimmerPerSec);
+            aura.intensity = AuraIntensity * (0.85f + 0.15f * shimmer);
+            if (body == null) return;
             var c = body.color;
             c.a = 0.72f + 0.1f * shimmer;
             body.color = c;
             if (body.HasProperty("_BaseColor")) body.SetColor("_BaseColor", c);
-            aura.intensity = AuraIntensity * (0.85f + 0.15f * shimmer);
         }
 
         /// <summary>

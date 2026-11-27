@@ -1361,6 +1361,7 @@ namespace Haunted.Game
         void LateUpdate()
         {
             if (others != null) others.LateUpdate();
+            if (haunting != null && me != null) haunting.LateUpdate(me.Camera.transform.position, Time.deltaTime);
             if (heldTest != null && me != null)
             {
                 me.Camera.transform.rotation = Quaternion.identity;
