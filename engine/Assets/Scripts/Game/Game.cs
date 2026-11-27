@@ -503,6 +503,13 @@ namespace Haunted.Game
                 yield return new WaitForSecondsRealtime(0.6f);
                 ScreenCapture.CaptureScreenshot(Path.Combine(dir, "title-" + at.ToString("0.0", CultureInfo.InvariantCulture) + "s.png"));
                 yield return null;
+                // The backdrop alone, to judge its light.
+                menus.Visible = false;
+                yield return null;
+                yield return null;
+                ScreenCapture.CaptureScreenshot(Path.Combine(dir, "backdrop-" + at.ToString("0.0", CultureInfo.InvariantCulture) + "s.png"));
+                yield return null;
+                menus.Visible = true;
             }
             backdrop.SkipTo(19);
             foreach (var screen in new[] { "play", "about", "create" })

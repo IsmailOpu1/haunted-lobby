@@ -1374,6 +1374,7 @@ Button {
 
 .title-body {
     width: 100%;
+    max-width: 100%;
 }
 
 .title-column {
@@ -1386,14 +1387,16 @@ Button {
 }
 
 .title-mark {
+    flex-direction: row;
+    justify-content: center;
     align-items: center;
-    margin-bottom: 26px;
+    margin-bottom: 30px;
 }
 
 .title-word {
     -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Regular.ttf");
-    font-size: 124px;
-    height: 104px;
+    font-size: 112px;
+    height: 112px;
     letter-spacing: -2px;
     white-space: nowrap;
     overflow: visible;
@@ -1404,6 +1407,7 @@ Button {
 
 .title-word.em {
     -unity-font-definition: url("/Assets/UI/Fonts/InstrumentSerif-Italic.ttf");
+    margin-left: 26px;
     color: rgb(201, 162, 75);
     text-shadow: 0 0 28px rgba(201, 162, 75, 0.35);
 }

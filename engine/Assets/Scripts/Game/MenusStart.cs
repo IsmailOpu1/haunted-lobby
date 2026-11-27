@@ -26,6 +26,8 @@ namespace Haunted.Game
         }
 
         readonly Dictionary<string, TitleList> titleLists = new Dictionary<string, TitleList>();
+        /// <summary>Start's choices and hint, hidden while the photosensitivity warning is up.</summary>
+        readonly List<VisualElement> hiddenByWarning = new List<VisualElement>();
 
         /// <summary>Whether a title screen (Start, Start game, About) is shown.</summary>
         public bool TitleShown => visible && titleLists.ContainsKey(shown);
@@ -36,6 +38,7 @@ namespace Haunted.Game
             Text(col, "eyebrow title-eyebrow", "A co-op horror night for 4 to 8 friends");
             var mark = new VisualElement();
             mark.AddToClassList("title-mark");
+            // On one line, as a game's logo.
             Text(mark, "title-word", "Haunted");
             Text(mark, "title-word em", "Lobby");
             col.Add(mark);
@@ -58,6 +61,10 @@ namespace Haunted.Game
                 ("Options", "Sound, keys, comfort and the speed test", () => Go("options")),
                 ("About", "What this is, how a night goes, and who made it", () => Go("about")),
                 ("Quit game", "Back to the desktop", Quit));
+
+            // While the warning is up it stands where the choices are; they come once it is answered.
+            hiddenByWarning.Add(col.Q(className: "title-list"));
+            hiddenByWarning.Add(titleLists["start"].Hint);
 
             Error(col, "start");
             Text(col, "start-foot title-foot", "No accounts. The ghost hears your real microphone, so keep your voice down.", 18.75f);
@@ -137,7 +144,9 @@ namespace Haunted.Game
             screen.AddToClassList("title-screen");
             var shade = screen.Q(className: "shade");
             if (shade != null) shade.style.backgroundImage = TitleVignette;
-            col.parent.parent.AddToClassList("title-body");
+            var body = screen.Q<ScrollView>(className: "screen-body");
+            body.AddToClassList("title-body");
+            body.verticalScrollerVisibility = ScrollerVisibility.Hidden;
             col.AddToClassList("title-column");
             return col;
         }
@@ -185,6 +194,9 @@ namespace Haunted.Game
         /// <summary>Each frame: arrows or W/S move the pick, Enter or Space takes it; Esc goes back outside a room.</summary>
         void TickTitle()
         {
+            var showChoices = WarningShown ? DisplayStyle.None : DisplayStyle.Flex;
+            foreach (var e in hiddenByWarning)
+                if (e.style.display != showChoices) { e.style.display = showChoices; regapDue = true; }
             if (!visible || Listening || heardFrame == Time.frameCount || openedFrame >= Time.frameCount - 1) return;
             var k = UnityEngine.InputSystem.Keyboard.current;
             if (k == null) return;
@@ -234,9 +246,9 @@ namespace Haunted.Game
                     {
                         float dx = (x + 0.5f) / w * 2 - 1, dy = (y + 0.5f) / h * 2 - 1;
                         float r = Mathf.Sqrt(dx * dx + dy * dy * 1.3f);
-                        // 0.55 in the middle (behind the words), 0.35 in a ring round them, 0.95 at the corners.
-                        float middle = Mathf.Lerp(0.55f, 0.35f, Mathf.SmoothStep(0, 0.55f, Mathf.Abs(dx)));
-                        float a = Mathf.Lerp(middle, 0.96f, Mathf.SmoothStep(0.6f, 1.35f, r));
+                        // 0.42 in the middle (behind the words), 0.22 either side of them, 0.9 at the corners.
+                        float middle = Mathf.Lerp(0.42f, 0.22f, Mathf.SmoothStep(0, 0.55f, Mathf.Abs(dx)));
+                        float a = Mathf.Lerp(middle, 0.9f, Mathf.SmoothStep(0.7f, 1.45f, r));
                         px[y * w + x] = new Color32(5, 5, 7, (byte)Mathf.RoundToInt(a * 255));
                     }
                 titleVignette.SetPixels32(px);

@@ -41,7 +41,9 @@ namespace Haunted.Game
         const float FigureAsideM = 0.25f;
 
         Camera view;
-        Light torch;
+        Light torch, spill;
+        /// <summary>The spill light's reach and brightness (Unity's units, as Torch.Intensity).</summary>
+        const float SpillRangeM = 6, SpillIntensity = 1.6f;
         Transform figure, head;
         Vector3 from, ahead, side;
         float eyeM, started;
@@ -75,6 +77,15 @@ namespace Haunted.Game
             var f = Json.Obj(config, "flashlight");
             torch = Torch.Make(transform, LocalPlayer.TorchAt, Vector3.forward * LocalPlayer.BeamAimM, Json.Num(f, "coneM"), Json.Num(f, "coneHalfAngleDeg"));
             torch.enabled = true;
+            // The torch's spill on the walls beside you, so the corridor reads as a place round the beam.
+            spill = new GameObject("Spill").AddComponent<Light>();
+            spill.transform.SetParent(transform, false);
+            spill.transform.localPosition = new Vector3(0.15f, -0.25f, 0.4f);
+            spill.type = LightType.Point;
+            spill.color = new Color(1f, 0.86f, 0.68f);
+            spill.range = SpillRangeM;
+            spill.shadows = LightShadows.None;
+            HauntedLightDecay.Set(spill, Torch.Decay);
 
             MakeFigure(baseMaterial);
             started = Time.unscaledTime;
@@ -163,6 +174,7 @@ namespace Haunted.Game
             if (WobbleAllowed != null && WobbleAllowed())
                 light *= 1 - Wobble * Mathf.PerlinNoise(clock * 2.2f, 0.37f);
             torch.intensity = Torch.Intensity * light;
+            spill.intensity = SpillIntensity * light;
 
             // The figure: there after the first dip (in its darkest moment), closer after the second, gone after the third.
             bool there = dips == 1 || dips == 2;
