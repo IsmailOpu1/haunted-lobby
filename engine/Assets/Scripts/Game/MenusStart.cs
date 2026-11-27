@@ -80,7 +80,7 @@ namespace Haunted.Game
         {
             var col = TitleScreen("play");
             Text(col, "eyebrow title-eyebrow", "Start game");
-            Text(col, "title-heading", "Tonight, who hosts?");
+            Text(col, "title-heading", "Who hosts tonight?");
             TitleItems(col, "play",
                 ("Create a room", "Host a night and invite your friends", () => Go("create")),
                 ("Join a room", "Got a code from a friend?", () => Go("join")),
@@ -215,33 +215,6 @@ namespace Haunted.Game
             // Esc: one step back on the screens before a room (in a room the game has its own Esc).
             if (k.escapeKey.wasPressedThisFrame && home == "start" && shown != "start" && (!typing || shown == "create" || shown == "join"))
                 Back();
-        }
-
-        /// <summary>Tests: the shown screen's shade and grain on or off.</summary>
-        public void ShadeShown(bool on)
-        {
-            foreach (var cls in new[] { "shade", "grain" })
-            {
-                var e = screens[shown].Q(className: cls);
-                if (e != null) e.style.display = on ? DisplayStyle.Flex : DisplayStyle.None;
-            }
-        }
-
-        /// <summary>Tests: every element drawn with a background, from the root (to find what darkens the picture).</summary>
-        public string BackgroundLog()
-        {
-            var sb = new System.Text.StringBuilder();
-            root.Query<VisualElement>().ForEach(v =>
-            {
-                if (v.resolvedStyle.display == DisplayStyle.None) return;
-                for (var a = v.parent; a != null; a = a.parent) if (a.resolvedStyle.display == DisplayStyle.None) return;
-                var c = v.resolvedStyle.backgroundColor;
-                var img = v.resolvedStyle.backgroundImage;
-                bool hasImg = img.texture != null || img.sprite != null || img.renderTexture != null || img.vectorImage != null;
-                if (c.a > 0.01f || hasImg)
-                    sb.Append(v.name + " [" + string.Join(" ", v.GetClasses()) + "] " + v.worldBound + " colour " + c + " image " + (img.texture != null ? img.texture.width + "x" + img.texture.height : hasImg ? "other" : "-") + " opacity " + v.resolvedStyle.opacity).AppendLine();
-            });
-            return sb.ToString();
         }
 
         /// <summary>Quit game: the window closes (in the editor, play stops).</summary>
