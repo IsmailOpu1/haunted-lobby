@@ -1,6 +1,7 @@
 using System.Linq;
 using Haunted.Sim;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 
 namespace Haunted.Game
 {
