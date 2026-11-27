@@ -601,3 +601,14 @@ The owner asked for a speed test of the Unity version's own, better than the bro
 - E5's night screens and E6's speed test are in. `release.json` is at 0.9.2. BuildRelease plus `tools/engine-release.ps1` give `engine/Build/Release/HauntedLobby-0.9.2-windows.zip` (1,444 MB, on E:).
 - Checked on the release build itself against a local debug server: the speed test (High 232 FPS, Low 427), Esc stopping it, the 8-player story (all checks pass) and the E3 menu suite (63 checks).
 - For the owner (Claude does not sign in for you): make the itch.io page (Downloadable, Windows), put `user/game` in `release.json`'s `itch`, and upload: the zip on the page, or `butler push "engine/Build/Release/Haunted Lobby" <you>/<game>:windows --userversion 0.9.2`. Then the friend test (step F's done-when): a friend downloads it, installs it and plays a match with no help.
+
+### Menus step 1: the title screen (2026-11-27, branch `menus-wip`)
+
+The owner asked for game-like menus: "start game, options, about, quit game", an animated horror background, modern (GDD 26.16). Step by step: this is the title screen; the other screens get their turn after the owner has seen it, and the ghost's new look is a step of its own.
+
+- **Title screens** (`Game/MenusStart.cs`): Start (the name on one line, four choices, a hint line saying what the picked one does, the foot line, the version), Start game (Create a room, Join a room, Back) and About (the game, a night, the controls as bound now, the credits). Centred; a choice lights up in brass with a rule growing out either side. Mouse, arrows or W/S and Enter or Space; Esc goes back on every screen before a room. The first-run photosensitivity warning stands where the choices are until it is answered.
+- **The backdrop** (`Game/TitleBackdrop.cs`, on the menu camera): the hotel behind every screen before a room (the browser had black). A torch creeps 3.2 m down the East Corridor over 50 s with a careful walk's sway. At 13 s the beam dips slowly and a dark figure stands 10.5 m down the corridor; at 25 s it dips again and the figure is 6.2 m away; at 37 s it dips and the figure is gone; the view fades out and the walk starts over. No sound, no flash; the torch wobbles slightly only after the warning is answered and with photosensitivity off. The speed test hides it with the camera.
+- **Shades**: the title screens have a centred vignette (dark behind the words, light either side, dark corners); Create, Join and Options keep their left-dark shade, now over the hotel instead of black.
+- **Test aid** `-titleShots DIR`: the title at 7, 18, 25.9, 30 and 44 s of the walk, each also without the menus, then Start game, About and Create.
+- **Tests** now go through Start game to Create a room and Join a room (`-menuInput`, `-story8`, `-roomJoin`).
+
