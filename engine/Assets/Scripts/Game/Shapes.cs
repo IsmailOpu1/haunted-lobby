@@ -15,7 +15,7 @@ namespace Haunted.Game
     {
         static Material lit, glow, clear, unlit, unlitClear, standard, standardGlow;
         static Mesh cube, cylinder, sphere;
-        static Material textMaterial;
+        static readonly Dictionary<Font, Material> textMaterials = new Dictionary<Font, Material>();
         static readonly Dictionary<string, Mesh> meshes = new Dictionary<string, Mesh>();
 
         public static void Load(Material greyBox)
@@ -316,6 +316,25 @@ namespace Haunted.Game
             if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", c);
         }
 
+        /// <summary>
+        /// The material for words in the hotel in this font (Haunted/WorldText): hidden behind things,
+        /// fogged, and seen from the front only, as the browser's canvas text. The font's own material
+        /// draws over everything (GUI text), so a roses tag showed through the upper floor.
+        /// </summary>
+        public static Material WorldText(Font font)
+        {
+            Material m;
+            if (textMaterials.TryGetValue(font, out m)) return m;
+            var made = Resources.Load<Material>("Materials/WorldText");
+            m = made != null ? new Material(made) : new Material(font.material);
+            m.mainTexture = font.material.mainTexture;
+            textMaterials[font] = m;
+            if (textMaterials.Count == 1)
+                // A dynamic font redraws its letters into a new texture when it needs room for more.
+                Font.textureRebuilt += f => { Material mine; if (f != null && textMaterials.TryGetValue(f, out mine)) mine.mainTexture = f.material.mainTexture; };
+            return m;
+        }
+
         /// <summary>Text in the x-y plane, read from in front (three.js +z); size: its letters' height in metres.</summary>
         public static TextMesh Text(Transform parent, string text, double size, Color color, double x, double y, double z, FontStyle style = FontStyle.Bold)
         {
@@ -324,13 +343,7 @@ namespace Haunted.Game
             go.transform.localPosition = P(x, y, z);
             var t = go.AddComponent<TextMesh>();
             t.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            if (textMaterial == null)
-            {
-                // The font's own material draws over everything (GUI text); in the world it must hide behind things.
-                textMaterial = new Material(t.font.material);
-                textMaterial.SetFloat("unity_GUIZTestMode", (float)UnityEngine.Rendering.CompareFunction.LessEqual);
-            }
-            go.GetComponent<MeshRenderer>().sharedMaterial = textMaterial;
+            go.GetComponent<MeshRenderer>().sharedMaterial = WorldText(t.font);
             t.fontSize = 64;
             t.fontStyle = style;
             // At fontSize 64 a characterSize of 1 makes letters about 6.4 m tall... scaled to size.

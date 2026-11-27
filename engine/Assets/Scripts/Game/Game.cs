@@ -28,6 +28,7 @@ namespace Haunted.Game
     ///   -unityShutdown     on quitting, leave D3D12's teardown to Unity (shows the old crash)
     ///   -debugAtNight 30 '{"down":true}'   30 s into the night, send this debug message (may repeat)
     ///   -sendAtNight 12 pourSalt '{}'   12 s into the night, send this message as if a key were pressed (may repeat)
+    ///   -sendAtNight 12 _face '{"yaw":1.57,"pitch":0}'   12 s into the night, look that way (radians)
     ///   -shotAtNight 14 path   save a screenshot 14 s into the night (may repeat)
     ///   -rematchAfter 10   as host, press Rematch 10 s after the end screen
     ///   -nightUi           with -create or -join: the night's screens in the menus' panel, as with the menus (step E5)
@@ -1884,6 +1885,12 @@ namespace Haunted.Game
                     {
                         // Look the other way (a Summoned ghost comes from behind).
                         me.Yaw += Math.PI;
+                    }
+                    else if (nightSends[i].Value[0] == "_face")
+                    {
+                        // Look a given way (radians), to take a shot from where a player stood.
+                        me.Yaw = Json.Num(body, "yaw");
+                        if (body.ContainsKey("pitch")) me.Pitch = Json.Num(body, "pitch");
                     }
                     else if (nightSends[i].Value[0] == "_tab") tabTest = true;
                     else if (nightSends[i].Value[0] == "_vote" || nightSends[i].Value[0] == "_ouija")

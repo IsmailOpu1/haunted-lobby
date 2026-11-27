@@ -358,8 +358,7 @@ namespace Haunted.Game
         {
             // The suspects' signs are emoji (map data): Windows draws them with its emoji font.
             var emoji = Font.CreateDynamicFontFromOSFont(new[] { "Segoe UI Emoji", "Segoe UI Symbol" }, 96);
-            var iconMat = new Material(emoji.material);
-            iconMat.SetFloat("unity_GUIZTestMode", (float)UnityEngine.Rendering.CompareFunction.LessEqual);
+            var iconMat = WorldText(emoji);
             var dark = Mat(new Color(20 / 255f, 14 / 255f, 10 / 255f), Look.UnlitClear, 0.86f);
             var gold = Mat(Hex(0xc9a45a), Look.Unlit);
             foreach (var t in map.Tasks)
