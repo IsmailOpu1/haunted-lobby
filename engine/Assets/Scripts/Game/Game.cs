@@ -419,7 +419,11 @@ namespace Haunted.Game
                     escTest = false;
                     var keys = UnityEngine.InputSystem.InputSystem.AddDevice<Keyboard>("Test keyboard");
                     UnityEngine.InputSystem.InputSystem.QueueStateEvent(keys, new UnityEngine.InputSystem.LowLevel.KeyboardState(UnityEngine.InputSystem.Key.Escape));
+                    // Frames as well as time before the release: the test's first frames at High are
+                    // slow, and a press and release landing in one update is no press at all.
+                    int pressedFrame = Time.frameCount;
                     yield return new WaitForSecondsRealtime(0.1f);
+                    while (Time.frameCount < pressedFrame + 3) yield return null;
                     UnityEngine.InputSystem.InputSystem.QueueStateEvent(keys, new UnityEngine.InputSystem.LowLevel.KeyboardState());
                     yield return Until(() => over, 5);
                     yield return new WaitForSecondsRealtime(1);
@@ -571,9 +575,9 @@ namespace Haunted.Game
             System.Collections.IEnumerator Click(string text, int field = -1)
             {
                 var p = field >= 0 ? menus.FieldPoint(field) : menus.ScreenPoint(text);
-                // Again once a scroll to it has been laid out.
+                // Again once a scroll (or the tab it opened) has been laid out.
                 yield return new WaitForSecondsRealtime(0.2f);
-                if (field < 0) p = menus.ScreenPoint(text);
+                p = field >= 0 ? menus.FieldPoint(field) : menus.ScreenPoint(text);
                 Check("found \"" + text + "\"", p != null);
                 if (p == null) yield break;
                 Debug.Log("Menu input: click state focused " + Application.isFocused + ", test mouse enabled " + mouse.enabled + ", current " + (UnityEngine.InputSystem.Mouse.current == mouse) + ", frame " + Time.frameCount + ", dt " + Time.unscaledDeltaTime.ToString("0.000"));
