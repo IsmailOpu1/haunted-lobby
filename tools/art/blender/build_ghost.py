@@ -700,7 +700,7 @@ def bvh_of(objs):
     return BVHTree.FromPolygons(verts, polys)
 
 
-def hair(arm, body, shroud_ob, face, count, segs, width, rng):
+def hair(arm, body, cloth, face, count, segs, width, rng):
     """Long black hair, wet and clumped, hanging from the crown: over the face to the chest in front,
     down the back behind. Ribbons, a few hundred, drawn from both sides."""
     head = bvh_of([body])
@@ -934,7 +934,7 @@ def build(low):
     shroud_ob = shroud(arm, cloth_mat, 40 if low else 72, 22 if low else 45)
     skirt_cap(arm, cloth_mat)
     eyes(arm, face)
-    hair(arm, body, cloth, face, 180 if low else 640, 14 if low else 26, 0.02 if low else 0.012, rng)
+    hair(arm, body, shroud_ob, face, 180 if low else 640, 14 if low else 26, 0.02 if low else 0.012, rng)
     if low:
         dec = body.modifiers.new("Decimate", "DECIMATE")
         dec.ratio = 0.3
