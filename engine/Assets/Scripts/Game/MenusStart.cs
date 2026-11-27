@@ -227,36 +227,37 @@ namespace Haunted.Game
 #endif
         }
 
-        static Texture2D titleVignette;
+        static Texture2D titleVignette, roomVignette;
 
         /// <summary>
         /// Over the hotel behind a title screen: dark in the middle where the words are, darker still
         /// at the edges, so the words read and the corridor shows round them like a view through a door.
         /// </summary>
-        static Texture2D TitleVignette
+        static Texture2D TitleVignette => titleVignette != null ? titleVignette : titleVignette = Vignette(0.58f, 0.25f, 0.88f);
+
+        /// <summary>The same over the hotel in a room, a little darker: the room page's panels are many.</summary>
+        static Texture2D RoomVignette => roomVignette != null ? roomVignette : roomVignette = Vignette(0.66f, 0.42f, 0.9f);
+
+        /// <summary>A centred shade: `middle` in a band behind the column, `side` either side of it, `corner` at the corners.</summary>
+        static Texture2D Vignette(float middleA, float sideA, float cornerA)
         {
-            get
-            {
-                if (titleVignette != null) return titleVignette;
-                const int w = 320, h = 180;
-                titleVignette = new Texture2D(w, h, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
-                var px = new Color32[w * h];
-                // A shader's smoothstep(edge0, edge1, x): Unity's Mathf.SmoothStep eases between its first two numbers instead.
-                float Smooth(float edge0, float edge1, float x) => Mathf.SmoothStep(0, 1, Mathf.InverseLerp(edge0, edge1, x));
-                for (int y = 0; y < h; y++)
-                    for (int x = 0; x < w; x++)
-                    {
-                        float dx = (x + 0.5f) / w * 2 - 1, dy = (y + 0.5f) / h * 2 - 1;
-                        float r = Mathf.Sqrt(dx * dx + dy * dy * 1.3f);
-                        // 0.58 in a band behind the words, 0.25 either side of them, 0.88 at the corners.
-                        float middle = Mathf.Lerp(0.58f, 0.25f, Smooth(0.15f, 0.6f, Mathf.Abs(dx)));
-                        float a = Mathf.Lerp(middle, 0.88f, Smooth(0.75f, 1.5f, r));
-                        px[y * w + x] = new Color32(5, 5, 7, (byte)Mathf.RoundToInt(a * 255));
-                    }
-                titleVignette.SetPixels32(px);
-                titleVignette.Apply();
-                return titleVignette;
-            }
+            const int w = 320, h = 180;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            var px = new Color32[w * h];
+            // A shader's smoothstep(edge0, edge1, x): Unity's Mathf.SmoothStep eases between its first two numbers instead.
+            float Smooth(float edge0, float edge1, float x) => Mathf.SmoothStep(0, 1, Mathf.InverseLerp(edge0, edge1, x));
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    float dx = (x + 0.5f) / w * 2 - 1, dy = (y + 0.5f) / h * 2 - 1;
+                    float r = Mathf.Sqrt(dx * dx + dy * dy * 1.3f);
+                    float middle = Mathf.Lerp(middleA, sideA, Smooth(0.15f, 0.6f, Mathf.Abs(dx)));
+                    float a = Mathf.Lerp(middle, cornerA, Smooth(0.75f, 1.5f, r));
+                    px[y * w + x] = new Color32(5, 5, 7, (byte)Mathf.RoundToInt(a * 255));
+                }
+            tex.SetPixels32(px);
+            tex.Apply();
+            return tex;
         }
     }
 }

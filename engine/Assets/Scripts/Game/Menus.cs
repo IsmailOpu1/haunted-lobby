@@ -551,7 +551,9 @@ namespace Haunted.Game
         /// <summary>Tests: the centre of the shown screen's field number i, in screen pixels (y up).</summary>
         public Vector2 FieldPoint(int i)
         {
-            var c = screens[shown].Query<TextField>().ToList()[i].worldBound.center;
+            var f = screens[shown].Query<TextField>().ToList()[i];
+            RevealTabOf(f);
+            var c = f.worldBound.center;
             return new Vector2(c.x, UnityEngine.Screen.height - c.y);
         }
 
@@ -1137,46 +1139,19 @@ namespace Haunted.Game
 
         // ---- The backdrop (style.css .screen and .screen::before) ----
 
-        static Texture2D shade, roomShade, grain;
+        static Texture2D grain;
 
         /// <summary>
-        /// The screens' shade (style.css .screen): a dark gradient from the left (0.97 to 0.3 cover of
-        /// #08070a) over a vignette (an ellipse at 75% 45%, clear to 30% then to 0.7 black at its
-        /// edge), as one colour and cover, in sRGB, for a 16:9 window. In a room the gradient is
-        /// darker (body.in-room .screen), as the hotel is behind it.
+        /// The screens' shade over the hotel: centred, darkest in a band behind the column and at the
+        /// corners (MenusStart.Vignette; owner, 2026-11-27, everything centred and a game's look). The
+        /// browser's was a gradient from the left over black.
         /// </summary>
         static Texture2D ShadeFor(bool inRoom)
         {
             // Before a room every screen has the title's centred shade over the corridor; its panels give the words their dark.
             if (!inRoom) return TitleVignette;
-            {
-                if (!inRoom && shade != null) return shade;
-                if (inRoom && roomShade != null) return roomShade;
-                const int W = 640, H = 360;
-                var px = new Color32[W * H];
-                // Centred (owner, 2026-11-27: everything centred): darkest behind the middle column, lighter either side.
-                float cx = 0.5f * W, cy = 0.45f * H;
-                float rx = Mathf.Sqrt(2) * Mathf.Max(cx, W - cx), ry = Mathf.Sqrt(2) * Mathf.Max(cy, H - cy);
-                float[] ink = { 8, 7, 10 };
-                for (int y = 0; y < H; y++)
-                    for (int x = 0; x < W; x++)
-                    {
-                        float u = Mathf.Abs((x + 0.5f) / W * 2 - 1);
-                        // In a room: 0.98 to 0.94 at 55% to 0.84, over the hotel.
-                        float a1 = inRoom ? (u < 0.55f ? Mathf.Lerp(0.98f, 0.94f, u / 0.55f) : Mathf.Lerp(0.94f, 0.84f, (u - 0.55f) / 0.45f))
-                            : u < 0.34f ? Mathf.Lerp(0.97f, 0.9f, u / 0.34f) : u < 0.68f ? Mathf.Lerp(0.9f, 0.55f, (u - 0.34f) / 0.34f) : Mathf.Lerp(0.55f, 0.3f, (u - 0.68f) / 0.32f);
-                        float dx = (x + 0.5f - cx) / rx, dy = (y + 0.5f - cy) / ry;
-                        float t = Mathf.Sqrt(dx * dx + dy * dy);
-                        float a2 = t <= 0.3f ? 0 : Mathf.Min(1, (t - 0.3f) / 0.7f) * 0.7f;
-                        float a = a1 + a2 * (1 - a1), k = a > 0 ? a1 / a : 1;
-                        px[(H - 1 - y) * W + x] = new Color32((byte)Mathf.RoundToInt(ink[0] * k), (byte)Mathf.RoundToInt(ink[1] * k), (byte)Mathf.RoundToInt(ink[2] * k), (byte)Mathf.RoundToInt(a * 255));
-                    }
-                var tex = new Texture2D(W, H, TextureFormat.RGBA32, false, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
-                tex.SetPixels32(px);
-                tex.Apply();
-                if (inRoom) roomShade = tex; else shade = tex;
-                return tex;
-            }
+            // In a room too: centred, over the hotel you stand in, the panels giving the words their dark.
+            return RoomVignette;
         }
 
         /// <summary>
