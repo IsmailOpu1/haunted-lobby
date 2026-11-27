@@ -1018,7 +1018,7 @@ namespace Haunted.Game
             Options.Sensitivity = sensitivity;
             Options.Quality = quality;
             Options.Notify();
-            yield return click("\u2190  BACK", -1);
+            yield return click("BACK", -1);
             check("back to start from options", menus.Current == "start");
         }
 
