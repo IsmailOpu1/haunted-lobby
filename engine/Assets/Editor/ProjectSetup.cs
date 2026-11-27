@@ -286,6 +286,18 @@ namespace Haunted.Editor
 
         public static void BuildWindows() => BuildWindows(BuildPath, BuildOptions.None);
 
+        /// <summary>
+        /// A build for the tests, apart from the one the owner plays (Build/Windows), so a test build
+        /// never overwrites the game while it is open: -buildPath "E:/HauntedLobby/test/build/Haunted Lobby.exe".
+        /// </summary>
+        public static void BuildTest()
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            int i = System.Array.IndexOf(args, "-buildPath");
+            if (i < 0 || i + 1 >= args.Length) throw new System.ArgumentException("BuildTest needs -buildPath <exe path>");
+            BuildWindows(args[i + 1], BuildOptions.None);
+        }
+
         static void BuildWindows(string path, BuildOptions flags)
         {
             Setup();
