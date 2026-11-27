@@ -612,4 +612,11 @@ The owner asked for game-like menus: "start game, options, about, quit game", an
 - **A game's look on every screen** (owner: "it's supposed to blend… you have seen games' options… remove the scroll bar… do this for everything", `Game/MenusGameLook.cs`): everything centred (headings, words, fields, Back, the room page's code and buttons); a screen's parts sit in dark glass panels over the hotel; Options is split into tabs (one per group, the microphone's tab hidden with voice off) with wide label-and-control rows, so a tab fits without scrolling; no screen shows a scroll bar; checkboxes, selects and buttons are dark with a brass edge; Back is letter-spaced brass on hover. Tests pointing at something in a tab open its tab first, as a player would.
 - **Test aid** `-titleShots DIR`: the title at 7, 18, 25.9, 30 and 44 s of the walk, each also without the menus, then Start game, About, Create, Join, Options and each Options tab.
 - **Tests** now go through Start game to Create a room and Join a room (`-menuInput`, `-story8`, `-roomJoin`).
+- **Back** is one of the title's choices now, large at the foot of every screen (owner: "same as the rest of the menu"); Options' Keys tab is wide with its keys in two columns so it fits with Back under it.
+- **Owner's playtest of the build (2026-11-27)**, fixed:
+  - The room's settings line spilt over its neighbours at 1080p: a label with a line height is measured again whenever its text changes (it was laid out empty, with a height of nothing).
+  - Lines on floors (the Ballroom's black T, white lines upstairs and in the courtyard): the engine's grey wall boxes reached the floor above and showed through it. They stop `SLAB_M` (5 cm) short, as the browser's do (world.ts).
+  - Bare grey walls at the stair shafts (Main Hall, Service Room, Nursery): in `tools/art/build-room.ts` the shaft's end face lay on `L - T/2`, inside the wall's box; a room the flight does not open into (the Nursery) got no end face; the side walls' ends at the mouth had none. Rebuilt Main Hall, Service Room and Nursery.
+  - Guest Room 1's Gothic bed stood with its foot against the wall (the model's headboard is at its -z end): turned 180. Rebuilt Guest Room 1.
+  - Test aids: `ProjectSetup.BuildTest -buildPath …` builds apart from the owner's copy; tests keep input on when their window is not in front.
 
