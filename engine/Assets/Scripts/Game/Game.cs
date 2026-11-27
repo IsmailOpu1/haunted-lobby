@@ -29,7 +29,8 @@ namespace Haunted.Game
     ///   -debugAtNight 30 '{"down":true}'   30 s into the night, send this debug message (may repeat)
     ///   -sendAtNight 12 pourSalt '{}'   12 s into the night, send this message as if a key were pressed (may repeat)
     ///   -sendAtNight 12 _face '{"yaw":1.57,"pitch":0}'   12 s into the night, look that way (radians)
-    ///   -sendAtNight 12 _ghostAt '{"d":6}'   12 s into the night, draw the ghost 6 m ahead, facing you (d -1: the server's again)
+    ///   -sendAtNight 12 _ghostAt '{"d":6}'   12 s into the night, draw the ghost 6 m ahead, facing you (d -1: the server's again);
+    ///                                        add "v":1.4 to have it walk to you at 1.4 m/s, "run":true to move as in a hunt
     ///   -shotAtNight 14 path   save a screenshot 14 s into the night (may repeat)
     ///   -rematchAfter 10   as host, press Rematch 10 s after the end screen
     ///   -nightUi           with -create or -join: the night's screens in the menus' panel, as with the menus (step E5)
@@ -1901,6 +1902,11 @@ namespace Haunted.Game
                         var at = me.State;
                         haunting.TestAt = d < 0 ? (Vector3?)null : Coords.Place(world, at.X - Math.Sin(me.Yaw) * d, at.Z - Math.Cos(me.Yaw) * d);
                         haunting.TestYaw = me.Yaw + Math.PI;
+                        // "v": it comes toward you at this speed (m/s), stopping short; "run": as in a hunt.
+                        var bd = body as Dictionary<string, object>;
+                        object v, run;
+                        haunting.TestSpeed = bd != null && bd.TryGetValue("v", out v) ? Convert.ToSingle(v) : 0;
+                        haunting.TestHunting = bd != null && bd.TryGetValue("run", out run) && run is bool && (bool)run;
                     }
                     else if (nightSends[i].Value[0] == "_tab") tabTest = true;
                     else if (nightSends[i].Value[0] == "_vote" || nightSends[i].Value[0] == "_ouija")

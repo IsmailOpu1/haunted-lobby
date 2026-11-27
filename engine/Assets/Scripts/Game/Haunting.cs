@@ -54,6 +54,10 @@ namespace Haunted.Game
         /// <summary>Test aid (-sendAtNight _ghostAt): the ghost drawn here, facing TestYaw, whatever the server says; null for the server's.</summary>
         public Vector3? TestAt;
         public double TestYaw;
+        /// <summary>Test aid: the test ghost walks toward where it faces at this speed (m/s), stopping short of you; TestHunting moves it as in a hunt.</summary>
+        public float TestSpeed;
+        public bool TestHunting;
+        const float TestStopM = 0.9f;
         /// <summary>The ghost is drawn and walking (it hunts).</summary>
         public bool Shown { get { return ghost.gameObject.activeSelf; } }
 
@@ -185,7 +189,7 @@ namespace Haunted.Game
                 later.RemoveAt(i);
                 a();
             }
-            DrawGhost(now, dt);
+            DrawGhost(now, dt, feet);
             double distance = Known.HasValue ? Vector3.Distance(Known.Value, feet) : double.PositiveInfinity;
             UpdateSounds(now, dt, distance);
             bool heard = Shown && Vector3.Distance(ghost.position, feet) <= GhostCueM;
@@ -215,7 +219,7 @@ namespace Haunted.Game
             return Flicker(dt, distance);
         }
 
-        void DrawGhost(double now, float dt)
+        void DrawGhost(double now, float dt, Vector3? feet)
         {
             bool low = HauntedQuality.Current == HauntedQuality.Level.Low;
             if (model != null && model.Low != low)
@@ -228,11 +232,17 @@ namespace Haunted.Game
                     model.Root.SetParent(ghost, false);
                 }
             }
+            if (TestAt.HasValue && TestSpeed > 0 && Known.HasValue && feet.HasValue)
+            {
+                var to = feet.Value - TestAt.Value;
+                to.y = 0;
+                if (to.magnitude > TestStopM) TestAt = TestAt.Value + to.normalized * Mathf.Min(TestSpeed * dt, to.magnitude - TestStopM);
+            }
             DrawGhostAt(now);
             if (model != null)
             {
                 model.SetActive(ghost.gameObject.activeSelf);
-                if (ghost.gameObject.activeSelf) model.Update(dt, hunting, Options.Photosensitive);
+                if (ghost.gameObject.activeSelf) model.Update(dt, hunting || (TestAt.HasValue && TestHunting), Options.Photosensitive);
             }
         }
 
