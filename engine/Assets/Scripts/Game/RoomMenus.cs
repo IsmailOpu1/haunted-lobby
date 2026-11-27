@@ -63,11 +63,12 @@ namespace Haunted.Game
             set
             {
                 home = value ? "room" : "start";
-                foreach (var screen in screens.Values)
+                foreach (var kv in screens)
                 {
-                    screen.EnableInClassList("outside", !value);
-                    var shade = screen.Q(className: "shade");
-                    if (shade != null) shade.style.backgroundImage = ShadeFor(value);
+                    kv.Value.EnableInClassList("outside", !value);
+                    var shade = kv.Value.Q(className: "shade");
+                    // The title screens keep their own, centred shade (MenusStart).
+                    if (shade != null) shade.style.backgroundImage = titleLists.ContainsKey(kv.Key) ? TitleVignette : ShadeFor(value);
                 }
                 playersKey = settingsKey = hintKey = "";
                 logShown = photosShown = 0;

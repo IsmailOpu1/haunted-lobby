@@ -100,7 +100,7 @@ namespace Haunted.Game
         void MakeFigure(Material baseMaterial)
         {
             var cloth = new Material(baseMaterial) { name = "Title figure" };
-            var dark = new Color(0.018f, 0.017f, 0.02f);
+            var dark = new Color(0.035f, 0.032f, 0.036f);
             cloth.color = dark;
             if (cloth.HasProperty("_BaseColor")) cloth.SetColor("_BaseColor", dark);
             if (cloth.HasProperty("_Smoothness")) cloth.SetFloat("_Smoothness", 0.08f);
