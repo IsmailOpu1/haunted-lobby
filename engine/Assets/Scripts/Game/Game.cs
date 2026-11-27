@@ -519,6 +519,13 @@ namespace Haunted.Game
                 yield return new WaitForSecondsRealtime(1.2f);
                 ScreenCapture.CaptureScreenshot(Path.Combine(dir, "title-" + screen + ".png"));
                 yield return null;
+                // Each of Options' tabs.
+                for (int tab = 1; screen == "options" && menus.OpenTabForTest(tab); tab++)
+                {
+                    yield return new WaitForSecondsRealtime(0.6f);
+                    ScreenCapture.CaptureScreenshot(Path.Combine(dir, "title-options-" + tab + ".png"));
+                    yield return null;
+                }
             }
             yield return new WaitForSecondsRealtime(1);
             Debug.Log("Title shots saved to " + dir);

@@ -87,6 +87,14 @@ namespace Haunted.Game
                     if (set.Pages[i] == e || set.Pages[i].Contains(e)) { OpenTab(set, i); return; }
         }
 
+        /// <summary>Tests: opens tab i of the shown screen's tabs; false when there is none.</summary>
+        public bool OpenTabForTest(int i)
+        {
+            foreach (var set in tabSets)
+                if (screens[shown].Contains(set.Pages[0]) && i < set.Pages.Count) { OpenTab(set, i); return true; }
+            return false;
+        }
+
         /// <summary>A dark glass panel in a column, for a screen's fields and buttons.</summary>
         static VisualElement Panel(VisualElement col)
         {

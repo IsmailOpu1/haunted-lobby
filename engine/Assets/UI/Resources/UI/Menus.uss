@@ -1736,3 +1736,26 @@ Button {
     -unity-text-align: middle-center;
     border-left-width: 0;
 }
+
+/* Panels keep their width instead of shrinking to their words. */
+.glass {
+    width: 460px;
+    align-self: center;
+}
+
+.options-body .group {
+    width: 700px;
+    align-self: center;
+}
+
+.opt-tabs {
+    align-self: center;
+}
+
+.glass .primary {
+    justify-content: center;
+}
+
+.glass .primary-arrow {
+    margin-left: 14px;
+}
