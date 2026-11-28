@@ -992,3 +992,16 @@ The owner approved `docs/plans/mystery-pilot.md` with the suggested answers. Wha
 | Kerning next to a space | None, in the Unity version's fonts (tools/engine-fonts.py) | Chrome shapes word by word and never applies these pairs; Unity applied them many times too big and swallowed the space ("NOT READY") |
 | Speed test (2026-11-27) | Its own design, not the browser's: no frame cap while it runs, every room turned round by torchlight at High and Low, the processor and graphics card timed apart, a verdict (smooth = 60 FPS average and 45 for the slowest 1 %) that Auto quality then follows, the result saved as speed-test.txt | The owner asked for one better than the browser's; a download can measure what a browser cannot |
 | Title screen (2026-11-27) | The Unity version's own, not the browser's: centred, four choices (Start game, Options, About, Quit game), picked with the mouse or the arrow keys and Enter, Esc goes back. Start game leads to Create a room and Join a room. Behind every screen before a room: the hotel, a torch creeping down the East Corridor; the beam dips, and a dark figure is there far off, then closer, then gone (a 50 s loop, no sound, no flashes; the torch's slight wobble only after the photosensitivity warning is answered and with the mode off). The figure is a stand-in shape, not the ghost. Every screen is centred, its parts in dark glass panels over the hotel, with no scroll bars; Options is in tabs | The owner wanted a game's title screen with an animated horror background, not browser-style menus; the current ghost is not scary and is redesigned separately |
+
+### 26.17 Making the night fun (owner answered 2026-11-28)
+
+Plan: `docs/plans/fun-tasks.md`.
+
+| Rule | Value | Why |
+|---|---|---|
+| Which version | The Unity game only. The browser version stays at the tag `browser-final` (the main branch on 2026-11-28) and falls behind; the server follows the Unity game's rules from now | Owner: "Should we use only Unity?", answered yes on Claude's advice: one game to build, the one going on itch.io |
+| Tasks | Errands: fetch a thing from another room (where it lies changes every night) and carry it back to fix something; some for two players by voice; some things are hard to carry; the possessed can swap one for a cursed copy. The plan's 8 errands are the first set | Owner: the minigame tasks are not fun ("like Lockdown Protocol"); "If you think the eight errands you mentioned will make the game fun, we can go with that" |
+| Clues | Random each night, put together from a checked pool, not written live by an AI | Plan 2 |
+| Who was possessed | The player's name with the character ("RAFI (THE NURSE) WAS POSSESSED"), also in the relic status and meetings | Owner: nobody can tell who the Nurse is |
+| Relics | Replaced by things that look ancient (plan 4) | Owner: the Music Box looks like a modern box |
+| Exorcism | One holy water a night; poured on a suspect in the ritual circle: possessed are freed (the ghost turns Furious), an innocent wastes it and the ghost is summoned on the circle | Recommended by Claude; the owner asked for a recommendation. To confirm before it is built (it comes last) |
